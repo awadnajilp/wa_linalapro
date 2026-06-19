@@ -90,7 +90,7 @@ export function registerPanelConfigRoutes(app: Express) {
 
   app.delete("/api/panel/:id", requireAuth, requireRole("superadmin"), panelController.remove);
 
-  app.get("/api/brand-settings", requireAuth, requireRole("superadmin"), panelController.getBrandSettings);
+  app.get("/api/brand-settings", panelController.getBrandSettings);
   app.put("/api/brand-settings", requireAuth, requireRole("superadmin"), upload.fields([{ name: "logo", maxCount: 1 },{name: "logo2", maxCount:1}, { name: "favicon", maxCount: 1 }]),handleDigitalOceanUpload, panelController.updateBrandSettings);
   app.post("/api/brand-settings", requireAuth, requireRole("superadmin"), upload.fields([{ name: "logo", maxCount: 1 }, {name: "logo2", maxCount:1}, { name: "favicon", maxCount: 1 }]),handleDigitalOceanUpload, panelController.createBrandSettings);
 }

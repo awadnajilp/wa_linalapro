@@ -25,9 +25,9 @@ import type { Express } from "express";
 import { storage } from 'server/storage';
 import OpenAI from 'openai';
 import { requireAuth } from 'server/middlewares/auth.middleware';
-import { aiSettings, insertSiteSchema, panelConfig, sites, trainingQaPairs } from '@shared/schema';
+import { aiSettings, insertSiteSchema, panelConfig, sites, trainingQaPairs, knowledgeCategories, knowledgeArticles } from '@shared/schema';
 import { requireSubscription } from 'server/middlewares/requireSubscription';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { db } from 'server/db';
 import { searchTrainingData } from '../services/training.service';
 import multer from 'multer';
@@ -105,13 +105,65 @@ res.json({
         return res.status(404).json({ error: "Widget not available" });
       }
       
-      const categoriesTree = await storage.getKnowledgeCategoriesTree(req.params.siteId);
-      const allCategories = await storage.getKnowledgeCategories(req.params.siteId);
-      const articlesMap = new Map();
+      const allCategories = await db
+        .select()
+        .from(knowledgeCategories)
+        .where(eq(knowledgeCategories.siteId, req.params.siteId));
       
-      for (const category of allCategories) {
-        const articles = await storage.getKnowledgeArticles(category.id);
-        articlesMap.set(category.id, articles);
+      // Build category tree from flat list
+      const categoryMap = new Map<string, any>();
+      for (const cat of allCategories) {
+        categoryMap.set(cat.id, {
+          ...cat,
+          subcategories: [],
+        });
+      }
+
+      const categoriesTree: any[] = [];
+      for (const cat of allCategories) {
+        const node = categoryMap.get(cat.id);
+        if (cat.parentId && categoryMap.has(cat.parentId)) {
+          categoryMap.get(cat.parentId).subcategories.push(node);
+        } else {
+          categoriesTree.push(node);
+        }
+      }
+
+      // Sort tree and subcategories by order
+      const sortNodes = (nodes: any[]) => {
+        nodes.sort((a, b) => (a.order || 0) - (b.order || 0));
+        for (const node of nodes) {
+          if (node.subcategories && node.subcategories.length > 0) {
+            sortNodes(node.subcategories);
+          }
+        }
+      };
+      sortNodes(categoriesTree);
+
+      const categoryIds = allCategories.map(cat => cat.id);
+      const articlesMap = new Map<string, any[]>();
+      
+      if (categoryIds.length > 0) {
+        const allArticles = await db
+          .select()
+          .from(knowledgeArticles)
+          .where(
+            and(
+              inArray(knowledgeArticles.categoryId, categoryIds),
+              eq(knowledgeArticles.published, true)
+            )
+          );
+
+        for (const article of allArticles) {
+          if (!articlesMap.has(article.categoryId)) {
+            articlesMap.set(article.categoryId, []);
+          }
+          articlesMap.get(article.categoryId)!.push(article);
+        }
+
+        for (const articles of articlesMap.values()) {
+          articles.sort((a, b) => (a.order || 0) - (b.order || 0));
+        }
       }
       
       const processCategoryTree = (categories: any[]): any[] => {
@@ -123,7 +175,7 @@ res.json({
           articles: (articlesMap.get(cat.id) || []).map(article => ({
             id: article.id,
             title: article.title,
-            preview: article.content.replace(/<[^>]*>/g, '').substring(0, 150) + '...',
+            preview: (article.content || "").replace(/<[^>]*>/g, '').substring(0, 150) + '...',
           })),
           subcategories: processCategoryTree(cat.subcategories || [])
         }));
@@ -135,6 +187,7 @@ res.json({
       
       res.json(kbData);
     } catch (error: any) {
+      console.error("Failed to fetch knowledge base:", error);
       res.status(500).json({ error: "Failed to fetch knowledge base" });
     }
   });
@@ -176,12 +229,20 @@ res.json({
   // Get article
   app.get("/api/widget/article/:articleId", async (req, res) => {
     try {
-      const article = await storage.getKnowledgeArticle(req.params.articleId);
+      const [article] = await db
+        .select()
+        .from(knowledgeArticles)
+        .where(eq(knowledgeArticles.id, req.params.articleId))
+        .limit(1);
       if (!article) {
         return res.status(404).json({ error: "Article not found" });
       }
       
-      const category = await storage.getKnowledgeCategory(article.categoryId);
+      const [category] = await db
+        .select()
+        .from(knowledgeCategories)
+        .where(eq(knowledgeCategories.id, article.categoryId))
+        .limit(1);
       if (!category) {
         return res.status(404).json({ error: "Category not found" });
       }
@@ -197,6 +258,7 @@ res.json({
         content: article.content,
       });
     } catch (error: any) {
+      console.error("Failed to fetch article:", error);
       res.status(500).json({ error: "Failed to fetch article" });
     }
   });

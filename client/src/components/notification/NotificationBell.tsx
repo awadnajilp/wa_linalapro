@@ -207,6 +207,7 @@ export default function NotificationBell() {
 
   const handleNewNotification = useCallback(
     (data: any) => {
+      console.log("🔔 [NotificationBell] Received notification:", data);
       if (channelId && data?.channelId && data.channelId !== channelId) {
         return;
       }
@@ -216,13 +217,17 @@ export default function NotificationBell() {
 
       const isOnInbox = location.startsWith("/inbox");
       const isNewMessage = data?.type === "new_message";
-      const suppressAlerts = isOnInbox && isNewMessage && document.hasFocus();
+      
+      const activeConvId = (window as any).activeConversationId;
+      const isForActiveConversation = data?.conversationId && activeConvId && data.conversationId === activeConvId;
+      
+      const suppressToast = isOnInbox && isNewMessage && isForActiveConversation && document.hasFocus();
 
-      if (!suppressAlerts) {
-        if (data?.soundEnabled !== false) {
-          playSound();
-        }
+      if (data?.soundEnabled !== false) {
+        playSound();
+      }
 
+      if (!suppressToast) {
         const notifTitle = data?.title || "New Notification";
         const notifMessage = data?.message || "You have a new notification";
         const notifType = data?.type || "default";

@@ -580,6 +580,7 @@ export class WebhookHandler {
               contactPhone: message.from,
               channelName: channel[0].name || channel[0].phoneNumber || "Unknown",
               messagePreview,
+              conversationId: conversation[0].id,
             }, targetUserIds, channel[0].id);
           }
         }

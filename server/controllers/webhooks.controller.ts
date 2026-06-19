@@ -731,6 +731,7 @@ if (io) {
             contactPhone: from,
             channelName: channel.name || channel.phoneNumber || "Unknown",
             messagePreview: preview,
+            conversationId: conversation.id,
           }, targetUserIds, channel.id);
           console.log(`✅ new_message notification sent`);
         }

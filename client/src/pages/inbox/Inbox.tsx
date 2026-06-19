@@ -123,6 +123,10 @@ export default function Inbox() {
 
   useEffect(() => {
     selectedConversationRef.current = selectedConversation;
+    (window as any).activeConversationId = selectedConversation?.id || null;
+    return () => {
+      (window as any).activeConversationId = null;
+    };
   }, [selectedConversation]);
 
   useEffect(() => {
@@ -257,7 +261,43 @@ export default function Inbox() {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
 
       if (selectedConversationRef.current?.id === conversationId) {
+        const incomingMsg = data.message || {
+          id: data.id || `temp_${Date.now()}`,
+          conversationId,
+          content: lastMessageText,
+          fromUser: data.fromUser ?? (data.from === "business_app" || data.from === "agent"),
+          direction: data.direction ?? (data.from === "business_app" || data.from === "agent" ? "outbound" : "inbound"),
+          messageType: data.messageType || "text",
+          createdAt: new Date(lastMessageAt).toISOString(),
+          status: data.status || "received",
+        };
+
+        queryClient.setQueryData(
+          ["/api/conversations", conversationId, "messages"],
+          (old: any) => {
+            if (!old) return old;
+            const messagesList = Array.isArray(old) ? old : (old.messages || []);
+            const hasMore = old.hasMore ?? false;
+
+            const exists = messagesList.some((m: any) => m.id === incomingMsg.id);
+            if (exists) return old;
+
+            const updatedMessages = [...messagesList, incomingMsg];
+            return Array.isArray(old)
+              ? updatedMessages
+              : { messages: updatedMessages, hasMore };
+          }
+        );
+
         queryClient.invalidateQueries({
+          queryKey: [
+            "/api/conversations",
+            conversationId,
+            "messages",
+          ],
+        });
+        
+        queryClient.refetchQueries({
           queryKey: [
             "/api/conversations",
             conversationId,

@@ -519,6 +519,7 @@ export async function triggerNotification(
             channelId: channelId || null,
             createdAt: notif.createdAt,
             soundEnabled: eventPrefs.soundEnabled !== false,
+            conversationId: variables.conversationId || null,
           });
         }
       }

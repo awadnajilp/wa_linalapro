@@ -590,7 +590,7 @@ export default function Sidebar() {
       if (!res.ok) throw new Error("Failed to fetch settings");
       return res.json();
     },
-    enabled: !!channelId,
+    enabled: !!channelId && (isAdmin || isSuper),
   });
 
   const aiSettings = aiData || null;

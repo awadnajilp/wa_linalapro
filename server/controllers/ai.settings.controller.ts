@@ -18,7 +18,7 @@
 import { Request, Response } from "express";
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { db } from "../db";
-import { eq, ne, and } from "drizzle-orm";
+import { eq, ne, and, inArray } from "drizzle-orm";
 import { aiSettings } from "@shared/schema";
 import { verifyChannelOwnership } from "../middlewares/tenant.middleware";
 
@@ -32,15 +32,10 @@ export const getAISettings = async (req: Request, res: Response) => {
     if (isSuperAdmin) {
       settings = await db.select().from(aiSettings);
     } else if (tenantChannelIds && tenantChannelIds.length > 0) {
-      // Logic for admin: only show their own settings
-      settings = await db.select().from(aiSettings).where(
-        and(...tenantChannelIds.map((id: string) => eq(aiSettings.channelId, id)))
-      );
-      // Correction: Drizzle 'in' or multiple 'or' is better
-      const { or } = await import("drizzle-orm");
-      settings = await db.select().from(aiSettings).where(
-        or(...tenantChannelIds.map((id: string) => eq(aiSettings.channelId, id)))
-      );
+      settings = await db
+        .select()
+        .from(aiSettings)
+        .where(inArray(aiSettings.channelId, tenantChannelIds));
     } else {
       settings = [];
     }
@@ -181,6 +176,10 @@ export const updateAISettings = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Setting not found" });
     }
 
+    if (existing.channelId && !verifyChannelOwnership(req, existing.channelId)) {
+      return res.status(403).json({ error: "Insufficient permissions for this channel" });
+    }
+
     // Normalize words input
     let wordsArray: string[] | undefined;
     if (typeof words === "string") {
@@ -228,6 +227,19 @@ export const updateAISettings = async (req: Request, res: Response) => {
 export const deleteAISettings = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+
+    const existing = await db.query.aiSettings.findFirst({
+      where: (table, { eq }) => eq(table.id, id),
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Setting not found" });
+    }
+
+    if (existing.channelId && !verifyChannelOwnership(req, existing.channelId)) {
+      return res.status(403).json({ error: "Insufficient permissions for this channel" });
+    }
+
     await db.delete(aiSettings).where(eq(aiSettings.id, id));
     res.json({ message: "AI setting deleted successfully" });
   } catch (error) {

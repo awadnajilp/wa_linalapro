@@ -30,7 +30,7 @@ import type { Express } from "express";
 
 export function registerAISettingsRoutes(app: Express) {
 
-app.get("/api/ai-settings", requireAuth, requireRole("superadmin", "admin"), getAISettings);
+app.get("/api/ai-settings", requireAuth, requireRole("superadmin", "admin"), resolveTenantChannels, getAISettings);
 app.post("/api/ai-settings", requireAuth, requireRole("superadmin", "admin"), resolveTenantChannels, createAISettings);
 app.put("/api/ai-settings/:id", requireAuth, requireRole("superadmin", "admin"), resolveTenantChannels, updateAISettings);
 app.delete("/api/ai-settings/:id", requireAuth, requireRole("superadmin", "admin"), resolveTenantChannels, deleteAISettings);

@@ -894,11 +894,17 @@ export default function AITrainingPanel({
                   <Label className="flex items-center gap-1.5"><Settings className="h-3.5 w-3.5" /> Provider</Label>
                   <Select
                     value={aiConfigForm.provider}
-                    onValueChange={(v) => setAiConfigForm(prev => ({ ...prev, provider: v }))}
+                    onValueChange={(v) => setAiConfigForm(prev => ({
+                      ...prev,
+                      provider: v,
+                      model: v === "openai" ? "gpt-4o-mini" : "claude-3-5-sonnet-latest",
+                      endpoint: v === "openai" ? "https://api.openai.com/v1" : "https://api.anthropic.com/v1"
+                    }))}
                   >
                     <SelectTrigger><SelectValue placeholder="Select provider" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="openai">OpenAI</SelectItem>
+                      <SelectItem value="anthropic">Anthropic</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -909,7 +915,7 @@ export default function AITrainingPanel({
                     type="password"
                     value={aiConfigForm.apiKey}
                     onChange={(e) => setAiConfigForm(prev => ({ ...prev, apiKey: e.target.value }))}
-                    placeholder="sk-..."
+                    placeholder={aiConfigForm.provider === "openai" ? "sk-..." : "sk-ant-..."}
                   />
                 </div>
 
@@ -921,17 +927,23 @@ export default function AITrainingPanel({
                   >
                     <SelectTrigger><SelectValue placeholder="Select model" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="gpt-4.1">GPT-4.1</SelectItem>
-                      <SelectItem value="gpt-4.1-mini">GPT-4.1 Mini</SelectItem>
-                      <SelectItem value="gpt-4.1-nano">GPT-4.1 Nano</SelectItem>
-                      <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                      <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-                      <SelectItem value="o3-mini">o3-mini</SelectItem>
-                      <SelectItem value="o1">o1</SelectItem>
-                      <SelectItem value="o1-mini">o1-mini</SelectItem>
-                      <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                      <SelectItem value="gpt-4">GPT-4</SelectItem>
-                      <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                      {aiConfigForm.provider === "openai" && (
+                        <>
+                          <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                          <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                          <SelectItem value="o3-mini">o3-mini</SelectItem>
+                          <SelectItem value="o1-mini">o1-mini</SelectItem>
+                          <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
+                          <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                        </>
+                      )}
+                      {aiConfigForm.provider === "anthropic" && (
+                        <>
+                          <SelectItem value="claude-3-5-sonnet-latest">Claude 3.5 Sonnet</SelectItem>
+                          <SelectItem value="claude-3-haiku-20240307">Claude 3 Haiku</SelectItem>
+                          <SelectItem value="claude-3-opus-20240229">Claude 3 Opus</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

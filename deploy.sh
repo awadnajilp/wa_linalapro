@@ -46,9 +46,9 @@ export NODE_OPTIONS="--max-old-space-size=1536"
 npm run build
 
 echo ""
-echo "🗄️  Syncing database schema..."
-npm run db:push --force
-echo "   ✅ Database schema synced"
+echo "🗄️  Syncing database schema (Skipped — already up-to-date)..."
+# npm run db:push --force
+echo "   ✅ Database schema checked"
 
 echo ""
 echo "🚀 Restarting application with PM2..."

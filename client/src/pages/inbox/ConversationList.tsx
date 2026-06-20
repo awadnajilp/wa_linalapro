@@ -51,7 +51,7 @@ const ConversationList = ({
   return (
     <div
       className={cn(
-        "bg-white border-r border-gray-200 flex flex-col shadow-[2px_0_8px_-2px_rgba(0,0,0,0.06)]",
+        "bg-white border-r border-gray-200 flex flex-col shadow-[2px_0_8px_-2px_rgba(0,0,0,0.06)] min-w-0 overflow-hidden",
         selectedConversation
           ? "hidden md:flex md:w-[340px] lg:w-[400px]"
           : "w-full md:w-[340px] lg:w-[400px]"

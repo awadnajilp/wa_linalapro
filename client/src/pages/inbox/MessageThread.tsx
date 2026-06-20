@@ -197,7 +197,7 @@ interface MessageThreadProps {
     : ((selectedConversation as any)?.contact?.phone || selectedConversation?.contactPhone || "");
 
   return (
-    <div className="flex-1 flex flex-col bg-gray-50">
+    <div className="flex-1 flex flex-col bg-gray-50 min-w-0 overflow-hidden">
       <div className="bg-white border-b border-gray-100 px-4 md:px-6 py-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0">

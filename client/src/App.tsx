@@ -240,7 +240,7 @@ function ProtectedRoutes() {
   return (
     <div className="flex min-h-screen bg-white">
       <Sidebar />
-      <div className="flex-1 lg:ml-64">
+      <div className="flex-1 lg:ml-64 min-w-0">
         <Switch>
           <Route path="/dashboard">
             <Dashboard />

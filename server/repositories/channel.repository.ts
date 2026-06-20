@@ -107,17 +107,25 @@ export class ChannelRepository {
   }
 
   async create(insertChannel: InsertChannel): Promise<Channel> {
+    const data = { ...insertChannel };
+    if (data.accessToken) {
+      data.accessToken = data.accessToken.trim();
+    }
     const [channel] = await db
       .insert(channels)
-      .values(insertChannel)
+      .values(data)
       .returning();
     return channel;
   }
 
   async update(id: string, channel: Partial<Channel>): Promise<Channel | undefined> {
+    const data = { ...channel };
+    if (data.accessToken) {
+      data.accessToken = data.accessToken.trim();
+    }
     const [updated] = await db
       .update(channels)
-      .set(channel)
+      .set(data)
       .where(eq(channels.id, id))
       .returning();
     return updated || undefined;

@@ -745,7 +745,7 @@ export const getMediaById = asyncHandler(async (req: Request, res: Response) => 
     // Fetch the actual media content
     const mediaResponse = await fetch(mediaUrl, {
       headers: {
-        Authorization: `Bearer ${channel.accessToken}`,
+        "User-Agent": "WhatsAppBusinessAPI/1.0",
       },
     });
 

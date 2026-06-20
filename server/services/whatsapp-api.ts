@@ -1165,7 +1165,6 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
       // Then, download the media content
       const response = await fetch(mediaUrl, {
         headers: {
-          Authorization: `Bearer ${this.channel.accessToken}`,
           "User-Agent": "WhatsAppBusinessAPI/1.0",
         },
       });
@@ -1204,7 +1203,6 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
         url: mediaUrl,
         responseType: "stream",
         headers: {
-          Authorization: `Bearer ${this.channel.accessToken}`,
           "User-Agent": "WhatsAppBusinessAPI/1.0",
         },
       });
@@ -1246,7 +1244,7 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
   ): Promise<string> {
     const response = await fetch(mediaUrl, {
       headers: {
-        Authorization: `Bearer ${this.channel.accessToken}`,
+        "User-Agent": "WhatsAppBusinessAPI/1.0",
       },
     });
 

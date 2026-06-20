@@ -42,6 +42,10 @@ import { triggerNotification, triggerThrottledNotification, NOTIFICATION_EVENTS 
 import { users } from "@shared/schema";
 import axios from "axios";
 import { getStripe, getRazorpay } from "../services/payment-gateway.service";
+import { createDOClient } from "../config/digitalOceanConfig";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import fs from "fs";
+import path from "path";
 
 // ---------------------------------------------------------------------------
 // Webhook deduplication cache
@@ -317,6 +321,61 @@ export const handleWebhook = asyncHandler(
 );
 
 
+async function processIncomingMedia(
+  mediaId: string,
+  mimeType: string,
+  waApi: WhatsAppApiService
+): Promise<string | null> {
+  try {
+    console.log(`📥 Downloading incoming media: ${mediaId}`);
+    const buffer = await waApi.getMedia(mediaId);
+    if (!buffer) {
+      console.error(`❌ Failed to download incoming media buffer for ID: ${mediaId}`);
+      return null;
+    }
+
+    const extension = mimeType.split("/")[1]?.split(";")[0] || "bin";
+    const filename = `${Date.now()}-${mediaId}.${extension}`;
+
+    // Try cloud storage first
+    const doClient = await createDOClient();
+    if (doClient) {
+      const { s3, bucket, endpoint } = doClient;
+      const fileKey = `uploads/incoming/${filename}`;
+      console.log(`☁️ Uploading incoming media to cloud storage: ${fileKey}`);
+
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: bucket!,
+          Key: fileKey,
+          Body: buffer,
+          ACL: "public-read",
+          ContentType: mimeType,
+        })
+      );
+
+      const endpointUrl = new URL(endpoint || "");
+      const cloudUrl = `https://${bucket}.${endpointUrl.host}/${fileKey}`;
+      console.log(`✅ Incoming media cloud upload successful: ${cloudUrl}`);
+      return cloudUrl;
+    }
+
+    // Fallback to local storage
+    const uploadDir = path.join("uploads", "incoming");
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const localPath = path.join(uploadDir, filename);
+    fs.writeFileSync(localPath, buffer);
+    console.log(`💾 Saved incoming media locally: ${localPath}`);
+    return `/uploads/incoming/${filename}`;
+  } catch (err) {
+    console.error("❌ Error processing incoming media:", err);
+    return null;
+  }
+}
+
 async function handleMessageChange(value: any) {
   const { messages, contacts, metadata, statuses } = value;
 
@@ -563,7 +622,8 @@ async function handleMessageChange(value: any) {
     // Fetch media URL
     if (mediaId) {
       try {
-        mediaUrl = await waApi.fetchMediaUrl(mediaId);
+        const processedUrl = await processIncomingMedia(mediaId, mediaMimeType || "image/jpeg", waApi);
+        mediaUrl = processedUrl || (await waApi.fetchMediaUrl(mediaId));
       } catch (err) {
         console.error("❌ Failed to fetch media URL:", err);
       }
@@ -2813,7 +2873,8 @@ async function handleSmbMessageEchoes(value: any) {
 
     if (mediaId) {
       try {
-        mediaUrl = await waApi.fetchMediaUrl(mediaId);
+        const processedUrl = await processIncomingMedia(mediaId, mediaMimeType || "image/jpeg", waApi);
+        mediaUrl = processedUrl || (await waApi.fetchMediaUrl(mediaId));
       } catch (err) {
         console.error("[smb_message_echoes] Failed to fetch media URL:", err);
       }

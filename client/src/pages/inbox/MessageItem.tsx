@@ -339,6 +339,8 @@ const MessageItem = ({
               <audio
                 controls
                 className="w-full h-8"
+                src={mUrl}
+                preload="metadata"
               >
                 <source src={mUrl} type={mime || message.mediaMimeType} />
               </audio>

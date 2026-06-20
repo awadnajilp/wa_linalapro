@@ -104,7 +104,7 @@ const Footer: React.FC = () => {
 
   return (
     <footer className="bg-gradient-to-b from-gray-900 to-gray-950 text-white relative">
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent" />
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-500/40 to-transparent" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-12 lg:gap-8">
@@ -125,7 +125,7 @@ const Footer: React.FC = () => {
                   style={{ filter: "brightness(0) invert(1)" }}
                 />
               ) : (
-                <div className="bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 rounded-xl p-2.5">
+                <div className="bg-purple-600/20 border border-purple-500/30 text-purple-400 rounded-xl p-2.5">
                   <MessageSquare className="h-7 w-7" />
                 </div>
               )}
@@ -157,10 +157,10 @@ const Footer: React.FC = () => {
               </a>
               <a
                 href="https://mail.google.com"
-                className="bg-gray-800/60 p-2.5 rounded-xl hover:bg-emerald-500/20 border border-gray-700/50 hover:border-emerald-500/30 transition-all duration-300 group hover:scale-110"
+                className="bg-gray-800/60 p-2.5 rounded-xl hover:bg-purple-500/20 border border-gray-700/50 hover:border-purple-500/30 transition-all duration-300 group hover:scale-110"
                 aria-label={t("Landing.footerSec.socialLinks.mail")}
               >
-                <Mail className="w-4 h-4 text-gray-400 group-hover:text-emerald-400 transition-colors duration-300" />
+                <Mail className="w-4 h-4 text-gray-400 group-hover:text-purple-400 transition-colors duration-300" />
               </a>
             </div>
           </div>

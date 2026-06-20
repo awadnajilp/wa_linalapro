@@ -40,8 +40,8 @@ const UseCases = () => {
       icon: ShoppingCart,
       title: t("Landing.useCasesSec.useCases.0.title"),
       description: t("Landing.useCasesSec.useCases.0.description"),
-      color: "from-green-500 to-green-600",
-      bgColor: "bg-green-50",
+      color: "from-purple-500 to-purple-600",
+      bgColor: "bg-purple-50",
       stats: {
         increase: "300%",
         metric: t("Landing.useCasesSec.useCases.0.stats.metric"),
@@ -204,8 +204,8 @@ const UseCases = () => {
                   Success Metric
                 </span>
                 <div className="flex items-center space-x-2">
-                  <TrendingUp className="w-4 h-4 text-emerald-500" />
-                  <span className="text-xl font-bold text-emerald-600">
+                  <TrendingUp className="w-4 h-4 text-purple-500" />
+                  <span className="text-xl font-bold text-purple-600">
                     {useCases[activeUseCase].stats.increase}
                   </span>
                 </div>
@@ -221,7 +221,7 @@ const UseCases = () => {
               </h4>
               {useCases[activeUseCase].features.map((feature, index) => (
                 <div key={index} className="flex items-center space-x-3">
-                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+                  <div className="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
                   <span className="text-gray-600 text-sm">{feature}</span>
                 </div>
               ))}
@@ -239,7 +239,7 @@ const UseCases = () => {
           <div className="space-y-5">
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
               <div className="flex items-center space-x-4 mb-5">
-                <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-emerald-100 ring-offset-2">
+                <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-purple-100 ring-offset-2">
                   <img
                     src="https://plus.unsplash.com/premium_photo-1689977968861-9c91dbb16049?q=80&w=870&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
                     alt=""
@@ -255,7 +255,7 @@ const UseCases = () => {
                   </p>
                 </div>
               </div>
-              <blockquote className="text-gray-600 italic text-sm leading-relaxed mb-5 pl-4 border-l-2 border-emerald-200">
+              <blockquote className="text-gray-600 italic text-sm leading-relaxed mb-5 pl-4 border-l-2 border-purple-200">
                 {String(t("Landing.useCasesSec.cta.customerSuccessQuote"))
                   .replace(
                     "{industry}",
@@ -296,8 +296,8 @@ const UseCases = () => {
                     {t("Landing.useCasesSec.quickStats.0.label")}
                   </div>
                 </div>
-                <div className="text-center p-3 bg-emerald-50/50 rounded-xl">
-                  <div className="text-xl font-bold text-emerald-600">
+                <div className="text-center p-3 bg-purple-50/50 rounded-xl">
+                  <div className="text-xl font-bold text-purple-600">
                     {t("Landing.useCasesSec.quickStats.1.value")}
                   </div>
                   <div className="text-gray-500 text-xs mt-1">

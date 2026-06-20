@@ -162,7 +162,7 @@ const HowItWorks: React.FC = () => {
               <div className="space-y-3">
                 {steps[activeStep].details.map((detail, idx) => (
                   <div key={idx} className="flex items-center space-x-3">
-                    <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    <CheckCircle className="w-4 h-4 text-purple-500 flex-shrink-0" />
                     <span className="text-gray-600 text-sm">{detail}</span>
                   </div>
                 ))}

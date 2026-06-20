@@ -269,7 +269,7 @@ const Pricing = () => {
                       className="flex items-start space-x-3"
                     >
                       {feature.included ? (
-                        <Check className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                        <Check className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
                       ) : (
                         <X className="w-5 h-5 text-gray-300 mt-0.5 flex-shrink-0" />
                       )}
@@ -285,21 +285,21 @@ const Pricing = () => {
                 ) : (
                   <>
                     <li className="flex items-start space-x-3">
-                      <Check className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <Check className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm text-gray-700">
                         {plan.permissions.contacts}{" "}
                         {t("Landing.pricingSec.pricing.contacts")}
                       </span>
                     </li>
                     <li className="flex items-start space-x-3">
-                      <Check className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <Check className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm text-gray-700">
                         {plan.permissions.channel}{" "}
                         {t("Landing.pricingSec.pricing.channels")}
                       </span>
                     </li>
                     <li className="flex items-start space-x-3">
-                      <Check className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <Check className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm text-gray-700">
                         {plan.permissions.automation}{" "}
                         {t("Landing.pricingSec.pricing.automation")}
@@ -338,13 +338,13 @@ const Pricing = () => {
         <div className="max-w-7xl mx-auto">
           {/* Header Section */}
           <div className="text-center mb-16">
-            <div className="inline-flex items-center bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-medium mb-6">
+            <div className="inline-flex items-center bg-purple-100 text-purple-800 px-4 py-2 rounded-full text-sm font-medium mb-6">
               <Crown className="w-4 h-4 mr-2" />
               {t("Landing.pricingSec.introTagline")}
             </div>
             <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
               {t("Landing.pricingSec.headlinePre")}{" "}
-              <span className="block bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+              <span className="block bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
                 {t("Landing.pricingSec.headlineHighlight")}
               </span>
             </h2>
@@ -364,7 +364,7 @@ const Pricing = () => {
               <button
                 onClick={() => setIsAnnual(!isAnnual)}
                 className={`relative w-14 h-7 rounded-full transition-colors ${
-                  isAnnual ? "bg-green-500" : "bg-gray-300"
+                  isAnnual ? "bg-purple-500" : "bg-gray-300"
                 }`}
               >
                 <div
@@ -381,7 +381,7 @@ const Pricing = () => {
                 {t("Landing.pricingSec.billingToggle.annual")}
               </span>
               {isAnnual && (
-                <span className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-medium">
+                <span className="bg-purple-100 text-purple-800 text-xs px-3 py-1 rounded-full font-medium">
                   {t("Landing.pricingSec.billingToggle.saveLabel")}
                 </span>
               )}

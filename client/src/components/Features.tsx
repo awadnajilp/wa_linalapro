@@ -43,9 +43,9 @@ const Features = () => {
       icon: MessageSquare,
       title: t("Landing.featuresSec.featureTabs.0.title"),
       description: t("Landing.featuresSec.featureTabs.0.description"),
-      color: "from-green-500 to-emerald-600",
-      lightBg: "bg-green-50",
-      lightColor: "text-green-600",
+      color: "from-purple-500 to-purple-600",
+      lightBg: "bg-purple-50",
+      lightColor: "text-purple-600",
       demo: {
         title: t("Landing.featuresSec.featureTabs.0.demo.title"),
         stats: t("Landing.featuresSec.featureTabs.0.demo.stats"),
@@ -150,13 +150,13 @@ const Features = () => {
     <section id="features" className="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white via-gray-50/50 to-white">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
-          <div className="inline-flex items-center bg-emerald-50 text-emerald-700 px-4 py-2 rounded-full text-sm font-medium mb-6 border border-emerald-100">
+          <div className="inline-flex items-center bg-purple-50 text-purple-700 px-4 py-2 rounded-full text-sm font-medium mb-6 border border-purple-100">
             <Smartphone className="w-4 h-4 mr-2" />
             {t("Landing.featuresSec.introTagline")}
           </div>
           <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
             {t("Landing.featuresSec.headlinePre")}
-            <span className="block bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+            <span className="block bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
               {t("Landing.featuresSec.headlineHighlight")}
             </span>
           </h2>
@@ -248,7 +248,7 @@ const Features = () => {
                           <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${features[activeTab].color}`}></div>
                           <span className="text-sm text-gray-700">{feat}</span>
                         </div>
-                        <CheckCircle className="w-4 h-4 text-emerald-500" />
+                        <CheckCircle className="w-4 h-4 text-purple-500" />
                       </div>
                     ))}
                 </div>
@@ -281,9 +281,9 @@ const Features = () => {
                 key={index}
                 className="group bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
               >
-                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-3 rounded-xl w-fit mb-4 group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-3 rounded-xl w-fit mb-4 group-hover:scale-110 transition-transform duration-300">
                   {React.createElement(additionalIcons[index] || Globe, {
-                    className: "w-6 h-6 text-emerald-600",
+                    className: "w-6 h-6 text-purple-600",
                   })}
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">

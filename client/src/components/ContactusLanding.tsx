@@ -31,6 +31,7 @@ import { useTranslation } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { AppSettings } from "@/types/types";
+import OfficeLocations from "./OfficeLocations";
 
 const ContactusLanding = () => {
   const [loading, setLoading] = useState(false);
@@ -125,12 +126,12 @@ const ContactusLanding = () => {
   return (
     <div className="pt-16">
       <section className="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-slate-50 via-white to-white relative overflow-hidden">
-        <div className="absolute top-0 left-1/3 w-80 h-80 bg-emerald-100/30 rounded-full blur-3xl"></div>
+        <div className="absolute top-0 left-1/3 w-80 h-80 bg-purple-100/30 rounded-full blur-3xl"></div>
         <div className="absolute bottom-0 right-1/3 w-80 h-80 bg-cyan-100/30 rounded-full blur-3xl"></div>
         <div className="max-w-7xl mx-auto text-center relative">
           <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 tracking-tight">
             {t("contactUs.hero.title")}
-            <span className="bg-gradient-to-r from-emerald-600 to-cyan-600 bg-clip-text text-transparent ml-3">
+            <span className="bg-gradient-to-r from-purple-600 to-cyan-600 bg-clip-text text-transparent ml-3">
               {t("contactUs.hero.titleHighlight")}
             </span>
           </h1>
@@ -155,11 +156,11 @@ const ContactusLanding = () => {
                       name="name"
                       value={formData.name}
                       onChange={handleChange}
-                      className="peer w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all duration-200 placeholder-transparent bg-gray-50/50 focus:bg-white"
+                      className="peer w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all duration-200 placeholder-transparent bg-gray-50/50 focus:bg-white"
                       placeholder={t("contactUs.form.fields.name")}
                       required
                     />
-                    <label className="absolute left-4 -top-2.5 text-xs font-medium text-gray-500 bg-white px-1 transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-sm peer-placeholder-shown:text-gray-400 peer-placeholder-shown:bg-transparent peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-emerald-600 peer-focus:bg-white">
+                    <label className="absolute left-4 -top-2.5 text-xs font-medium text-gray-500 bg-white px-1 transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-sm peer-placeholder-shown:text-gray-400 peer-placeholder-shown:bg-transparent peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-purple-600 peer-focus:bg-white">
                       {t("contactUs.form.fields.name")} {t("contactUs.form.fields.required")}
                     </label>
                   </div>
@@ -169,11 +170,11 @@ const ContactusLanding = () => {
                       name="email"
                       value={formData.email}
                       onChange={handleChange}
-                      className="peer w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all duration-200 placeholder-transparent bg-gray-50/50 focus:bg-white"
+                      className="peer w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all duration-200 placeholder-transparent bg-gray-50/50 focus:bg-white"
                       placeholder={t("contactUs.form.fields.email")}
                       required
                     />
-                    <label className="absolute left-4 -top-2.5 text-xs font-medium text-gray-500 bg-white px-1 transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-sm peer-placeholder-shown:text-gray-400 peer-placeholder-shown:bg-transparent peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-emerald-600 peer-focus:bg-white">
+                    <label className="absolute left-4 -top-2.5 text-xs font-medium text-gray-500 bg-white px-1 transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-sm peer-placeholder-shown:text-gray-400 peer-placeholder-shown:bg-transparent peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-purple-600 peer-focus:bg-white">
                       {t("contactUs.form.fields.email")} {t("contactUs.form.fields.required")}
                     </label>
                   </div>
@@ -186,10 +187,10 @@ const ContactusLanding = () => {
                       name="company"
                       value={formData.company}
                       onChange={handleChange}
-                      className="peer w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all duration-200 placeholder-transparent bg-gray-50/50 focus:bg-white"
+                      className="peer w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all duration-200 placeholder-transparent bg-gray-50/50 focus:bg-white"
                       placeholder={t("contactUs.form.fields.company")}
                     />
-                    <label className="absolute left-4 -top-2.5 text-xs font-medium text-gray-500 bg-white px-1 transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-sm peer-placeholder-shown:text-gray-400 peer-placeholder-shown:bg-transparent peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-emerald-600 peer-focus:bg-white">
+                    <label className="absolute left-4 -top-2.5 text-xs font-medium text-gray-500 bg-white px-1 transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-sm peer-placeholder-shown:text-gray-400 peer-placeholder-shown:bg-transparent peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-purple-600 peer-focus:bg-white">
                       {t("contactUs.form.fields.company")}
                     </label>
                   </div>
@@ -202,7 +203,7 @@ const ContactusLanding = () => {
                       name="subject"
                       value={formData.subject}
                       onChange={handleChange}
-                      className="w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all duration-200 bg-gray-50/50 focus:bg-white appearance-none"
+                      className="w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all duration-200 bg-gray-50/50 focus:bg-white appearance-none"
                       required
                     >
                       <option value="">
@@ -233,11 +234,11 @@ const ContactusLanding = () => {
                     value={formData.message}
                     onChange={handleChange}
                     rows={5}
-                    className="peer w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all duration-200 placeholder-transparent bg-gray-50/50 focus:bg-white resize-none"
+                    className="peer w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all duration-200 placeholder-transparent bg-gray-50/50 focus:bg-white resize-none"
                     placeholder={t("contactUs.form.fields.message")}
                     required
                   ></textarea>
-                  <label className="absolute left-4 -top-2.5 text-xs font-medium text-gray-500 bg-white px-1 transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-sm peer-placeholder-shown:text-gray-400 peer-placeholder-shown:bg-transparent peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-emerald-600 peer-focus:bg-white">
+                  <label className="absolute left-4 -top-2.5 text-xs font-medium text-gray-500 bg-white px-1 transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-sm peer-placeholder-shown:text-gray-400 peer-placeholder-shown:bg-transparent peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-purple-600 peer-focus:bg-white">
                     {t("contactUs.form.fields.message")} {t("contactUs.form.fields.required")}
                   </label>
                 </div>
@@ -245,7 +246,7 @@ const ContactusLanding = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-3.5 rounded-xl font-semibold hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 flex items-center justify-center group shadow-sm shadow-emerald-200 disabled:opacity-60"
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3.5 rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 flex items-center justify-center group shadow-sm shadow-purple-200 disabled:opacity-60"
                 >
                   {loading ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -275,9 +276,9 @@ const ContactusLanding = () => {
                     return (
                       <div
                         key={index}
-                        className="flex items-start space-x-4 p-5 rounded-xl border border-gray-100 bg-gray-50/50 hover:border-emerald-200/60 hover:bg-emerald-50/30 transition-all duration-200"
+                        className="flex items-start space-x-4 p-5 rounded-xl border border-gray-100 bg-gray-50/50 hover:border-purple-200/60 hover:bg-purple-50/30 transition-all duration-200"
                       >
-                        <div className="bg-gradient-to-br from-emerald-500 to-teal-500 p-3 rounded-xl shadow-sm shadow-emerald-200/50 flex-shrink-0">
+                        <div className="bg-gradient-to-br from-purple-500 to-indigo-500 p-3 rounded-xl shadow-sm shadow-purple-200/50 flex-shrink-0">
                           <Icon className="w-5 h-5 text-white" />
                         </div>
                         <div>
@@ -298,6 +299,8 @@ const ContactusLanding = () => {
           </div>
         </div>
       </section>
+
+      <OfficeLocations />
 
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-50/80">
         <div className="max-w-3xl mx-auto">

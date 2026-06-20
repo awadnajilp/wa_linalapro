@@ -31,7 +31,7 @@ const CTA: React.FC = () => {
   };
 
   return (
-    <section className="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-emerald-600 via-teal-500 to-cyan-600 relative overflow-hidden">
+    <section className="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-purple-600 via-indigo-500 to-cyan-600 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-32 -right-32 w-96 h-96 bg-white/[0.07] rounded-full blur-2xl"></div>
         <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-white/[0.07] rounded-full blur-2xl"></div>
@@ -59,7 +59,7 @@ const CTA: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-5 justify-center items-center mb-16">
             <Link
               href="/contact"
-              className="bg-white text-emerald-700 px-8 py-4 rounded-xl font-semibold hover:bg-white/95 transition-all duration-200 transform hover:scale-[1.02] shadow-lg shadow-black/10 flex items-center group text-lg"
+              className="bg-white text-purple-700 px-8 py-4 rounded-xl font-semibold hover:bg-white/95 transition-all duration-200 transform hover:scale-[1.02] shadow-lg shadow-black/10 flex items-center group text-lg"
             >
               {t("Landing.ctaSec.buttons.startTrial")}
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />

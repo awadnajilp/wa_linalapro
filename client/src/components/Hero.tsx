@@ -78,8 +78,8 @@ const Hero = () => {
       value: 98,
       label: t("Landing.heroSec.stats.1.label"),
       suffix: t("Landing.heroSec.stats.1.suffix"),
-      color: "text-emerald-600",
-      bg: "bg-emerald-50",
+      color: "text-purple-600",
+      bg: "bg-purple-50",
     },
     {
       icon: Zap,
@@ -130,25 +130,25 @@ const Hero = () => {
   };
 
   return (
-    <section className="pt-24 pb-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 relative overflow-hidden">
+    <section className="pt-24 pb-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-50 via-white to-purple-50/30 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-[500px] h-[500px] bg-emerald-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-[pulse_6s_ease-in-out_infinite]"></div>
+        <div className="absolute -top-40 -right-40 w-[500px] h-[500px] bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-[pulse_6s_ease-in-out_infinite]"></div>
         <div className="absolute -bottom-40 -left-40 w-[400px] h-[400px] bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-[pulse_8s_ease-in-out_infinite_2s]"></div>
         <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 w-[600px] h-[600px] bg-violet-50 rounded-full mix-blend-multiply filter blur-3xl opacity-15 animate-[pulse_10s_ease-in-out_infinite_4s]"></div>
       </div>
 
       <div className="max-w-7xl mx-auto relative">
         <div className="text-center mb-16">
-          <div className="inline-flex items-center bg-emerald-50 text-emerald-700 px-4 py-2 rounded-full text-sm font-medium mb-8 border border-emerald-200/60 animate-[fadeInDown_0.6s_ease-out]">
+          <div className="inline-flex items-center bg-purple-50 text-purple-700 px-4 py-2 rounded-full text-sm font-medium mb-8 border border-purple-200/60 animate-[fadeInDown_0.6s_ease-out]">
             <Zap className="w-4 h-4 mr-2" />
             {t("Landing.heroSec.animatedBgGreenText")}
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-[1.1] tracking-tight animate-[fadeIn_0.7s_ease-out]">
             {t("Landing.heroSec.headline")}{" "}
-            <span className="block bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent mt-2 pb-4">
+            <span className="block bg-gradient-to-r from-purple-600 to-indigo-500 bg-clip-text text-transparent mt-2 pb-4">
               {displayText}
-              <span className="inline-block w-[3px] h-[0.8em] bg-emerald-500 ml-1 align-middle animate-[blink_1s_step-end_infinite]"></span>
+              <span className="inline-block w-[3px] h-[0.8em] bg-purple-500 ml-1 align-middle animate-[blink_1s_step-end_infinite]"></span>
             </span>
           </h1>
           <p className="text-lg md:text-xl text-gray-500 max-w-3xl mx-auto mb-12 leading-relaxed animate-[fadeIn_0.8s_ease-out]">
@@ -158,7 +158,7 @@ const Hero = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16 animate-[fadeInUp_0.9s_ease-out]">
             <Link
               href="/contact"
-              className="bg-gradient-to-r from-emerald-600 to-teal-500 text-white px-8 py-3.5 rounded-xl font-semibold hover:from-emerald-700 hover:to-teal-600 transition-all duration-300 shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:shadow-emerald-500/30 flex items-center group min-w-[180px] justify-center"
+              className="bg-gradient-to-r from-purple-600 to-indigo-500 text-white px-8 py-3.5 rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-600 transition-all duration-300 shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 flex items-center group min-w-[180px] justify-center"
             >
               {startTrialLoading ? (
                 <LoadingAnimation size="md" color="white" />
@@ -177,7 +177,7 @@ const Hero = () => {
                 key={index}
                 className={`bg-white/80 backdrop-blur-sm p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 animate-[fadeInUp_0.6s_ease-out] ${
                   currentStat === index
-                    ? "ring-1 ring-emerald-400/50 shadow-md border-emerald-100"
+                    ? "ring-1 ring-purple-400/50 shadow-md border-purple-100"
                     : ""
                 }`}
                 style={{ animationDelay: `${index * 0.1}s`, animationFillMode: "both" }}

@@ -23,6 +23,8 @@ import { AppError, asyncHandler } from '../middlewares/error.middleware';
 import { WhatsAppApiService } from '../services/whatsapp-api';
 import type { RequestWithChannel } from '../middlewares/channel.middleware';
 import { triggerService } from "../services/automation-execution-service";
+import path from 'path';
+import fs from 'fs';
 
 export const getMessages = asyncHandler(async (req: Request, res: Response) => {
   const { conversationId } = req.params;
@@ -216,8 +218,12 @@ if (file.size > MAX_SIZE_MB * 1024 * 1024) {
 
         // Get WhatsApp media URL
         try {
-          mediaUrl = await whatsappApi.getMediaUrl(mediaId);
-          console.log("🌐 WhatsApp media URL:", mediaUrl);
+          if (file) {
+            mediaUrl = file.cloudUrl || `/${file.path.replace(/\\/g, "/")}`;
+          } else {
+            mediaUrl = await whatsappApi.getMediaUrl(mediaId);
+          }
+          console.log("🌐 Resolved media URL:", mediaUrl);
         } catch (err) {
           console.warn("⚠️ Failed to get WhatsApp media URL, using local path instead");
           mediaUrl = (file as any).cloudUrl || `/uploads/${file.filename || file.originalname}`;
@@ -816,6 +822,42 @@ export const getMediaProxy = asyncHandler(async (req: Request, res: Response) =>
     const message = await storage.getMessage(messageId);
     if (!message || !message.mediaId) {
       return res.status(404).json({ error: 'Media not found' });
+    }
+
+    const cloudUrl = (message.metadata as any)?.cloudUrl;
+    if (cloudUrl && /^https?:\/\//i.test(cloudUrl)) {
+      console.log("Media proxy: Redirecting to metadata cloud URL:", cloudUrl);
+      return res.redirect(cloudUrl);
+    }
+
+    if (message.mediaUrl) {
+      const isAbsolute = /^https?:\/\//i.test(message.mediaUrl);
+      const isMetaMedia = message.mediaUrl.includes("fbsbx.com") || 
+                          message.mediaUrl.includes("facebook.com") || 
+                          message.mediaUrl.includes("whatsapp.com");
+
+      if (isAbsolute && !isMetaMedia) {
+        console.log("Media proxy: Redirecting to mediaUrl:", message.mediaUrl);
+        return res.redirect(message.mediaUrl);
+      }
+
+      if (!isAbsolute && message.mediaUrl.startsWith("/uploads/")) {
+        const cleanPath = message.mediaUrl.replace(/^\//, "");
+        const localPath = path.join(process.cwd(), cleanPath);
+        if (fs.existsSync(localPath)) {
+          console.log("Media proxy: Serving local file directly:", localPath);
+          const contentType = message.mediaMimeType || 'application/octet-stream';
+          res.set({
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=300',
+          });
+          if (download === 'true') {
+            const filename = (message.metadata as any)?.originalName || path.basename(localPath);
+            res.set('Content-Disposition', `attachment; filename="${filename}"`);
+          }
+          return res.sendFile(localPath);
+        }
+      }
     }
 
     if (!message.conversationId) {

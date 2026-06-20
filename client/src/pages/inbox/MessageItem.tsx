@@ -133,14 +133,16 @@ function resolveMediaUrls(message: Message) {
     const proxyUrl = `/api/messages/media-proxy?messageId=${message.id}`;
     const dlUrl = `/api/messages/media-proxy?messageId=${message.id}&download=true`;
 
+    const targetUrl = cloudUrl || message.mediaUrl;
+
     if (
-      cloudUrl &&
-      isAbsolute(cloudUrl) &&
-      !cloudUrl.includes("fbsbx.com") &&
-      !cloudUrl.includes("facebook.com") &&
-      !cloudUrl.includes("whatsapp.com")
+      targetUrl &&
+      (isAbsolute(targetUrl) || targetUrl.startsWith("/uploads/")) &&
+      !targetUrl.includes("fbsbx.com") &&
+      !targetUrl.includes("facebook.com") &&
+      !targetUrl.includes("whatsapp.com")
     ) {
-      return { mediaUrl: cloudUrl, downloadUrl: dlUrl };
+      return { mediaUrl: targetUrl, downloadUrl: dlUrl };
     }
     return { mediaUrl: proxyUrl, downloadUrl: dlUrl };
   }

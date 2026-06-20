@@ -2330,7 +2330,7 @@
     "hero": {
       "title": "Ponte en",
       "titleHighlight": "Contacto",
-      "subtitle": "¿Tienes preguntas sobre WPSaaS? Estamos aquí para ayudarte a tener éxito con el marketing en WhatsApp."
+      "subtitle": "¿Tienes preguntas sobre LINALA WA? Estamos aquí para ayudarte a tener éxito con el marketing en WhatsApp."
     },
     "form": {
       "heading": "Envíanos un mensaje",
@@ -2372,10 +2372,10 @@
     },
     "faq": {
       "heading": "Preguntas frecuentes",
-      "subtitle": "Respuestas rápidas a preguntas comunes sobre WPSaaS",
+      "subtitle": "Respuestas rápidas a preguntas comunes sobre LINALA WA",
       "questions": [
         {
-          "q": "¿Qué tan rápido puedo comenzar con WPSaaS?",
+          "q": "¿Qué tan rápido puedo comenzar con LINALA WA?",
           "a": "Estarás listo en menos de 5 minutos. Solo regístrate, conecta tu API de WhatsApp Business de Meta y comienza a enviar campañas."
         },
         {
@@ -2461,7 +2461,7 @@
       }
     },
     "benefits": {
-      "heading": "¿Por qué trabajar en WPSaaS?",
+      "heading": "¿Por qué trabajar en LINALA WA?",
       "subtitle": "Ofrecemos excelentes beneficios y un gran ambiente de trabajo",
       "list": [
         {
@@ -2522,7 +2522,7 @@
     "hero": {
       "title": "Historias de",
       "titleHighlight": "Éxito",
-      "subtitle": "Descubre cómo las empresas de diversas industrias logran resultados extraordinarios con la plataforma de marketing de WhatsApp de WPSaaS."
+      "subtitle": "Descubre cómo las empresas de diversas industrias logran resultados extraordinarios con la plataforma de marketing de WhatsApp de LINALA WA."
     },
     "cta": {
       "buttonText": "Leer estudio completo",
@@ -2610,8 +2610,8 @@
             "text": "WhatsApp Business API es una plataforma poderosa que permite a las empresas comunicarse con los clientes a escala. A diferencia de la aplicación regular de WhatsApp Business, la API habilita mensajería automatizada, integraciones y funciones avanzadas."
           },
           {
-            "title": "¿Por qué elegir WPSaaS?",
-            "text": "WPSaaS proporciona una interfaz fácil de usar para WhatsApp Business API, permitiéndote crear campañas, automatizar respuestas y rastrear el rendimiento sin complejidad técnica."
+            "title": "¿Por qué elegir LINALA WA?",
+            "text": "LINALA WA proporciona una interfaz fácil de usar para WhatsApp Business API, permitiéndote crear campañas, automatizar respuestas y rastrear el rendimiento sin complejidad técnica."
           },
           {
             "title": "Requisitos previos",
@@ -2627,8 +2627,8 @@
             "text": "Visita la plataforma Meta Business y crea una cuenta de WhatsApp Business API. Recibirás credenciales API que incluyen tu ID de número de teléfono, token de acceso y URL de webhook."
           },
           {
-            "title": "Paso 2: Conectar con WPSaaS",
-            "text": "En tu panel de WPSaaS, navega a Configuración > Configuración de API. Ingresa tus credenciales de Meta API y prueba la conexión para asegurarte de que todo funciona correctamente."
+            "title": "Paso 2: Conectar con LINALA WA",
+            "text": "En tu panel de LINALA WA, navega a Configuración > Configuración de API. Ingresa tus credenciales de Meta API y prueba la conexión para asegurarte de que todo funciona correctamente."
           },
           {
             "title": "Paso 3: Verifica tu empresa",
@@ -2641,7 +2641,7 @@
         "items": [
           {
             "title": "Tipos de campañas",
-            "text": "WPSaaS admite varios tipos de campañas: Mensajes de difusión para anuncios, Campañas de goteo para nutrir leads, Mensajes activados basados en acciones del usuario, Campañas promocionales para ventas y ofertas"
+            "text": "LINALA WA admite varios tipos de campañas: Mensajes de difusión para anuncios, Campañas de goteo para nutrir leads, Mensajes activados basados en acciones del usuario, Campañas promocionales para ventas y ofertas"
           },
           {
             "title": "Plantillas de mensajes",
@@ -2737,7 +2737,7 @@
     },
     "cta": {
       "heading": "¿Listo para comenzar tu viaje de marketing en WhatsApp?",
-      "subtitle": "Pon esta guía en acción con la poderosa plataforma de WPSaaS",
+      "subtitle": "Pon esta guía en acción con la poderosa plataforma de LINALA WA",
       "button": "Comenzar prueba gratuita"
     }
   },

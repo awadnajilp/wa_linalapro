@@ -74,7 +74,7 @@ const CaseStudies = () => {
       },
       testimonial: {
         quote:
-          "WPSaaS transformed our customer engagement. The automated workflows saved us hours while dramatically increasing our sales.",
+          "LINALA WA transformed our customer engagement. The automated workflows saved us hours while dramatically increasing our sales.",
         author: "Sarah Johnson",
         role: "Marketing Director",
       },

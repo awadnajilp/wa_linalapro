@@ -2320,7 +2320,7 @@
     "hero": {
       "title": "Entrer en",
       "titleHighlight": "contact",
-      "subtitle": "Des questions sur WPSaaS ? Nous sommes là pour vous aider à réussir votre marketing WhatsApp."
+      "subtitle": "Des questions sur LINALA WA ? Nous sommes là pour vous aider à réussir votre marketing WhatsApp."
     },
     "form": {
       "heading": "Envoyez-nous un message",
@@ -2362,10 +2362,10 @@
     },
     "faq": {
       "heading": "Questions fréquemment posées",
-      "subtitle": "Réponses rapides aux questions courantes sur WPSaaS",
+      "subtitle": "Réponses rapides aux questions courantes sur LINALA WA",
       "questions": [
         {
-          "q": "En combien de temps puis-je commencer avec WPSaaS ?",
+          "q": "En combien de temps puis-je commencer avec LINALA WA ?",
           "a": "Vous serez opérationnel en moins de 5 minutes. Inscrivez-vous, connectez votre API WhatsApp Business Meta et commencez à envoyer des campagnes."
         },
         {
@@ -2451,7 +2451,7 @@
       }
     },
     "benefits": {
-      "heading": "Pourquoi travailler chez WPSaaS ?",
+      "heading": "Pourquoi travailler chez LINALA WA ?",
       "subtitle": "Nous offrons des avantages compétitifs et un excellent environnement",
       "list": [
         {
@@ -2512,7 +2512,7 @@
     "hero": {
       "title": "Histoires de",
       "titleHighlight": "succès",
-      "subtitle": "Découvrez comment les entreprises de tous secteurs obtiennent des résultats remarquables grâce à la plateforme WhatsApp de WPSaaS."
+      "subtitle": "Découvrez comment les entreprises de tous secteurs obtiennent des résultats remarquables grâce à la plateforme WhatsApp de LINALA WA."
     },
     "cta": {
       "buttonText": "Lire l’étude de cas complète",
@@ -2600,8 +2600,8 @@
             "text": "L'API WhatsApp Business est une plateforme puissante qui permet aux entreprises de communiquer avec les clients à grande échelle. Contrairement à l'application WhatsApp Business classique, l'API permet la messagerie automatisée, les intégrations et les fonctionnalités avancées."
           },
           {
-            "title": "Pourquoi choisir WPSaaS ?",
-            "text": "WPSaaS fournit une interface conviviale pour l'API WhatsApp Business, vous permettant de créer des campagnes, d'automatiser les réponses et de suivre les performances sans complexité technique."
+            "title": "Pourquoi choisir LINALA WA ?",
+            "text": "LINALA WA fournit une interface conviviale pour l'API WhatsApp Business, vous permettant de créer des campagnes, d'automatiser les réponses et de suivre les performances sans complexité technique."
           },
           {
             "title": "Prérequis",
@@ -2617,8 +2617,8 @@
             "text": "Visitez la plateforme Meta Business et créez un compte API WhatsApp Business. Vous recevrez des identifiants API incluant votre ID de numéro de téléphone, jeton d'accès et URL webhook."
           },
           {
-            "title": "Étape 2 : Se connecter à WPSaaS",
-            "text": "Dans votre tableau de bord WPSaaS, accédez à Paramètres > Configuration API. Entrez vos identifiants Meta API et testez la connexion pour vous assurer que tout fonctionne correctement."
+            "title": "Étape 2 : Se connecter à LINALA WA",
+            "text": "Dans votre tableau de bord LINALA WA, accédez à Paramètres > Configuration API. Entrez vos identifiants Meta API et testez la connexion pour vous assurer que tout fonctionne correctement."
           },
           {
             "title": "Étape 3 : Vérifiez votre entreprise",
@@ -2631,7 +2631,7 @@
         "items": [
           {
             "title": "Types de campagnes",
-            "text": "WPSaaS prend en charge différents types de campagnes : Messages de diffusion pour les annonces, Campagnes goutte-à-goutte pour nourrir les prospects, Messages déclenchés basés sur les actions des utilisateurs, Campagnes promotionnelles pour les ventes et les offres"
+            "text": "LINALA WA prend en charge différents types de campagnes : Messages de diffusion pour les annonces, Campagnes goutte-à-goutte pour nourrir les prospects, Messages déclenchés basés sur les actions des utilisateurs, Campagnes promotionnelles pour les ventes et les offres"
           },
           {
             "title": "Modèles de messages",
@@ -2727,7 +2727,7 @@
     },
     "cta": {
       "heading": "Prêt à démarrer votre parcours marketing WhatsApp ?",
-      "subtitle": "Mettez ce guide en action avec la puissante plateforme WPSaaS",
+      "subtitle": "Mettez ce guide en action avec la puissante plateforme LINALA WA",
       "button": "Commencer l'essai gratuit"
     }
   },

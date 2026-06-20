@@ -2321,7 +2321,7 @@
     "hero": {
       "title": "Nehmen Sie",
       "titleHighlight": "Kontakt auf",
-      "subtitle": "Haben Sie Fragen zu WPSaaS? Wir helfen Ihnen gerne, im WhatsApp-Marketing erfolgreich zu sein."
+      "subtitle": "Haben Sie Fragen zu LINALA WA? Wir helfen Ihnen gerne, im WhatsApp-Marketing erfolgreich zu sein."
     },
     "form": {
       "heading": "Senden Sie uns eine Nachricht",
@@ -2363,10 +2363,10 @@
     },
     "faq": {
       "heading": "Häufig gestellte Fragen",
-      "subtitle": "Schnelle Antworten auf häufige Fragen zu WPSaaS",
+      "subtitle": "Schnelle Antworten auf häufige Fragen zu LINALA WA",
       "questions": [
         {
-          "q": "Wie schnell kann ich mit WPSaaS starten?",
+          "q": "Wie schnell kann ich mit LINALA WA starten?",
           "a": "Sie können in weniger als 5 Minuten loslegen. Einfach registrieren, Ihre Meta WhatsApp Business API verbinden und Kampagnen starten."
         },
         {
@@ -2452,7 +2452,7 @@
       }
     },
     "benefits": {
-      "heading": "Warum bei WPSaaS arbeiten?",
+      "heading": "Warum bei LINALA WA arbeiten?",
       "subtitle": "Wir bieten großartige Benefits & ein starkes Arbeitsumfeld",
       "list": [
         {
@@ -2513,7 +2513,7 @@
     "hero": {
       "title": "Erfolgs",
       "titleHighlight": "geschichten",
-      "subtitle": "Erfahren Sie, wie Unternehmen branchenübergreifend mit der WPSaaS WhatsApp-Marketing-Plattform bemerkenswerte Ergebnisse erzielen."
+      "subtitle": "Erfahren Sie, wie Unternehmen branchenübergreifend mit der LINALA WA WhatsApp-Marketing-Plattform bemerkenswerte Ergebnisse erzielen."
     },
     "cta": {
       "buttonText": "Komplette Fallstudie lesen",
@@ -2601,8 +2601,8 @@
             "text": "Die WhatsApp Business API ist eine leistungsstarke Plattform, die es Unternehmen ermöglicht, skaliert mit Kunden zu kommunizieren. Im Gegensatz zur regulären WhatsApp Business App ermöglicht die API automatisierte Nachrichten, Integrationen und erweiterte Funktionen."
           },
           {
-            "title": "Warum WPSaaS wählen?",
-            "text": "WPSaaS bietet eine benutzerfreundliche Oberfläche für die WhatsApp Business API, mit der Sie Kampagnen erstellen, Antworten automatisieren und die Leistung ohne technische Komplexität verfolgen können."
+            "title": "Warum LINALA WA wählen?",
+            "text": "LINALA WA bietet eine benutzerfreundliche Oberfläche für die WhatsApp Business API, mit der Sie Kampagnen erstellen, Antworten automatisieren und die Leistung ohne technische Komplexität verfolgen können."
           },
           {
             "title": "Voraussetzungen",
@@ -2618,8 +2618,8 @@
             "text": "Besuchen Sie die Meta Business Platform und erstellen Sie ein WhatsApp Business API-Konto. Sie erhalten API-Anmeldedaten einschließlich Ihrer Telefonnummer-ID, Zugriffstoken und Webhook-URL."
           },
           {
-            "title": "Schritt 2: Mit WPSaaS verbinden",
-            "text": "Navigieren Sie in Ihrem WPSaaS-Dashboard zu Einstellungen > API-Konfiguration. Geben Sie Ihre Meta API-Anmeldedaten ein und testen Sie die Verbindung, um sicherzustellen, dass alles ordnungsgemäß funktioniert."
+            "title": "Schritt 2: Mit LINALA WA verbinden",
+            "text": "Navigieren Sie in Ihrem LINALA WA-Dashboard zu Einstellungen > API-Konfiguration. Geben Sie Ihre Meta API-Anmeldedaten ein und testen Sie die Verbindung, um sicherzustellen, dass alles ordnungsgemäß funktioniert."
           },
           {
             "title": "Schritt 3: Verifizieren Sie Ihr Unternehmen",
@@ -2632,7 +2632,7 @@
         "items": [
           {
             "title": "Kampagnentypen",
-            "text": "WPSaaS unterstützt verschiedene Kampagnentypen: Broadcast-Nachrichten für Ankündigungen, Drip-Kampagnen zur Lead-Pflege, Trigger-Nachrichten basierend auf Benutzeraktionen, Werbekampagnen für Verkäufe und Angebote"
+            "text": "LINALA WA unterstützt verschiedene Kampagnentypen: Broadcast-Nachrichten für Ankündigungen, Drip-Kampagnen zur Lead-Pflege, Trigger-Nachrichten basierend auf Benutzeraktionen, Werbekampagnen für Verkäufe und Angebote"
           },
           {
             "title": "Nachrichtenvorlagen",
@@ -2728,7 +2728,7 @@
     },
     "cta": {
       "heading": "Bereit, Ihre WhatsApp-Marketing-Reise zu starten?",
-      "subtitle": "Setzen Sie diesen Leitfaden mit WPSaaS's leistungsstarker Plattform in die Praxis um",
+      "subtitle": "Setzen Sie diesen Leitfaden mit LINALA WA's leistungsstarker Plattform in die Praxis um",
       "button": "Kostenlose Testversion starten"
     }
   },

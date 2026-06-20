@@ -92,7 +92,7 @@ const SignupPopup: React.FC<SignupPopupProps> = ({ onClose }) => {
                 <div className="bg-white/20 p-2 rounded-lg">
                   <MessageCircle className="w-6 h-6" />
                 </div>
-                <span className="text-xl font-bold">WPSaaS</span>
+                <span className="text-xl font-bold">LINALA WA</span>
               </div>
 
               <h2 className="text-2xl font-bold mb-4">

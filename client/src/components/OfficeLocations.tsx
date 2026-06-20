@@ -100,7 +100,7 @@ const OfficeLocations = () => {
             Our Global Office Locations
           </h2>
           <p className="text-gray-500 max-w-2xl mx-auto text-base md:text-lg">
-            WPSaaS operates in multiple countries. Click on a country below to explore our office locations, contact numbers, and view them on the map.
+            LINALA WA operates in multiple countries. Click on a country below to explore our office locations, contact numbers, and view them on the map.
           </p>
         </div>
 

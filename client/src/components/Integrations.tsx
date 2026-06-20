@@ -58,7 +58,7 @@ const Integrations = () => {
         name: "Make.com (Integromat)",
         logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
         description:
-          "Connect WPSaaS with 1000+ apps using visual automation workflows",
+          "Connect LINALA WA with 1000+ apps using visual automation workflows",
         features: [
           "Visual workflow builder",
           "Real-time triggers",
@@ -71,7 +71,7 @@ const Integrations = () => {
       {
         name: "Zapier",
         logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "Automate workflows between WPSaaS and 5000+ applications",
+        description: "Automate workflows between LINALA WA and 5000+ applications",
         features: [
           "Multi-step workflows",
           "Conditional logic",
@@ -356,7 +356,7 @@ const Integrations = () => {
             </span>
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            Seamlessly integrate WPSaaS with your existing tools and workflows.
+            Seamlessly integrate LINALA WA with your existing tools and workflows.
             Connect with 1000+ applications or build custom integrations with
             our powerful API.
           </p>

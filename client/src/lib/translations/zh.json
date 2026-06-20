@@ -2320,7 +2320,7 @@
     "hero": {
       "title": "联系我们",
       "titleHighlight": "",
-      "subtitle": "有关于WPSaaS的问题吗？我们随时帮助你在WhatsApp营销中取得成功。"
+      "subtitle": "有关于LINALA WA的问题吗？我们随时帮助你在WhatsApp营销中取得成功。"
     },
     "form": {
       "heading": "发送消息给我们",
@@ -2362,10 +2362,10 @@
     },
     "faq": {
       "heading": "常见问题",
-      "subtitle": "WPSaaS 的常见问题快捷解答",
+      "subtitle": "LINALA WA 的常见问题快捷解答",
       "questions": [
         {
-          "q": "WPSaaS多快可以用上？",
+          "q": "LINALA WA多快可以用上？",
           "a": "你可以5分钟内上手。只需注册，连接你的Meta WhatsApp Business API，就能开始营销。"
         },
         {
@@ -2451,7 +2451,7 @@
       }
     },
     "benefits": {
-      "heading": "为什么选择WPSaaS？",
+      "heading": "为什么选择LINALA WA？",
       "subtitle": "我们提供有竞争力的福利和优秀的工作环境",
       "list": [
         {
@@ -2512,7 +2512,7 @@
     "hero": {
       "title": "成功",
       "titleHighlight": "案例",
-      "subtitle": "了解各行业企业如何通过WPSaaS WhatsApp营销平台取得卓越成果。"
+      "subtitle": "了解各行业企业如何通过LINALA WA WhatsApp营销平台取得卓越成果。"
     },
     "cta": {
       "buttonText": "查看完整案例",
@@ -2600,8 +2600,8 @@
             "text": "WhatsApp Business API 是一个强大的平台，允许企业大规模与客户沟通。与常规的 WhatsApp Business 应用程序不同，API 支持自动消息、集成和高级功能。"
           },
           {
-            "title": "为什么选择 WPSaaS？",
-            "text": "WPSaaS 为 WhatsApp Business API 提供用户友好的界面，让您无需技术复杂性即可创建营销活动、自动化响应和跟踪性能。"
+            "title": "为什么选择 LINALA WA？",
+            "text": "LINALA WA 为 WhatsApp Business API 提供用户友好的界面，让您无需技术复杂性即可创建营销活动、自动化响应和跟踪性能。"
           },
           {
             "title": "前提条件",
@@ -2617,8 +2617,8 @@
             "text": "访问 Meta Business 平台并创建 WhatsApp Business API 账户。您将收到 API 凭证，包括电话号码 ID、访问令牌和 webhook URL。"
           },
           {
-            "title": "步骤 2：连接到 WPSaaS",
-            "text": "在您的 WPSaaS 仪表板中，导航到设置 > API 配置。输入您的 Meta API 凭证并测试连接以确保一切正常工作。"
+            "title": "步骤 2：连接到 LINALA WA",
+            "text": "在您的 LINALA WA 仪表板中，导航到设置 > API 配置。输入您的 Meta API 凭证并测试连接以确保一切正常工作。"
           },
           {
             "title": "步骤 3：验证您的企业",
@@ -2631,7 +2631,7 @@
         "items": [
           {
             "title": "营销活动类型",
-            "text": "WPSaaS 支持各种营销活动类型：用于公告的广播消息，用于培养潜在客户的滴灌营销活动，基于用户操作的触发消息，用于销售和优惠的促销活动"
+            "text": "LINALA WA 支持各种营销活动类型：用于公告的广播消息，用于培养潜在客户的滴灌营销活动，基于用户操作的触发消息，用于销售和优惠的促销活动"
           },
           {
             "title": "消息模板",
@@ -2727,7 +2727,7 @@
     },
     "cta": {
       "heading": "准备开始你的 WhatsApp 营销之旅了吗？",
-      "subtitle": "用 WPSaaS 强大的平台将本指南付诸实践",
+      "subtitle": "用 LINALA WA 强大的平台将本指南付诸实践",
       "button": "开始免费试用"
     }
   },

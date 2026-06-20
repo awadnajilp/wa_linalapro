@@ -42,10 +42,10 @@ const PressKit = () => {
       category: "Logos",
       icon: Palette,
       items: [
-        { name: "WPSaaS Logo (PNG)", size: "2.1 MB", format: "PNG" },
-        { name: "WPSaaS Logo (SVG)", size: "45 KB", format: "SVG" },
-        { name: "WPSaaS Logo Dark", size: "1.8 MB", format: "PNG" },
-        { name: "WPSaaS Icon Only", size: "890 KB", format: "PNG" },
+        { name: "LINALA WA Logo (PNG)", size: "2.1 MB", format: "PNG" },
+        { name: "LINALA WA Logo (SVG)", size: "45 KB", format: "SVG" },
+        { name: "LINALA WA Logo Dark", size: "1.8 MB", format: "PNG" },
+        { name: "LINALA WA Icon Only", size: "890 KB", format: "PNG" },
       ],
     },
     {
@@ -124,7 +124,7 @@ const PressKit = () => {
     {
       date: "January 15, 2025",
       title:
-        "WPSaaS Raises $15M Series A to Expand WhatsApp Marketing Platform",
+        "LINALA WA Raises $15M Series A to Expand WhatsApp Marketing Platform",
       publication: "TechCrunch",
       link: "#",
     },
@@ -163,7 +163,7 @@ const PressKit = () => {
             </span>
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Everything you need to know about WPSaaS. Download our media assets,
+            Everything you need to know about LINALA WA. Download our media assets,
             company information, and latest news updates.
           </p>
         </div>
@@ -175,18 +175,18 @@ const PressKit = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             <div>
               <h2 className="text-3xl font-bold text-gray-900 mb-6">
-                About WPSaaS
+                About LINALA WA
               </h2>
               <div className="space-y-4 text-gray-600">
                 <p>
-                  WPSaaS is the leading WhatsApp marketing platform that enables
+                  LINALA WA is the leading WhatsApp marketing platform that enables
                   businesses to connect their own Meta WhatsApp Business API and
                   create powerful marketing campaigns. Our platform serves over
                   10,000 businesses worldwide, helping them achieve remarkable
                   growth through WhatsApp marketing.
                 </p>
                 <p>
-                  Founded in 2023 by former Meta engineers, WPSaaS democratizes
+                  Founded in 2023 by former Meta engineers, LINALA WA democratizes
                   WhatsApp marketing by providing enterprise-level features at
                   affordable prices. Our mission is to empower every business
                   with the tools they need to build meaningful relationships
@@ -196,7 +196,7 @@ const PressKit = () => {
                   The platform offers comprehensive features including bulk
                   messaging, automation workflows, advanced analytics, chatbot
                   integration, and seamless API connections. With a focus on
-                  compliance and user experience, WPSaaS has become the trusted
+                  compliance and user experience, LINALA WA has become the trusted
                   choice for businesses looking to scale their WhatsApp
                   marketing efforts.
                 </p>
@@ -317,7 +317,7 @@ const PressKit = () => {
               Executive Team
             </h2>
             <p className="text-xl text-gray-600">
-              Meet the leaders behind WPSaaS
+              Meet the leaders behind LINALA WA
             </p>
           </div>
 
@@ -397,14 +397,14 @@ const PressKit = () => {
                 <h3 className="font-bold mb-2">Press Contact</h3>
                 <p>Sarah Martinez</p>
                 <p>Head of Communications</p>
-                <p>press@wpsaas.com</p>
+                <p>press@linalawa.com</p>
                 <p>+1 (555) 123-4567</p>
               </div>
               <div>
                 <h3 className="font-bold mb-2">Business Inquiries</h3>
                 <p>Michael Thompson</p>
                 <p>VP of Business Development</p>
-                <p>business@wpsaas.com</p>
+                <p>business@linalawa.com</p>
                 <p>+1 (555) 123-4568</p>
               </div>
             </div>

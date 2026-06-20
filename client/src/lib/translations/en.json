@@ -2389,7 +2389,7 @@
     "hero": {
       "title": "Get in",
       "titleHighlight": "Touch",
-      "subtitle": "Have questions about WPSaaS? We're here to help you succeed with WhatsApp marketing."
+      "subtitle": "Have questions about LINALA WA? We're here to help you succeed with WhatsApp marketing."
     },
     "form": {
       "heading": "Send us a Message",
@@ -2426,10 +2426,10 @@
     },
     "faq": {
       "heading": "Frequently Asked Questions",
-      "subtitle": "Quick answers to common questions about WPSaaS",
+      "subtitle": "Quick answers to common questions about LINALA WA",
       "questions": [
         {
-          "q": "How quickly can I get started with WPSaaS?",
+          "q": "How quickly can I get started with LINALA WA?",
           "a": "You can be up and running in under 5 minutes. Simply sign up, connect your Meta WhatsApp Business API, and start sending campaigns."
         },
         {
@@ -2514,7 +2514,7 @@
       }
     },
     "benefits": {
-      "heading": "Why Work at WPSaaS?",
+      "heading": "Why Work at LINALA WA?",
       "subtitle": "We offer competitive benefits and a great work environment",
       "list": [
         {
@@ -2575,7 +2575,7 @@
     "hero": {
       "title": "Success",
       "titleHighlight": "Stories",
-      "subtitle": "Discover how businesses across industries are achieving remarkable results with WPSaaS WhatsApp marketing platform."
+      "subtitle": "Discover how businesses across industries are achieving remarkable results with LINALA WA WhatsApp marketing platform."
     },
     "cta": {
       "buttonText": "Read Full Case Study",
@@ -2663,8 +2663,8 @@
             "text": "WhatsApp Business API is a powerful platform that allows businesses to communicate with customers at scale. Unlike the regular WhatsApp Business app, the API enables automated messaging, integrations, and advanced features."
           },
           {
-            "title": "Why Choose WPSaaS?",
-            "text": "WPSaaS provides a user-friendly interface for the WhatsApp Business API, allowing you to create campaigns, automate responses, and track performance without technical complexity."
+            "title": "Why Choose LINALA WA?",
+            "text": "LINALA WA provides a user-friendly interface for the WhatsApp Business API, allowing you to create campaigns, automate responses, and track performance without technical complexity."
           },
           {
             "title": "Prerequisites",
@@ -2680,8 +2680,8 @@
             "text": "Visit the Meta Business Platform and create a WhatsApp Business API account. You'll receive API credentials including your phone number ID, access token, and webhook URL."
           },
           {
-            "title": "Step 2: Connect to WPSaaS",
-            "text": "In your WPSaaS dashboard, navigate to Settings > API Configuration. Enter your Meta API credentials and test the connection to ensure everything is working properly."
+            "title": "Step 2: Connect to LINALA WA",
+            "text": "In your LINALA WA dashboard, navigate to Settings > API Configuration. Enter your Meta API credentials and test the connection to ensure everything is working properly."
           },
           {
             "title": "Step 3: Verify Your Business",
@@ -2694,7 +2694,7 @@
         "items": [
           {
             "title": "Campaign Types",
-            "text": "WPSaaS supports various campaign types: Broadcast messages for announcements, Drip campaigns for nurturing leads, Triggered messages based on user actions, Promotional campaigns for sales and offers"
+            "text": "LINALA WA supports various campaign types: Broadcast messages for announcements, Drip campaigns for nurturing leads, Triggered messages based on user actions, Promotional campaigns for sales and offers"
           },
           {
             "title": "Message Templates",
@@ -2790,7 +2790,7 @@
     },
     "cta": {
       "heading": "Ready to Start Your WhatsApp Marketing Journey?",
-      "subtitle": "Put this guide into action with WPSaaS's powerful platform",
+      "subtitle": "Put this guide into action with LINALA WA's powerful platform",
       "button": "Start Free Trial"
     }
   },

@@ -54,7 +54,9 @@ export const createDOClient = async (): Promise<DOClientResult> => {
     const urlParts = new URL(cleanEndpoint);
     const hostParts = urlParts.host.split(".");
 
-    if (hostParts.length > 3) {
+    const isAws = urlParts.host.includes("amazonaws.com") || (config.provider && config.provider.toLowerCase() === "aws");
+
+    if (hostParts.length > 3 && !isAws) {
       hostParts.shift();
       urlParts.host = hostParts.join(".");
       cleanEndpoint = urlParts.toString();

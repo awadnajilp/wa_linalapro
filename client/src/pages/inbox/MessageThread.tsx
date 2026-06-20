@@ -39,6 +39,7 @@ import {
   X,
   UserPlus,
   User as UserIcon,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { normalizeDate } from "./utils";
@@ -75,9 +76,11 @@ const TeamAssignDropdown = ({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="outline" size="sm" className="gap-1.5 px-2.5">
           <UserPlus className="w-4 h-4" />
-          {currentAssignee ? `Reassign (${currentAssigneeName})` : "Assign"}
+          <span className="hidden sm:inline">
+            {currentAssignee ? `Reassign (${currentAssigneeName})` : "Assign"}
+          </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
@@ -196,26 +199,26 @@ interface MessageThreadProps {
   return (
     <div className="flex-1 flex flex-col bg-gray-50">
       <div className="bg-white border-b border-gray-100 px-4 md:px-6 py-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden h-9 w-9"
+              className="md:hidden h-9 w-9 text-gray-500 hover:text-gray-700 flex-shrink-0"
               onClick={onBack}
               data-testid="button-back-conversations"
             >
-              <X className="h-4 w-4" />
+              <ArrowLeft className="h-5 w-5" />
             </Button>
-            <Avatar className="h-10 w-10">
+            <Avatar className="h-10 w-10 flex-shrink-0">
               <AvatarFallback className="bg-emerald-500 text-white font-semibold text-sm">
                 {demo ? "*" : ((selectedConversation as any).contactName?.[0]?.toUpperCase() || "?")}
               </AvatarFallback>
             </Avatar>
 
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-gray-900 text-[15px]">
+                <h3 className="font-semibold text-gray-900 text-[15px] truncate max-w-[120px] xs:max-w-[165px] sm:max-w-xs md:max-w-md">
                   {headerName ||
                       headerPhone ||
                       "Unknown"}
@@ -228,7 +231,7 @@ interface MessageThreadProps {
                       : "default"
                   }
                   className={cn(
-                    "text-[10px] font-medium px-2 py-0 h-5 rounded-full",
+                    "text-[10px] font-medium px-2 py-0 h-5 rounded-full flex-shrink-0",
                     selectedConversation.status === "resolved"
                       ? "bg-gray-100 text-gray-600"
                       : "bg-green-50 text-green-700 border border-green-200"
@@ -237,7 +240,7 @@ interface MessageThreadProps {
                   {selectedConversation.status || "open"}
                 </Badge>
               </div>
-              <p className="text-[13px] text-gray-500 mt-0.5">
+              <p className="text-[13px] text-gray-500 mt-0.5 truncate">
                 {headerPhoneDisplay}
               </p>
             </div>

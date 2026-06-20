@@ -809,7 +809,7 @@ export default function Inbox() {
 
   if (!activeChannel) {
     return (
-      <div className="h-screen flex flex-col">
+      <div className="h-screen max-h-[100dvh] flex flex-col">
         <Header title={t("inbox.title")} />
         <div className="flex-1 flex items-center justify-center">
           <EmptyState
@@ -823,8 +823,10 @@ export default function Inbox() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
-     <Header title={t("inbox.title")} />
+    <div className="h-screen max-h-[100dvh] flex flex-col">
+      <div className={selectedConversation ? "hidden md:block" : "block"}>
+        <Header title={t("inbox.title")} />
+      </div>
 
       <div className="flex-1 flex bg-gray-50 overflow-hidden">
         <ConversationList

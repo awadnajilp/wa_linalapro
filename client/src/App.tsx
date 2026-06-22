@@ -238,9 +238,9 @@ function ProtectedRoutes() {
 
   // Priority 4: Authenticated - show dashboard and protected routes
   return (
-    <div className="flex min-h-screen bg-white">
+    <div className="flex min-h-screen bg-white w-full max-w-full overflow-x-hidden">
       <Sidebar />
-      <div className="flex-1 lg:ml-64 min-w-0">
+      <div className="flex-1 lg:ml-64 min-w-0 overflow-x-hidden">
         <Switch>
           <Route path="/dashboard">
             <Dashboard />

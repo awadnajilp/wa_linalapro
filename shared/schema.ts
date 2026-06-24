@@ -151,7 +151,9 @@ export const campaigns = pgTable(
     campaignType: text("campaign_type").notNull(), // contacts, csv, api
     type: text("type").notNull(), // marketing, transactional
     apiType: text("api_type").notNull(), // cloud_api, mm_lite
-    templateId: varchar("template_id").references(() => templates.id),
+    templateId: varchar("template_id").references(() => templates.id, {
+      onDelete: "set null",
+    }),
     templateName: text("template_name"),
     templateLanguage: text("template_language"),
     variableMapping: jsonb("variable_mapping")
@@ -880,7 +882,8 @@ export const automationExecutions = pgTable(
       .references(() => automations.id, { onDelete: "cascade" }),
     contactId: varchar("contact_id").references(() => contacts.id),
     conversationId: varchar("conversation_id").references(
-      () => conversations.id
+      () => conversations.id,
+      { onDelete: "cascade" }
     ),
     triggerData: jsonb("trigger_data").default({}),
     triggerMessageId: varchar("trigger_message_id", { length: 200 }),

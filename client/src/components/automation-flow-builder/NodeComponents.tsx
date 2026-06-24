@@ -37,6 +37,7 @@ import {
   List,
   Paperclip,
   CheckCheck,
+  MessageSquare,
 } from "lucide-react";
 import { BuilderNodeData } from "./types";
 
@@ -557,6 +558,33 @@ export function MarkAsReadNode() {
   );
 }
 
+export function WaitReplyNode({ data }: { data: BuilderNodeData }) {
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-amber-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<MessageSquare className="w-4 h-4" />}
+        title="Wait for Reply"
+        color="text-amber-700"
+        bgColor="bg-amber-50"
+        borderColor="border-amber-100"
+      >
+        {data.saveAs ? (
+          <div className="flex items-center gap-1.5 bg-amber-100/50 rounded px-2 py-1 border border-amber-200/50 text-[11px] text-amber-800">
+            <span>Save reply to:</span>
+            <code className="font-mono font-bold bg-white px-1.5 py-0.5 rounded shadow-sm">
+              {data.saveAs}
+            </code>
+          </div>
+        ) : (
+          <div className="text-gray-400 italic text-[11px]">Just pause & wait for reply</div>
+        )}
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} className="!bg-amber-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+    </div>
+  );
+}
+
 export const nodeTypes = {
   start: StartNode,
   conditions: ConditionsNode,
@@ -574,4 +602,5 @@ export const nodeTypes = {
   send_list_message: SendListMessageNode,
   send_media: SendMediaNode,
   mark_as_read: MarkAsReadNode,
+  wait_reply: WaitReplyNode,
 };

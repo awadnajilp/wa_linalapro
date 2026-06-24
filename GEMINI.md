@@ -68,3 +68,18 @@ A comprehensive security audit was performed with the following results:
 - **Vite Source Map Errors:** If `lucide-react` causes "Unterminated string literal" errors during dev, it is currently excluded in `vite.config.ts` with `sourcemap: false`.
 - **Redis Fallback:** The server is configured to stay stable if Redis is missing, automatically switching to DB-polling for campaign processing.
 - **Vite Error Handling:** The custom Vite logger in `server/vite.ts` has been modified to NOT exit the process on non-fatal frontend errors.
+
+## 🌟 New Features & System Updates (June 2026)
+
+### 1. Database Schema Updates
+- **Template Deletion Safety:** Configured campaigns referencing deleted templates to set `templateId` to `NULL` (`onDelete: "set null"`), avoiding foreign key constraints blocking template deletions.
+- **Automation Execution Cascade:** Deleting a conversation session will cascade delete matching automation executions (`onDelete: "cascade"`), avoiding 500 errors when deleting chats.
+
+### 2. Flow Builder Nodes & Runtime
+- **API Request Node:** Equipped flows with a native HTTP Request client capability (GET, POST, PUT, DELETE) supporting header configuration, authorization tokens, dynamic payload compilation via variable interpolation, and using request outputs inside subsequent conditions/actions.
+- **Wait Control ("Wait for Reply" Node):** Introduced a canvas flow node to pause executions until a contact replies. Active paused states are persisted inside the `automationExecutions` storage mapping to avoid endless message triggering.
+
+### 3. Collected Flow Data Dashboard
+- **Tabbed Interface:** Added a data repository page in the Automations tab to display user variables collected during active sessions.
+- **Multi-Dimensional Filters:** Allows searching by name, phone, or specific automation flows.
+- **Excel Export (.xlsx):** Built XLSX file generation mapping session times, flows, names, phones, statuses, and custom variables into clear column views.

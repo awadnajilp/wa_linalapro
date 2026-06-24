@@ -30,6 +30,12 @@ export function registerAutomationsRoutes(app: Express) {
     automationsController.getAutomations
   );
 
+  // Get collected flow data for sessions
+  app.get("/api/automations/executions/flow-data",
+    extractChannelId,
+    automationsController.getFlowData
+  );
+
   // Get single automation
   app.get("/api/automations/:id", automationsController.getAutomation);
 

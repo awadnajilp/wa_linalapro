@@ -52,11 +52,12 @@ import {
   List,
   Paperclip,
   CheckCheck,
+  MessageSquare,
 } from "lucide-react";
 import { BuilderNodeData, NodeKind, Template, Member, ListSection } from "./types";
 import { FileUploadButton } from "./FileUploadButton";
 import { uid } from "./utils";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -88,6 +89,7 @@ const kindMeta: Record<NodeKind, { icon: any; label: string; color: string; bgTi
   send_list_message: { icon: List, label: "List Message", color: "text-sky-600", bgTint: "bg-sky-50" },
   send_media: { icon: Paperclip, label: "Send Media", color: "text-pink-600", bgTint: "bg-pink-50" },
   mark_as_read: { icon: CheckCheck, label: "Mark as Read", color: "text-lime-600", bgTint: "bg-lime-50" },
+  wait_reply: { icon: MessageSquare, label: "Wait for Reply", color: "text-amber-600", bgTint: "bg-amber-50" },
 };
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -106,7 +108,22 @@ export function ConfigPanel({
 }: ConfigPanelProps) {
   const [templateMeta, setTemplateMeta] = useState<any>(null);
   const [mediaUploading, setMediaUploading] = useState(false);
+  const [localHeaders, setLocalHeaders] = useState<{ id: string; key: string; value: string }[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (selected) {
+      const headersObj = (selected.data.webhookHeaders as Record<string, string>) || {};
+      const array = Object.entries(headersObj).map(([k, v], idx) => ({
+        id: `${selected.id}-header-${idx}`,
+        key: k,
+        value: v,
+      }));
+      setLocalHeaders(array);
+    } else {
+      setLocalHeaders([]);
+    }
+  }, [selected?.id]);
 
   const { data: contactGroups = [] } = useQuery({
     queryKey: ["/api/groups", channelId],
@@ -144,6 +161,32 @@ export function ConfigPanel({
   const d = selected.data;
   const meta = kindMeta[d.kind] || kindMeta.start;
   const Icon = meta.icon;
+
+  const syncHeaders = useCallback((newHeaders: { id: string; key: string; value: string }[]) => {
+    setLocalHeaders(newHeaders);
+    const record: Record<string, string> = {};
+    for (const h of newHeaders) {
+      if (h.key.trim()) {
+        record[h.key] = h.value;
+      }
+    }
+    onChange({ webhookHeaders: record });
+  }, [onChange]);
+
+  const addHeader = useCallback(() => {
+    const newHeaders = [...localHeaders, { id: uid(), key: "", value: "" }];
+    syncHeaders(newHeaders);
+  }, [localHeaders, syncHeaders]);
+
+  const updateHeader = useCallback((id: string, field: "key" | "value", val: string) => {
+    const newHeaders = localHeaders.map((h) => (h.id === id ? { ...h, [field]: val } : h));
+    syncHeaders(newHeaders);
+  }, [localHeaders, syncHeaders]);
+
+  const removeHeader = useCallback((id: string) => {
+    const newHeaders = localHeaders.filter((h) => h.id !== id);
+    syncHeaders(newHeaders);
+  }, [localHeaders, syncHeaders]);
 
   const handleFileUpload = (type: "image" | "video" | "audio" | "document") => (file: File) => {
     const previewUrl = URL.createObjectURL(file);
@@ -262,40 +305,67 @@ export function ConfigPanel({
                       <SelectItem value="equals">Equals</SelectItem>
                       <SelectItem value="starts_with">Starts With</SelectItem>
                       <SelectItem value="contains">Contains Text</SelectItem>
+                      <SelectItem value="variable">Evaluate Variable</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-gray-700">Match Type</Label>
-                  <Select value={d.matchType || "any"} onValueChange={(v) => onChange({ matchType: v as any })}>
-                    <SelectTrigger className="h-9 text-sm bg-white"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="any">Match Any</SelectItem>
-                      <SelectItem value="all">Match All</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold text-gray-700">Keywords</Label>
-                  <Button size="sm" variant="outline" onClick={addKeyword} className="h-7 text-[10px] font-semibold rounded-lg">
-                    <Plus className="w-3 h-3 mr-1" /> Add
-                  </Button>
-                </div>
-                {(d.keywords || []).map((kw, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <Input value={kw} onChange={(e) => updateKeyword(i, e.target.value)} placeholder={`Keyword ${i + 1}`} className="h-8 text-sm rounded-lg" />
-                    <Button size="sm" variant="ghost" onClick={() => removeKeyword(i)} className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
+                {d.conditionType !== "variable" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">Match Type</Label>
+                    <Select value={d.matchType || "any"} onValueChange={(v) => onChange({ matchType: v as any })}>
+                      <SelectTrigger className="h-9 text-sm bg-white"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any">Match Any</SelectItem>
+                        <SelectItem value="all">Match All</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                ))}
-                {(!d.keywords || d.keywords.length === 0) && (
-                  <div className="text-xs text-gray-400 italic py-3 text-center bg-gray-50 rounded-lg">No keywords added yet</div>
                 )}
               </div>
+
+              {d.conditionType === "variable" ? (
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-gray-700">Variable Condition Expression</Label>
+                  <Input
+                    value={(d.keywords || [])[0] || ""}
+                    onChange={(e) => {
+                      const updated = [...(d.keywords || [])];
+                      updated[0] = e.target.value;
+                      onChange({ keywords: updated });
+                    }}
+                    placeholder="e.g. {{_lastWebhookStatus}} === 200"
+                    className="h-9 text-sm rounded-lg"
+                  />
+                  <div className="text-[10px] text-gray-400 leading-relaxed mt-1">
+                    Enter an expression to evaluate. Supported operators:
+                    <code className="bg-gray-100 px-1 rounded mx-0.5 font-mono">===</code>,
+                    <code className="bg-gray-100 px-1 rounded mx-0.5 font-mono">!==</code>,
+                    and <code className="bg-gray-100 px-1 rounded mx-0.5 font-mono">contains</code>.<br />
+                    Example: <code className="bg-gray-100 px-1 rounded font-mono">{"{{_lastWebhookStatus}} === 200"}</code><br />
+                    Example: <code className="bg-gray-100 px-1 rounded font-mono">{"{{_lastWebhookResponse.status}} === success"}</code>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-gray-700">Keywords</Label>
+                    <Button size="sm" variant="outline" onClick={addKeyword} className="h-7 text-[10px] font-semibold rounded-lg">
+                      <Plus className="w-3 h-3 mr-1" /> Add
+                    </Button>
+                  </div>
+                  {(d.keywords || []).map((kw, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Input value={kw} onChange={(e) => updateKeyword(i, e.target.value)} placeholder={`Keyword ${i + 1}`} className="h-8 text-sm rounded-lg" />
+                      <Button size="sm" variant="ghost" onClick={() => removeKeyword(i)} className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                  {(!d.keywords || d.keywords.length === 0) && (
+                    <div className="text-xs text-gray-400 italic py-3 text-center bg-gray-50 rounded-lg">No keywords added yet</div>
+                  )}
+                </div>
+              )}
             </>
           )}
 
@@ -547,6 +617,7 @@ export function ConfigPanel({
                       <SelectItem value="GET">GET</SelectItem>
                       <SelectItem value="POST">POST</SelectItem>
                       <SelectItem value="PUT">PUT</SelectItem>
+                      <SelectItem value="DELETE">DELETE</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -556,7 +627,74 @@ export function ConfigPanel({
                 </div>
               </div>
 
-              {(d.webhookMethod === "POST" || d.webhookMethod === "PUT" || !d.webhookMethod) && (
+              <SectionHeader>HTTP Headers</SectionHeader>
+              <div className="space-y-2 bg-gray-50/50 rounded-xl p-4 border border-gray-100">
+                <div className="space-y-2">
+                  {localHeaders.map((header) => (
+                    <div key={header.id} className="flex gap-2 items-center">
+                      <Input
+                        value={header.key}
+                        onChange={(e) => updateHeader(header.id, "key", e.target.value)}
+                        placeholder="Header (e.g. Authorization)"
+                        className="h-8 text-xs rounded-lg bg-white flex-1"
+                      />
+                      <Input
+                        value={header.value}
+                        onChange={(e) => updateHeader(header.id, "value", e.target.value)}
+                        placeholder="Value"
+                        className="h-8 text-xs rounded-lg bg-white flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeHeader(header.id)}
+                        className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                  {localHeaders.length === 0 && (
+                    <div className="text-[10px] text-gray-400 italic">No custom headers configured.</div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addHeader}
+                    className="w-full h-8 text-xs gap-1 mt-1 rounded-lg bg-white border-dashed border-gray-300 hover:border-gray-400"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Header
+                  </Button>
+                  <div className="flex gap-1.5 mt-1 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!localHeaders.some(h => h.key.toLowerCase() === 'authorization')) {
+                          syncHeaders([...localHeaders, { id: uid(), key: "Authorization", value: "Bearer {{token}}" }]);
+                        }
+                      }}
+                      className="px-2 py-0.5 text-[9px] font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 rounded"
+                    >
+                      + Add Bearer Auth
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!localHeaders.some(h => h.key.toLowerCase() === 'content-type')) {
+                          syncHeaders([...localHeaders, { id: uid(), key: "Content-Type", value: "application/json" }]);
+                        }
+                      }}
+                      className="px-2 py-0.5 text-[9px] font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 rounded"
+                    >
+                      + Add JSON Type
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {(d.webhookMethod === "POST" || d.webhookMethod === "PUT" || d.webhookMethod === "DELETE" || !d.webhookMethod) && (
                 <>
                   <SectionHeader>Request Body</SectionHeader>
                   <div className="space-y-2">
@@ -613,6 +751,26 @@ export function ConfigPanel({
                 </div>
                 <div className="text-[10px] text-gray-400 mt-1">
                   Flow variables set by "Set Variable" nodes are also available using {"{{your_variable_name}}"} syntax.
+                </div>
+              </div>
+            </>
+          )}
+
+          {d.kind === "wait_reply" && (
+            <>
+              <SectionHeader>Wait Configuration</SectionHeader>
+              <div className="space-y-3 bg-amber-50/50 rounded-xl p-4 border border-amber-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Reply As (Optional)</Label>
+                  <Input
+                    value={d.saveAs || ""}
+                    onChange={(e) => onChange({ saveAs: e.target.value })}
+                    placeholder="e.g., user_choice"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400 leading-relaxed mt-1">
+                    If specified, the user's incoming message content will be saved to this variable. You can then reference it in subsequent nodes (e.g. using <code className="bg-gray-100 px-1 rounded font-mono">{"{{user_choice}}"}</code> in Send Message nodes, or in Condition nodes).
+                  </div>
                 </div>
               </div>
             </>

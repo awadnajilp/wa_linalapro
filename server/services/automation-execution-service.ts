@@ -53,6 +53,7 @@ interface PendingExecution {
   executionId: string;
   automationId: string;
   nodeId: string;
+  nodeType?: string;
   conversationId: string;
   contactId?: string;
   context: ExecutionContext;
@@ -171,6 +172,10 @@ export class AutomationExecutionService {
           
         case 'user_reply':
           result = await this.executeUserReply(node, context);
+          break;
+
+        case 'wait_reply':
+          result = await this.executeWaitReply(node, context);
           break;
           
         case 'time_gap':
@@ -637,7 +642,7 @@ private stemWord(word: string = ""): string {
       await this.logNodeExecution(
         context.executionId,
         pendingExecution.nodeId,
-        'user_reply',
+        pendingExecution.nodeType || 'user_reply',
         'completed',
         { question: 'User response received', interactiveData },
         { 
@@ -1152,6 +1157,7 @@ private async executeUserReply(node: any, context: ExecutionContext) {
     executionId: context.executionId,
     automationId: context.automationId,
     nodeId: node.nodeId,
+    nodeType: 'user_reply',
     conversationId: context.conversationId,
     contactId: context.contactId,
     context: { ...context },
@@ -1171,6 +1177,7 @@ private async executeUserReply(node: any, context: ExecutionContext) {
         ...context.variables,
         _userReply_waiting: true,
         _userReply_nodeId: node.nodeId,
+        _userReply_nodeType: 'user_reply',
         _userReply_saveAs: node.data.saveAs || null,
         _userReply_expectedButtons: buttons,
       },
@@ -1202,6 +1209,67 @@ private async executeUserReply(node: any, context: ExecutionContext) {
     saveAs: node.data.saveAs
   };
 }
+
+  private async executeWaitReply(node: any, context: ExecutionContext) {
+    const pendingId = `${context.executionId}_${node.nodeId}_${Date.now()}`;
+    
+    if (!context.conversationId) {
+      throw new Error('conversationId is required to wait for user response');
+    }
+
+    // Store the execution state for resumption
+    const pendingExecution: PendingExecution = {
+      executionId: context.executionId,
+      automationId: context.automationId,
+      nodeId: node.nodeId,
+      nodeType: 'wait_reply',
+      conversationId: context.conversationId,
+      contactId: context.contactId,
+      context: { ...context },
+      saveAs: node.data?.saveAs,
+      timestamp: new Date(),
+      status: 'waiting_for_response',
+      expectedButtons: []
+    };
+    
+    this.pendingExecutions.set(pendingId, pendingExecution);
+    
+    await db.update(automationExecutions)
+      .set({
+        status: 'paused',
+        currentNodeId: node.nodeId,
+        variables: {
+          ...context.variables,
+          _userReply_waiting: true,
+          _userReply_nodeId: node.nodeId,
+          _userReply_nodeType: 'wait_reply',
+          _userReply_saveAs: node.data?.saveAs || null,
+          _userReply_expectedButtons: [],
+        },
+        result: `Waiting for user reply`
+      })
+      .where(eq(automationExecutions.id, context.executionId));
+    
+    // Log that we're waiting
+    await this.logNodeExecution(
+      context.executionId,
+      node.nodeId,
+      node.type,
+      'waiting_for_response',
+      { ...node.data },
+      { pendingId, action: 'wait_reply_activated' },
+      null
+    );
+    
+    console.log(`⏸️  Execution paused. Waiting for user reply (pending ID: ${pendingId})`);
+    
+    return {
+      action: 'execution_paused',
+      conversationId: context.conversationId,
+      pendingId,
+      saveAs: node.data?.saveAs
+    };
+  }
 
 /**
  * Helper method to send text message
@@ -1526,9 +1594,12 @@ private async sendInteractiveMessage(
     const nodeId = vars._userReply_nodeId as string;
     if (!nodeId) return null;
 
+    const nodeType = (vars._userReply_nodeType as string) || 'user_reply';
+
     const cleanVars = { ...vars };
     delete cleanVars._userReply_waiting;
     delete cleanVars._userReply_nodeId;
+    delete cleanVars._userReply_nodeType;
     delete cleanVars._userReply_saveAs;
     delete cleanVars._userReply_expectedButtons;
 
@@ -1547,6 +1618,7 @@ private async sendInteractiveMessage(
       executionId: exec.id,
       automationId: exec.automationId,
       nodeId,
+      nodeType,
       conversationId,
       contactId: exec.contactId ?? undefined,
       context,

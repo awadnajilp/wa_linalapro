@@ -37,6 +37,8 @@ import {
   X,
   Sparkles,
   Loader2,
+  Search,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +53,15 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/auth-context";
 import AutomationFlowBuilder from "@/components/automation-flow-builder/AutomationFlowBuilder";
 import { useTranslation } from "@/lib/i18n";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Automation = {
   id: string;
@@ -102,6 +113,102 @@ export default function Automations() {
   const [selectedAutomation, setSelectedAutomation] = useState<any>(null);
   const { toast } = useToast();
   const [drafts, setDrafts] = useState<AutomationDraft[]>([]);
+  const [activeTab, setActiveTab] = useState<"flows" | "data">("flows");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState<"all" | "name" | "phone">("all");
+  const [selectedFlowId, setSelectedFlowId] = useState<string>("all");
+
+  const { data: flowData = [], isLoading: isLoadingFlowData } = useQuery<any[]>({
+    queryKey: ["/api/automations/executions/flow-data", activeChannel?.id, searchQuery, filterType, selectedFlowId],
+    queryFn: async () => {
+      if (!activeChannel?.id) return [];
+      const queryParams = new URLSearchParams();
+      queryParams.append("channelId", activeChannel.id);
+      if (searchQuery) {
+        queryParams.append("search", searchQuery);
+      }
+      if (filterType !== "all") {
+        queryParams.append("searchType", filterType);
+      }
+      if (selectedFlowId !== "all") {
+        queryParams.append("automationId", selectedFlowId);
+      }
+      const res = await fetch(`/api/automations/executions/flow-data?${queryParams.toString()}`);
+      if (!res.ok) throw new Error("Failed to fetch flow data");
+      return await res.json();
+    },
+    enabled: !!activeChannel?.id && activeTab === "data",
+  });
+
+  const exportToExcel = async (data: any[]) => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Flow Data");
+
+      if (data.length === 0) {
+        toast({ title: "Export failed", description: "No data to export.", variant: "destructive" });
+        return;
+      }
+
+      // Collect all unique custom variable keys (excluding keys starting with '_')
+      const variableKeys = Array.from(new Set(
+        data.flatMap(row => {
+          const vars = row.variables || {};
+          return Object.keys(vars).filter(k => !k.startsWith('_'));
+        })
+      ));
+
+      // Define columns
+      const columns = [
+        { header: "Date/Time", key: "dateTime", width: 25 },
+        { header: "Flow Name", key: "flowName", width: 25 },
+        { header: "Contact Name", key: "contactName", width: 20 },
+        { header: "Contact Phone", key: "contactPhone", width: 20 },
+        { header: "Status", key: "status", width: 15 },
+        ...variableKeys.map(key => ({
+          header: key,
+          key: `var_${key}`,
+          width: 20
+        }))
+      ];
+
+      worksheet.columns = columns;
+
+      // Add rows
+      data.forEach(row => {
+        const vars = row.variables || {};
+        const rowData: any = {
+          dateTime: format(new Date(row.startedAt), "yyyy-MM-dd HH:mm:ss"),
+          flowName: row.flowName || "",
+          contactName: row.contactName || "Unknown",
+          contactPhone: row.contactPhone || "",
+          status: row.status || ""
+        };
+
+        // Populate variables
+        variableKeys.forEach(key => {
+          const val = vars[key];
+          rowData[`var_${key}`] = typeof val === 'object' ? JSON.stringify(val) : (val ?? '');
+        });
+
+        worksheet.addRow(rowData);
+      });
+
+      // Style header row
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF2F2F2' }
+      };
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      saveAs(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `flow_collected_data_${format(new Date(), "yyyyMMdd_HHmmss")}.xlsx`);
+      toast({ title: "Data exported successfully", description: "Excel file download started." });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    }
+  };
 
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -312,223 +419,384 @@ export default function Automations() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white border border-gray-200 rounded-lg p-4 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-blue-50 flex items-center justify-center">
-            <Layers className="h-4 w-4 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Total Flows</p>
-            <p className="text-lg font-semibold text-gray-900">{automations.length}</p>
-          </div>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-green-50 flex items-center justify-center">
-            <Activity className="h-4 w-4 text-green-600" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Active Flows</p>
-            <p className="text-lg font-semibold text-gray-900">{activeCount}</p>
-          </div>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-purple-50 flex items-center justify-center">
-            <BarChart3 className="h-4 w-4 text-purple-600" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Total Executions</p>
-            <p className="text-lg font-semibold text-gray-900">{totalExecutions}</p>
-          </div>
-        </div>
+      <div className="flex border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab("flows")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === "flows"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+          }`}
+        >
+          Flows
+        </button>
+        <button
+          onClick={() => setActiveTab("data")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === "data"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+          }`}
+        >
+          Collected Flow Data
+        </button>
       </div>
 
-      {drafts.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-            <FileEdit className="h-4 w-4 text-amber-500" />
-            Unsaved Drafts ({drafts.length})
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {drafts.map((draft) => (
-              <div
-                key={draft.id}
-                className="bg-amber-50/50 border border-amber-200 rounded-lg p-4 hover:border-amber-300 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileEdit className="h-4 w-4 text-amber-500 shrink-0" />
-                    <h3 className="text-sm font-medium text-gray-900 truncate">
-                      {draft.name || "Untitled Draft"}
-                    </h3>
-                  </div>
-                  <Badge className="bg-amber-100 text-amber-700 border-0 text-[10px] shrink-0">
-                    Draft
-                  </Badge>
-                </div>
-                <p className="text-[11px] text-gray-500 mb-3">
-                  Saved {format(new Date(draft.savedAt), "MMM d, h:mm a")}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 text-xs h-8 text-amber-700 border-amber-300 hover:bg-amber-100"
-                    onClick={() => handleResumeDraft(draft)}
-                  >
-                    <Edit className="h-3 w-3 mr-1" /> Resume
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50"
-                    onClick={() => handleDeleteDraft(draft.id)}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+      {activeTab === "flows" ? (
+        <>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-white border border-gray-200 rounded-lg p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-blue-50 flex items-center justify-center">
+                <Layers className="h-4 w-4 text-blue-600" />
               </div>
-            ))}
+              <div>
+                <p className="text-xs text-gray-500">Total Flows</p>
+                <p className="text-lg font-semibold text-gray-900">{automations.length}</p>
+              </div>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-lg p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-green-50 flex items-center justify-center">
+                <Activity className="h-4 w-4 text-green-600" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Active Flows</p>
+                <p className="text-lg font-semibold text-gray-900">{activeCount}</p>
+              </div>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-lg p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-purple-50 flex items-center justify-center">
+                <BarChart3 className="h-4 w-4 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Total Executions</p>
+                <p className="text-lg font-semibold text-gray-900">{totalExecutions}</p>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
 
-      {automations.length === 0 && drafts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 bg-white border border-gray-200 rounded-lg">
-          <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-            <Workflow className="h-7 w-7 text-gray-400" />
-          </div>
-          <h3 className="text-base font-semibold text-gray-900 mb-1">
-            {t("automations.empityAuto.title")}
-          </h3>
-          <p className="text-sm text-gray-500 max-w-sm text-center mb-5">
-            {t("automations.empityAuto.Subtitle")}
-          </p>
-          <Button
-            onClick={handleCreateNew}
-            data-testid="button-create-first-automation"
-            className="gap-1.5"
-          >
-            <Plus className="h-4 w-4" />
-            {t("automations.empityAuto.buttonTitle")}
-          </Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {automations.map((automation: any) => {
-            const isActive = automation.status === "active";
-            const nodeCount = automation.automation_nodes?.length || 0;
-            const edgeCount = automation.automation_edges?.length || 0;
-
-            return (
-              <div
-                key={automation.id}
-                className="bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all duration-200"
-                data-testid={`card-automation-${automation.id}`}
-              >
-                <div className="p-4 pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span className={`inline-block h-2 w-2 rounded-full shrink-0 ${isActive ? "bg-green-500" : "bg-gray-300"}`} />
-                      <h3
-                        className="font-medium text-sm text-gray-900 truncate"
-                        data-testid={`text-name-${automation.id}`}
-                      >
-                        {automation.name}
-                      </h3>
+          {drafts.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <FileEdit className="h-4 w-4 text-amber-500" />
+                Unsaved Drafts ({drafts.length})
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {drafts.map((draft) => (
+                  <div
+                    key={draft.id}
+                    className="bg-amber-50/50 border border-amber-200 rounded-lg p-4 hover:border-amber-300 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileEdit className="h-4 w-4 text-amber-500 shrink-0" />
+                        <h3 className="text-sm font-medium text-gray-900 truncate">
+                          {draft.name || "Untitled Draft"}
+                        </h3>
+                      </div>
+                      <Badge className="bg-amber-100 text-amber-700 border-0 text-[10px] shrink-0">
+                        Draft
+                      </Badge>
                     </div>
-                    <Switch
-                      checked={isActive}
-                      onCheckedChange={() => toggleMutation.mutate(automation.id)}
-                      disabled={user?.username === "demouser" || toggleMutation.isPending}
-                      data-testid={`button-toggle-${automation.id}`}
-                      className="data-[state=checked]:bg-green-500 shrink-0"
-                    />
-                  </div>
-                </div>
-
-                <div className="px-4 pb-3">
-                  {automation.description ? (
-                    <p
-                      className="text-xs text-gray-500 line-clamp-2 mb-3"
-                      data-testid={`text-description-${automation.id}`}
-                    >
-                      {automation.description}
+                    <p className="text-[11px] text-gray-500 mb-3">
+                      Saved {format(new Date(draft.savedAt), "MMM d, h:mm a")}
                     </p>
-                  ) : (
-                    <p className="text-xs text-gray-400 italic mb-3">
-                      No description
-                    </p>
-                  )}
-
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                      <Zap className="h-3 w-3" />
-                      {automation.trigger || "New Chat"}
-                    </span>
-                    <Badge
-                      variant={isActive ? "default" : "secondary"}
-                      className={`text-[10px] px-1.5 py-0 rounded font-medium ${isActive ? "bg-green-100 text-green-700 hover:bg-green-100 border-0" : "bg-gray-100 text-gray-500 hover:bg-gray-100 border-0"}`}
-                    >
-                      {isActive ? "Active" : "Inactive"}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 text-xs h-8 text-amber-700 border-amber-300 hover:bg-amber-100"
+                        onClick={() => handleResumeDraft(draft)}
+                      >
+                        <Edit className="h-3 w-3 mr-1" /> Resume
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                        onClick={() => handleDeleteDraft(draft.id)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
-
-                  <div className="flex items-center gap-4 text-[11px] text-gray-400">
-                    <span className="inline-flex items-center gap-1">
-                      <GitBranch className="h-3 w-3" />
-                      {nodeCount} nodes
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <Workflow className="h-3 w-3" />
-                      {edgeCount} edges
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <BarChart3 className="h-3 w-3" />
-                      {automation.executionCount || 0} runs
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center border-t border-gray-100">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex-1 text-xs h-9 text-gray-600 hover:text-blue-600 hover:bg-blue-50/50 rounded-none font-medium"
-                    onClick={() => handleEdit(automation)}
-                    data-testid={`button-edit-${automation.id}`}
-                    disabled={user?.username === "demouser"}
-                  >
-                    <Edit className="h-3.5 w-3.5 mr-1" />
-                    Edit
-                  </Button>
-                  <div className="w-px h-5 bg-gray-100" />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex-1 text-xs h-9 text-gray-600 hover:text-red-600 hover:bg-red-50/50 rounded-none font-medium"
-                    onClick={() => {
-                      if (
-                        confirm(
-                          "Are you sure you want to delete this automation?"
-                        )
-                      ) {
-                        deleteMutation.mutate(automation.id);
-                      }
-                    }}
-                    disabled={
-                      user?.username === "demouser"
-                        ? true
-                        : deleteMutation.isPending
-                    }
-                    data-testid={`button-delete-${automation.id}`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-1" />
-                    Delete
-                  </Button>
-                </div>
+                ))}
               </div>
-            );
-          })}
+            </div>
+          )}
+
+          {automations.length === 0 && drafts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 bg-white border border-gray-200 rounded-lg">
+              <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                <Workflow className="h-7 w-7 text-gray-400" />
+              </div>
+              <h3 className="text-base font-semibold text-gray-900 mb-1">
+                {t("automations.empityAuto.title")}
+              </h3>
+              <p className="text-sm text-gray-500 max-w-sm text-center mb-5">
+                {t("automations.empityAuto.Subtitle")}
+              </p>
+              <Button
+                onClick={handleCreateNew}
+                data-testid="button-create-first-automation"
+                className="gap-1.5"
+              >
+                <Plus className="h-4 w-4" />
+                {t("automations.empityAuto.buttonTitle")}
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {automations.map((automation: any) => {
+                const isActive = automation.status === "active";
+                const nodeCount = automation.automation_nodes?.length || 0;
+                const edgeCount = automation.automation_edges?.length || 0;
+
+                return (
+                  <div
+                    key={automation.id}
+                    className="bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all duration-200"
+                    data-testid={`card-automation-${automation.id}`}
+                  >
+                    <div className="p-4 pb-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className={`inline-block h-2 w-2 rounded-full shrink-0 ${isActive ? "bg-green-500" : "bg-gray-300"}`} />
+                          <h3
+                            className="font-medium text-sm text-gray-900 truncate"
+                            data-testid={`text-name-${automation.id}`}
+                          >
+                            {automation.name}
+                          </h3>
+                        </div>
+                        <Switch
+                          checked={isActive}
+                          onCheckedChange={() => toggleMutation.mutate(automation.id)}
+                          disabled={user?.username === "demouser" || toggleMutation.isPending}
+                          data-testid={`button-toggle-${automation.id}`}
+                          className="data-[state=checked]:bg-green-500 shrink-0"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="px-4 pb-3">
+                      {automation.description ? (
+                        <p
+                          className="text-xs text-gray-500 line-clamp-2 mb-3"
+                          data-testid={`text-description-${automation.id}`}
+                        >
+                          {automation.description}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-400 italic mb-3">
+                          No description
+                        </p>
+                      )}
+
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                          <Zap className="h-3 w-3" />
+                          {automation.trigger || "New Chat"}
+                        </span>
+                        <Badge
+                          variant={isActive ? "default" : "secondary"}
+                          className={`text-[10px] px-1.5 py-0 rounded font-medium ${isActive ? "bg-green-100 text-green-700 hover:bg-green-100 border-0" : "bg-gray-100 text-gray-500 hover:bg-gray-100 border-0"}`}
+                        >
+                          {isActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-[11px] text-gray-400">
+                        <span className="inline-flex items-center gap-1">
+                          <GitBranch className="h-3 w-3" />
+                          {nodeCount} nodes
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Workflow className="h-3 w-3" />
+                          {edgeCount} edges
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <BarChart3 className="h-3 w-3" />
+                          {automation.executionCount || 0} runs
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center border-t border-gray-100">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1 text-xs h-9 text-gray-600 hover:text-blue-600 hover:bg-blue-50/50 rounded-none font-medium"
+                        onClick={() => handleEdit(automation)}
+                        data-testid={`button-edit-${automation.id}`}
+                        disabled={user?.username === "demouser"}
+                      >
+                        <Edit className="h-3.5 w-3.5 mr-1" />
+                        Edit
+                      </Button>
+                      <div className="w-px h-5 bg-gray-100" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1 text-xs h-9 text-gray-600 hover:text-red-600 hover:bg-red-50/50 rounded-none font-medium"
+                        onClick={() => {
+                          if (
+                            confirm(
+                              "Are you sure you want to delete this automation?"
+                            )
+                          ) {
+                            deleteMutation.mutate(automation.id);
+                          }
+                        }}
+                        disabled={
+                          user?.username === "demouser"
+                            ? true
+                            : deleteMutation.isPending
+                        }
+                        data-testid={`button-delete-${automation.id}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1" />
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white p-4 border border-gray-200 rounded-lg">
+            <div className="flex flex-col sm:flex-row items-center gap-3 flex-1">
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search contacts..."
+                  className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm bg-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                />
+              </div>
+
+              <Select value={filterType} onValueChange={(val: any) => setFilterType(val)}>
+                <SelectTrigger className="w-full sm:w-[160px]">
+                  <SelectValue placeholder="Search by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Name or Phone</SelectItem>
+                  <SelectItem value="name">Name Only</SelectItem>
+                  <SelectItem value="phone">Phone Only</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={selectedFlowId} onValueChange={setSelectedFlowId}>
+                <SelectTrigger className="w-full sm:w-[200px]">
+                  <SelectValue placeholder="All Flows" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Flows</SelectItem>
+                  {automations.map((flow) => (
+                    <SelectItem key={flow.id} value={flow.id}>
+                      {flow.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              onClick={() => exportToExcel(flowData)}
+              disabled={flowData.length === 0}
+              variant="outline"
+              className="w-full md:w-auto gap-1.5 shrink-0 bg-white hover:bg-gray-50 border-gray-200 text-gray-700 font-medium"
+            >
+              <Download className="h-4 w-4 text-gray-500" />
+              Export to Excel
+            </Button>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            {isLoadingFlowData ? (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                <Loader2 className="h-8 w-8 animate-spin mb-3 text-blue-500" />
+                <p className="text-sm">Loading collected flow data...</p>
+              </div>
+            ) : flowData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-400 text-center px-4">
+                <Workflow className="h-10 w-10 text-gray-300 mb-3" />
+                <h3 className="text-sm font-semibold text-gray-700">No collected variables found</h3>
+                <p className="text-xs text-gray-500 max-w-xs mt-1">Variables collected during flow executions (excluding system variables) will list here.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <th className="p-4">Date/Time</th>
+                      <th className="p-4">Contact</th>
+                      <th className="p-4">Flow Name</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4">Collected Data (Variables)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-sm">
+                    {flowData.map((row: any) => {
+                      const customVars = Object.entries(row.variables || {}).filter(([k]) => !k.startsWith('_'));
+                      const formattedTime = format(new Date(row.startedAt), "MMM d, yyyy h:mm a");
+
+                      return (
+                        <tr key={row.executionId} className="hover:bg-gray-50/50">
+                          <td className="p-4 whitespace-nowrap text-xs text-gray-500">
+                            {formattedTime}
+                          </td>
+                          <td className="p-4 whitespace-nowrap">
+                            <div className="font-medium text-gray-900">{row.contactName || "Unknown Contact"}</div>
+                            <div className="text-xs text-gray-500">{row.contactPhone || "No Phone"}</div>
+                          </td>
+                          <td className="p-4 whitespace-nowrap">
+                            <span className="font-medium text-gray-700">{row.flowName}</span>
+                          </td>
+                          <td className="p-4 whitespace-nowrap">
+                            <Badge
+                              variant={row.status === "completed" ? "default" : row.status === "paused" ? "secondary" : "destructive"}
+                              className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                                row.status === "completed"
+                                  ? "bg-green-50 text-green-700 border-green-200"
+                                  : row.status === "paused"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                                  : "bg-red-50 text-red-700 border-red-200"
+                              }`}
+                            >
+                              {row.status}
+                            </Badge>
+                          </td>
+                          <td className="p-4">
+                            {customVars.length === 0 ? (
+                              <span className="text-xs text-gray-400 italic">No variables collected</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5">
+                                {customVars.map(([key, val]) => (
+                                  <Badge
+                                    key={key}
+                                    variant="outline"
+                                    className="bg-blue-50/50 border-blue-200 text-blue-800 text-[10px] py-0.5 px-2 rounded-md font-mono flex items-center gap-1 max-w-[220px] truncate"
+                                  >
+                                    <span className="font-semibold text-blue-500 shrink-0">{key}:</span>
+                                    <span className="truncate">{typeof val === 'object' ? JSON.stringify(val) : String(val ?? '')}</span>
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

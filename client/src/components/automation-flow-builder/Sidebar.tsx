@@ -32,6 +32,7 @@ import {
   Paperclip,
   CheckCheck,
   Info,
+  MessageSquare,
 } from "lucide-react";
 import { NodeKind } from "./types";
 import {
@@ -134,6 +135,15 @@ const nodeCategories = [
         bg: "bg-violet-50",
         border: "border-violet-200",
         tip: "Store a value for use in later steps. Set from a static value, the customer's last message, or a webhook response. Use {{varName}} in text fields to insert it.",
+      },
+      {
+        kind: "wait_reply" as NodeKind,
+        name: "Wait Reply",
+        icon: MessageSquare,
+        color: "text-amber-500",
+        bg: "bg-amber-50",
+        border: "border-amber-200",
+        tip: "Pause the flow until the customer sends a new message. You can optionally save their reply into a custom variable.",
       },
     ],
   },

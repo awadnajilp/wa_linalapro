@@ -21,6 +21,9 @@ import { storage } from '../storage';
 import { insertAutomationSchema } from '@shared/schema';
 import { AppError, asyncHandler } from '../middlewares/error.middleware';
 import type { RequestWithChannel } from '../middlewares/channel.middleware';
+import { db } from "../db";
+import { automationExecutions, automations, contacts } from "@shared/schema";
+import { eq, and, or, ilike, desc } from "drizzle-orm";
 
 export const getAutomations = asyncHandler(async (req: RequestWithChannel, res: Response) => {
   const channelId = req.query.channelId as string | undefined;
@@ -91,4 +94,54 @@ export const toggleAutomation = asyncHandler(async (req: Request, res: Response)
   });
   
   res.json(updated);
+});
+
+export const getFlowData = asyncHandler(async (req: RequestWithChannel, res: Response) => {
+  const channelId = req.channelId || req.query.channelId as string;
+  if (!channelId) {
+    return res.status(400).json({ error: "channelId is required" });
+  }
+
+  const search = req.query.search as string | undefined;
+  const searchType = req.query.searchType as string | undefined;
+  const automationId = req.query.automationId as string | undefined;
+
+  let query = db
+    .select({
+      executionId: automationExecutions.id,
+      startedAt: automationExecutions.startedAt,
+      completedAt: automationExecutions.completedAt,
+      status: automationExecutions.status,
+      variables: automationExecutions.variables,
+      contactName: contacts.name,
+      contactPhone: contacts.phone,
+      flowName: automations.name,
+    })
+    .from(automationExecutions)
+    .innerJoin(automations, eq(automationExecutions.automationId, automations.id))
+    .leftJoin(contacts, eq(automationExecutions.contactId, contacts.id))
+    .where(
+      and(
+        eq(automations.channelId, channelId),
+        automationId && automationId !== "all"
+          ? eq(automationExecutions.automationId, automationId)
+          : undefined,
+        search 
+          ? (
+              searchType === "name"
+                ? ilike(contacts.name, `%${search}%`)
+                : searchType === "phone"
+                ? ilike(contacts.phone, `%${search}%`)
+                : or(
+                    ilike(contacts.name, `%${search}%`),
+                    ilike(contacts.phone, `%${search}%`)
+                  )
+            )
+          : undefined
+      )
+    )
+    .orderBy(desc(automationExecutions.startedAt));
+
+  const results = await query;
+  res.json(results);
 });

@@ -31,7 +31,8 @@ export type NodeKind =
   | "send_location"
   | "send_list_message"
   | "send_media"
-  | "mark_as_read";
+  | "mark_as_read"
+  | "wait_reply";
 
 export interface ListSection {
   title: string;
@@ -69,7 +70,7 @@ export interface BuilderNodeData {
     value?: string;
   }>;
   webhookUrl?: string;
-  webhookMethod?: "GET" | "POST" | "PUT";
+  webhookMethod?: "GET" | "POST" | "PUT" | "DELETE";
   webhookHeaders?: Record<string, string>;
   webhookBody?: string;
   endMessage?: string;

@@ -36,6 +36,22 @@ export function registerAutomationsRoutes(app: Express) {
     automationsController.getFlowData
   );
 
+  // Get execution logs summary contact-wise
+  app.get("/api/automations/executions/logs/summary",
+    extractChannelId,
+    automationsController.getExecutionsSummary
+  );
+
+  // Get all executions for a contact
+  app.get("/api/automations/executions/logs/contact/:contactId",
+    automationsController.getContactExecutions
+  );
+
+  // Clear all executions for a contact
+  app.delete("/api/automations/executions/logs/contact/:contactId",
+    automationsController.clearContactExecutions
+  );
+
   // Get single automation
   app.get("/api/automations/:id", automationsController.getAutomation);
 

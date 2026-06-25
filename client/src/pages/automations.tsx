@@ -39,6 +39,7 @@ import {
   Loader2,
   Search,
   Download,
+  History,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -123,10 +124,11 @@ export default function Automations() {
   });
 
   const [drafts, setDrafts] = useState<AutomationDraft[]>([]);
-  const [activeTab, setActiveTab] = useState<"flows" | "data">("flows");
+  const [activeTab, setActiveTab] = useState<"flows" | "data" | "logs">("flows");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<"all" | "name" | "phone">("all");
   const [selectedFlowId, setSelectedFlowId] = useState<string>("all");
+  const [selectedContactForLogs, setSelectedContactForLogs] = useState<any | null>(null);
 
   const { data: flowData = [], isLoading: isLoadingFlowData } = useQuery<any[]>({
     queryKey: ["/api/automations/executions/flow-data", activeChannel?.id, searchQuery, filterType, selectedFlowId],
@@ -150,6 +152,53 @@ export default function Automations() {
     enabled: !!activeChannel?.id && activeTab === "data",
   });
 
+  const { data: logsSummary = [], isLoading: isLoadingLogsSummary, refetch: refetchLogsSummary } = useQuery<any[]>({
+    queryKey: ["/api/automations/executions/logs/summary", activeChannel?.id],
+    queryFn: async () => {
+      if (!activeChannel?.id) return [];
+      const res = await fetch(`/api/automations/executions/logs/summary?channelId=${activeChannel.id}`);
+      if (!res.ok) throw new Error("Failed to fetch logs summary");
+      return await res.json();
+    },
+    enabled: !!activeChannel?.id && activeTab === "logs",
+  });
+
+  const { data: contactExecutions = [], isLoading: isLoadingContactExecutions } = useQuery<any[]>({
+    queryKey: ["/api/automations/executions/logs/contact", selectedContactForLogs?.contactId],
+    queryFn: async () => {
+      if (!selectedContactForLogs?.contactId) return [];
+      const res = await fetch(`/api/automations/executions/logs/contact/${selectedContactForLogs.contactId}`);
+      if (!res.ok) throw new Error("Failed to fetch contact executions");
+      return await res.json();
+    },
+    enabled: !!selectedContactForLogs?.contactId,
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: async (contactId: string) => {
+      const res = await fetch(`/api/automations/executions/logs/contact/${contactId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to clear flow logs");
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Logs Cleared",
+        description: "All flow run records for this number have been successfully deleted.",
+      });
+      refetchLogsSummary();
+      setSelectedContactForLogs(null);
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Clear Failed",
+        description: err.message || "Failed to clear execution logs.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const exportToExcel = async (data: any[]) => {
     try {
       const workbook = new ExcelJS.Workbook();
@@ -164,7 +213,17 @@ export default function Automations() {
       const variableKeys = Array.from(new Set(
         data.flatMap(row => {
           const vars = row.variables || {};
-          return Object.keys(vars).filter(k => !k.startsWith('_'));
+          return Object.keys(vars).filter(k => !k.startsWith('_') && ![
+            'message',
+            'trigger',
+            'channelId',
+            'contactId',
+            'timestamp',
+            'conversationId',
+            'whatsappMessageId',
+            'matchedKeyword',
+            'lastConditionResult'
+          ].includes(k));
         })
       ));
 
@@ -441,6 +500,16 @@ export default function Automations() {
         >
           Collected Flow Data
         </button>
+        <button
+          onClick={() => setActiveTab("logs")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            activeTab === "logs"
+              ? "border-blue-600 text-blue-600"
+              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+          }`}
+        >
+          Flow Run Logs
+        </button>
       </div>
 
       {activeTab === "flows" ? (
@@ -665,7 +734,7 @@ export default function Automations() {
             </div>
           )}
         </>
-      ) : (
+      ) : activeTab === "data" ? (
         <div className="space-y-4">
           <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white p-4 border border-gray-200 rounded-lg">
             <div className="flex flex-col sm:flex-row items-center gap-3 flex-1">
@@ -743,7 +812,19 @@ export default function Automations() {
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-sm">
                     {flowData.map((row: any) => {
-                      const customVars = Object.entries(row.variables || {}).filter(([k]) => !k.startsWith('_'));
+                      const customVars = Object.entries(row.variables || {}).filter(
+                        ([k]) => !k.startsWith('_') && ![
+                          'message',
+                          'trigger',
+                          'channelId',
+                          'contactId',
+                          'timestamp',
+                          'conversationId',
+                          'whatsappMessageId',
+                          'matchedKeyword',
+                          'lastConditionResult'
+                        ].includes(k)
+                      );
                       const formattedTime = format(new Date(row.startedAt), "MMM d, yyyy h:mm a");
 
                       return (
@@ -799,7 +880,156 @@ export default function Automations() {
             )}
           </div>
         </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            {isLoadingLogsSummary ? (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                <Loader2 className="h-8 w-8 animate-spin mb-3 text-blue-500" />
+                <p className="text-sm">Loading flow run summaries...</p>
+              </div>
+            ) : logsSummary.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-400 text-center px-4">
+                <History className="h-10 w-10 text-gray-300 mb-3" />
+                <h3 className="text-sm font-semibold text-gray-700">No flow logs found</h3>
+                <p className="text-xs text-gray-500 max-w-xs mt-1">Users executing flows will list here with their run histories.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <th className="p-4">Contact</th>
+                      <th className="p-4">Total Runs</th>
+                      <th className="p-4">Last Active</th>
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-sm">
+                    {logsSummary.map((row: any) => (
+                      <tr key={row.contactId} className="hover:bg-gray-50/50">
+                        <td className="p-4 whitespace-nowrap">
+                          <div className="font-medium text-gray-900">{row.contactName || "Unknown Contact"}</div>
+                          <div className="text-xs text-gray-500">{row.contactPhone || "No Phone"}</div>
+                        </td>
+                        <td className="p-4 whitespace-nowrap">
+                          <Badge variant="outline" className="bg-gray-50 text-gray-700 font-semibold px-2.5 py-0.5 rounded">
+                            {row.totalRuns} runs
+                          </Badge>
+                        </td>
+                        <td className="p-4 whitespace-nowrap text-xs text-gray-500">
+                          {row.lastRunAt ? format(new Date(row.lastRunAt), "MMM d, yyyy h:mm a") : "N/A"}
+                        </td>
+                        <td className="p-4 whitespace-nowrap text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs font-medium border-gray-200 text-gray-700 hover:bg-gray-50 gap-1"
+                            onClick={() => setSelectedContactForLogs(row)}
+                          >
+                            <History className="h-3 w-3 text-gray-500" />
+                            Flow Logs
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
+
+      {/* Flow Logs Modal */}
+      <Dialog open={!!selectedContactForLogs} onOpenChange={(open) => { if (!open) setSelectedContactForLogs(null); }}>
+        <DialogContent className="max-w-2xl w-full max-h-[85vh] flex flex-col p-6">
+          <DialogHeader className="pb-4 border-b border-gray-150">
+            <div className="flex items-center justify-between pr-6">
+              <div>
+                <DialogTitle className="text-lg font-semibold text-gray-900">
+                  Flow Logs: {selectedContactForLogs?.contactName || "Unknown Contact"}
+                </DialogTitle>
+                <DialogDescription className="text-sm text-gray-500 mt-0.5">
+                  All automation executions for {selectedContactForLogs?.contactPhone || "No Phone"}
+                </DialogDescription>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="gap-1.5 shrink-0 text-xs"
+                onClick={() => {
+                  if (selectedContactForLogs && confirm("Are you sure you want to clear all flow runs for this number? This will delete all variable histories and execution records.")) {
+                    clearMutation.mutate(selectedContactForLogs.contactId);
+                  }
+                }}
+                disabled={clearMutation.isPending}
+              >
+                {clearMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+                Clear Logs
+              </Button>
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-4 min-h-[250px]">
+            {isLoadingContactExecutions ? (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                <Loader2 className="h-8 w-8 animate-spin mb-3 text-blue-500" />
+                <p className="text-sm">Loading runs history...</p>
+              </div>
+            ) : contactExecutions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-400 text-center">
+                <History className="h-10 w-10 text-gray-300 mb-3" />
+                <p className="text-sm font-medium text-gray-700">No runs found</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {contactExecutions.map((run: any) => {
+                  const runTime = format(new Date(run.startedAt), "MMM d, yyyy h:mm a");
+                  return (
+                    <div key={run.executionId} className="p-4 border border-gray-150 rounded-lg bg-gray-50/50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-semibold text-gray-900 text-sm">{run.flowName}</span>
+                          <span className="text-xs text-gray-500 ml-2">({runTime})</span>
+                        </div>
+                        <Badge
+                          variant={run.status === "completed" ? "default" : run.status === "paused" ? "secondary" : "destructive"}
+                          className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                            run.status === "completed"
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : run.status === "paused"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-red-50 text-red-700 border-red-200"
+                          }`}
+                        >
+                          {run.status}
+                        </Badge>
+                      </div>
+
+                      {run.error && (
+                        <div className="text-xs text-red-600 bg-red-50 p-2.5 rounded border border-red-100 font-mono">
+                          <strong>Error:</strong> {run.error}
+                        </div>
+                      )}
+
+                      {run.result && run.result !== run.error && (
+                        <div className="text-xs text-gray-600 bg-white p-2.5 rounded border border-gray-150">
+                          <strong>Result:</strong> {run.result}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showFlowBuilder} onOpenChange={(open) => { if (!open) handleCloseFlowBuilder(); else setShowFlowBuilder(true); }}>
         <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0 [&>button.absolute]:hidden">

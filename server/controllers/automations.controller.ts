@@ -23,7 +23,7 @@ import { AppError, asyncHandler } from '../middlewares/error.middleware';
 import type { RequestWithChannel } from '../middlewares/channel.middleware';
 import { db } from "../db";
 import { automationExecutions, automations, contacts } from "@shared/schema";
-import { eq, and, or, ilike, desc } from "drizzle-orm";
+import { eq, and, or, ilike, desc, sql } from "drizzle-orm";
 
 export const getAutomations = asyncHandler(async (req: RequestWithChannel, res: Response) => {
   const channelId = req.query.channelId as string | undefined;
@@ -144,4 +144,62 @@ export const getFlowData = asyncHandler(async (req: RequestWithChannel, res: Res
 
   const results = await query;
   res.json(results);
+});
+
+export const getExecutionsSummary = asyncHandler(async (req: RequestWithChannel, res: Response) => {
+  const channelId = req.channelId || req.query.channelId as string;
+  if (!channelId) {
+    return res.status(400).json({ error: "channelId is required" });
+  }
+
+  const query = db
+    .select({
+      contactId: contacts.id,
+      contactName: contacts.name,
+      contactPhone: contacts.phone,
+      totalRuns: sql<number>`count(${automationExecutions.id})::int`,
+      lastRunAt: sql<string>`max(${automationExecutions.startedAt})`,
+    })
+    .from(automationExecutions)
+    .innerJoin(automations, eq(automationExecutions.automationId, automations.id))
+    .innerJoin(contacts, eq(automationExecutions.contactId, contacts.id))
+    .where(eq(automations.channelId, channelId))
+    .groupBy(contacts.id, contacts.name, contacts.phone)
+    .orderBy(desc(sql`max(${automationExecutions.startedAt})`));
+
+  const results = await query;
+  res.json(results);
+});
+
+export const getContactExecutions = asyncHandler(async (req: Request, res: Response) => {
+  const { contactId } = req.params;
+
+  const query = db
+    .select({
+      executionId: automationExecutions.id,
+      startedAt: automationExecutions.startedAt,
+      completedAt: automationExecutions.completedAt,
+      status: automationExecutions.status,
+      result: automationExecutions.result,
+      error: automationExecutions.error,
+      flowName: automations.name,
+    })
+    .from(automationExecutions)
+    .innerJoin(automations, eq(automationExecutions.automationId, automations.id))
+    .where(eq(automationExecutions.contactId, contactId))
+    .orderBy(desc(automationExecutions.startedAt));
+
+  const results = await query;
+  res.json(results);
+});
+
+export const clearContactExecutions = asyncHandler(async (req: Request, res: Response) => {
+  const { contactId } = req.params;
+
+  const result = await db
+    .delete(automationExecutions)
+    .where(eq(automationExecutions.contactId, contactId))
+    .returning();
+
+  res.json({ success: true, clearedCount: result.length });
 });

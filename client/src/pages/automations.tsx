@@ -145,8 +145,7 @@ export default function Automations() {
       if (selectedFlowId !== "all") {
         queryParams.append("automationId", selectedFlowId);
       }
-      const res = await fetch(`/api/automations/executions/flow-data?${queryParams.toString()}`);
-      if (!res.ok) throw new Error("Failed to fetch flow data");
+      const res = await apiRequest("GET", `/api/automations/executions/flow-data?${queryParams.toString()}`);
       return await res.json();
     },
     enabled: !!activeChannel?.id && activeTab === "data",
@@ -156,8 +155,7 @@ export default function Automations() {
     queryKey: ["/api/automations/executions/logs/summary", activeChannel?.id],
     queryFn: async () => {
       if (!activeChannel?.id) return [];
-      const res = await fetch(`/api/automations/executions/logs/summary?channelId=${activeChannel.id}`);
-      if (!res.ok) throw new Error("Failed to fetch logs summary");
+      const res = await apiRequest("GET", `/api/automations/executions/logs/summary?channelId=${activeChannel.id}`);
       return await res.json();
     },
     enabled: !!activeChannel?.id && activeTab === "logs",
@@ -167,8 +165,7 @@ export default function Automations() {
     queryKey: ["/api/automations/executions/logs/contact", selectedContactForLogs?.contactId],
     queryFn: async () => {
       if (!selectedContactForLogs?.contactId) return [];
-      const res = await fetch(`/api/automations/executions/logs/contact/${selectedContactForLogs.contactId}`);
-      if (!res.ok) throw new Error("Failed to fetch contact executions");
+      const res = await apiRequest("GET", `/api/automations/executions/logs/contact/${selectedContactForLogs.contactId}`);
       return await res.json();
     },
     enabled: !!selectedContactForLogs?.contactId,
@@ -176,10 +173,7 @@ export default function Automations() {
 
   const clearMutation = useMutation({
     mutationFn: async (contactId: string) => {
-      const res = await fetch(`/api/automations/executions/logs/contact/${contactId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Failed to clear flow logs");
+      const res = await apiRequest("DELETE", `/api/automations/executions/logs/contact/${contactId}`);
       return await res.json();
     },
     onSuccess: () => {
@@ -292,20 +286,14 @@ export default function Automations() {
     queryKey: ["/api/automations", activeChannel?.id],
     queryFn: async () => {
       if (!activeChannel?.id) return [];
-      const res = await fetch(`/api/automations?channelId=${activeChannel.id}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error("Failed to fetch automations");
-      return data as Promise<Automation[]>;
+      const res = await apiRequest("GET", `/api/automations?channelId=${activeChannel.id}`);
+      return await res.json();
     },
   });
 
   const toggleMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/automations/${id}/toggle`, {
-        method: "POST",
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to toggle automation");
+      const response = await apiRequest("POST", `/api/automations/${id}/toggle`);
       return response.json();
     },
     onSuccess: () => {
@@ -322,11 +310,7 @@ export default function Automations() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/automations/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to delete automation");
+      const response = await apiRequest("DELETE", `/api/automations/${id}`);
       return response.json();
     },
     onSuccess: () => {
@@ -344,13 +328,9 @@ export default function Automations() {
   const seedMutation = useMutation({
     mutationFn: async () => {
       if (!activeChannel?.id) throw new Error("No active channel");
-      const response = await fetch("/api/automations/seed-templates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ channelId: activeChannel.id }),
+      const response = await apiRequest("POST", "/api/automations/seed-templates", {
+        channelId: activeChannel.id,
       });
-      if (!response.ok) throw new Error("Failed to load templates");
       return response.json();
     },
     onSuccess: (data) => {

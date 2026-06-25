@@ -41,6 +41,12 @@ import {
   triggerMessageReceived,
   seedAutomationTemplates
 } from "../controllers/automation.controller";
+import {
+  getFlowData,
+  getExecutionsSummary,
+  getContactExecutions,
+  clearContactExecutions
+} from "../controllers/automations.controller";
 import { cleanupExpiredExecutions, getAllPendingExecutions } from "server/controllers/webhooks.controller";
 import { handleDigitalOceanUpload, upload } from "server/middlewares/upload.middleware";
 import { requireSubscription } from "server/middlewares/requireSubscription";
@@ -177,9 +183,14 @@ app.post("/api/automations/executions/:executionId/logs", requireAuth, logAutoma
 app.post("/api/automations/triggers/new-conversation", requireAuth, triggerNewConversation);
 app.post("/api/automations/triggers/message-received", requireAuth, triggerMessageReceived);
 
-app.get('/api/automations/pending-executions', requireAuth, getAllPendingExecutions);
-app.post('/api/automations/cleanup-expired', requireAuth, cleanupExpiredExecutions);
+  app.get('/api/automations/pending-executions', requireAuth, getAllPendingExecutions);
+  app.post('/api/automations/cleanup-expired', requireAuth, cleanupExpiredExecutions);
 
-app.post('/api/automations/seed-templates', requireAuth, seedAutomationTemplates);
+  app.post('/api/automations/seed-templates', requireAuth, seedAutomationTemplates);
 
+  // Executions data routes
+  app.get("/api/automations/executions/flow-data", requireAuth, extractChannelId, getFlowData);
+  app.get("/api/automations/executions/logs/summary", requireAuth, extractChannelId, getExecutionsSummary);
+  app.get("/api/automations/executions/logs/contact/:contactId", requireAuth, getContactExecutions);
+  app.delete("/api/automations/executions/logs/contact/:contactId", requireAuth, clearContactExecutions);
 }

@@ -125,6 +125,32 @@ export function ConfigPanel({
     }
   }, [selected?.id]);
 
+  const syncHeaders = useCallback((newHeaders: { id: string; key: string; value: string }[]) => {
+    setLocalHeaders(newHeaders);
+    const record: Record<string, string> = {};
+    for (const h of newHeaders) {
+      if (h.key.trim()) {
+        record[h.key] = h.value;
+      }
+    }
+    onChange({ webhookHeaders: record });
+  }, [onChange]);
+
+  const addHeader = useCallback(() => {
+    const newHeaders = [...localHeaders, { id: uid(), key: "", value: "" }];
+    syncHeaders(newHeaders);
+  }, [localHeaders, syncHeaders]);
+
+  const updateHeader = useCallback((id: string, field: "key" | "value", val: string) => {
+    const newHeaders = localHeaders.map((h) => (h.id === id ? { ...h, [field]: val } : h));
+    syncHeaders(newHeaders);
+  }, [localHeaders, syncHeaders]);
+
+  const removeHeader = useCallback((id: string) => {
+    const newHeaders = localHeaders.filter((h) => h.id !== id);
+    syncHeaders(newHeaders);
+  }, [localHeaders, syncHeaders]);
+
   const { data: contactGroups = [] } = useQuery({
     queryKey: ["/api/groups", channelId],
     queryFn: async () => {
@@ -161,32 +187,6 @@ export function ConfigPanel({
   const d = selected.data;
   const meta = kindMeta[d.kind] || kindMeta.start;
   const Icon = meta.icon;
-
-  const syncHeaders = useCallback((newHeaders: { id: string; key: string; value: string }[]) => {
-    setLocalHeaders(newHeaders);
-    const record: Record<string, string> = {};
-    for (const h of newHeaders) {
-      if (h.key.trim()) {
-        record[h.key] = h.value;
-      }
-    }
-    onChange({ webhookHeaders: record });
-  }, [onChange]);
-
-  const addHeader = useCallback(() => {
-    const newHeaders = [...localHeaders, { id: uid(), key: "", value: "" }];
-    syncHeaders(newHeaders);
-  }, [localHeaders, syncHeaders]);
-
-  const updateHeader = useCallback((id: string, field: "key" | "value", val: string) => {
-    const newHeaders = localHeaders.map((h) => (h.id === id ? { ...h, [field]: val } : h));
-    syncHeaders(newHeaders);
-  }, [localHeaders, syncHeaders]);
-
-  const removeHeader = useCallback((id: string) => {
-    const newHeaders = localHeaders.filter((h) => h.id !== id);
-    syncHeaders(newHeaders);
-  }, [localHeaders, syncHeaders]);
 
   const handleFileUpload = (type: "image" | "video" | "audio" | "document") => (file: File) => {
     const previewUrl = URL.createObjectURL(file);

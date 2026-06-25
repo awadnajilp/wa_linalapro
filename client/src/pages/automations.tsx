@@ -112,6 +112,16 @@ export default function Automations() {
   const [showFlowBuilder, setShowFlowBuilder] = useState(false);
   const [selectedAutomation, setSelectedAutomation] = useState<any>(null);
   const { toast } = useToast();
+
+  const { data: activeChannel } = useQuery({
+    queryKey: ["/api/channels/active"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/channels/active");
+      if (!response.ok) return null;
+      return await response.json();
+    },
+  });
+
   const [drafts, setDrafts] = useState<AutomationDraft[]>([]);
   const [activeTab, setActiveTab] = useState<"flows" | "data">("flows");
   const [searchQuery, setSearchQuery] = useState("");
@@ -212,15 +222,6 @@ export default function Automations() {
 
   const { t } = useTranslation();
   const { user } = useAuth();
-
-  const { data: activeChannel } = useQuery({
-    queryKey: ["/api/channels/active"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/channels/active");
-      if (!response.ok) return null;
-      return await response.json();
-    },
-  });
 
   useEffect(() => {
     if (activeChannel?.id) {

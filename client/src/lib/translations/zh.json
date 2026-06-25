@@ -908,7 +908,7 @@
       },
       "documentation": {
         "title": "API 文档",
-        "description": "学习如何使用 WhatsWay API",
+        "description": "学习如何使用 Linala API",
         "baseUrl": "基础 URL",
         "authentication": "认证",
         "authDesc": "在授权标头中包含您的 API 密钥：",
@@ -2232,7 +2232,7 @@
       "title": "让 WhatsApp 营销",
       "titleHighlight": "对所有人都触手可及",
       "description1": "我们相信，无论规模大小，每一家企业都应该拥有强大的营销工具。我们的使命是通过提供直观、实惠且具备企业级功能的平台，让 WhatsApp 营销大众化。",
-      "description2": "借助 Whatsway，企业可以在全球最受欢迎的消息平台上与客户建立联系，将互动、销售和忠诚度提升到全新水平。",
+      "description2": "借助 Linala，企业可以在全球最受欢迎的消息平台上与客户建立联系，将互动、销售和忠诚度提升到全新水平。",
       "stats": {
         "businesses": "10K+",
         "businessesLabel": "活跃企业",
@@ -2250,7 +2250,7 @@
       "title": "由营销人打造，",
       "titleHighlight": "为营销人服务",
       "description1": "{{appName}} 源于一个简单的困扰：现有的 WhatsApp 营销工具要么价格昂贵，要么过于复杂，要么缺少关键功能。作为营销从业者，我们知道一定有更好的解决方案。",
-      "description2": "我们于 2023 年开始打造 Whatsway，目标清晰：打造市场上最强大、最易用、且价格亲民的 WhatsApp 营销平台。如今，我们已自豪地为全球超过 10,000 家企业提供服务。",
+      "description2": "我们于 2023 年开始打造 Linala，目标清晰：打造市场上最强大、最易用、且价格亲民的 WhatsApp 营销平台。如今，我们已自豪地为全球超过 10,000 家企业提供服务。",
       "description3": "我们的团队融合了营销自动化、软件开发和客户成功等领域的专业能力，不断创新，为用户持续创造价值。",
       "globalPresence": "全球布局",
       "globalPresenceDesc": "为 50+ 个国家的企业提供支持",

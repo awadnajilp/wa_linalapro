@@ -216,7 +216,7 @@ async function seed() {
       console.log("  Panel config already exists");
     } else {
       await db.insert(panelConfig).values({
-        name: "Whatsway",
+        name: "LINALA",
         tagline: "WhatsApp Marketing Platform",
         description: "A comprehensive SaaS platform for WhatsApp marketing, customer engagement, and business growth.",
         defaultLanguage: "en",

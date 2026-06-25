@@ -65,7 +65,7 @@ export function WebhookFlowDiagram() {
           <div className="w-12 h-12 sm:w-16 sm:h-16 bg-orange-100 rounded-full flex items-center justify-center mb-2">
             <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600" />
           </div>
-          <p className="text-sm font-medium">WhatsWay receives</p>
+          <p className="text-sm font-medium">LINALA receives</p>
           <p className="text-xs text-gray-500 mt-1">Updates inbox</p>
         </div>
       </div>

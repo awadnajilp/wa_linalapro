@@ -907,7 +907,7 @@
       },
       "documentation": {
         "title": "Documentação da API",
-        "description": "Aprenda como usar a API WhatsWay",
+        "description": "Aprenda como usar a API Linala",
         "baseUrl": "URL Base",
         "authentication": "Autenticação",
         "authDesc": "Inclua sua chave API no cabeçalho de Autorização:",

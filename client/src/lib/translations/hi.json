@@ -908,7 +908,7 @@
       },
       "documentation": {
         "title": "API दस्तावेज़",
-        "description": "WhatsWay API का उपयोग कैसे करें सीखें",
+        "description": "Linala API का उपयोग कैसे करें सीखें",
         "baseUrl": "बेस URL",
         "authentication": "प्रमाणीकरण",
         "authDesc": "Authorization हेडर में अपनी API कुंजी शामिल करें:",

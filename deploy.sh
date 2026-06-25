@@ -2,7 +2,7 @@
 set -e
 
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     🚀 WhatsWay Production Deployment                      ║"
+echo "║     🚀 Linala Production Deployment                        ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 

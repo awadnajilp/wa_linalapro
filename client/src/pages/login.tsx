@@ -184,7 +184,7 @@ export default function LoginPage() {
                 <div className="bg-green-500/10 backdrop-blur-sm rounded-xl p-2.5">
                   <MessageSquare className="h-7 w-7 text-green-400" />
                 </div>
-                <span className="text-2xl font-bold">WhatsWay</span>
+                <span className="text-2xl font-bold">LINALA</span>
               </div>
             )}
           </div>

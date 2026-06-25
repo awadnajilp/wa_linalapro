@@ -108,6 +108,11 @@ export const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
     kind: "mark_as_read",
     label: "Mark as Read",
   },
+  wait_reply: {
+    kind: "wait_reply",
+    label: "Wait Reply",
+    saveAs: "",
+  },
 };
 
 export function transformAutomationToFlow(automation: any): {

@@ -60,7 +60,7 @@ export interface BuilderNodeData {
   delay?: number;
   templateId?: string;
   assigneeId?: string;
-  conditionType?: "keyword" | "contains" | "equals" | "starts_with";
+  conditionType?: "keyword" | "contains" | "equals" | "starts_with" | "variable";
   keywords?: string[];
   matchType?: "any" | "all";
   buttons?: Array<{

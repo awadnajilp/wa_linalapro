@@ -245,6 +245,11 @@ export class AutomationExecutionService {
         null
       );
 
+      // Save execution variables to the database
+      await db.update(automationExecutions)
+        .set({ variables: context.variables })
+        .where(eq(automationExecutions.id, context.executionId));
+
       if (result?.action === 'execution_paused') {
         console.log(`⏸️  Node ${node.nodeId} paused execution, not continuing to next node`);
         return;
@@ -538,7 +543,12 @@ private stemWord(word: string = ""): string {
   /**
    * Continue to next node(s) using edges
    */
-  private async continueToNextNode(currentNode: any, automation: any, context: ExecutionContext) {
+  private async continueToNextNode(
+    currentNode: any,
+    automation: any,
+    context: ExecutionContext,
+    selectedButtonId?: string | null
+  ) {
     // Get outgoing edges
     const outgoingEdges = automation.edges.filter(
       (e: any) => e.sourceNodeId === currentNode.nodeId
@@ -550,8 +560,29 @@ private stemWord(word: string = ""): string {
       return;
     }
 
+    const hasButtons = currentNode.data?.buttons && currentNode.data.buttons.length > 0;
+    let edgesToFollow = outgoingEdges;
+
+    if (hasButtons) {
+      if (selectedButtonId) {
+        // Find edge for the specific clicked button
+        const matchedEdge = outgoingEdges.find((e: any) => e.sourceHandle === selectedButtonId);
+        if (matchedEdge) {
+          edgesToFollow = [matchedEdge];
+        } else {
+          // If no specific edge for this button, fallback to default or unlabeled edges
+          const fallbackEdges = outgoingEdges.filter((e: any) => e.sourceHandle === 'default' || !e.sourceHandle);
+          edgesToFollow = fallbackEdges;
+        }
+      } else {
+        // If no selectedButtonId, try to find default or unlabeled fallback edges
+        const fallbackEdges = outgoingEdges.filter((e: any) => e.sourceHandle === 'default' || !e.sourceHandle);
+        edgesToFollow = fallbackEdges.length > 0 ? fallbackEdges : outgoingEdges;
+      }
+    }
+
     // Follow each edge
-    for (const edge of outgoingEdges) {
+    for (const edge of edgesToFollow) {
       const nextNode = automation.nodes.find((n: any) => n.nodeId === edge.targetNodeId);
       if (nextNode) {
         await this.executeNode(nextNode, automation, context);
@@ -676,7 +707,7 @@ private stemWord(word: string = ""): string {
 
       const currentNode = automation.nodes.find((n: any) => n.nodeId === pendingExecution.nodeId);
       if (currentNode) {
-        await this.continueToNextNode(currentNode, automation, context);
+        await this.continueToNextNode(currentNode, automation, context, selectedButtonId);
       } else {
         throw new Error(`Node ${pendingExecution.nodeId} not found during resume`);
       }

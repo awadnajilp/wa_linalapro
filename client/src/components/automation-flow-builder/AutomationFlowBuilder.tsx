@@ -140,7 +140,7 @@ export default function AutomationFlowBuilder({
   const onConnect = useCallback(
     (params: Edge | Connection) =>
       setEdges((eds) =>
-        addEdge({ ...params, animated: true, type: "custom", sourceHandle: params.sourceHandle || undefined }, eds)
+        addEdge({ ...params, animated: true, type: "custom", sourceHandle: params.sourceHandle || undefined } as any, eds)
       ),
     [setEdges]
   );

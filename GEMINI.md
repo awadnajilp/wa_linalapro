@@ -78,8 +78,10 @@ A comprehensive security audit was performed with the following results:
 ### 2. Flow Builder Nodes & Runtime
 - **API Request Node:** Equipped flows with a native HTTP Request client capability (GET, POST, PUT, DELETE) supporting header configuration, authorization tokens, dynamic payload compilation via variable interpolation, and using request outputs inside subsequent conditions/actions.
 - **Wait Control ("Wait for Reply" Node):** Introduced a canvas flow node to pause executions until a contact replies. Active paused states are persisted inside the `automationExecutions` storage mapping to avoid endless message triggering.
+- **Button-Specific Routing Handles:** Added dedicated connection handles to each button option inside the Send Message and Ask Question canvas nodes, allowing clean routing. The execution engine routes down only the connection matching the selected button.
 
 ### 3. Collected Flow Data Dashboard
 - **Tabbed Interface:** Added a data repository page in the Automations tab to display user variables collected during active sessions.
 - **Multi-Dimensional Filters:** Allows searching by name, phone, or specific automation flows.
 - **Excel Export (.xlsx):** Built XLSX file generation mapping session times, flows, names, phones, statuses, and custom variables into clear column views.
+- **Live Variable State Persistence:** Commits active flow variables to the database at the end of each node execution step, ensuring variables populate reliably in the dashboard.

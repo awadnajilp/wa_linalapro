@@ -112,6 +112,7 @@ export function ConfigPanel({
   const { toast } = useToast();
 
   useEffect(() => {
+    setTemplateMeta(null);
     if (selected) {
       const headersObj = (selected.data.webhookHeaders as Record<string, string>) || {};
       const array = Object.entries(headersObj).map(([k, v], idx) => ({
@@ -120,10 +121,22 @@ export function ConfigPanel({
         value: v,
       }));
       setLocalHeaders(array);
+
+      if (selected.data.kind === "send_template" && selected.data.templateId && templates && channelId) {
+        const template = templates.find((t) => t.id === selected.data.templateId);
+        if (template?.whatsappTemplateId) {
+          fetch(`/api/whatsapp/templates/${template.whatsappTemplateId}/meta?channelId=${channelId}`)
+            .then((res) => res.ok ? res.json() : null)
+            .then((meta) => {
+              if (meta) setTemplateMeta(meta);
+            })
+            .catch((err) => console.error("Failed to fetch template meta on select:", err));
+        }
+      }
     } else {
       setLocalHeaders([]);
     }
-  }, [selected?.id]);
+  }, [selected?.id, templates, channelId]);
 
   const syncHeaders = useCallback((newHeaders: { id: string; key: string; value: string }[]) => {
     setLocalHeaders(newHeaders);

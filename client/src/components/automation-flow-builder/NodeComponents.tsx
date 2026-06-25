@@ -95,7 +95,7 @@ export function StartNode() {
   );
 }
 
-export function ConditionsNode({ data }: { data: BuilderNodeData }) {
+export function ConditionsNode({ data, selected }: { data: BuilderNodeData; selected?: boolean }) {
   return (
     <div className="relative">
       <Handle type="target" position={Position.Top} className="!bg-purple-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
@@ -105,6 +105,7 @@ export function ConditionsNode({ data }: { data: BuilderNodeData }) {
         color="text-purple-700"
         bgColor="bg-purple-50"
         borderColor="border-purple-100"
+        selected={selected}
       >
         {data.conditionType === "keyword" && data.keywords && data.keywords.length > 0 ? (
           <div className="flex flex-wrap gap-1">
@@ -117,10 +118,14 @@ export function ConditionsNode({ data }: { data: BuilderNodeData }) {
               <span className="text-purple-400 text-[10px]">+{data.keywords.length - 3}</span>
             )}
           </div>
+        ) : data.conditionType === "variable" && data.keywords && data.keywords.length > 0 ? (
+          <div className="bg-purple-50/50 text-purple-700 text-[10px] p-1.5 rounded font-mono border border-purple-100/50 break-all leading-normal">
+            {data.keywords[0]}
+          </div>
         ) : (
           <div className="text-gray-400 italic text-[11px]">No conditions set</div>
         )}
-        {data.matchType && (
+        {data.matchType && data.conditionType !== "variable" && (
           <div className="text-[10px] text-purple-600 font-medium">
             Match: {data.matchType}
           </div>
@@ -136,7 +141,8 @@ export function ConditionsNode({ data }: { data: BuilderNodeData }) {
   );
 }
 
-export function CustomReplyNode({ data }: { data: BuilderNodeData }) {
+export function CustomReplyNode({ data, selected }: { data: BuilderNodeData; selected?: boolean }) {
+  const hasButtons = data.buttons && data.buttons.length > 0;
   return (
     <div className="relative">
       <Handle type="target" position={Position.Top} className="!bg-blue-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
@@ -146,6 +152,7 @@ export function CustomReplyNode({ data }: { data: BuilderNodeData }) {
         color="text-blue-700"
         bgColor="bg-blue-50"
         borderColor="border-blue-100"
+        selected={selected}
       >
         {data.message ? (
           <p className="line-clamp-2 text-[11px] text-gray-600 bg-gray-50 rounded-lg p-2 border border-gray-100">
@@ -178,25 +185,34 @@ export function CustomReplyNode({ data }: { data: BuilderNodeData }) {
           )}
         </div>
 
-        {data.buttons && data.buttons.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-1.5 border-t border-gray-100">
-            {data.buttons.slice(0, 3).map((btn) => (
-              <span key={btn.id} className="bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded font-medium border border-blue-100">
-                {btn.text}
-              </span>
+        {hasButtons && (
+          <div className="flex justify-around gap-2 pt-2 border-t border-gray-100 relative">
+            {data.buttons!.map((btn) => (
+              <div key={btn.id} className="relative flex flex-col items-center pb-1">
+                <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded font-medium border border-blue-100">
+                  {btn.text}
+                </span>
+                <Handle
+                  type="source"
+                  position={Position.Bottom}
+                  id={btn.id}
+                  className="!bg-blue-500 !w-2.5 !h-2.5 !border-2 !border-white !shadow-sm"
+                  style={{ bottom: '-15px' }}
+                />
+              </div>
             ))}
-            {data.buttons.length > 3 && (
-              <span className="text-blue-400 text-[10px]">+{data.buttons.length - 3}</span>
-            )}
           </div>
         )}
       </NodeShell>
-      <Handle type="source" position={Position.Bottom} className="!bg-blue-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+      {!hasButtons && (
+        <Handle type="source" position={Position.Bottom} className="!bg-blue-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+      )}
     </div>
   );
 }
 
-export function UserReplyNode({ data }: { data: BuilderNodeData }) {
+export function UserReplyNode({ data, selected }: { data: BuilderNodeData; selected?: boolean }) {
+  const hasButtons = data.buttons && data.buttons.length > 0;
   return (
     <div className="relative">
       <Handle type="target" position={Position.Top} className="!bg-amber-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
@@ -206,6 +222,7 @@ export function UserReplyNode({ data }: { data: BuilderNodeData }) {
         color="text-amber-700"
         bgColor="bg-amber-50"
         borderColor="border-amber-100"
+        selected={selected}
       >
         {data.question ? (
           <p className="line-clamp-2 text-[11px] text-gray-600 bg-gray-50 rounded-lg p-2 border border-gray-100">
@@ -219,17 +236,28 @@ export function UserReplyNode({ data }: { data: BuilderNodeData }) {
             ${data.saveAs}
           </div>
         )}
-        {data.buttons && data.buttons.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-1.5 border-t border-gray-100">
-            {data.buttons.slice(0, 3).map((btn) => (
-              <span key={btn.id} className="bg-green-50 text-green-600 text-[10px] px-2 py-0.5 rounded font-medium border border-green-100">
-                {btn.text}
-              </span>
+        {hasButtons && (
+          <div className="flex justify-around gap-2 pt-2 border-t border-gray-100 relative">
+            {data.buttons!.map((btn) => (
+              <div key={btn.id} className="relative flex flex-col items-center pb-1">
+                <span className="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded font-medium border border-amber-200">
+                  {btn.text}
+                </span>
+                <Handle
+                  type="source"
+                  position={Position.Bottom}
+                  id={btn.id}
+                  className="!bg-amber-500 !w-2.5 !h-2.5 !border-2 !border-white !shadow-sm"
+                  style={{ bottom: '-15px' }}
+                />
+              </div>
             ))}
           </div>
         )}
       </NodeShell>
-      <Handle type="source" position={Position.Bottom} className="!bg-amber-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+      {!hasButtons && (
+        <Handle type="source" position={Position.Bottom} className="!bg-amber-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+      )}
     </div>
   );
 }
@@ -558,7 +586,7 @@ export function MarkAsReadNode() {
   );
 }
 
-export function WaitReplyNode({ data }: { data: BuilderNodeData }) {
+export function WaitReplyNode({ data, selected }: { data: BuilderNodeData; selected?: boolean }) {
   return (
     <div className="relative">
       <Handle type="target" position={Position.Top} className="!bg-amber-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
@@ -568,6 +596,7 @@ export function WaitReplyNode({ data }: { data: BuilderNodeData }) {
         color="text-amber-700"
         bgColor="bg-amber-50"
         borderColor="border-amber-100"
+        selected={selected}
       >
         {data.saveAs ? (
           <div className="flex items-center gap-1.5 bg-amber-100/50 rounded px-2 py-1 border border-amber-200/50 text-[11px] text-amber-800">

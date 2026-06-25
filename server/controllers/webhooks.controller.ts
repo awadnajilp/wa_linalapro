@@ -1214,91 +1214,97 @@ async function handleMessageStatuses(statuses: any[], metadata: any) {
       errors ? `Errors: ${errors.length}` : ""
     );
 
-    // Find the message by WhatsApp ID (inbox messages table first)
-    const message = await storage.getMessageByWhatsAppId(whatsappMessageId);
+    // Find matching queue entry from message_queue (campaign messages)
+    const [queueEntry] = await db.select()
+      .from(messageQueue)
+      .where(eq(messageQueue.whatsappMessageId, whatsappMessageId))
+      .limit(1);
 
-    // If not found in messages table, check message_queue (campaign messages)
-    if (!message) {
-      const [queueEntry] = await db.select()
-        .from(messageQueue)
-        .where(eq(messageQueue.whatsappMessageId, whatsappMessageId))
-        .limit(1);
+    if (queueEntry) {
+      // Monotonic milestone tracking: use persisted timestamps/flags as source
+      // of truth, not status string — statuses can arrive out of order.
+      const alreadyDelivered = !!queueEntry.deliveredAt;
+      const alreadyRead = !!queueEntry.readAt;
+      const alreadyFailed = queueEntry.status === "failed";
 
-      if (queueEntry) {
-        // Monotonic milestone tracking: use persisted timestamps/flags as source
-        // of truth, not status string — statuses can arrive out of order.
-        const alreadyDelivered = !!queueEntry.deliveredAt;
-        const alreadyRead = !!queueEntry.readAt;
-        const alreadyFailed = queueEntry.status === "failed";
+      let queueErrorCode: string | null = null;
+      let queueErrorMessage: string | null = null;
+      const now = new Date(parseInt(timestamp, 10) * 1000);
+      const updateFields: Record<string, any> = {};
 
-        let queueErrorCode: string | null = null;
-        let queueErrorMessage: string | null = null;
-        const now = new Date(parseInt(timestamp, 10) * 1000);
-        const updateFields: Record<string, any> = {};
+      let shouldIncrementDelivered = false;
+      let shouldIncrementRead = false;
+      let shouldIncrementFailed = false;
+      let shouldDecrementSent = false;
 
-        let shouldIncrementDelivered = false;
-        let shouldIncrementRead = false;
-        let shouldIncrementFailed = false;
-        let shouldDecrementSent = false;
-
-        if (status === "delivered" && !alreadyDelivered && !alreadyRead) {
-          // First time reaching delivered milestone (and not already advanced to read)
-          updateFields.status = "delivered";
+      if (status === "delivered" && !alreadyDelivered && !alreadyRead) {
+        // First time reaching delivered milestone (and not already advanced to read)
+        updateFields.status = "delivered";
+        updateFields.deliveredAt = now;
+        shouldIncrementDelivered = true;
+      } else if (status === "read" && !alreadyRead) {
+        // First time reaching read milestone
+        updateFields.status = "read";
+        updateFields.readAt = now;
+        shouldIncrementRead = true;
+        if (!alreadyDelivered) {
+          // Read implies delivery — backfill the delivery milestone too
           updateFields.deliveredAt = now;
           shouldIncrementDelivered = true;
-        } else if (status === "read" && !alreadyRead) {
-          // First time reaching read milestone
-          updateFields.status = "read";
-          updateFields.readAt = now;
-          shouldIncrementRead = true;
-          if (!alreadyDelivered) {
-            // Read implies delivery — backfill the delivery milestone too
-            updateFields.deliveredAt = now;
-            shouldIncrementDelivered = true;
-          }
-        } else if (status === "failed" && errors && errors.length > 0 && !alreadyDelivered && !alreadyRead && !alreadyFailed) {
-          // Only mark failed if no positive milestone was already reached
-          updateFields.status = "failed";
-          const error = errors[0];
-          queueErrorCode = String(error.code);
-          queueErrorMessage = error.message || error.details || error.title || "Unknown failure";
-          updateFields.errorCode = queueErrorCode;
-          updateFields.errorMessage = queueErrorMessage;
-          shouldIncrementFailed = true;
-          shouldDecrementSent = queueEntry.status === "sent";
         }
-
-        if (Object.keys(updateFields).length > 0) {
-          await db.update(messageQueue)
-            .set(updateFields)
-            .where(eq(messageQueue.id, queueEntry.id));
-        }
-
-        // Increment campaign counters only for first attainment of each milestone
-        const campaignId = queueEntry.campaignId;
-        if (campaignId && (shouldIncrementDelivered || shouldIncrementRead || shouldIncrementFailed)) {
-          const counterUpdate: Record<string, any> = {};
-          if (shouldIncrementDelivered) {
-            counterUpdate.deliveredCount = sql`COALESCE(${campaigns.deliveredCount}, 0) + 1`;
-          }
-          if (shouldIncrementRead) {
-            counterUpdate.readCount = sql`COALESCE(${campaigns.readCount}, 0) + 1`;
-          }
-          if (shouldIncrementFailed) {
-            counterUpdate.failedCount = sql`COALESCE(${campaigns.failedCount}, 0) + 1`;
-          }
-          if (shouldDecrementSent) {
-            counterUpdate.sentCount = sql`GREATEST(COALESCE(${campaigns.sentCount}, 0) - 1, 0)`;
-          }
-          await db.update(campaigns).set(counterUpdate).where(eq(campaigns.id, campaignId));
-          console.log(
-            `📊 [Campaign ${campaignId}] Counters updated for ${whatsappMessageId}:`,
-            Object.keys(counterUpdate).join(", ")
-          );
-        }
-      } else {
-        console.log(`⚠️ Message not found for WhatsApp ID: ${whatsappMessageId}`);
+      } else if (status === "failed" && errors && errors.length > 0 && !alreadyDelivered && !alreadyRead && !alreadyFailed) {
+        // Only mark failed if no positive milestone was already reached
+        updateFields.status = "failed";
+        const error = errors[0];
+        queueErrorCode = String(error.code);
+        queueErrorMessage = error.message || error.details || error.title || "Unknown failure";
+        updateFields.errorCode = queueErrorCode;
+        updateFields.errorMessage = queueErrorMessage;
+        shouldIncrementFailed = true;
+        shouldDecrementSent = queueEntry.status === "sent";
       }
+
+      if (Object.keys(updateFields).length > 0) {
+        await db.update(messageQueue)
+          .set(updateFields)
+          .where(eq(messageQueue.id, queueEntry.id));
+      }
+
+      // Increment campaign counters only for first attainment of each milestone
+      const campaignId = queueEntry.campaignId;
+      if (campaignId && (shouldIncrementDelivered || shouldIncrementRead || shouldIncrementFailed)) {
+        const counterUpdate: Record<string, any> = {};
+        if (shouldIncrementDelivered) {
+          counterUpdate.deliveredCount = sql`COALESCE(${campaigns.deliveredCount}, 0) + 1`;
+        }
+        if (shouldIncrementRead) {
+          counterUpdate.readCount = sql`COALESCE(${campaigns.readCount}, 0) + 1`;
+        }
+        if (shouldIncrementFailed) {
+          counterUpdate.failedCount = sql`COALESCE(${campaigns.failedCount}, 0) + 1`;
+        }
+        if (shouldDecrementSent) {
+          counterUpdate.sentCount = sql`GREATEST(COALESCE(${campaigns.sentCount}, 0) - 1, 0)`;
+        }
+        await db.update(campaigns).set(counterUpdate).where(eq(campaigns.id, campaignId));
+        console.log(
+          `📊 [Campaign ${campaignId}] Counters updated for ${whatsappMessageId}:`,
+          Object.keys(counterUpdate).join(", ")
+        );
+      }
+    }
+
+    // Find the message by WhatsApp ID in inbox messages table
+    const message = await storage.getMessageByWhatsAppId(whatsappMessageId);
+
+    // If not found in messages table AND not found in message_queue, log and skip
+    if (!message && !queueEntry) {
+      console.log(`⚠️ Message not found for WhatsApp ID: ${whatsappMessageId}`);
+      continue;
+    }
+
+    // If message exists in messages table but not found, skip updating message status (but queueEntry was updated)
+    if (!message) {
       continue;
     }
 

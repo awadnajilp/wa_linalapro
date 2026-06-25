@@ -942,7 +942,7 @@ app.post(
       }
 
       let testPhone = (req.body.phoneNumber || "919310797700").replace(/\D/g, '');
-      const testMessage = req.body.message || "Hello! This is a test message from WhatsWay.";
+      const testMessage = req.body.message || "Hello! This is a test message from LINALA.";
 
       const apiVersion = process.env.WHATSAPP_API_VERSION || "v24.0";
 

@@ -237,6 +237,7 @@ export function CreateCampaignDialog({
             isCreating={isCreating}
             onCancel={() => onOpenChange(false)}
             channelId={activeChannel?.id}
+            connectionMethod={activeChannel?.connectionMethod}
             requiresHeaderImage={requiresHeaderImage}
             setRequiresHeaderImage={setRequiresHeaderImage}
             uploadedMediaId={uploadedMediaId}

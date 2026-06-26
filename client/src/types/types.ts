@@ -22,6 +22,7 @@ export interface PlanPermissions {
   campaign?: string;
   apiRequestsPerMonth?: string;
   apiRateLimitPerMinute?: string;
+  qrCodeChannelEnabled?: string;
 }
 export interface Feature {
   name: string;

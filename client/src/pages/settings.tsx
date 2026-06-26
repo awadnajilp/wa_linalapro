@@ -15,7 +15,7 @@
  * ============================================================
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/layout/header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,11 +33,13 @@ import {
   Headphones,
   Users,
   Key,
+  Flame,
 } from "lucide-react";
 import { ChannelSettings } from "@/components/settings/ChannelSettings";
 import { WebhookSettings } from "@/components/settings/WebhookSettings";
 import { ApiKeySettings } from "@/components/settings/ApiKeySettings";
 import { GeneralSettings } from "@/components/settings/GeneralSettings";
+import WarmerSettings from "@/components/settings/WarmerSettings";
 import StorageSettings from "@/components/settings/StorageSettings";
 import AISettings from "@/components/settings/AISettings";
 import { useAuth } from "@/contexts/auth-context";
@@ -61,7 +63,18 @@ export default function Settings() {
     const params = new URLSearchParams(window.location.search);
     return params.get("tab") || "general_setting";
   });
-  const { user } = useAuth();
+  const { user, userPlans } = useAuth();
+
+  const qrCodeChannelEnabled = useMemo(() => {
+    return (
+      user?.role === "superadmin" ||
+      userPlans?.data?.some(
+        (d: any) =>
+          d.subscription?.status === "active" &&
+          d.subscription?.planData?.permissions?.qrCodeChannelEnabled === "true"
+      )
+    );
+  }, [user, userPlans]);
 
   const { t } = useTranslation();
 
@@ -176,6 +189,13 @@ export default function Settings() {
                     <span>{t("settings.channel_setting.tabName")}</span>
                   </TabsTrigger>
 
+                  {qrCodeChannelEnabled && (
+                    <TabsTrigger value="warmer" className={tabTriggerClass}>
+                      <Flame className="w-4 h-4 shrink-0" />
+                      <span>WhatsApp Warmer</span>
+                    </TabsTrigger>
+                  )}
+
                   <TabsTrigger value="ai_setting" className={tabTriggerClass}>
                     <BotIcon className="w-4 h-4 shrink-0" />
                     <span>{t("settings.ai_setting.tabName")}</span>
@@ -253,6 +273,12 @@ export default function Settings() {
               <TabsContent value="whatsapp">
                 <ChannelSettings />
               </TabsContent>
+
+              {qrCodeChannelEnabled && (
+                <TabsContent value="warmer">
+                  <WarmerSettings />
+                </TabsContent>
+              )}
 
               <TabsContent value="message_logs">
                 <Logs embedded={true} />

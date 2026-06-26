@@ -23,20 +23,20 @@ export function resolveUserPermissions(
 ): PermissionMap {
   if (role === "admin") {
     // Admin gets all permissions dynamically from PERMISSIONS
-    const all: PermissionMap = {};
+    const all = {} as any;
     Object.values(PERMISSIONS).forEach((perm) => {
       all[perm] = true;
     });
-    return all;
+    return all as PermissionMap;
   }
 
   // For other roles → convert DB array to PermissionMap
   if (!dbPermissions || dbPermissions.length === 0) {
-    return {};
+    return {} as any;
   }
 
   return dbPermissions.reduce((acc, perm) => {
     acc[perm] = true;
     return acc;
-  }, {} as PermissionMap);
+  }, {} as any) as PermissionMap;
 }

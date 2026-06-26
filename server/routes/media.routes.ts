@@ -16,10 +16,23 @@
  */
 
 import type { Express } from "express";
-import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
-import crypto from "crypto";
+import { handleDigitalOceanUpload, upload } from "../middlewares/upload.middleware";
 
 export function registerMediaRoutes(app: Express) {
+  // General media upload
+  app.post("/api/media/upload", upload.single("file"), handleDigitalOceanUpload, (req, res) => {
+    const file = (req as any).file;
+    if (!file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    const fileUrl = file.cloudUrl || `/uploads/${file.filename || file.originalname}`;
+    res.json({
+      url: fileUrl,
+      name: file.originalname,
+      mimeType: file.mimetype
+    });
+  });
+
   // Get media upload URL
   app.post("/api/media/upload-url", async (req, res) => {
     try {

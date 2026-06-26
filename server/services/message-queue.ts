@@ -17,8 +17,9 @@
 
 import { db } from "../db";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
-import { messageQueue, channels, campaigns, users, conversations, messages, templates } from "@shared/schema";
+import { messageQueue, channels, campaigns, users, conversations, messages, templates, campaignRecipients, contacts } from "@shared/schema";
 import { eq, and, lte, or, isNull, sql, inArray, notInArray } from "drizzle-orm";
+import { BaileysManager } from "./baileys-manager";
 import { WhatsAppApiService } from "./whatsapp-api";
 import { storage } from '../storage';
 import { getWhatsAppError } from '@shared/whatsapp-error-codes';
@@ -323,8 +324,8 @@ export class MessageQueueService {
   }
 
   private static async processMessage(message: any, channelCache?: Map<string, any>) {
+    let templateContent = `Template: ${message.templateName}`;
     try {
-      let templateContent = `Template: ${message.templateName}`;
       if (message.templateName) {
         let tmplRow: { body: string } | undefined;
         if (message.channelId) {
@@ -391,29 +392,129 @@ export class MessageQueueService {
           language,
           isMarketing
         );
+      } else if (channel.connectionMethod === "qr_code" && message.campaignId) {
+        const campaign = await storage.getCampaign(message.campaignId);
+        if (!campaign) {
+          throw new Error(`Campaign not found: ${message.campaignId}`);
+        }
+
+        const isWarmer = message.templateParams && (message.templateParams as any).isWarmer;
+        let text = "";
+        let mediaUrl = campaign.mediaUrl;
+        let mediaMimeType = campaign.mediaMimeType;
+        let mediaName = campaign.mediaName;
+
+        if (isWarmer) {
+          text = (message.templateParams as any).customMessage || "";
+          mediaUrl = null;
+        } else {
+          text = campaign.customMessage || "";
+        }
+
+        // Interpolate variables in customMessage (e.g. {{name}}, {{phone}}, etc.)
+        let contactName = message.recipientPhone;
+        const [contact] = await db
+          .select()
+          .from(contacts)
+          .where(and(eq(contacts.channelId, channel.id), eq(contacts.phone, message.recipientPhone)))
+          .limit(1);
+        if (contact) {
+          contactName = contact.name || contactName;
+        }
+
+        text = text.replace(/\{\{\s*name\s*\}\}/gi, contactName);
+        text = text.replace(/\{\{\s*phone\s*\}\}/gi, message.recipientPhone);
+
+        // Strip HTML tags from WYSIWYG editor if needed, or send as is.
+        text = text
+          .replace(/<br\s*\/?>/gi, "\n")
+          .replace(/<\/p>/gi, "\n")
+          .replace(/<p>/gi, "")
+          .replace(/<b>(.*?)<\/b>/gi, "*$1*")
+          .replace(/<strong>(.*?)<\/strong>/gi, "*$1*")
+          .replace(/<i>(.*?)<\/i>/gi, "_$1_")
+          .replace(/<em>(.*?)<\/em>/gi, "_$1_")
+          .replace(/<del>(.*?)<\/del>/gi, "~$1~")
+          .replace(/<code[^>]*>(.*?)<\/code>/gi, "```$1```")
+          .replace(/<[^>]*>/g, ""); // Strip remaining HTML tags
+
+        // Decoded HTML entities
+        text = text
+          .replace(/&nbsp;/gi, " ")
+          .replace(/&amp;/gi, "&")
+          .replace(/&lt;/gi, "<")
+          .replace(/&gt;/gi, ">")
+          .replace(/&quot;/gi, '"');
+
+        if (mediaUrl) {
+          const mediaData = {
+            url: mediaUrl,
+            mimeType: mediaMimeType || "application/octet-stream",
+            filename: mediaName || "file"
+          };
+          response = await BaileysManager.sendMediaMessage(
+            channel.id,
+            message.recipientPhone,
+            mediaData,
+            text || undefined
+          );
+        } else {
+          response = await BaileysManager.sendMessage(
+            channel.id,
+            message.recipientPhone,
+            text
+          );
+        }
       } else {
         throw new Error("Non-template messages not yet implemented");
       }
 
       const waMessageId = response.messages?.[0]?.id;
 
+      const isQrCode = channel.connectionMethod === "qr_code";
+
       await db
         .update(messageQueue)
         .set({
           status: "sent",
           whatsappMessageId: waMessageId,
-          sentVia: isMarketing ? "marketing_messages" : "cloud_api",
+          sentVia: isMarketing ? "marketing_messages" : (isQrCode ? "qr_code" : "cloud_api"),
           attempts: message.attempts + 1
         })
         .where(eq(messageQueue.id, message.id));
 
       if (message.campaignId) {
-        await db
-          .update(campaigns)
-          .set({
-            sentCount: sql`${campaigns.sentCount} + 1`
-          })
-          .where(eq(campaigns.id, message.campaignId));
+        if (isQrCode) {
+          await db
+            .update(campaigns)
+            .set({
+              sentCount: sql`${campaigns.sentCount} + 1`,
+              deliveredCount: sql`${campaigns.deliveredCount} + 1`,
+              readCount: sql`${campaigns.readCount} + 1`,
+            })
+            .where(eq(campaigns.id, message.campaignId));
+
+          await db
+            .update(campaignRecipients)
+            .set({
+              status: "read",
+              whatsappMessageId: waMessageId,
+              sentAt: new Date(),
+              deliveredAt: new Date(),
+              readAt: new Date()
+            })
+            .where(and(
+              eq(campaignRecipients.campaignId, message.campaignId),
+              eq(campaignRecipients.phone, message.recipientPhone)
+            ));
+        } else {
+          await db
+            .update(campaigns)
+            .set({
+              sentCount: sql`${campaigns.sentCount} + 1`
+            })
+            .where(eq(campaigns.id, message.campaignId));
+        }
       }
 
       try {
@@ -457,7 +558,7 @@ export class MessageQueueService {
           direction: "outbound",
           fromUser: false,
           fromType: "campaign",
-          status: "sent",
+          status: isQrCode ? "read" : "sent",
         });
       } catch (logErr) {
         console.error(`[MessageQueue] Failed to write message log for ${message.id}:`, logErr);
@@ -475,10 +576,10 @@ export class MessageQueueService {
           attempts: message.attempts + 1,
           errorCode: err?.metaErrorCode
             ? String(err.metaErrorCode)
-            : err instanceof Error ? err.name : "UNKNOWN_ERROR",
-          errorMessage: err instanceof Error
-            ? [err.metaErrorTitle, err.message].filter(Boolean).join(" — ")
-            : String(err),
+            : error instanceof Error ? error.name : "UNKNOWN_ERROR",
+          errorMessage: error instanceof Error
+            ? [err?.metaErrorTitle, error.message].filter(Boolean).join(" — ")
+            : String(error),
           scheduledFor: message.attempts < 2 
             ? new Date(Date.now() + Math.pow(2, message.attempts + 1) * 1000)
             : null

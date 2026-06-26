@@ -248,7 +248,9 @@ export default function Campaigns() {
       autoRetry,
     } = campaignData;
 
-    if (!selectedTemplate)
+    const isQr = selectedChannel?.connectionMethod === "qr_code";
+
+    if (!isQr && !selectedTemplate)
       return toast({
         title: "Error",
         description: "Please select a template",
@@ -273,6 +275,7 @@ export default function Campaigns() {
       });
 
     if (
+      !isQr &&
       channelMessagingLimit != null &&
       channelMessagingLimit !== Infinity &&
       recipientCount > channelMessagingLimit
@@ -302,16 +305,16 @@ export default function Campaigns() {
     createCampaignMutation.mutate({
       ...campaignData,
       channelId: selectedChannel.id,
-      templateId: selectedTemplate.id,
-      templateName: selectedTemplate.name,
-      templateLanguage: selectedTemplate.language,
+      templateId: isQr ? null : selectedTemplate.id,
+      templateName: isQr ? null : selectedTemplate.name,
+      templateLanguage: isQr ? null : selectedTemplate.language,
       status: scheduledTime ? "scheduled" : "active",
       scheduledAt: scheduledTime ? new Date(scheduledTime).toISOString() : null,
       contactGroups: campaignType === "contacts" ? selectedContacts : [],
       csvData: campaignType === "csv" ? csvData : [],
       recipientCount,
       type: "marketing",
-      apiType: "mm_lite",
+      apiType: isQr ? "qr_code" : "mm_lite",
       campaignType,
       variableMapping: campaignData.variableMapping || {},
       autoRetry,

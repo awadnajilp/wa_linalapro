@@ -127,6 +127,7 @@
 import { storage } from "../storage";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
 import { AppError } from "../middlewares/error.middleware";
+import { BaileysManager } from "./baileys-manager";
 
 export async function sendBusinessMessage({
   to,
@@ -158,8 +159,15 @@ export async function sendBusinessMessage({
   let result;
   let sentText = message || "";
 
+  /* ───────── QR CODE CHANNEL ───────── */
+  if (channel.connectionMethod === "qr_code") {
+    if (templateName) {
+      throw new Error("Templates are not supported on QR code channels");
+    }
+    result = await BaileysManager.sendMessage(channel.id, to, sentText);
+  }
   /* ───────── TEMPLATE MESSAGE ───────── */
-  if (templateName) {
+  else if (templateName) {
     const components: any[] = [];
 
     // HEADER IMAGE

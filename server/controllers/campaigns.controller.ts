@@ -24,8 +24,8 @@ import { randomUUID } from "crypto";
 import { WhatsAppApiService } from "../services/whatsapp-api";
 import { triggerNotification, NOTIFICATION_EVENTS } from "../services/notification.service";
 import { db, dbRead } from "../db";
-import { channels, messageQueue, users } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { channels, messageQueue, users, contacts as contactsTable } from "@shared/schema";
+import { eq, and, or, isNull, lte, inArray } from "drizzle-orm";
 import { parseMessagingTier } from "../utils/messaging-tiers";
 
 export { parseMessagingTier };
@@ -86,10 +86,10 @@ const createCampaignSchema = z.object({
   description: z.string().optional(),
   campaignType: z.enum(["contacts", "csv", "api"]),
   type: z.enum(["marketing", "transactional"]),
-  apiType: z.enum(["cloud_api", "marketing_messages", "mm_lite"]),
-  templateId: z.string(),
-  templateName: z.string(),
-  templateLanguage: z.string(),
+  apiType: z.enum(["cloud_api", "marketing_messages", "mm_lite", "qr_code"]),
+  templateId: z.string().optional().nullable(),
+  templateName: z.string().optional().nullable(),
+  templateLanguage: z.string().optional().nullable(),
   variableMapping: variableMappingSchema.optional(),
   status: z.string(),
   scheduledAt: z
@@ -100,6 +100,15 @@ const createCampaignSchema = z.object({
   csvData: z.array(z.any()).optional(),
   recipientCount: z.number(),
   autoRetry: z.boolean().optional(),
+  customMessage: z.string().optional().nullable(),
+  mediaUrl: z.string().optional().nullable(),
+  mediaMimeType: z.string().optional().nullable(),
+  mediaName: z.string().optional().nullable(),
+  delayBetweenMessages: z.number().optional(),
+  chunkSize: z.number().optional(),
+  delayBetweenChunks: z.number().optional(),
+  warmerEnabled: z.boolean().optional(),
+  selectedWarmerMessages: z.array(z.string()).optional(),
 });
 
 const updateStatusSchema = z.object({
@@ -866,26 +875,31 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
     return;
   }
 
-  const template = await storage.getTemplate(campaign.templateId!);
-  if (!template) {
-    console.error(`[Campaign ${campaignId}] Template not found: ${campaign.templateId}`);
-    await storage.updateCampaign(campaignId, { status: "failed", populationStartedAt: null });
-    return;
-  }
-
+  const isQr = channel.connectionMethod === "qr_code";
+  let template = null;
   let hasLimitedTimeOffer = false;
-  if (template.whatsappTemplateId) {
-    try {
-      const metaResp = await fetch(
-        `https://graph.facebook.com/v24.0/${template.whatsappTemplateId}`,
-        { headers: { Authorization: `Bearer ${channel.accessToken}` } }
-      );
-      const metaData = await metaResp.json();
-      hasLimitedTimeOffer = (metaData.components || []).some(
-        (c: any) => c.type === "LIMITED_TIME_OFFER"
-      );
-    } catch (err) {
-      console.warn(`[Campaign ${campaignId}] Failed to check LTO status from Meta:`, err);
+
+  if (!isQr) {
+    template = await storage.getTemplate(campaign.templateId!);
+    if (!template) {
+      console.error(`[Campaign ${campaignId}] Template not found: ${campaign.templateId}`);
+      await storage.updateCampaign(campaignId, { status: "failed", populationStartedAt: null });
+      return;
+    }
+
+    if (template.whatsappTemplateId) {
+      try {
+        const metaResp = await fetch(
+          `https://graph.facebook.com/v24.0/${template.whatsappTemplateId}`,
+          { headers: { Authorization: `Bearer ${channel.accessToken}` } }
+        );
+        const metaData = await metaResp.json();
+        hasLimitedTimeOffer = (metaData.components || []).some(
+          (c: any) => c.type === "LIMITED_TIME_OFFER"
+        );
+      } catch (err) {
+        console.warn(`[Campaign ${campaignId}] Failed to check LTO status from Meta:`, err);
+      }
     }
   }
 
@@ -903,52 +917,132 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
     return;
   }
 
-  const CHUNK_SIZE = 100;
+  const chunkSize = campaign.chunkSize || 50;
+  const delayBetweenMessages = campaign.delayBetweenMessages || 10;
+  const delayBetweenChunks = campaign.delayBetweenChunks || 60; // in minutes
+  const warmerEnabled = campaign.warmerEnabled || false;
+  const warmerMessagesList = campaign.selectedWarmerMessages || [];
+
+  // Get other contacts on this channel to use as warmer recipients
+  let warmerRecipients: string[] = [];
+  if (warmerEnabled && warmerMessagesList.length > 0) {
+    try {
+      const allChannelContacts = await db
+        .select()
+        .from(contactsTable)
+        .where(eq(contactsTable.channelId, channel.id));
+      
+      const campaignPhoneSet = new Set(contacts.map((c: any) => c.phone));
+      warmerRecipients = allChannelContacts
+        .map((c: any) => c.phone)
+        .filter((phone: string) => !campaignPhoneSet.has(phone));
+      
+      if (warmerRecipients.length === 0 && allChannelContacts.length > 0) {
+        warmerRecipients = allChannelContacts.map((c: any) => c.phone);
+      }
+    } catch (wErr) {
+      console.warn(`[Campaign ${campaignId}] Failed to query warmer contacts:`, wErr);
+    }
+  }
+
+  let currentTime = new Date();
+  if (campaign.scheduledAt) {
+    currentTime = new Date(campaign.scheduledAt);
+  }
+
   let totalQueued = 0;
   let totalFailed = 0;
   let lastHeartbeat = Date.now();
+  const rows: any[] = [];
 
-  for (let i = 0; i < contacts.length; i += CHUNK_SIZE) {
-    const chunk = contacts.slice(i, i + CHUNK_SIZE);
-    const rows = chunk.map((contact) => {
+  for (let i = 0; i < contacts.length; i += chunkSize) {
+    const chunk = contacts.slice(i, i + chunkSize);
+    const chunkRows: any[] = [];
+
+    chunk.forEach((contact) => {
       try {
-        const components = buildContactComponents(contact, campaign, template, hasLimitedTimeOffer);
-        return {
+        let components: any[] = [];
+        if (!isQr && template) {
+          components = buildContactComponents(contact, campaign, template, hasLimitedTimeOffer);
+        }
+        chunkRows.push({
           campaignId,
           channelId: channel.id,
           recipientPhone: contact.phone,
-          templateName: template.name,
-          templateLanguage: (campaign as any).templateLanguage || "en_US",
+          templateName: isQr ? null : template!.name,
+          templateLanguage: isQr ? null : ((campaign as any).templateLanguage || "en_US"),
           templateParams: components,
           messageType: "marketing",
           status: "queued" as const,
-        };
+        });
       } catch (err: any) {
         console.error(`[Campaign ${campaignId}] Failed to build components for ${contact.phone}: ${err.message}`);
         totalFailed++;
-        return {
+        chunkRows.push({
           campaignId,
           channelId: channel.id,
           recipientPhone: contact.phone,
-          templateName: template.name,
-          templateLanguage: (campaign as any).templateLanguage || "en_US",
+          templateName: isQr ? null : template!.name,
+          templateLanguage: isQr ? null : ((campaign as any).templateLanguage || "en_US"),
           templateParams: [],
           messageType: "marketing",
           status: "failed" as const,
-        };
+        });
       }
     });
 
-    await db.insert(messageQueue).values(rows);
-    totalQueued += rows.filter(r => r.status === "queued").length;
+    // Intersperse warmer messages if enabled
+    if (warmerEnabled && warmerMessagesList.length > 0 && warmerRecipients.length > 0) {
+      // Interleave 1 warmer message per 10 campaign messages (min 1, max 5)
+      const warmerCount = Math.min(5, Math.max(1, Math.floor(chunk.length / 10)));
+      for (let w = 0; w < warmerCount; w++) {
+        const randomPhone = warmerRecipients[Math.floor(Math.random() * warmerRecipients.length)];
+        const randomText = warmerMessagesList[Math.floor(Math.random() * warmerMessagesList.length)];
+        
+        const insertIndex = Math.floor(Math.random() * (chunkRows.length + 1));
+        chunkRows.splice(insertIndex, 0, {
+          campaignId,
+          channelId: channel.id,
+          recipientPhone: randomPhone,
+          templateName: null,
+          templateLanguage: null,
+          templateParams: { isWarmer: true, customMessage: randomText },
+          messageType: "utility",
+          status: "queued" as const,
+        });
+      }
+    }
+
+    // Assign scheduledFor time to all messages in this chunk
+    chunkRows.forEach((row) => {
+      if (row.status === "queued") {
+        row.scheduledFor = new Date(currentTime.getTime());
+        currentTime = new Date(currentTime.getTime() + delayBetweenMessages * 1000);
+      } else {
+        row.scheduledFor = null;
+      }
+      rows.push(row);
+    });
+
+    if (i + chunkSize < contacts.length) {
+      currentTime = new Date(currentTime.getTime() + delayBetweenChunks * 60 * 1000);
+    }
+  }
+
+  // Insert all in batches of 100
+  const BATCH_SIZE_INSERT = 100;
+  for (let i = 0; i < rows.length; i += BATCH_SIZE_INSERT) {
+    const batch = rows.slice(i, i + BATCH_SIZE_INSERT);
+    await db.insert(messageQueue).values(batch);
+    totalQueued += batch.filter(r => r.status === "queued" && !(r.templateParams && (r.templateParams as any).isWarmer)).length;
 
     if (Date.now() - lastHeartbeat > 60_000) {
       await storage.updateCampaign(campaignId, { populationStartedAt: new Date() });
       lastHeartbeat = Date.now();
     }
-
-    console.log(`[Campaign ${campaignId}] Queued ${totalQueued}/${contacts.length}${totalFailed > 0 ? ` (${totalFailed} failed to build)` : ""}`);
   }
+
+  console.log(`[Campaign ${campaignId}] Queued ${totalQueued}/${contacts.length}${totalFailed > 0 ? ` (${totalFailed} failed to build)` : ""}`);
 
   if (totalQueued === 0 && totalFailed > 0) {
     await storage.updateCampaign(campaignId, {

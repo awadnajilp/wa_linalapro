@@ -35,6 +35,7 @@ import { eq, and } from "drizzle-orm";
 import { sendBusinessMessage } from "../services/messageService";
 import { WhatsAppApiService } from "./whatsapp-api";
 import { storage } from "server/storage";
+import { BaileysManager } from "./baileys-manager";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
@@ -768,7 +769,13 @@ private async executeCustomReply(node: any, context: ExecutionContext) {
   }
 
   const hasMedia = nodeData.imageFile?.path || nodeData.videoFile?.path || nodeData.audioFile?.path || nodeData.documentFile?.path;
-  const buttons = nodeData.buttons || [];
+  let buttons = nodeData.buttons || [];
+
+  const channel = await storage.getChannel(effectiveChannelId);
+  const isQr = channel?.connectionMethod === "qr_code";
+  if (isQr) {
+    buttons = [];
+  }
 
   if (hasMedia && buttons.length > 0) {
     await this.sendMediaWithButtons(getContact, nodeData, message, buttons, context, effectiveChannelId);
@@ -1062,8 +1069,31 @@ private async sendMediaMessage(contact: any, nodeData: any, caption: string, con
     throw new Error(`Channel ${resolvedChannelId} not found`);
   }
 
-  const whatsappApi = new WhatsAppApiService(channel);
   const formattedPhone = this.formatPhoneNumber(contact.phone);
+
+  if (channel.connectionMethod === "qr_code") {
+    const info = this.getMediaFileInfo(nodeData);
+    if (!info) {
+      throw new Error('No media file found in node data');
+    }
+    const buffer = await this.readMediaBuffer(info.file.path);
+    const mediaPayload = {
+      buffer,
+      mimeType: info.file.mimetype,
+      filename: info.file.filename || 'media',
+    };
+    const result = await BaileysManager.sendMediaMessage(
+      channel.id,
+      formattedPhone,
+      mediaPayload,
+      caption || undefined
+    );
+    await this.saveMediaMessage(contact, nodeData, caption, context, result);
+    console.log(`✅ Media message sent successfully via Baileys to ${contact.phone}`);
+    return result;
+  }
+
+  const whatsappApi = new WhatsAppApiService(channel);
 
   const uploaded = await this.uploadNodeMedia(nodeData, whatsappApi);
   if (!uploaded) {
@@ -1123,7 +1153,7 @@ private async sendMediaMessage(contact: any, nodeData: any, caption: string, con
  */
 private async executeUserReply(node: any, context: ExecutionContext) {
   const question = this.replaceVariables(node.data.question || '', context.variables);
-  const buttons = node.data.buttons || [];
+  let buttons = node.data.buttons || [];
   const nodeData = node.data;
   
   console.log(`Asking question to conversation ${context.conversationId}: "${question}"`);
@@ -1142,6 +1172,12 @@ private async executeUserReply(node: any, context: ExecutionContext) {
 
   if (!getContact?.channelId) {
     throw new Error('channelId not found');
+  }
+
+  const channel = await storage.getChannel(getContact.channelId);
+  const isQr = channel?.connectionMethod === "qr_code";
+  if (isQr) {
+    buttons = [];
   }
 
   if (hasMedia && buttons.length > 0) {

@@ -44,6 +44,7 @@ import {
 
 interface SidebarProps {
   onAddNode: (kind: NodeKind) => void;
+  isQrChannel?: boolean;
 }
 
 const nodeCategories = [
@@ -213,7 +214,7 @@ const nodeCategories = [
   },
 ];
 
-export function Sidebar({ onAddNode }: SidebarProps) {
+export function Sidebar({ onAddNode, isQrChannel }: SidebarProps) {
   return (
     <TooltipProvider delayDuration={200}>
       <div className="col-span-2 bg-white flex flex-col border-r border-gray-200 overflow-hidden">
@@ -229,7 +230,7 @@ export function Sidebar({ onAddNode }: SidebarProps) {
                 {category.label}
               </div>
               <div className="grid grid-cols-2 gap-1.5">
-                {category.items.map((item) => {
+                {category.items.filter(item => !(isQrChannel && ["send_template", "send_list_message"].includes(item.kind))).map((item) => {
                   const Icon = item.icon;
                   return (
                     <div key={item.kind} className="relative">

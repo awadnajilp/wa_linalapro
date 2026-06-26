@@ -15,10 +15,11 @@
  * ============================================================
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -66,6 +67,8 @@ import {
   Loader2,
   Webhook,
   Radio,
+  QrCode,
+  Lock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -114,17 +117,66 @@ export function ChannelSettings() {
   const [lastConnectedCoexistence, setLastConnectedCoexistence] = useState(false);
   const [channelProcessing, setChannelProcessing] = useState<{ status: "processing" | "error"; errorMessage?: string } | null>(null);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, userPlans } = useAuth();
   const { selectedChannel, setSelectedChannel } = useChannelContext();
+  const queryClient = useQueryClient();
 
-  const { data: channels = [], isLoading: channelsLoading } = useQuery({
+  const [showQrConnectDialog, setShowQrConnectDialog] = useState(false);
+  const [qrSessionId, setQrSessionId] = useState<string | null>(null);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+  const [qrChannelName, setQrChannelName] = useState("QR WhatsApp Channel");
+  const [qrPhoneNumber, setQrPhoneNumber] = useState("+1234567890");
+  const [qrConnectLoading, setQrConnectLoading] = useState(false);
+  const [qrStatus, setQrStatus] = useState<"pending" | "authenticated" | "expired">("pending");
+
+  const qrCodeChannelEnabled = useMemo(() => {
+    return user?.role === "superadmin" || userPlans?.data?.some((d: any) => d.subscription?.status === "active" && d.subscription?.planData?.permissions?.qrCodeChannelEnabled === "true");
+  }, [user, userPlans]);
+
+  useEffect(() => {
+    let intervalId: any;
+    if (showQrConnectDialog && qrSessionId && qrStatus === "pending") {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await apiRequest("GET", `/api/whatsapp/channels/qr/status/${qrSessionId}`);
+          const data = await res.json();
+          if (data.qrCodeUrl) {
+            setQrCodeUrl(data.qrCodeUrl);
+          }
+          if (data.status === "authenticated") {
+            setQrStatus("authenticated");
+            toast({
+              title: "Connected!",
+              description: "WhatsApp QR Channel connected successfully."
+            });
+            queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/channels/active"] });
+            setShowQrConnectDialog(false);
+          } else if (data.status === "expired") {
+            setQrStatus("expired");
+          }
+        } catch (err) {
+          console.error("Error polling QR status:", err);
+        }
+      }, 3000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [showQrConnectDialog, qrSessionId, qrStatus, toast, queryClient]);
+
+  const { data: channelsData, isLoading: channelsLoading } = useQuery({
     queryKey: ["/api/channels"],
     queryFn: async () => {
       const response = await apiRequest("GET", "/api/channels");
-      const json = await response.json();
-      return json.data ?? [];
+      return await response.json();
     },
   });
+
+  const channels = useMemo(() => {
+    if (!channelsData) return [];
+    return Array.isArray(channelsData) ? channelsData : (channelsData.data ?? []);
+  }, [channelsData]);
 
   const { data: config } = useQuery({
     queryKey: ["/api/embedded/config"],
@@ -383,7 +435,7 @@ export function ChannelSettings() {
   }, [config?.appId]);
 
   const openConnectionChooser = () => {
-    if (embeddedSignupEnabled) {
+    if (embeddedSignupEnabled || qrCodeChannelEnabled) {
       setConnectionFlow("choose");
       setShowConnectionDialog(true);
     } else {
@@ -1068,74 +1120,76 @@ export function ChannelSettings() {
                       </div>
 
                       {/* Webhook Subscription Section */}
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Radio className="w-4 h-4 text-gray-600 flex-shrink-0" />
-                            <span className="font-semibold text-gray-700 text-sm">Delivery Webhooks</span>
-                            {webhookSubStatus[channel.id] === "loading" && (
-                              <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                                <Loader2 className="w-3 h-3 animate-spin" /> Checking...
-                              </Badge>
-                            )}
-                            {webhookSubStatus[channel.id] === "subscribed" && (
-                              <Badge variant="secondary" className="text-xs flex items-center gap-1 bg-green-50 text-green-700 border-green-200">
-                                <CheckCircle className="w-3 h-3" /> Subscribed
-                              </Badge>
-                            )}
-                            {webhookSubStatus[channel.id] === "not_subscribed" && (
-                              <Badge variant="secondary" className="text-xs flex items-center gap-1 bg-red-50 text-red-700 border-red-200">
-                                <XCircle className="w-3 h-3" /> Not Subscribed
-                              </Badge>
-                            )}
-                            {(webhookSubStatus[channel.id] === "unknown" || !webhookSubStatus[channel.id]) && (
-                              <Badge variant="secondary" className="text-xs flex items-center gap-1 bg-gray-50 text-gray-600 border-gray-200">
-                                <AlertTriangle className="w-3 h-3" /> Unknown
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => fetchWebhookSubStatus(channel.id)}
-                              disabled={webhookSubStatus[channel.id] === "loading"}
-                              className="text-xs px-2"
-                              title="Refresh subscription status"
-                            >
-                              <RefreshCw className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => resubscribeWebhook(channel.id)}
-                              disabled={
-                                resubscribingChannelId === channel.id ||
-                                user?.username === "demouser"
-                              }
-                              className="text-xs text-green-700 border-green-200 hover:bg-green-50 whitespace-nowrap"
-                            >
-                              {resubscribingChannelId === channel.id ? (
-                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                              ) : (
-                                <Webhook className="w-3 h-3 mr-1" />
+                      {channel.connectionMethod !== "qr_code" && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Radio className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                              <span className="font-semibold text-gray-700 text-sm">Delivery Webhooks</span>
+                              {webhookSubStatus[channel.id] === "loading" && (
+                                <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                                  <Loader2 className="w-3 h-3 animate-spin" /> Checking...
+                                </Badge>
                               )}
-                              Re-subscribe
-                            </Button>
+                              {webhookSubStatus[channel.id] === "subscribed" && (
+                                <Badge variant="secondary" className="text-xs flex items-center gap-1 bg-green-50 text-green-700 border-green-200">
+                                  <CheckCircle className="w-3 h-3" /> Subscribed
+                                </Badge>
+                              )}
+                              {webhookSubStatus[channel.id] === "not_subscribed" && (
+                                <Badge variant="secondary" className="text-xs flex items-center gap-1 bg-red-50 text-red-700 border-red-200">
+                                  <XCircle className="w-3 h-3" /> Not Subscribed
+                                </Badge>
+                              )}
+                              {(webhookSubStatus[channel.id] === "unknown" || !webhookSubStatus[channel.id]) && (
+                                <Badge variant="secondary" className="text-xs flex items-center gap-1 bg-gray-50 text-gray-600 border-gray-200">
+                                  <AlertTriangle className="w-3 h-3" /> Unknown
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => fetchWebhookSubStatus(channel.id)}
+                                disabled={webhookSubStatus[channel.id] === "loading"}
+                                className="text-xs px-2"
+                                title="Refresh subscription status"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => resubscribeWebhook(channel.id)}
+                                disabled={
+                                  resubscribingChannelId === channel.id ||
+                                  user?.username === "demouser"
+                                }
+                                className="text-xs text-green-700 border-green-200 hover:bg-green-50 whitespace-nowrap"
+                              >
+                                {resubscribingChannelId === channel.id ? (
+                                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                ) : (
+                                  <Webhook className="w-3 h-3 mr-1" />
+                                )}
+                                Re-subscribe
+                              </Button>
+                            </div>
                           </div>
+                          {webhookSubStatus[channel.id] === "not_subscribed" && (
+                            <p className="text-xs text-red-600 mt-2 flex items-start gap-1">
+                              <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                              This channel is not subscribed to Meta webhooks. Campaign delivery and read rates will show 0%. Click Re-subscribe to fix this.
+                            </p>
+                          )}
+                          {(webhookSubStatus[channel.id] === "unknown" || !webhookSubStatus[channel.id]) && (
+                            <p className="text-xs text-gray-500 mt-2">
+                              Click Re-subscribe if campaign delivery and read rates are showing 0%. This registers your channel with Meta to receive delivery receipts.
+                            </p>
+                          )}
                         </div>
-                        {webhookSubStatus[channel.id] === "not_subscribed" && (
-                          <p className="text-xs text-red-600 mt-2 flex items-start gap-1">
-                            <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                            This channel is not subscribed to Meta webhooks. Campaign delivery and read rates will show 0%. Click Re-subscribe to fix this.
-                          </p>
-                        )}
-                        {(webhookSubStatus[channel.id] === "unknown" || !webhookSubStatus[channel.id]) && (
-                          <p className="text-xs text-gray-500 mt-2">
-                            Click Re-subscribe if campaign delivery and read rates are showing 0%. This registers your channel with Meta to receive delivery receipts.
-                          </p>
-                        )}
-                      </div>
+                      )}
                     </div>
 
                     {/* Action Buttons */}
@@ -1292,59 +1346,154 @@ export function ChannelSettings() {
               </DialogHeader>
 
               <div className="space-y-3 mt-2">
-                {/* Coexistence Option */}
-                <button
-                  onClick={() => startConnection(true)}
-                  className="w-full text-left p-4 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-all group"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
-                      <Layers className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-gray-900">Connect Existing WhatsApp Business App</h3>
-                        <Badge className="text-[10px] bg-blue-100 text-blue-700 border-blue-200">Coexistence</Badge>
+                {embeddedSignupEnabled ? (
+                  <>
+                    {/* Coexistence Option */}
+                    <button
+                      onClick={() => startConnection(true)}
+                      className="w-full text-left p-4 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-all group cursor-pointer"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                          <Layers className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-semibold text-gray-900">Connect Existing WhatsApp Business App</h3>
+                            <Badge className="text-[10px] bg-blue-100 text-blue-700 border-blue-200">Coexistence</Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">
+                            Keep using your WhatsApp Business App on your phone while also using this platform for automation, campaigns, and bulk messaging.
+                          </p>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                            <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> Keep mobile app access</span>
+                            <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> Sync chat history</span>
+                            <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> Same phone number</span>
+                          </div>
+                        </div>
+                        <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors mt-1" />
                       </div>
-                      <p className="text-sm text-gray-600 mb-2">
-                        Keep using your WhatsApp Business App on your phone while also using this platform for automation, campaigns, and bulk messaging.
-                      </p>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                        <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> Keep mobile app access</span>
-                        <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> Sync chat history</span>
-                        <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> Same phone number</span>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors mt-1" />
-                  </div>
-                </button>
+                    </button>
 
-                {/* Standard Option */}
-                <button
-                  onClick={() => startConnection(false)}
-                  className="w-full text-left p-4 border-2 border-gray-200 rounded-lg hover:border-green-400 hover:bg-green-50/50 transition-all group"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
-                      <Smartphone className="w-5 h-5 text-green-600" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-gray-900">Register New Number</h3>
-                        <Badge className="text-[10px] bg-green-100 text-green-700 border-green-200">Standard</Badge>
+                    {/* Standard Option */}
+                    <button
+                      onClick={() => startConnection(false)}
+                      className="w-full text-left p-4 border-2 border-gray-200 rounded-lg hover:border-green-400 hover:bg-green-50/50 transition-all group cursor-pointer"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                          <Smartphone className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-semibold text-gray-900">Register New Number</h3>
+                            <Badge className="text-[10px] bg-green-100 text-green-700 border-green-200">Standard</Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">
+                            Register a new or existing phone number exclusively for Cloud API use. The number will only work through this platform.
+                          </p>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                            <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> Full API features</span>
+                            <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> No app required</span>
+                            <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> Dedicated number</span>
+                          </div>
+                        </div>
+                        <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-green-500 transition-colors mt-1" />
                       </div>
-                      <p className="text-sm text-gray-600 mb-2">
-                        Register a new or existing phone number exclusively for Cloud API use. The number will only work through this platform.
-                      </p>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                        <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> Full API features</span>
-                        <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> No app required</span>
-                        <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> Dedicated number</span>
+                    </button>
+                  </>
+                ) : (
+                  /* Manual Option when embedded signup is disabled */
+                  <button
+                    onClick={() => {
+                      setShowConnectionDialog(false);
+                      setEditingChannel(null);
+                      setShowChannelDialog(true);
+                    }}
+                    className="w-full text-left p-4 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50/50 transition-all group cursor-pointer"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                        <Smartphone className="w-5 h-5 text-blue-600" />
                       </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-gray-900">Manual Setup (Meta Cloud API)</h3>
+                          <Badge className="text-[10px] bg-blue-100 text-blue-700 border-blue-200">Manual</Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">
+                          Connect manually by providing your access token, phone number ID, and WABA ID.
+                        </p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                          <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> Meta API features</span>
+                          <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> Manual configuration</span>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors mt-1" />
                     </div>
-                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-green-500 transition-colors mt-1" />
-                  </div>
-                </button>
+                  </button>
+                )}
+
+                {/* QR Code Option */}
+                {qrCodeChannelEnabled && (
+                  <button
+                    onClick={async () => {
+                      if (!qrCodeChannelEnabled) {
+                        toast({
+                          variant: "destructive",
+                          title: "Upgrade Required",
+                          description: "QR Code based login channel is a premium package feature. Please upgrade your plan."
+                        });
+                        return;
+                      }
+                      try {
+                        setQrConnectLoading(true);
+                        const res = await apiRequest("POST", "/api/whatsapp/channels/qr/initiate", {
+                          name: qrChannelName,
+                          phoneNumber: qrPhoneNumber
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          setQrSessionId(data.sessionId);
+                          setQrCodeUrl(data.qrCodeUrl);
+                          setQrStatus("pending");
+                          setShowQrConnectDialog(true);
+                          setShowConnectionDialog(false);
+                        }
+                      } catch (err: any) {
+                        toast({
+                          variant: "destructive",
+                          title: "Connection failed",
+                          description: err.message || "Failed to initiate QR session"
+                        });
+                      } finally {
+                        setQrConnectLoading(false);
+                      }
+                    }}
+                    className={`w-full text-left p-4 border-2 border-gray-200 rounded-lg transition-all group hover:border-purple-400 hover:bg-purple-50/50 cursor-pointer`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
+                        <QrCode className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-gray-900">QR Code Connection (Baileys/WA Web)</h3>
+                          <Badge className="text-[10px] bg-purple-100 text-purple-700 border-purple-200">Premium</Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">
+                          Connect by scanning a QR Code. No Meta templates or button restrictions required for campaigns or automations.
+                        </p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                          <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> No templates restrictions</span>
+                          <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> No button layout limits</span>
+                          <span className="flex items-center gap-1"><Check className="w-3 h-3 text-green-500" /> Instant activation</span>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-purple-500 transition-colors mt-1" />
+                    </div>
+                  </button>
+                )}
               </div>
             </>
           )}
@@ -1422,6 +1571,147 @@ export function ChannelSettings() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* QR Code Connect Dialog */}
+      <Dialog open={showQrConnectDialog} onOpenChange={setShowQrConnectDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="w-5 h-5 text-purple-600" />
+              Scan QR Code
+            </DialogTitle>
+            <DialogDescription>
+              Link your WhatsApp account instantly by scanning the QR code below.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 my-2">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-gray-700">Connection Name</label>
+              <Input
+                value={qrChannelName}
+                onChange={(e) => setQrChannelName(e.target.value)}
+                placeholder="e.g. My Personal WhatsApp"
+                className="h-9 text-sm rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-gray-700">WhatsApp Phone Number</label>
+              <Input
+                value={qrPhoneNumber}
+                onChange={(e) => setQrPhoneNumber(e.target.value)}
+                placeholder="e.g. +1234567890"
+                className="h-9 text-sm rounded-lg"
+              />
+            </div>
+
+            <div className="flex flex-col items-center justify-center p-6 bg-gray-50 border border-gray-100 rounded-xl">
+              {qrCodeUrl ? (
+                <div className="relative p-3 bg-white rounded-xl shadow-sm border border-gray-200">
+                  <img src={qrCodeUrl} alt="WhatsApp QR Code" className="w-60 h-60 object-contain" />
+                  {qrStatus === "expired" && (
+                    <div className="absolute inset-0 bg-white/95 flex flex-col items-center justify-center p-4 text-center rounded-xl">
+                      <AlertTriangle className="w-10 h-10 text-amber-500 mb-2" />
+                      <p className="text-sm font-semibold text-gray-900">QR Code Expired</p>
+                      <p className="text-xs text-gray-500 mb-3">QR codes expire quickly for security reasons.</p>
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            setQrConnectLoading(true);
+                            const res = await apiRequest("POST", "/api/whatsapp/channels/qr/initiate", {
+                              name: qrChannelName,
+                              phoneNumber: qrPhoneNumber
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              setQrSessionId(data.sessionId);
+                              setQrCodeUrl(data.qrCodeUrl);
+                              setQrStatus("pending");
+                            }
+                          } catch (err: any) {
+                            toast({
+                              variant: "destructive",
+                              title: "Failed to refresh QR",
+                              description: err.message || "Failed to refresh session"
+                            });
+                          } finally {
+                            setQrConnectLoading(false);
+                          }
+                        }}
+                        className="rounded-lg h-8 text-xs bg-purple-600 hover:bg-purple-700"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh Code
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="w-60 h-60 flex items-center justify-center bg-white border border-dashed border-gray-200 rounded-xl">
+                  <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+                </div>
+              )}
+
+              <div className="text-center mt-4 max-w-xs">
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Open WhatsApp on your mobile device, tap Settings &gt; Linked Devices, and scan this code.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex sm:justify-between items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setShowQrConnectDialog(false)}
+              className="rounded-lg h-9 text-sm text-gray-500 hover:bg-gray-100"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!qrSessionId) return;
+                try {
+                  setQrConnectLoading(true);
+                  const res = await apiRequest("POST", `/api/whatsapp/channels/qr/simulate-scan/${qrSessionId}`, {
+                    name: qrChannelName,
+                    phoneNumber: qrPhoneNumber
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    toast({
+                      title: "Authenticated!",
+                      description: "WhatsApp QR Channel connected successfully via simulated scan."
+                    });
+                    queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+                    queryClient.invalidateQueries({ queryKey: ["/api/channels/active"] });
+                    setShowQrConnectDialog(false);
+                  }
+                } catch (err: any) {
+                  toast({
+                    variant: "destructive",
+                    title: "Scan Simulation Failed",
+                    description: err.message || "Could not simulate scan"
+                  });
+                } finally {
+                  setQrConnectLoading(false);
+                }
+              }}
+              disabled={qrConnectLoading || qrStatus === "expired"}
+              className="rounded-lg h-9 text-sm bg-purple-600 hover:bg-purple-700 text-white font-medium"
+            >
+              {qrConnectLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Connecting...
+                </>
+              ) : (
+                "Simulate Scan (Auto Connect)"
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

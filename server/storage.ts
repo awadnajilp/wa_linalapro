@@ -43,6 +43,10 @@ import {
   type InsertMessageQueue,
   type ApiLog,
   type InsertApiLog,
+  type WarmerConfig,
+  type InsertWarmerConfig,
+  type WarmerMessage,
+  type InsertWarmerMessage,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -185,8 +189,17 @@ getTemplatesByUserId(userId: string): Promise<Template[]>;
 getTemplatesByChannelAndUser(channelId: string, userId: string): Promise<Template[]>;
 getConversationsByChannel(channelId: string): Promise<Conversation[]>;
 deleteConversation(id: string): Promise<boolean>;
-getAutomationByChannel(channelId: string): Promise<Automation[]>;
-getAnalyticsByChannel(channelId: string, days?: number): Promise<Analytics[]>;
+  getAutomationByChannel(channelId: string): Promise<Automation[]>;
+  getAnalyticsByChannel(channelId: string, days?: number): Promise<Analytics[]>;
+
+  // Warmer Configurations & Messages
+  getWarmerConfig(channelId: string): Promise<WarmerConfig | undefined>;
+  createWarmerConfig(config: InsertWarmerConfig): Promise<WarmerConfig>;
+  updateWarmerConfig(id: string, updates: Partial<WarmerConfig>): Promise<WarmerConfig | undefined>;
+  getWarmerMessages(configId: string): Promise<WarmerMessage[]>;
+  addWarmerMessage(msg: InsertWarmerMessage): Promise<WarmerMessage>;
+  deleteWarmerMessage(id: string): Promise<boolean>;
+  updateWarmerMessage(id: string, text: string): Promise<WarmerMessage | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -203,6 +216,8 @@ export class MemStorage implements IStorage {
   private webhookConfigs: Map<string, WebhookConfig> = new Map();
   private messageQueues: Map<string, MessageQueue> = new Map();
   private apiLogs: Map<string, ApiLog> = new Map();
+  private warmerConfigs: Map<string, WarmerConfig> = new Map();
+  private warmerMessages: Map<string, WarmerMessage> = new Map();
 
   constructor() {
     this.initializeSampleData();
@@ -237,6 +252,10 @@ export class MemStorage implements IStorage {
         healthStatus: "unknown",     // ✅ added
         lastHealthCheck: null,       // ✅ added
         healthDetails: null,         // ✅ added
+        appId: null,
+        isCoexistence: false,
+        connectionMethod: "cloud_api",
+        createdBy: "superadmin",
         createdAt: today,
         updatedAt: today,
       };
@@ -365,6 +384,16 @@ async searchContactsByChannel(channelId: string, query: string): Promise<Contact
       avatar: insertUser.avatar || null,
       role: insertUser.role || "agent",
       status: insertUser.status || "active",
+      permissions: insertUser.permissions || [],
+      channelId: insertUser.channelId || null,
+      createdBy: insertUser.createdBy || null,
+      fcmToken: insertUser.fcmToken || null,
+      isEmailVerified: insertUser.isEmailVerified || false,
+      stripeCustomerId: insertUser.stripeCustomerId || null,
+      razorpayCustomerId: insertUser.razorpayCustomerId || null,
+      paypalCustomerId: insertUser.paypalCustomerId || null,
+      paystackCustomerCode: insertUser.paystackCustomerCode || null,
+      mercadopagoCustomerId: insertUser.mercadopagoCustomerId || null,
       lastLogin: null,
       updatedAt: new Date(),
       createdAt: new Date(),
@@ -410,6 +439,8 @@ async searchContactsByChannel(channelId: string, query: string): Promise<Contact
       groups: Array.isArray(insertContact.groups)? (insertContact.groups as string[]): [],
       tags: insertContact.tags || [],
       status: insertContact.status || "active",
+      createdBy: insertContact.createdBy || null,
+      source: insertContact.source || null,
       lastContact: null,
       updatedAt: new Date(),
       createdAt: new Date(),
@@ -470,7 +501,7 @@ async searchContactsByChannel(channelId: string, query: string): Promise<Contact
 
 
   async getCampaignByUserId(userId: string): Promise<Campaign[]> {
-    return this.campaigns.get(userId);
+    return Array.from(this.campaigns.values()).filter(c => c.createdBy === userId);
   }
 
   async createCampaign(insertCampaign: InsertCampaign): Promise<Campaign> {
@@ -497,6 +528,17 @@ async searchContactsByChannel(channelId: string, query: string): Promise<Contact
       failedCount: insertCampaign.failedCount || 0,
       deliveredCount: insertCampaign.deliveredCount || 0,
       completedAt: insertCampaign.completedAt || null,
+      createdBy: insertCampaign.createdBy || null,
+      populationStartedAt: insertCampaign.populationStartedAt || null,
+      customMessage: insertCampaign.customMessage || null,
+      mediaUrl: insertCampaign.mediaUrl || null,
+      mediaMimeType: insertCampaign.mediaMimeType || null,
+      mediaName: insertCampaign.mediaName || null,
+      delayBetweenMessages: insertCampaign.delayBetweenMessages || 10,
+      chunkSize: insertCampaign.chunkSize || 50,
+      delayBetweenChunks: insertCampaign.delayBetweenChunks || 60,
+      warmerEnabled: insertCampaign.warmerEnabled || false,
+      selectedWarmerMessages: insertCampaign.selectedWarmerMessages || [],
       updatedAt: new Date(),
       createdAt: new Date(),
     };
@@ -564,6 +606,10 @@ async searchContactsByChannel(channelId: string, query: string): Promise<Contact
       healthStatus: insertChannel.healthStatus || "unknown",
       lastHealthCheck: null,
       healthDetails: null,
+      appId: insertChannel.appId || null,
+      isCoexistence: insertChannel.isCoexistence ?? false,
+      connectionMethod: insertChannel.connectionMethod || "embedded",
+      createdBy: insertChannel.createdBy || null,
     };
     this.channels.set(id, channel);
     return channel;
@@ -637,6 +683,9 @@ async searchContactsByChannel(channelId: string, query: string): Promise<Contact
       mediaHandle: insertTemplate.mediaHandle || null,
       carouselCards: insertTemplate.carouselCards || [],
       usage_count: insertTemplate.usage_count ?? 0,
+      createdBy: insertTemplate.createdBy || null,
+      bodyVariables: insertTemplate.bodyVariables || null,
+      headerType: insertTemplate.headerType || null,
     };
     this.templates.set(id, template);
     return template;
@@ -722,6 +771,10 @@ async searchContactsByChannel(channelId: string, query: string): Promise<Contact
       status: insertConversation.status || "open",
       lastMessageAt: insertConversation.lastMessageAt || null,
       lastMessageText: insertConversation.lastMessageText || null,
+      type: insertConversation.type || null,
+      lastIncomingMessageAt: insertConversation.lastIncomingMessageAt || null,
+      chatbotId: insertConversation.chatbotId || null,
+      sessionId: insertConversation.sessionId || null,
       updatedAt: new Date(),
       createdAt: new Date(),
     };
@@ -787,6 +840,7 @@ async searchContactsByChannel(channelId: string, query: string): Promise<Contact
       errorDetails: insertMessage.errorDetails || null,
       campaignId: insertMessage.campaignId || null,
       timestamp: insertMessage.timestamp || new Date(),
+      fromType: insertMessage.fromType || null,
       updatedAt: new Date(),
       createdAt: new Date(),
     };
@@ -1069,6 +1123,67 @@ async searchContactsByChannel(channelId: string, query: string): Promise<Contact
       console.error("Failed to log API request:", error);
       return null;
     }
+  }
+
+  async getTemplatesByUserId(userId: string): Promise<Template[]> {
+    return Array.from(this.templates.values()).filter(t => t.createdBy === userId);
+  }
+
+  async getWarmerConfig(channelId: string): Promise<WarmerConfig | undefined> {
+    return Array.from(this.warmerConfigs.values()).find(c => c.channelId === channelId);
+  }
+
+  async createWarmerConfig(config: InsertWarmerConfig): Promise<WarmerConfig> {
+    const id = randomUUID();
+    const created: WarmerConfig = {
+      ...config,
+      id,
+      channelId: config.channelId || null,
+      isActive: config.isActive ?? false,
+      minDelay: config.minDelay ?? 10,
+      maxDelay: config.maxDelay ?? 60,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.warmerConfigs.set(id, created);
+    return created;
+  }
+
+  async updateWarmerConfig(id: string, updates: Partial<WarmerConfig>): Promise<WarmerConfig | undefined> {
+    const config = this.warmerConfigs.get(id);
+    if (!config) return undefined;
+    const updated = { ...config, ...updates, updatedAt: new Date() };
+    this.warmerConfigs.set(id, updated);
+    return updated;
+  }
+
+  async getWarmerMessages(configId: string): Promise<WarmerMessage[]> {
+    return Array.from(this.warmerMessages.values()).filter(m => m.warmerConfigId === configId);
+  }
+
+  async addWarmerMessage(msg: InsertWarmerMessage): Promise<WarmerMessage> {
+    const id = randomUUID();
+    const created: WarmerMessage = {
+      ...msg,
+      id,
+      warmerConfigId: msg.warmerConfigId || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.warmerMessages.set(id, created);
+    return created;
+  }
+
+  async deleteWarmerMessage(id: string): Promise<boolean> {
+    return this.warmerMessages.delete(id);
+  }
+
+  async updateWarmerMessage(id: string, text: string): Promise<WarmerMessage | undefined> {
+    const msg = this.warmerMessages.get(id);
+    if (!msg) return undefined;
+    const updated = { ...msg, messageText: text, updatedAt: new Date() };
+    this.warmerMessages.set(id, updated);
+    return updated;
   }
 }
 

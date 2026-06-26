@@ -24,6 +24,8 @@ import { triggerThrottledNotification, NOTIFICATION_EVENTS } from "./notificatio
 import OpenAI from "openai";
 import { searchTrainingData } from "./training.service";
 import { WhatsAppApiService } from "./whatsapp-api";
+import { triggerService } from "./automation-execution-service";
+
 
 export interface WebhookMessage {
   from: string;
@@ -201,7 +203,7 @@ export class WebhookHandler {
   }
 
   // Handle incoming messages
-  private static async handleIncomingMessage(
+  public static async handleIncomingMessage(
     phoneNumberId: string,
     message: WebhookMessage,
     profileName?: string | null
@@ -500,6 +502,7 @@ export class WebhookHandler {
       const now = new Date();
       const contactName = contact[0].name || message.from;
 
+      const isNewConversation = conversation.length === 0;
       // 6. Create or update conversation with all channel-scoped fields
       if (conversation.length === 0) {
         const convInsert: any = {
@@ -553,7 +556,15 @@ export class WebhookHandler {
       if (mediaSha256) insertValues.mediaSha256 = mediaSha256;
       if (metadata) insertValues.metadata = metadata;
 
-      await db.insert(messages).values(insertValues);
+      const [insertedMessage] = await db.insert(messages).values(insertValues).returning();
+
+      // Emit realtime events to update frontend
+      if ((global as any).broadcastToConversation) {
+        (global as any).broadcastToConversation(conversation[0].id, {
+          type: "new-message",
+          message: insertedMessage,
+        });
+      }
 
       console.log(`[${channelId || 'no-channel'}] Received ${message.type} from ${message.from}: ${content.substring(0, 80)}`);
 
@@ -588,9 +599,118 @@ export class WebhookHandler {
         console.error("Error sending new message notification:", notifError);
       }
 
+      // 8.5 Automations (run first — takes priority over AI)
+      let automationHandled = false;
+      try {
+        if (channelId) {
+          const hasPendingExecution =
+            await triggerService.getExecutionService().hasPendingExecutionAsync(conversation[0].id);
+
+          if (hasPendingExecution) {
+            let interactiveData: any = null;
+            if (message.type === "interactive") {
+              const interactive = (message as any).interactive;
+              interactiveData = {
+                type: interactive?.type,
+                buttonReply: metadata?.buttonReplyId ? { id: metadata.buttonReplyId, title: content } : null,
+                listReply: metadata?.listReplyId ? { id: metadata.listReplyId, title: content } : null,
+                flowReply: metadata?.flowResponse ? { response_json: metadata.flowResponse } : null,
+              };
+            } else if (message.type === "button") {
+              interactiveData = {
+                type: "button_reply",
+                buttonReply: {
+                  id: metadata?.buttonPayload || content,
+                  title: content,
+                },
+              };
+            }
+
+            const result = await triggerService.getExecutionService().handleUserResponse(
+              conversation[0].id,
+              content,
+              interactiveData
+            );
+
+            if (result && result.success) {
+              const io = (global as any).io;
+              if (io) {
+                io.to(`conversation:${conversation[0].id}`).emit("automation-resumed", {
+                  type: "automation-resumed",
+                  data: result,
+                });
+                io.to(`conversation_${conversation[0].id}`).emit("automation-resumed", {
+                  type: "automation-resumed",
+                  data: result,
+                });
+              }
+              automationHandled = true;
+            }
+          }
+
+          if (!automationHandled) {
+            if (isNewConversation) {
+              automationHandled = await triggerService.handleNewConversation(
+                conversation[0].id,
+                channelId,
+                contact[0]?.id
+              );
+            } else {
+              let interactiveData: any = null;
+              if (message.type === "interactive") {
+                const interactive = (message as any).interactive;
+                interactiveData = {
+                  type: interactive?.type,
+                  buttonReply: metadata?.buttonReplyId ? { id: metadata.buttonReplyId, title: content } : null,
+                  listReply: metadata?.listReplyId ? { id: metadata.listReplyId, title: content } : null,
+                  flowReply: metadata?.flowResponse ? { response_json: metadata.flowResponse } : null,
+                };
+              } else if (message.type === "button") {
+                interactiveData = {
+                  type: "button_reply",
+                  buttonReply: {
+                    id: metadata?.buttonPayload || content,
+                    title: content,
+                  },
+                };
+              }
+
+              automationHandled = await triggerService.handleMessageReceived(
+                conversation[0].id,
+                {
+                  content,
+                  text: content,
+                  body: content,
+                  type: message.type,
+                  from: message.from,
+                  whatsappMessageId: message.id,
+                  timestamp: message.timestamp,
+                  interactive: interactiveData,
+                },
+                channelId,
+                contact[0]?.id
+              );
+            }
+          }
+        }
+      } catch (autoErr) {
+        console.error("❌ Automation execution error (non-blocking) in Baileys webhook handler:", autoErr);
+        const io = (global as any).io;
+        if (io) {
+          io.to(`conversation:${conversation[0].id}`).emit("automation-error", {
+            type: "automation-error",
+            error: autoErr instanceof Error ? autoErr.message : String(autoErr),
+          });
+          io.to(`conversation_${conversation[0].id}`).emit("automation-error", {
+            type: "automation-error",
+            error: autoErr instanceof Error ? autoErr.message : String(autoErr),
+          });
+        }
+      }
+
       // 9. AI Auto-Reply for WhatsApp incoming messages
       try {
-        if (channelId && message.type === "text" && content) {
+        if (!automationHandled && channelId && message.type === "text" && content) {
           await this.handleAIAutoReply(
             channelId,
             channel[0],
@@ -663,7 +783,34 @@ export class WebhookHandler {
       .where(eq(sites.channelId, channelId))
       .limit(1);
 
-    const site = channelSites[0];
+    let site = channelSites[0];
+    if (!site) {
+      const [newSite] = await db
+        .insert(sites)
+        .values({
+          name: channelData?.name || "Default Site",
+          domain: "localhost",
+          channelId: channelId,
+          widgetEnabled: true,
+          widgetConfig: {
+            systemPrompt: `You are a helpful customer support AI assistant for ${channelData?.name || 'our company'}. Answer questions using the provided knowledge base.`,
+            escalationRules: {
+              enabled: true,
+              maxAttempts: 3,
+              escalationMessage: "I'm transferring you to a human agent who can better assist you.",
+            }
+          },
+          aiTrainingConfig: {
+            model: "gpt-4o-mini",
+            temperature: "0.7",
+            maxTokens: "500",
+          }
+        })
+        .returning();
+      site = newSite;
+      console.log(`[Site] Auto-created site ${site.id} for channel ${channelId} during AI reply processing`);
+    }
+
     const siteId = site?.id || "";
 
     const conversationHistory = existingMessages
@@ -725,16 +872,39 @@ ${unansweredCount >= maxAttempts - 1 ? `- The user has had ${unansweredCount} un
     const finalMaxTokens = parseInt(activeAI.maxTokens || "500");
 
     try {
-      const completion = await aiClient.chat.completions.create({
-        model: finalModel,
-        messages: [
-          { role: "system", content: systemPrompt.substring(0, 128000) },
-          ...conversationHistory,
-          { role: "user", content: messageContent },
-        ],
-        temperature: finalTemp,
-        max_tokens: finalMaxTokens,
-      });
+      let completion;
+      try {
+        completion = await aiClient.chat.completions.create({
+          model: finalModel,
+          messages: [
+            { role: "system", content: systemPrompt.substring(0, 128000) },
+            ...conversationHistory,
+            { role: "user", content: messageContent },
+          ],
+          temperature: finalTemp,
+          max_tokens: finalMaxTokens,
+        });
+      } catch (err: any) {
+        console.warn("[AI] Primary AI provider failed, trying global fallback key...", err.message || err);
+        if (process.env.OPENAI_API_KEY && activeAI.apiKey !== process.env.OPENAI_API_KEY) {
+          const fallbackClient = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY,
+            baseURL: "https://api.openai.com/v1",
+          });
+          completion = await fallbackClient.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              { role: "system", content: systemPrompt.substring(0, 128000) },
+              ...conversationHistory,
+              { role: "user", content: messageContent },
+            ],
+            temperature: finalTemp,
+            max_tokens: finalMaxTokens,
+          });
+        } else {
+          throw err;
+        }
+      }
 
       let aiResponse = completion.choices?.[0]?.message?.content || "";
       if (!aiResponse.trim()) return;
@@ -793,7 +963,7 @@ ${unansweredCount >= maxAttempts - 1 ? `- The user has had ${unansweredCount} un
 
       const whatsappMessageId = sendResult?.messages?.[0]?.id || null;
 
-      await db.insert(messages).values({
+      const [insertedAiMessage] = await db.insert(messages).values({
         conversationId: conversation.id,
         whatsappMessageId,
         fromUser: false,
@@ -804,7 +974,15 @@ ${unansweredCount >= maxAttempts - 1 ? `- The user has had ${unansweredCount} un
         fromType: "bot",
         status: "sent",
         timestamp: new Date(),
-      });
+      }).returning();
+
+      // Emit realtime events to update frontend
+      if ((global as any).broadcastToConversation) {
+        (global as any).broadcastToConversation(conversation.id, {
+          type: "new-message",
+          message: insertedAiMessage,
+        });
+      }
 
       await db
         .update(conversations)
@@ -859,7 +1037,7 @@ ${unansweredCount >= maxAttempts - 1 ? `- The user has had ${unansweredCount} un
   }
 
   // Handle message status updates
-  private static async handleStatusUpdate(status: WebhookStatus): Promise<void> {
+  public static async handleStatusUpdate(status: WebhookStatus): Promise<void> {
     try {
       // Update message status in messages table
       const [message] = await db

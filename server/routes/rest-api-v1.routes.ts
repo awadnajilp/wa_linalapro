@@ -118,6 +118,13 @@ export function registerRestApiV1Routes(app: Express) {
         .set({ lastMessageAt: new Date(), lastMessageText: `[template: ${templateName}]` })
         .where(eq(schema.conversations.id, conversation.id));
 
+      if ((global as any).broadcastToConversation) {
+        (global as any).broadcastToConversation(conversation.id, {
+          type: "new-message",
+          message,
+        });
+      }
+
       return res.json({
         success: true,
         data: {
@@ -134,7 +141,7 @@ export function registerRestApiV1Routes(app: Express) {
     }
   });
 
-  app.post("/api/v1/messages/reply", requireApiKey, requirePermission("messages.send"), async (req: Request, res: Response) => {
+  app.post(["/api/v1/messages", "/api/v1/messages/reply"], requireApiKey, requirePermission("messages.send"), async (req: Request, res: Response) => {
     try {
       const { userId, channelId } = req.apiUser!;
       const { to, message: messageText } = req.body;
@@ -154,17 +161,30 @@ export function registerRestApiV1Routes(app: Express) {
 
       const phone = to.replace(/\D/g, "");
 
-      const [contact] = await db
+      let [contact] = await db
         .select()
         .from(schema.contacts)
         .where(and(eq(schema.contacts.channelId, channelId), eq(schema.contacts.phone, phone)))
         .limit(1);
 
       if (!contact) {
-        return res.status(404).json({ success: false, error: "Contact not found. Send a template message first." });
+        if (channel.connectionMethod === "qr_code") {
+          [contact] = await db
+            .insert(schema.contacts)
+            .values({
+              channelId,
+              phone,
+              name: phone,
+              source: "api",
+              createdBy: userId,
+            })
+            .returning();
+        } else {
+          return res.status(404).json({ success: false, error: "Contact not found. Send a template message first." });
+        }
       }
 
-      const [conversation] = await db
+      let [conversation] = await db
         .select()
         .from(schema.conversations)
         .where(
@@ -176,15 +196,30 @@ export function registerRestApiV1Routes(app: Express) {
         .limit(1);
 
       if (!conversation) {
-        return res.status(404).json({ success: false, error: "No conversation found for this contact" });
+        if (channel.connectionMethod === "qr_code") {
+          [conversation] = await db
+            .insert(schema.conversations)
+            .values({
+              channelId,
+              contactId: contact.id,
+              contactPhone: phone,
+              contactName: contact.name,
+              status: "open",
+            })
+            .returning();
+        } else {
+          return res.status(404).json({ success: false, error: "No conversation found for this contact" });
+        }
       }
 
       const lastIncoming = conversation.lastIncomingMessageAt
         ? new Date(conversation.lastIncomingMessageAt).getTime()
         : 0;
-      const is24HourExpired = lastIncoming > 0 && Date.now() - lastIncoming > 24 * 60 * 60 * 1000;
+      const is24HourExpired = channel.connectionMethod === "qr_code"
+        ? false
+        : (lastIncoming > 0 && Date.now() - lastIncoming > 24 * 60 * 60 * 1000);
 
-      if (is24HourExpired || lastIncoming === 0) {
+      if (channel.connectionMethod !== "qr_code" && (is24HourExpired || lastIncoming === 0)) {
         return res.status(403).json({
           success: false,
           error: "24-hour messaging window has expired or no incoming message. Use a template message instead.",
@@ -214,6 +249,13 @@ export function registerRestApiV1Routes(app: Express) {
         .update(schema.conversations)
         .set({ lastMessageAt: new Date(), lastMessageText: messageText })
         .where(eq(schema.conversations.id, conversation.id));
+
+      if ((global as any).broadcastToConversation) {
+        (global as any).broadcastToConversation(conversation.id, {
+          type: "new-message",
+          message: msg,
+        });
+      }
 
       return res.json({
         success: true,

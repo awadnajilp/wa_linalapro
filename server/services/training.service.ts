@@ -37,17 +37,26 @@ function getAIClient(apiKey: string, endpoint?: string): OpenAI {
   });
 }
 
-async function getChannelAIClient(channelId: string): Promise<OpenAI | null> {
-  const [setting] = await db
-    .select()
-    .from(aiSettings)
-    .where(
-      and(eq(aiSettings.channelId, channelId), eq(aiSettings.isActive, true))
-    )
-    .limit(1);
+async function getChannelAIClient(channelId: string | null): Promise<OpenAI | null> {
+  if (channelId) {
+    const [setting] = await db
+      .select()
+      .from(aiSettings)
+      .where(
+        and(eq(aiSettings.channelId, channelId), eq(aiSettings.isActive, true))
+      )
+      .limit(1);
 
-  if (!setting?.apiKey) return null;
-  return getAIClient(setting.apiKey, setting.endpoint || undefined);
+    if (setting?.apiKey) {
+      return getAIClient(setting.apiKey, setting.endpoint || undefined);
+    }
+  }
+
+  if (process.env.OPENAI_API_KEY) {
+    return getAIClient(process.env.OPENAI_API_KEY);
+  }
+
+  return null;
 }
 
 function splitTextIntoChunks(text: string): string[] {
@@ -63,14 +72,41 @@ function splitTextIntoChunks(text: string): string[] {
 }
 
 async function generateEmbedding(
-  client: OpenAI,
+  client: OpenAI | null,
   text: string
 ): Promise<number[]> {
-  const response = await client.embeddings.create({
-    model: "text-embedding-3-small",
-    input: text.substring(0, 8000),
-  });
-  return response.data[0].embedding;
+  if (client) {
+    try {
+      const response = await client.embeddings.create({
+        model: "text-embedding-3-small",
+        input: text.substring(0, 8000),
+      });
+      return response.data[0].embedding;
+    } catch (err: any) {
+      console.warn("Embedding generation failed with primary client:", err.message || err);
+      if (process.env.OPENAI_API_KEY && client.apiKey !== process.env.OPENAI_API_KEY) {
+        console.log("Retrying embedding generation using global OpenAI API key fallback...");
+        const fallbackClient = getAIClient(process.env.OPENAI_API_KEY);
+        const response = await fallbackClient.embeddings.create({
+          model: "text-embedding-3-small",
+          input: text.substring(0, 8000),
+        });
+        return response.data[0].embedding;
+      }
+      throw err;
+    }
+  }
+
+  if (process.env.OPENAI_API_KEY) {
+    const fallbackClient = getAIClient(process.env.OPENAI_API_KEY);
+    const response = await fallbackClient.embeddings.create({
+      model: "text-embedding-3-small",
+      input: text.substring(0, 8000),
+    });
+    return response.data[0].embedding;
+  }
+
+  throw new Error("No OpenAI API key available for embedding generation");
 }
 
 function cosineSimilarity(a: number[], b: number[]): number {
@@ -169,10 +205,7 @@ export async function processTrainingSource(sourceId: string): Promise<void> {
 
     const chunks = splitTextIntoChunks(content);
 
-    let aiClient: OpenAI | null = null;
-    if (source.channelId) {
-      aiClient = await getChannelAIClient(source.channelId);
-    }
+    const aiClient = await getChannelAIClient(source.channelId || null);
 
     await db
       .delete(trainingChunks)
@@ -180,12 +213,10 @@ export async function processTrainingSource(sourceId: string): Promise<void> {
 
     for (const chunkText of chunks) {
       let embedding = null;
-      if (aiClient) {
-        try {
-          embedding = await generateEmbedding(aiClient, chunkText);
-        } catch (err) {
-          console.warn("Embedding generation failed for chunk, storing without embedding");
-        }
+      try {
+        embedding = await generateEmbedding(aiClient, chunkText);
+      } catch (err) {
+        console.warn("Embedding generation failed for chunk, storing without embedding");
       }
 
       await db.insert(trainingChunks).values({
@@ -226,7 +257,7 @@ export async function generateQaEmbedding(
   qaId: string,
   channelId: string
 ): Promise<void> {
-  const aiClient = await getChannelAIClient(channelId);
+  const aiClient = await getChannelAIClient(channelId || null);
   if (!aiClient) return;
 
   const [qa] = await db
@@ -256,9 +287,7 @@ export async function searchTrainingData(
   query: string,
   topK: number = 5
 ): Promise<{ chunks: string[]; qaPairs: Array<{ question: string; answer: string }> }> {
-  const aiClient = channelId
-    ? await getChannelAIClient(channelId)
-    : null;
+  const aiClient = await getChannelAIClient(channelId || null);
 
   let queryEmbedding: number[] | null = null;
   if (aiClient) {
@@ -286,7 +315,13 @@ export async function searchTrainingData(
       .sort((a, b) => b.score - a.score)
       .slice(0, topK);
   } else {
-    const queryWords = query.toLowerCase().split(/\s+/);
+    const stopWords = new Set(["the", "is", "at", "which", "on", "what", "a", "an", "and", "to", "in", "for", "of", "you", "your", "we", "our", "i", "it", "this", "that", "these", "those", "be", "have", "do", "how", "who", "why", "where", "can", "could", "should", "would", "will", "would", "shall", "me", "my", "he", "she", "they", "them", "his", "her", "their"]);
+    const queryWords = query
+      .toLowerCase()
+      .replace(/[^\w\s]/g, "")
+      .split(/\s+/)
+      .filter((w) => w && !stopWords.has(w));
+
     rankedChunks = allChunks
       .map((c) => {
         const lower = c.content.toLowerCase();

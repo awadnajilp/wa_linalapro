@@ -15,7 +15,7 @@
  * ============================================================
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +30,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Loading } from "@/components/ui/loading";
 import { useTranslation } from "@/lib/i18n";
 import { useChannelContext } from "@/contexts/channel-context";
+import { useAuth } from "@/contexts/auth-context";
 
 interface ApiKeyItem {
   id: string;
@@ -77,6 +78,11 @@ export function ApiKeySettings() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { selectedChannel } = useChannelContext();
+  const { user, userPlans } = useAuth();
+
+  const qrCodeChannelEnabled = useMemo(() => {
+    return user?.role === "superadmin" || userPlans?.data?.some((d: any) => d.subscription?.status === "active" && d.subscription?.planData?.permissions?.qrCodeChannelEnabled === "true");
+  }, [user, userPlans]);
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
@@ -105,7 +111,10 @@ export function ApiKeySettings() {
     activeKeys: usageResponse.data.activeKeys ?? 0,
     revokedKeys: usageResponse.data.revokedKeys ?? 0,
   } : { totalRequests: 0, monthlyRequests: 0, activeKeys: 0, revokedKeys: 0 };
-  const channels = Array.isArray(channelsResponse) ? channelsResponse : (channelsResponse?.data ?? []);
+  const rawChannels = Array.isArray(channelsResponse) ? channelsResponse : (channelsResponse?.data ?? []);
+  const channels = useMemo(() => {
+    return rawChannels.filter((ch: any) => qrCodeChannelEnabled || ch.connectionMethod !== "qr_code");
+  }, [rawChannels, qrCodeChannelEnabled]);
 
   const createKeyMutation = useMutation({
     mutationFn: async (payload: { name: string; channelId?: string; permissions?: string[] }) => {
@@ -277,13 +286,26 @@ export function ApiKeySettings() {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2 mb-2">
+                       <div className="flex items-center space-x-2 mb-2 flex-wrap gap-2">
                         <h3 className="font-semibold">{key.name}</h3>
                         <Badge variant={key.isActive ? "default" : "secondary"}>
                           {key.isActive
                             ? t("settings.api_key_setting.active")
                             : t("settings.api_key_setting.revoked")}
                         </Badge>
+                        {key.channelId ? (() => {
+                          const boundChannel = channels.find((c: any) => c.id === key.channelId);
+                          if (!boundChannel) return null;
+                          return (
+                            <Badge variant="outline" className="bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                              {boundChannel.name} ({boundChannel.connectionMethod === "qr_code" ? "QR" : "Meta"})
+                            </Badge>
+                          );
+                        })() : (
+                          <Badge variant="outline" className="bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                            All Channels
+                          </Badge>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center space-x-2">
@@ -385,20 +407,65 @@ export function ApiKeySettings() {
               x-api-secret: YOUR_API_SECRET
             </code>
           </div>
-          <div>
-            <h4 className="font-medium mb-2">
-              {t("settings.api_key_setting.documentation.exampleRequest")}
-            </h4>
-            <pre className="text-sm bg-muted p-3 rounded overflow-x-auto">
-              {`curl -X POST ${window.location.origin}/api/v1/messages \\
+          {qrCodeChannelEnabled && (
+            <div>
+              <h4 className="font-semibold text-primary mt-4 mb-2">
+                Send Message API (QR Code Channel)
+              </h4>
+              <p className="text-sm text-muted-foreground mb-2">
+                QR Code channels support sending any regular text messages instantly to any number without any templates or 24-hour window restrictions.
+              </p>
+              <pre className="text-sm bg-muted p-3 rounded overflow-x-auto">
+                {`curl -X POST ${window.location.origin}/api/v1/messages \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "x-api-secret: YOUR_API_SECRET" \\
+  -H "x-channel-id: YOUR_QR_CHANNEL_ID" \\
   -H "Content-Type: application/json" \\
   -d '{
     "to": "+1234567890",
-    "message": "Hello from the API!"
+    "message": "Hello from the QR API!"
   }'`}
-            </pre>
+              </pre>
+            </div>
+          )}
+          <div>
+            <h4 className="font-semibold text-primary mt-4 mb-2">
+              Send Message API (Meta Cloud Channel)
+            </h4>
+            <p className="text-sm text-muted-foreground mb-2">
+              Meta Cloud API requires starting conversations with template messages. Standard text replies are only allowed within the active 24-hour messaging window.
+            </p>
+            <div className="space-y-2">
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-1">1. Send Template (to initiate conversation / after 24h):</p>
+                <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
+                  {`curl -X POST ${window.location.origin}/api/v1/messages/template \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -H "x-api-secret: YOUR_API_SECRET" \\
+  -H "x-channel-id: YOUR_META_CHANNEL_ID" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "to": "+1234567890",
+    "templateName": "hello_world",
+    "language": "en_US"
+  }'`}
+                </pre>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-1">2. Send Reply (within 24h of user incoming message):</p>
+                <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
+                  {`curl -X POST ${window.location.origin}/api/v1/messages/reply \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -H "x-api-secret: YOUR_API_SECRET" \\
+  -H "x-channel-id: YOUR_META_CHANNEL_ID" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "to": "+1234567890",
+    "message": "Hello from the Meta Reply API!"
+  }'`}
+                </pre>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -433,7 +500,7 @@ export function ApiKeySettings() {
                 <option value="">{t("settings.api_key_setting.createForm.allChannels")}</option>
                 {channels.map((ch: any) => (
                   <option key={ch.id} value={ch.id}>
-                    {ch.name || ch.channelName || `Channel ${ch.id}`}
+                    {ch.name || ch.channelName || `Channel ${ch.id}`} ({ch.connectionMethod === "qr_code" ? "QR Code" : "Meta Cloud"})
                   </option>
                 ))}
               </select>

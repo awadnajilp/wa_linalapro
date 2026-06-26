@@ -439,7 +439,7 @@ export default function Plans() {
       buttonColor: "bg-blue-500 hover:bg-blue-600",
       monthlyPrice: "0",
       annualPrice: "0",
-      permissions: { channel: "", contacts: "", automation: "", campaign: "", apiRequestsPerMonth: "", apiRateLimitPerMinute: "" },
+      permissions: { channel: "", contacts: "", automation: "", campaign: "", apiRequestsPerMonth: "", apiRateLimitPerMinute: "", qrCodeChannelEnabled: "false" },
       features: [],
     });
     setEditingPlan(null);
@@ -954,6 +954,29 @@ export default function Plans() {
                     </div>
                   </div>
 
+                  {/* QR Code login channel package permission */}
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer mt-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.permissions.qrCodeChannelEnabled === "true"}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            permissions: {
+                              ...formData.permissions,
+                              qrCodeChannelEnabled: e.target.checked ? "true" : "false",
+                            },
+                          })
+                        }
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Enable QR Code based channel login (Packages)
+                      </span>
+                    </label>
+                  </div>
+
                   {/* Popular Toggle */}
                   <div>
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -1170,13 +1193,14 @@ export default function Plans() {
                                       campaign: t("plans.form.permissions.campaign"),
                                       apiRequestsPerMonth: t("plans.form.permissions.apiRequestsPerMonth"),
                                       apiRateLimitPerMinute: t("plans.form.permissions.apiRateLimitPerMinute"),
+                                      qrCodeChannelEnabled: "QR Code Login Channel",
                                     };
                                     return (
                                       <div
                                         key={key}
                                         className="text-xs text-gray-600"
                                       >
-                                        ✓ {value} {labelMap[key] || key}
+                                        ✓ {key === "qrCodeChannelEnabled" ? (value === "true" ? "Yes" : "No") : value} {labelMap[key] || key}
                                       </div>
                                     );
                                   })}

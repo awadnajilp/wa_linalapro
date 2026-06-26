@@ -27,6 +27,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { storage } from '../storage';
 import { getWhatsAppError } from "@shared/whatsapp-error-codes";
+import { randomUUID } from "crypto";
+import { BaileysManager } from "./baileys-manager";
 
 
 
@@ -40,6 +42,7 @@ interface WhatsAppTemplate {
 }
 
 export class WhatsAppApiService {
+  public static mediaCache = new Map<string, { buffer?: Buffer; url?: string; mimeType?: string; filename?: string }>();
   private channel: Channel;
   private baseUrl: string;
   private headers: Record<string, string>;
@@ -65,14 +68,36 @@ export class WhatsAppApiService {
 
   // Static method for sending template messages
 
- static async sendTemplateMessage(
-  channel: Channel,
-  to: string,
-  templateName: string,
-  components: any[] = [],
-  language: string = "en_US",
-  isMarketing: boolean = true
-): Promise<any> {
+  static async sendTemplateMessage(
+    channel: Channel,
+    to: string,
+    templateName: string,
+    components: any[] = [],
+    language: string = "en_US",
+    isMarketing: boolean = true
+  ): Promise<any> {
+    if (channel.connectionMethod === "qr_code") {
+      // Reconstruct template message into plain text
+      const template = await storage.getTemplateByNameAndChannel(templateName, channel.id)
+        || (await storage.getTemplatesByName(templateName))[0];
+      let text = "";
+      if (template) {
+        text = template.body;
+        if (components && components.length > 0) {
+          const bodyComp = components.find(c => c.type === "body");
+          if (bodyComp && bodyComp.parameters) {
+            bodyComp.parameters.forEach((param: any, idx: number) => {
+              const val = param.text || "";
+              text = text.replace(new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'), val);
+            });
+          }
+        }
+      } else {
+        text = `Template: ${templateName}`;
+      }
+      return BaileysManager.sendMessage(channel.id, to, text);
+    }
+
   const apiVersion = process.env.WHATSAPP_API_VERSION || "v24.0";
   const baseUrl = `https://graph.facebook.com/${apiVersion}`;
   const formattedPhone = to.replace(/\D/g, "");
@@ -148,6 +173,13 @@ export class WhatsAppApiService {
    * Get a temporary media download URL for a WhatsApp mediaId
    */
   async fetchMediaUrl(mediaId: string): Promise<string> {
+    if (this.channel.connectionMethod === "qr_code") {
+      const cached = WhatsAppApiService.mediaCache.get(mediaId);
+      if (cached?.url) {
+        return cached.url;
+      }
+      return "";
+    }
     const url = `${this.baseUrl}/${mediaId}`;
     console.log(`Fetching media URL: ${url}`);
 
@@ -491,6 +523,23 @@ async sendMessage(
   expirationTimeMs?: number,
   carouselCardMediaIds?: Record<number, string>
 ): Promise<any> {
+  if (this.channel.connectionMethod === "qr_code") {
+    const template = await storage.getTemplateByNameAndChannel(templateName, this.channel.id)
+      || (await storage.getTemplatesByName(templateName))[0];
+    let text = "";
+    if (template) {
+      text = template.body;
+      if (parameters && parameters.length > 0) {
+        parameters.forEach((val, idx) => {
+          text = text.replace(new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'), val);
+        });
+      }
+    } else {
+      text = `Template: ${templateName}`;
+    }
+    return BaileysManager.sendMessage(this.channel.id, to, text);
+  }
+
   const formattedPhone = this.formatPhoneNumber(to);
   const template = await storage.getTemplateByNameAndChannel(templateName, this.channel.id)
     || (await storage.getTemplatesByName(templateName))[0];
@@ -739,6 +788,10 @@ async sendMessage(
 
 
   async sendTextMessage(to: string, text: string, replyToWaId?: string): Promise<any> {
+    if (this.channel.connectionMethod === "qr_code") {
+      return BaileysManager.sendMessage(this.channel.id, to, text, replyToWaId);
+    }
+
     const formattedPhone = this.formatPhoneNumber(to);
     const body: any = {
       messaging_product: "whatsapp",
@@ -789,6 +842,11 @@ async sendMessage(
     mimeType: string,
     filename: string
   ): Promise<string> {
+    if (this.channel.connectionMethod === "qr_code") {
+      const fakeId = `qr_media_${randomUUID()}`;
+      WhatsAppApiService.mediaCache.set(fakeId, { buffer, mimeType, filename });
+      return fakeId;
+    }
     try {
       const FormData = (await import("form-data")).default;
       const form = new FormData();
@@ -978,6 +1036,11 @@ async uploadTemplateMedia(
 }
 
   async uploadMedia(filePath: string, mimeType: string): Promise<string> {
+    if (this.channel.connectionMethod === "qr_code") {
+      const fakeId = `qr_media_${randomUUID()}`;
+      WhatsAppApiService.mediaCache.set(fakeId, { url: filePath, mimeType });
+      return fakeId;
+    }
     const resolvedPath = path.resolve(filePath);
 
     const formData = new FormData();
@@ -1101,7 +1164,7 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
     console.log("✅ File downloaded to:", tempFilePath);
 
     // Upload using existing function
-    const mediaId = await this.uploadMediaTwo(tempFilePath, mimeType);
+    const mediaId = await this.uploadMedia(tempFilePath, mimeType);
 
     // Cleanup
     if (fs.existsSync(tempFilePath)) {
@@ -1322,6 +1385,16 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
   parameters: string[],
   mediaId?: string,
 ) {
+  if (this.channel.connectionMethod === "qr_code") {
+    console.log(`[WhatsApp-QR] Skipping sendMediaMessage to ${to}`);
+    return {
+      messaging_product: "whatsapp",
+      contacts: [{ input: to, wa_id: to }],
+      messages: [{ id: `qr_wamid_${randomUUID()}` }],
+      _sentVia: "qr_code"
+    };
+  }
+
   const formattedPhone = this.formatPhoneNumber(to);
 
   const components: any[] = [];
@@ -1416,6 +1489,69 @@ async sendMediaMessagee(
 
 
   async sendDirectMessage(payload: any): Promise<any> {
+    if (this.channel.connectionMethod === "qr_code") {
+      const to = payload.to;
+      const type = payload.type;
+      
+      if (type === "text") {
+        const text = payload.text?.body || "";
+        const replyToWaId = payload.context?.message_id;
+        return BaileysManager.sendMessage(this.channel.id, to, text, replyToWaId);
+      } else if (type === "template") {
+        const templateName = payload.template?.name;
+        const components = payload.template?.components || [];
+        
+        const template = await storage.getTemplateByNameAndChannel(templateName, this.channel.id)
+          || (await storage.getTemplatesByName(templateName))[0];
+        
+        let text = "";
+        if (template) {
+          text = template.body;
+          const bodyComp = components.find((c: any) => c.type === "body");
+          if (bodyComp && bodyComp.parameters) {
+            bodyComp.parameters.forEach((param: any, idx: number) => {
+              const val = param.text || "";
+              text = text.replace(new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'), val);
+            });
+          }
+        } else {
+          text = `Template: ${templateName}`;
+        }
+        
+        return BaileysManager.sendMessage(this.channel.id, to, text);
+      } else if (["image", "video", "audio", "document"].includes(type)) {
+        const mediaObj = payload[type];
+        const mediaId = mediaObj?.id;
+        const caption = mediaObj?.caption;
+        const replyToWaId = payload.context?.message_id;
+        
+        let mediaData = WhatsAppApiService.mediaCache.get(mediaId);
+        if (!mediaData) {
+          const link = mediaObj?.link;
+          if (link) {
+            mediaData = { url: link, mimeType: type === "image" ? "image/jpeg" : type === "video" ? "video/mp4" : "application/octet-stream" };
+          }
+        }
+        
+        if (mediaData) {
+          return BaileysManager.sendMediaMessage(this.channel.id, to, mediaData, caption, replyToWaId);
+        } else {
+          if (caption) {
+            return BaileysManager.sendMessage(this.channel.id, to, caption, replyToWaId);
+          }
+          throw new Error(`Media not found in cache or payload for QR message: ${mediaId}`);
+        }
+      } else {
+        console.warn(`[WhatsApp-QR] Unsupported message type: ${type}`);
+        return {
+          messaging_product: "whatsapp",
+          contacts: [{ input: to, wa_id: to }],
+          messages: [{ id: `qr_wamid_${randomUUID()}` }],
+          _sentVia: "qr_code"
+        };
+      }
+    }
+
     // Format phone number if 'to' field exists
     if (payload.to) {
       payload.to = this.formatPhoneNumber(payload.to);

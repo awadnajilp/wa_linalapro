@@ -26,6 +26,7 @@ import { db } from '../db';
 import { eq, ne, desc, like, or, and, sql, count } from 'drizzle-orm';
 import { getOAuthError } from '@shared/whatsapp-error-codes';
 import { MESSAGING_TIER_LIMITS } from '../utils/messaging-tiers';
+import { BaileysManager } from '../services/baileys-manager';
 
 export const getAllChannels = asyncHandler(async (req: Request, res: Response) => {
   const user = (req.session as any)?.user;
@@ -243,6 +244,10 @@ export const createChannel = asyncHandler(async (req: Request, res: Response) =>
   
   // Create the channel
   const channel = await storage.createChannel(validatedChannel);
+  
+  if (channel.connectionMethod === "qr_code") {
+    return res.json(channel);
+  }
   
   // Immediately check channel health after creation
   try {
@@ -804,6 +809,30 @@ export const checkChannelHealth = asyncHandler(async (req: Request, res: Respons
   const channel = await storage.getChannel(id);
   if (!channel) {
     throw new AppError(404, 'Channel not found');
+  }
+
+  if (channel.connectionMethod === "qr_code") {
+    const qrState = BaileysManager.getSessionStatus(id);
+    const isHealthy = qrState.status === "authenticated";
+    const healthStatus = isHealthy ? 'healthy' : 'error';
+    
+    const healthDetails = {
+      connection_method: "qr_code",
+      status: qrState.status.toUpperCase(),
+      phone_number: channel.phoneNumber || "Unknown"
+    };
+
+    await storage.updateChannel(id, {
+      healthStatus,
+      lastHealthCheck: new Date(),
+      healthDetails
+    });
+
+    return res.json({
+      status: healthStatus,
+      details: healthDetails,
+      lastCheck: new Date()
+    });
   }
 
   try {
@@ -1492,6 +1521,10 @@ export const getWebhookSubscription = asyncHandler(async (req: Request, res: Res
 
   if (requestingUser.role !== "superadmin" && channel.createdBy !== requestingUser.id) {
     throw new AppError(403, "Access denied");
+  }
+
+  if (channel.connectionMethod === "qr_code") {
+    return res.json({ subscribed: true, reason: "QR Code channels do not require WABA webhook subscription" });
   }
 
   const wabaId = channel.whatsappBusinessAccountId;

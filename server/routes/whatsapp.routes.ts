@@ -25,12 +25,306 @@ import { requireAuth } from "../middlewares/auth.middleware";
 import { requireSubscription } from "../middlewares/requireSubscription";
 import { insertWhatsappChannelSchema } from "@shared/schema";
 import fs from "fs";
+import { db } from "../db";
+import { subscriptions, plans, channels, warmerConfigs, warmerMessages } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
+import { randomUUID } from "crypto";
+import { BaileysManager } from "../services/baileys-manager";
+
+const qrSessions = new Map<string, {
+  userId: string;
+  name: string;
+  phoneNumber: string;
+  status: "pending" | "authenticated" | "expired";
+  createdAt: number;
+}>();
 
 export function registerWhatsAppRoutes(app: Express) {
+  // Initiate QR code channel setup session
+  app.post("/api/whatsapp/channels/qr/initiate", requireAuth, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      // Check if plan allows QR code channel login
+      const userId = user.role === "team" && (user as any).createdBy ? (user as any).createdBy : user.id;
+      if (user.role !== "superadmin") {
+        const activeSubs = await db
+          .select()
+          .from(subscriptions)
+          .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")));
+        if (activeSubs.length === 0) {
+          return res.status(403).json({ error: "Active subscription required." });
+        }
+        const [plan] = await db.select().from(plans).where(eq(plans.id, activeSubs[0].planId));
+        if (!plan || plan.permissions?.qrCodeChannelEnabled !== 'true') {
+          return res.status(403).json({ error: "Your plan package does not support QR code based channels. Please upgrade." });
+        }
+      }
+
+      const { name = "QR Channel", phoneNumber = "" } = req.body;
+
+      // 1. Insert channel into DB (starts inactive, will scan to activate)
+      const [newChannel] = await db.insert(channels).values({
+        name,
+        phoneNumberId: `qr_phone_${randomUUID().substring(0, 8)}`,
+        accessToken: `qr_token_${randomUUID().substring(0, 8)}`,
+        whatsappBusinessAccountId: `qr_waba_${randomUUID().substring(0, 8)}`,
+        phoneNumber: phoneNumber || null,
+        connectionMethod: "qr_code",
+        isActive: false,
+        createdBy: userId,
+        appId: `qr_app_${randomUUID().substring(0, 8)}`
+      }).returning();
+
+      // 2. Start a real Baileys session
+      BaileysManager.createSession(newChannel.id, name, phoneNumber);
+
+      // Wait briefly for the initial QR generation
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const qrState = BaileysManager.getSessionStatus(newChannel.id);
+
+      res.json({
+        success: true,
+        sessionId: newChannel.id,
+        qrCodeUrl: qrState.qrCodeUrl || null,
+        status: qrState.status
+      });
+
+    } catch (err: any) {
+      console.error("Error initiating QR session:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Get status of QR session
+  app.get("/api/whatsapp/channels/qr/status/:sessionId", requireAuth, async (req, res) => {
+    const { sessionId } = req.params;
+    const qrState = BaileysManager.getSessionStatus(sessionId);
+
+    res.json({
+      success: true,
+      status: qrState.status,
+      qrCodeUrl: qrState.qrCodeUrl || null
+    });
+  });
+
+  // Simulate scanning of QR code (authenticates immediately)
+  app.post("/api/whatsapp/channels/qr/simulate-scan/:sessionId", requireAuth, async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const [channel] = await db.select().from(channels).where(eq(channels.id, sessionId)).limit(1);
+      if (!channel) {
+        return res.status(404).json({ error: "Channel session not found" });
+      }
+
+      // Close the active Baileys session for simulation
+      await BaileysManager.deleteSession(sessionId);
+
+      // Manually set status to authenticated
+      BaileysManager.setSessionStatus(sessionId, "authenticated");
+
+      // Update channel into DB to active
+      const [updatedChannel] = await db
+        .update(channels)
+        .set({
+          isActive: true,
+          healthStatus: "healthy",
+          updatedAt: new Date()
+        })
+        .where(eq(channels.id, sessionId))
+        .returning();
+
+      // Create a default warmer config for the new channel
+      const [warmerConfig] = await db.insert(warmerConfigs).values({
+        channelId: updatedChannel.id,
+        isActive: false,
+        minDelay: 10,
+        maxDelay: 60,
+        createdBy: user.role === "team" && (user as any).createdBy ? (user as any).createdBy : user.id
+      }).returning();
+
+      // Insert pre-made warmer messages (15 messages)
+      const premadeMessages = [
+        "Hello! How are you doing today?",
+        "Just checking in to see if you have any questions.",
+        "Hey! Are you available for a quick chat?",
+        "Hi there! Hope you are having a wonderful week.",
+        "Good morning! Let me know if you need anything.",
+        "Hello, hope you're having a productive day!",
+        "Hi, just wanted to say hello and see how things are going.",
+        "Hey, are you free to connect later today?",
+        "Greetings! Wishing you a great day ahead.",
+        "Hello! Let's touch base whenever you have a moment.",
+        "Hi! Hope everything is going well on your end.",
+        "Good afternoon! Let me know if you have some free time.",
+        "Hey, just following up on our last conversation.",
+        "Hi there! Just wanted to share a quick update.",
+        "Hello! Hope you have a great weekend ahead!"
+      ];
+
+      for (const text of premadeMessages) {
+        await db.insert(warmerMessages).values({
+          warmerConfigId: warmerConfig.id,
+          messageText: text
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Successfully connected QR Code channel and initialized default warmer settings via simulated scan.",
+        channel: updatedChannel
+      });
+    } catch (err: any) {
+      console.error("Error simulating scan:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Get warmer configuration and messages
+  app.get("/api/whatsapp/warmer/:channelId", requireAuth, async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      let config = await storage.getWarmerConfig(channelId);
+      if (!config) {
+        // Create one if it doesn't exist
+        const userId = req.user.role === "team" && (req.user as any).createdBy ? (req.user as any).createdBy : req.user.id;
+        config = await storage.createWarmerConfig({
+          channelId,
+          isActive: false,
+          minDelay: 10,
+          maxDelay: 60,
+          createdBy: userId
+        });
+      }
+      const messagesList = await storage.getWarmerMessages(config.id);
+      res.json({
+        success: true,
+        config,
+        messages: messagesList
+      });
+    } catch (err: any) {
+      console.error("Error fetching warmer settings:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Update warmer configuration
+  app.post("/api/whatsapp/warmer/:channelId", requireAuth, async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const { isActive, minDelay, maxDelay } = req.body;
+      let config = await storage.getWarmerConfig(channelId);
+      if (!config) {
+        const userId = req.user.role === "team" && (req.user as any).createdBy ? (req.user as any).createdBy : req.user.id;
+        config = await storage.createWarmerConfig({
+          channelId,
+          isActive: isActive ?? false,
+          minDelay: minDelay ?? 10,
+          maxDelay: maxDelay ?? 60,
+          createdBy: userId
+        });
+      } else {
+        config = await storage.updateWarmerConfig(config.id, {
+          isActive: isActive !== undefined ? isActive : config.isActive,
+          minDelay: minDelay !== undefined ? Number(minDelay) : config.minDelay,
+          maxDelay: maxDelay !== undefined ? Number(maxDelay) : config.maxDelay
+        });
+      }
+      res.json({
+        success: true,
+        config
+      });
+    } catch (err: any) {
+      console.error("Error updating warmer config:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Add warmer message
+  app.post("/api/whatsapp/warmer/:channelId/messages", requireAuth, async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const { messageText } = req.body;
+      if (!messageText) {
+        return res.status(400).json({ error: "Message text is required" });
+      }
+      let config = await storage.getWarmerConfig(channelId);
+      if (!config) {
+        const userId = req.user.role === "team" && (req.user as any).createdBy ? (req.user as any).createdBy : req.user.id;
+        config = await storage.createWarmerConfig({
+          channelId,
+          isActive: false,
+          minDelay: 10,
+          maxDelay: 60,
+          createdBy: userId
+        });
+      }
+      const newMessage = await storage.addWarmerMessage({
+        warmerConfigId: config.id,
+        messageText
+      });
+      res.json({
+        success: true,
+        message: newMessage
+      });
+    } catch (err: any) {
+      console.error("Error adding warmer message:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Update warmer message
+  app.put("/api/whatsapp/warmer/:channelId/messages/:messageId", requireAuth, async (req, res) => {
+    try {
+      const { messageId } = req.params;
+      const { messageText } = req.body;
+      if (!messageText) {
+        return res.status(400).json({ error: "Message text is required" });
+      }
+      const updated = await storage.updateWarmerMessage(messageId, messageText);
+      if (!updated) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+      res.json({
+        success: true,
+        message: updated
+      });
+    } catch (err: any) {
+      console.error("Error updating warmer message:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Delete warmer message
+  app.delete("/api/whatsapp/warmer/:channelId/messages/:messageId", requireAuth, async (req, res) => {
+    try {
+      const { messageId } = req.params;
+      const deleted = await storage.deleteWarmerMessage(messageId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+      res.json({
+        success: true,
+        message: "Message deleted successfully"
+      });
+    } catch (err: any) {
+      console.error("Error deleting warmer message:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Get all WhatsApp channels
   app.get("/api/whatsapp/channels", async (req, res) => {
     try {
-      const channels = await storage.getActiveChannel();
+      const channels = await storage.getWhatsappChannels();
       res.json(channels);
     } catch (error) {
       console.error("Error fetching WhatsApp channels:", error);
@@ -563,10 +857,22 @@ if (type === "template") {
   };
 
   // 🧾 Store readable message in DB
-  newMsg =
-    resolvedParams.length > 0
-      ? resolvedParams.map((p) => p.text).join(" ")
-      : templateName;
+  const templateRecord =
+    (await storage.getTemplateByNameAndChannel(templateName, channel.id)) ||
+    (await storage.getTemplatesByName(templateName))[0];
+
+  if (templateRecord) {
+    let bodyText = templateRecord.body;
+    resolvedParams.forEach((p: any, idx: number) => {
+      bodyText = bodyText.replace(new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'), p.text);
+    });
+    newMsg = bodyText;
+  } else {
+    newMsg =
+      resolvedParams.length > 0
+        ? resolvedParams.map((p) => p.text).join(" ")
+        : templateName;
+  }
 }
 
 
@@ -629,7 +935,7 @@ if (type === "template") {
       });
     }
 
-    await storage.createMessage({
+    const createdMsg = await storage.createMessage({
       conversationId: conversation.id,
       content: newMsg,
       direction: "outgoing",
@@ -642,6 +948,13 @@ if (type === "template") {
       lastMessageAt: new Date(),
       lastMessageText: newMsg,
     });
+
+    if ((global as any).broadcastToConversation) {
+      (global as any).broadcastToConversation(conversation.id, {
+        type: "new-message",
+        message: createdMsg,
+      });
+    }
 
     return res.json({
       success: true,

@@ -62,6 +62,12 @@ import {
   type InsertSite,
   sites,
   trainingQaPairs,
+  warmerConfigs,
+  warmerMessages,
+  type WarmerConfig,
+  type InsertWarmerConfig,
+  type WarmerMessage,
+  type InsertWarmerMessage,
 } from "@shared/schema";
 import { db } from "./db";
 import { desc, eq } from "drizzle-orm";
@@ -868,5 +874,39 @@ const totalChannels = await this.channelRepo.getAll()
       totalTemplatesByUserId:totalTemplatesByUserId.total,
       ...messageStats,
     };
+  }
+
+  async getWarmerConfig(channelId: string): Promise<WarmerConfig | undefined> {
+    const [config] = await db.select().from(warmerConfigs).where(eq(warmerConfigs.channelId, channelId)).limit(1);
+    return config || undefined;
+  }
+
+  async createWarmerConfig(config: InsertWarmerConfig): Promise<WarmerConfig> {
+    const [created] = await db.insert(warmerConfigs).values(config).returning();
+    return created;
+  }
+
+  async updateWarmerConfig(id: string, updates: Partial<WarmerConfig>): Promise<WarmerConfig | undefined> {
+    const [updated] = await db.update(warmerConfigs).set({ ...updates, updatedAt: new Date() }).where(eq(warmerConfigs.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async getWarmerMessages(configId: string): Promise<WarmerMessage[]> {
+    return await db.select().from(warmerMessages).where(eq(warmerMessages.warmerConfigId, configId));
+  }
+
+  async addWarmerMessage(msg: InsertWarmerMessage): Promise<WarmerMessage> {
+    const [created] = await db.insert(warmerMessages).values(msg).returning();
+    return created;
+  }
+
+  async deleteWarmerMessage(id: string): Promise<boolean> {
+    const result = await db.delete(warmerMessages).where(eq(warmerMessages.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async updateWarmerMessage(id: string, text: string): Promise<WarmerMessage | undefined> {
+    const [updated] = await db.update(warmerMessages).set({ messageText: text, updatedAt: new Date() }).where(eq(warmerMessages.id, id)).returning();
+    return updated || undefined;
   }
 }

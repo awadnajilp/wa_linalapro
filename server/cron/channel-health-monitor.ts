@@ -23,6 +23,7 @@ import { triggerNotification, NOTIFICATION_EVENTS } from '../services/notificati
 import { db } from '../db';
 import { users } from '@shared/schema';
 import { eq } from 'drizzle-orm';
+import { BaileysManager } from '../services/baileys-manager';
 
 const storage = new DatabaseStorage();
 
@@ -80,6 +81,24 @@ export class ChannelHealthMonitor {
 
       if (!channel.accessToken || !channel.phoneNumberId) {
         console.log(`[Channel Health Monitor] Skipping channel with missing credentials: ${channel.name} (${channel.phoneNumber})`);
+        return;
+      }
+
+      if (channel.connectionMethod === "qr_code") {
+        const qrState = BaileysManager.getSessionStatus(channelId);
+        const newStatus = qrState.status === "authenticated" ? "healthy" : "error";
+        
+        await storage.updateChannel(channelId, {
+          healthStatus: newStatus,
+          lastHealthCheck: new Date(),
+          healthDetails: {
+            connection_method: "qr_code",
+            status: qrState.status.toUpperCase(),
+            phone_number: channel.phoneNumber || "Unknown"
+          }
+        });
+        
+        console.log(`[Channel Health Monitor] QR Channel ${channel.name} status: ${newStatus}`);
         return;
       }
 

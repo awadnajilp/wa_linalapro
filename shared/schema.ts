@@ -173,6 +173,15 @@ export const campaigns = pgTable(
     failedCount: integer("failed_count").default(0),
     completedAt: timestamp("completed_at"),
     populationStartedAt: timestamp("population_started_at"),
+    customMessage: text("custom_message"),
+    mediaUrl: text("media_url"),
+    mediaMimeType: text("media_mime_type"),
+    mediaName: text("media_name"),
+    delayBetweenMessages: integer("delay_between_messages").default(10),
+    chunkSize: integer("chunk_size").default(50),
+    delayBetweenChunks: integer("delay_between_chunks").default(60),
+    warmerEnabled: boolean("warmer_enabled").default(false),
+    selectedWarmerMessages: jsonb("selected_warmer_messages").$type<string[]>().default([]),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
@@ -579,6 +588,7 @@ export const plans = pgTable("plans", {
     campaign?: string;
     apiRequestsPerMonth?: string;
     apiRateLimitPerMinute?: string;
+    qrCodeChannelEnabled?: string;
   }>(),
 
   // Features (Array of objects)
@@ -1727,3 +1737,41 @@ export const platformLanguages = pgTable("platform_languages", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// ─── WhatsApp Warmer Configurations ───────────────────
+export const warmerConfigs = pgTable("warmer_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  isActive: boolean("is_active").default(false),
+  minDelay: integer("min_delay").default(10), // in seconds
+  maxDelay: integer("max_delay").default(60), // in seconds
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by").notNull(),
+});
+
+// ─── WhatsApp Warmer Messages ───────────────────────
+export const warmerMessages = pgTable("warmer_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  warmerConfigId: varchar("warmer_config_id").references(() => warmerConfigs.id, { onDelete: "cascade" }),
+  messageText: text("message_text").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertWarmerConfigSchema = createInsertSchema(warmerConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertWarmerMessageSchema = createInsertSchema(warmerMessages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type WarmerConfig = typeof warmerConfigs.$inferSelect;
+export type InsertWarmerConfig = typeof warmerConfigs.$inferInsert;
+export type WarmerMessage = typeof warmerMessages.$inferSelect;
+export type InsertWarmerMessage = typeof warmerMessages.$inferInsert;

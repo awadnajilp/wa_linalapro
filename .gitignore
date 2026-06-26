@@ -27,6 +27,9 @@ Thumbs.db
 # User Uploads
 uploads/
 
+# WhatsApp Sessions
+server/sessions/
+
 # IDE files
 .vscode/
 .idea/

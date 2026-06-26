@@ -699,6 +699,7 @@ export default function Sidebar() {
                 )
               : navItems
                   .filter(canView)
+                  .filter((item) => !(item.href === "/templates" && selectedChannel?.connectionMethod === "qr_code"))
                   .map((item) =>
                     renderLink(
                       t(item.labelKey),

@@ -158,6 +158,20 @@ export default function AutomationFlowBuilder({
   const templateData: Template[] = templateDataOld?.data || [];
   const templates =
     templateData?.filter((t: Template) => t.status === "APPROVED") || [];
+
+  const { data: userChannelsData } = useQuery({
+    queryKey: ["/api/channels"],
+    queryFn: () =>
+      apiRequest("GET", "/api/channels").then((res) => res.json()),
+  });
+
+  const isQrChannel = useMemo(() => {
+    if (!channelId || !userChannelsData) return false;
+    const currentChan = Array.isArray(userChannelsData)
+      ? userChannelsData.find((c: any) => c.id === channelId)
+      : userChannelsData.data?.find((c: any) => c.id === channelId);
+    return currentChan?.connectionMethod === "qr_code";
+  }, [channelId, userChannelsData]);
     
 
   const { data: teamMembers } = useQuery({
@@ -421,7 +435,7 @@ export default function AutomationFlowBuilder({
 
   return (
     <div className="h-screen w-full grid grid-cols-12 bg-gray-50">
-      <Sidebar onAddNode={addNode} />
+      <Sidebar onAddNode={addNode} isQrChannel={isQrChannel} />
 
       <div className="col-span-7 flex flex-col">
         <Header
@@ -472,6 +486,7 @@ export default function AutomationFlowBuilder({
           templates={templates as Template[]}
           members={members as Member[]}
           channelId={channelId}
+          isQrChannel={isQrChannel}
         />
       </div>
     </div>

@@ -19,8 +19,9 @@ import { Request, Response } from "express";
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { db } from "../db";
 import { eq, ne, and, inArray } from "drizzle-orm";
-import { aiSettings } from "@shared/schema";
+import { aiSettings, trainingSources, sites } from "@shared/schema";
 import { verifyChannelOwnership } from "../middlewares/tenant.middleware";
+import { processTrainingSource } from "../services/training.service";
 
 // ✅ Fetch all AI settings
 export const getAISettings = async (req: Request, res: Response) => {
@@ -154,6 +155,44 @@ export const createAISettings = async (req: Request, res: Response) => {
       })
       .returning();
 
+    // Trigger background reprocessing of training sources for this channel
+    if (channelId) {
+      (async () => {
+        try {
+          const sources = await db
+            .select({ id: trainingSources.id })
+            .from(trainingSources)
+            .where(eq(trainingSources.channelId, channelId));
+          
+          const channelSites = await db
+            .select({ id: sites.id })
+            .from(sites)
+            .where(eq(sites.channelId, channelId));
+          
+          const siteIds = channelSites.map(s => s.id);
+          
+          let allSources = [...sources];
+          if (siteIds.length > 0) {
+            const siteSources = await db
+              .select({ id: trainingSources.id })
+              .from(trainingSources)
+              .where(inArray(trainingSources.siteId, siteIds));
+            allSources = [...allSources, ...siteSources];
+          }
+
+          const uniqueSourceIds = [...new Set(allSources.map(s => s.id))];
+          
+          for (const sId of uniqueSourceIds) {
+            processTrainingSource(sId).catch((err) =>
+              console.error(`Error reprocessing source ${sId} after AI settings update:`, err)
+            );
+          }
+        } catch (err) {
+          console.error("Error triggered during background training source reprocessing:", err);
+        }
+      })();
+    }
+
     res.status(201).json(inserted);
   } catch (error) {
     console.error("❌ Error creating AI setting:", error);
@@ -215,6 +254,45 @@ export const updateAISettings = async (req: Request, res: Response) => {
       })
       .where(eq(aiSettings.id, id))
       .returning();
+
+    // Trigger background reprocessing of training sources for this channel
+    const channelId = existing.channelId;
+    if (channelId) {
+      (async () => {
+        try {
+          const sources = await db
+            .select({ id: trainingSources.id })
+            .from(trainingSources)
+            .where(eq(trainingSources.channelId, channelId));
+          
+          const channelSites = await db
+            .select({ id: sites.id })
+            .from(sites)
+            .where(eq(sites.channelId, channelId));
+          
+          const siteIds = channelSites.map(s => s.id);
+          
+          let allSources = [...sources];
+          if (siteIds.length > 0) {
+            const siteSources = await db
+              .select({ id: trainingSources.id })
+              .from(trainingSources)
+              .where(inArray(trainingSources.siteId, siteIds));
+            allSources = [...allSources, ...siteSources];
+          }
+
+          const uniqueSourceIds = [...new Set(allSources.map(s => s.id))];
+          
+          for (const sId of uniqueSourceIds) {
+            processTrainingSource(sId).catch((err) =>
+              console.error(`Error reprocessing source ${sId} after AI settings update:`, err)
+            );
+          }
+        } catch (err) {
+          console.error("Error triggered during background training source reprocessing:", err);
+        }
+      })();
+    }
 
     res.json(updated);
   } catch (error) {

@@ -41,7 +41,9 @@ import { storage } from "./storage";
 import { Server as SocketIOServer } from "socket.io";
 import { fetchConversationList } from "./controllers/conversations.controller";
 import { startScheduledCampaignCron } from "./cron/scheduledCampaigns.cron";
+import { startWhatsAppWarmerCron } from "./cron/whatsapp-warmer.cron";
 import { startCampaignExecution } from "./controllers/campaigns.controller";
+import { BaileysManager } from "./services/baileys-manager";
 import { subscribeChannelToWebhook } from "./controllers/channels.controller";
 import { db } from "./db";
 import { campaigns as campaignsTable, messageQueue } from "@shared/schema";
@@ -621,6 +623,13 @@ app.use((req, res, next) => {
     diployLogger.banner();
     diployLogger.success(`Server running on port ${port}`);
 
+    // Auto-initialize active QR sessions on startup
+    try {
+      await BaileysManager.initAllActiveSessions();
+    } catch (qrInitErr) {
+      diployLogger.error(`[Startup] Failed to auto-initialize QR sessions: ${qrInitErr}`);
+    }
+
     // One-time data fix: mark existing unverified users as inactive
     try {
       const { rowCount } = await pool.query(
@@ -747,6 +756,7 @@ app.use((req, res, next) => {
       }
 
       startScheduledCampaignCron();
+      startWhatsAppWarmerCron();
 
       const messageStatusUpdater = new MessageStatusUpdater();
       messageStatusUpdater.startCronJob(60);

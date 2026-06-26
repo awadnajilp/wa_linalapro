@@ -108,7 +108,9 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
       : conversation.lastMessageAt
       ? new Date(conversation.lastMessageAt).getTime()
       : 0;
-    const is24HourExpired = lastIncoming > 0 && (Date.now() - lastIncoming > 24 * 60 * 60 * 1000);
+    const is24HourExpired = channel.connectionMethod === "qr_code"
+      ? false
+      : (lastIncoming > 0 && (Date.now() - lastIncoming > 24 * 60 * 60 * 1000));
 
     try {
       // TEMPLATE MESSAGE
@@ -197,17 +199,28 @@ const SUPPORTED_MIME_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
+  "image/jpg",
+  "image/gif",
   "video/mp4",
   "audio/ogg",
   "audio/mpeg",
-  "application/pdf"
+  "application/pdf",
+  "text/plain",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 ];
-if (!SUPPORTED_MIME_TYPES.includes(mimeType)) {
+if (channel.connectionMethod !== "qr_code" && !SUPPORTED_MIME_TYPES.includes(mimeType)) {
   throw new Error(`❌ File type not supported: ${mimeType}`);
 }
 
 // 2️⃣ Check file size
-const MAX_SIZE_MB = mimeType.startsWith("video") ? 16 : 5;
+const MAX_SIZE_MB = channel.connectionMethod === "qr_code" 
+  ? 100 
+  : (mimeType.startsWith("video") ? 16 : (mimeType.startsWith("image") ? 5 : 100));
 if (file.size > MAX_SIZE_MB * 1024 * 1024) {
   throw new Error(`❌ ${file.originalname} exceeds WhatsApp size limit (${MAX_SIZE_MB}MB).`);
 }
@@ -403,11 +416,12 @@ export const createMessagennn = asyncHandler(async (req: Request, res: Response)
           // Only send if mediaId is available
           if (!mediaId) throw new AppError(500, "Media upload failed, cannot send message");
 
-          result = await whatsappApi.sendMediaMessage(
+          result = await whatsappApi.sendMediaMessagee(
             conversation.contactPhone,
             mediaId,
-            messageType,
-            caption || content || `[${messageType}]`
+            messageType as any,
+            caption || content || `[${messageType}]`,
+            replyToWaId
           );
           msgBody = caption || `[${messageType}]`;
 
@@ -594,11 +608,12 @@ let messageStatus: "sent" | "failed" = "sent";
         else messageType = "document";
 
         // Send media message via WhatsApp
-        result = await whatsappApi.sendMediaMessage(
+        result = await whatsappApi.sendMediaMessagee(
           conversation.contactPhone,
           mediaId!,
           messageType as any,
-          caption || content
+          caption || content,
+          replyToWaId
         );
         msgBody = caption || `[${messageType}]`;
       } else {
@@ -950,7 +965,7 @@ export const sendMessageOODLL = asyncHandler(async (req: RequestWithChannel, res
     else if (mimeType.startsWith("audio")) messageType = "audio";
     else messageType = "document";
 
-    result = await whatsappApi.sendMediaMessage(to, mediaId, messageType as any, caption || message);
+    result = await whatsappApi.sendMediaMessagee(to, mediaId, messageType as any, caption || message);
     msgBody = caption || `[${messageType}]`;
   } else {
     // Text
@@ -1167,7 +1182,7 @@ export const sendMessage = asyncHandler(async (req: RequestWithChannel, res: Res
     else if (mimeType.startsWith("audio")) messageType = "audio";
     else messageType = "document";
 
-    result = await whatsappApi.sendMediaMessage(
+    result = await whatsappApi.sendMediaMessagee(
       to,
       mediaId,
       messageType as any,

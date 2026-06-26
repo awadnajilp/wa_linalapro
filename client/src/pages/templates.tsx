@@ -407,6 +407,36 @@ const createTemplateMutation = useMutation({
     );
   }
 
+  if (activeChannel?.connectionMethod === "qr_code" && userRole !== "superadmin") {
+    return (
+      <div className="flex-1 dots-bg min-h-screen">
+        <Header
+          title={t("templates.title")}
+          subtitle={t("templates.userSubTitle")}
+        />
+        <main className="p-6">
+          <Card>
+            <CardContent className="py-12 text-center max-w-lg mx-auto">
+              <FileText className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Templates Not Supported
+              </h3>
+              <p className="text-gray-500 text-sm">
+                Message templates are an official feature of the Meta Cloud API channel used to initiate conversations outside the 24-hour window. Since you have selected a QR Code channel, templates are not required. You can send free-form messages directly via the Inbox or Campaigns.
+              </p>
+              <Button
+                className="mt-6"
+                onClick={() => (window.location.href = "/dashboard")}
+              >
+                Back to Dashboard
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 dots-bg min-h-screen">
       <Header

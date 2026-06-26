@@ -70,6 +70,7 @@ interface ConfigPanelProps {
   templates: Template[];
   members: Member[];
   channelId?: string;
+  isQrChannel?: boolean;
 }
 
 const kindMeta: Record<NodeKind, { icon: any; label: string; color: string; bgTint: string }> = {
@@ -105,6 +106,7 @@ export function ConfigPanel({
   templates,
   members,
   channelId,
+  isQrChannel,
 }: ConfigPanelProps) {
   const [templateMeta, setTemplateMeta] = useState<any>(null);
   const [mediaUploading, setMediaUploading] = useState(false);
@@ -437,22 +439,26 @@ export function ConfigPanel({
                 </div>
               )}
 
-              <SectionHeader>Quick Reply Buttons</SectionHeader>
-              <div className="space-y-2">
-                <div className="flex justify-end">
-                  <Button size="sm" variant="outline" onClick={addButton} className="h-7 text-[10px] font-semibold rounded-lg">
-                    <Plus className="w-3 h-3 mr-1" /> Add Button
-                  </Button>
-                </div>
-                {d.buttons?.map((btn) => (
-                  <div key={btn.id} className="flex items-center gap-2">
-                    <Input value={btn.text} onChange={(e) => updateButton(btn.id, { text: e.target.value })} className="h-8 text-sm rounded-lg" />
-                    <Button size="sm" variant="ghost" onClick={() => removeButton(btn.id)} className="h-8 w-8 p-0 text-red-400 rounded-lg">
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
+              {!isQrChannel && (
+                <>
+                  <SectionHeader>Quick Reply Buttons</SectionHeader>
+                  <div className="space-y-2">
+                    <div className="flex justify-end">
+                      <Button size="sm" variant="outline" onClick={addButton} className="h-7 text-[10px] font-semibold rounded-lg">
+                        <Plus className="w-3 h-3 mr-1" /> Add Button
+                      </Button>
+                    </div>
+                    {d.buttons?.map((btn) => (
+                      <div key={btn.id} className="flex items-center gap-2">
+                        <Input value={btn.text} onChange={(e) => updateButton(btn.id, { text: e.target.value })} className="h-8 text-sm rounded-lg" />
+                        <Button size="sm" variant="ghost" onClick={() => removeButton(btn.id)} className="h-8 w-8 p-0 text-red-400 rounded-lg">
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
             </>
           )}
 
@@ -471,22 +477,26 @@ export function ConfigPanel({
                 </div>
               </div>
 
-              <SectionHeader>Answer Options</SectionHeader>
-              <div className="space-y-2">
-                <div className="flex justify-end">
-                  <Button size="sm" variant="outline" onClick={addButton} className="h-7 text-[10px] font-semibold rounded-lg">
-                    <Plus className="w-3 h-3 mr-1" /> Add Option
-                  </Button>
-                </div>
-                {d.buttons?.map((btn) => (
-                  <div key={btn.id} className="flex items-center gap-2">
-                    <Input value={btn.text} onChange={(e) => updateButton(btn.id, { text: e.target.value })} className="h-8 text-sm rounded-lg" />
-                    <Button size="sm" variant="ghost" onClick={() => removeButton(btn.id)} className="h-8 w-8 p-0 text-red-400 rounded-lg">
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
+              {!isQrChannel && (
+                <>
+                  <SectionHeader>Answer Options</SectionHeader>
+                  <div className="space-y-2">
+                    <div className="flex justify-end">
+                      <Button size="sm" variant="outline" onClick={addButton} className="h-7 text-[10px] font-semibold rounded-lg">
+                        <Plus className="w-3 h-3 mr-1" /> Add Option
+                      </Button>
+                    </div>
+                    {d.buttons?.map((btn) => (
+                      <div key={btn.id} className="flex items-center gap-2">
+                        <Input value={btn.text} onChange={(e) => updateButton(btn.id, { text: e.target.value })} className="h-8 text-sm rounded-lg" />
+                        <Button size="sm" variant="ghost" onClick={() => removeButton(btn.id)} className="h-8 w-8 p-0 text-red-400 rounded-lg">
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
             </>
           )}
 

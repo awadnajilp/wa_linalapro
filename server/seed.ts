@@ -449,6 +449,7 @@ async function seed() {
             automation: "1",
             apiRequestsPerMonth: "1000",
             apiRateLimitPerMinute: "10",
+            qrCodeChannelEnabled: "false",
           },
           features: [
             { name: "1 WhatsApp Channel", included: true },
@@ -461,6 +462,7 @@ async function seed() {
             { name: "AI Auto-Reply", included: false },
             { name: "Team Members", included: false },
             { name: "Priority Support", included: false },
+            { name: "QR Code Login Channel", included: false },
           ],
         },
         {
@@ -479,6 +481,7 @@ async function seed() {
             automation: "10",
             apiRequestsPerMonth: "50000",
             apiRateLimitPerMinute: "60",
+            qrCodeChannelEnabled: "false",
           },
           features: [
             { name: "3 WhatsApp Channels", included: true },
@@ -491,6 +494,7 @@ async function seed() {
             { name: "Up to 5 Team Members", included: true },
             { name: "Campaign Scheduling", included: true },
             { name: "Email Support", included: true },
+            { name: "QR Code Login Channel", included: false },
           ],
         },
         {
@@ -509,6 +513,7 @@ async function seed() {
             automation: "unlimited",
             apiRequestsPerMonth: "unlimited",
             apiRateLimitPerMinute: "300",
+            qrCodeChannelEnabled: "true",
           },
           features: [
             { name: "Unlimited WhatsApp Channels", included: true },
@@ -521,6 +526,7 @@ async function seed() {
             { name: "Unlimited Team Members", included: true },
             { name: "Campaign Scheduling", included: true },
             { name: "Priority Support", included: true },
+            { name: "QR Code Login Channel", included: true },
           ],
         },
       ];

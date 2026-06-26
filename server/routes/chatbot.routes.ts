@@ -25,7 +25,7 @@ import type { Express } from "express";
 import { storage } from 'server/storage';
 import OpenAI from 'openai';
 import { requireAuth } from 'server/middlewares/auth.middleware';
-import { aiSettings, insertSiteSchema, panelConfig, sites, trainingQaPairs, knowledgeCategories, knowledgeArticles } from '@shared/schema';
+import { aiSettings, insertSiteSchema, panelConfig, sites, trainingQaPairs, knowledgeCategories, knowledgeArticles, channels } from '@shared/schema';
 import { requireSubscription } from 'server/middlewares/requireSubscription';
 import { eq, and, inArray } from 'drizzle-orm';
 import { db } from 'server/db';
@@ -832,17 +832,49 @@ ${triggerPhrases.length > 0 ? `- If the user mentions any of these phrases, esca
 
   app.get("/api/active-site", async (req, res) => {
     try {
-      // Use authenticated user's tenantId
-      // console.log("active-site-channelId" , req)
-      const { channelId } = req.query; 
-      // console.log("active-site-channelId" , channelId)
+      const channelId = req.query.channelId as string;
 
       if (!channelId) {
-        return res.status(400).json({ message: "No Channel fount" });
+        return res.status(400).json({ message: "Channel ID is required" });
       }
 
-      const [site] = await storage.getSitesByChannel(channelId);
-      // console.log("site" , site)
+      const [channel] = await db
+        .select()
+        .from(channels)
+        .where(eq(channels.id, channelId))
+        .limit(1);
+
+      if (!channel) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+
+      const sitesList = await storage.getSitesByChannel(channelId);
+      let site = sitesList[0];
+
+      if (!site) {
+        // Auto-create a default site for this channel
+        site = await storage.createSite({
+          name: channel.name || "Default Site",
+          domain: "localhost",
+          channelId: channel.id,
+          widgetEnabled: true,
+          widgetConfig: {
+            systemPrompt: `You are a helpful customer support AI assistant for ${channel.name || 'our company'}. Answer questions using the provided knowledge base.`,
+            escalationRules: {
+              enabled: true,
+              maxAttempts: 3,
+              escalationMessage: "I'm transferring you to a human agent who can better assist you.",
+            }
+          },
+          aiTrainingConfig: {
+            model: "gpt-4o-mini",
+            temperature: 0.7,
+            maxTokens: 500,
+          }
+        });
+        console.log(`[Site] Auto-created site ${site.id} for channel ${channelId}`);
+      }
+
       res.json(site);
     } catch (error: any) {
       res.status(500).json({ message: error.message });

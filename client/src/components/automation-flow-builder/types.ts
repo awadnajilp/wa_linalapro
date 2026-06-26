@@ -24,6 +24,7 @@ export type NodeKind =
   | "send_template"
   | "assign_user"
   | "webhook"
+  | "mysql"
   | "end"
   | "add_to_group"
   | "update_contact"

@@ -177,16 +177,32 @@ export const handleDigitalOceanUpload = async (
         console.log(`   Cloud key: ${fileKey}`);
         console.log(`   File size: ${fileBuffer.length} bytes`);
 
-        // Upload to DO Spaces
-        await s3.send(
-          new PutObjectCommand({
-            Bucket: bucket!,
-            Key: fileKey,
-            Body: fileBuffer,
-            ACL: "public-read",
-            ContentType: file.mimetype,
-          })
-        );
+        // Upload to DO Spaces (with ACL fallback retry)
+        try {
+          await s3.send(
+            new PutObjectCommand({
+              Bucket: bucket!,
+              Key: fileKey,
+              Body: fileBuffer,
+              ACL: "public-read",
+              ContentType: file.mimetype,
+            })
+          );
+        } catch (s3Error: any) {
+          if (s3Error.name === "AccessControlListNotSupported" || s3Error.message?.includes("ACL")) {
+            console.warn("⚠️ S3 bucket does not support ACLs. Retrying without public-read ACL...");
+            await s3.send(
+              new PutObjectCommand({
+                Bucket: bucket!,
+                Key: fileKey,
+                Body: fileBuffer,
+                ContentType: file.mimetype,
+              })
+            );
+          } else {
+            throw s3Error;
+          }
+        }
 
         // Construct cloud URL
         const endpointUrl = new URL(endpoint || "");

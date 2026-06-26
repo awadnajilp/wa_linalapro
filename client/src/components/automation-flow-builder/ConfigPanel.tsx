@@ -44,6 +44,7 @@ import {
   Clock,
   FileText,
   Globe,
+  Database,
   CircleStop,
   UserPlus,
   UserCog,
@@ -82,6 +83,7 @@ const kindMeta: Record<NodeKind, { icon: any; label: string; color: string; bgTi
   send_template: { icon: FileText, label: "Send Template", color: "text-teal-600", bgTint: "bg-teal-50" },
   assign_user: { icon: Users, label: "Assign Agent", color: "text-indigo-600", bgTint: "bg-indigo-50" },
   webhook: { icon: Globe, label: "Webhook", color: "text-orange-600", bgTint: "bg-orange-50" },
+  mysql: { icon: Database, label: "MySQL Query", color: "text-teal-600", bgTint: "bg-teal-50" },
   end: { icon: CircleStop, label: "End", color: "text-red-600", bgTint: "bg-red-50" },
   add_to_group: { icon: UserPlus, label: "Add to Group", color: "text-emerald-600", bgTint: "bg-emerald-50" },
   update_contact: { icon: UserCog, label: "Update Contact", color: "text-cyan-600", bgTint: "bg-cyan-50" },
@@ -767,6 +769,127 @@ export function ConfigPanel({
                       }}
                       className="px-2 py-1 text-[10px] font-mono bg-orange-50 border border-orange-200 rounded-md text-orange-700 hover:bg-orange-100 hover:border-orange-300 transition-colors cursor-pointer"
                       title={d.webhookMethod === "GET" ? `Add ${v.key} to URL` : `Insert {{${v.key}}}`}
+                    >
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[10px] text-gray-400 mt-1">
+                  Flow variables set by "Set Variable" nodes are also available using {"{{your_variable_name}}"} syntax.
+                </div>
+              </div>
+            </>
+          )}
+
+          {d.kind === "mysql" && (
+            <>
+              <SectionHeader>MySQL Database Settings</SectionHeader>
+              <div className="space-y-3 bg-teal-50/50 rounded-xl p-4 border border-teal-100">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">Host</Label>
+                    <Input
+                      value={d.mysqlHost || ""}
+                      onChange={(e) => onChange({ mysqlHost: e.target.value })}
+                      placeholder="localhost or IP"
+                      className="h-9 text-sm rounded-lg bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">Port</Label>
+                    <Input
+                      value={d.mysqlPort || "3306"}
+                      onChange={(e) => onChange({ mysqlPort: e.target.value })}
+                      placeholder="3306"
+                      className="h-9 text-sm rounded-lg bg-white"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">Username</Label>
+                    <Input
+                      value={d.mysqlUsername || ""}
+                      onChange={(e) => onChange({ mysqlUsername: e.target.value })}
+                      placeholder="db_user"
+                      className="h-9 text-sm rounded-lg bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">Password</Label>
+                    <Input
+                      type="password"
+                      value={d.mysqlPassword || ""}
+                      onChange={(e) => onChange({ mysqlPassword: e.target.value })}
+                      placeholder="db_password"
+                      className="h-9 text-sm rounded-lg bg-white"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Database Name</Label>
+                  <Input
+                    value={d.mysqlDatabase || ""}
+                    onChange={(e) => onChange({ mysqlDatabase: e.target.value })}
+                    placeholder="my_database"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                </div>
+              </div>
+
+              <SectionHeader>SQL Query</SectionHeader>
+              <div className="space-y-3 bg-gray-50/50 rounded-xl p-4 border border-gray-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Query / Command</Label>
+                  <Textarea
+                    rows={6}
+                    value={d.mysqlQuery || ""}
+                    onChange={(e) => onChange({ mysqlQuery: e.target.value })}
+                    placeholder={"SELECT name FROM users WHERE email = '{{contact_email}}';\n\nINSERT INTO logs (user_id, msg) VALUES ('{{contact_phone}}', '{{last_message}}');"}
+                    className="text-sm font-mono resize-none rounded-lg bg-white border border-gray-200"
+                  />
+                  <div className="text-[10px] text-gray-400 leading-relaxed mt-1">
+                    You can use variables (e.g. <code className="bg-gray-100 px-1 rounded font-mono">{"{{contact_name}}"}</code> or <code className="bg-gray-100 px-1 rounded font-mono">{"{{any_variable}}"}</code>) which will be safely interpolated.
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Query Result To (Optional)</Label>
+                  <Input
+                    value={d.mysqlOutputVariable || ""}
+                    onChange={(e) => onChange({ mysqlOutputVariable: e.target.value })}
+                    placeholder="e.g., query_result"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400 leading-relaxed mt-1">
+                    Stores the output of the query (e.g., JSON array of rows for queries that return data, or metadata for inserts/updates) into this variable.
+                  </div>
+                </div>
+              </div>
+
+              <SectionHeader>Available Variables</SectionHeader>
+              <div className="space-y-2 bg-gray-50/50 rounded-xl p-4 border border-gray-100">
+                <div className="text-[10px] text-gray-500 mb-1">
+                  Click to insert into the SQL query
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { key: "contact_name", label: "Contact Name" },
+                    { key: "contact_phone", label: "Contact Phone" },
+                    { key: "contact_email", label: "Contact Email" },
+                    { key: "last_message", label: "Last Message" },
+                    { key: "conversation_id", label: "Conversation ID" },
+                    { key: "channel_name", label: "Channel Name" },
+                    { key: "channel_phone", label: "Channel Phone" },
+                  ].map((v) => (
+                    <button
+                      key={v.key}
+                      type="button"
+                      onClick={() => {
+                        const current = d.mysqlQuery || "";
+                        onChange({ mysqlQuery: current + `{{${v.key}}}` });
+                      }}
+                      className="px-2 py-1 text-[10px] font-mono bg-teal-50 border border-teal-200 rounded-md text-teal-700 hover:bg-teal-100 hover:border-teal-300 transition-colors cursor-pointer"
+                      title={`Insert {{${v.key}}}`}
                     >
                       {v.label}
                     </button>

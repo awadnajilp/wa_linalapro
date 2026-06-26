@@ -25,7 +25,8 @@ export function registerMediaRoutes(app: Express) {
     if (!file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
-    const fileUrl = file.cloudUrl || `/uploads/${file.filename || file.originalname}`;
+    const relativePath = file.path.replace(/\\/g, "/").replace(/^uploads\//, "");
+    const fileUrl = file.cloudUrl || `/uploads/${relativePath}`;
     res.json({
       url: fileUrl,
       name: file.originalname,

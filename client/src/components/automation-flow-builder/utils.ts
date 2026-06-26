@@ -57,6 +57,17 @@ export const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
     webhookHeaders: {},
     webhookBody: "",
   },
+  mysql: {
+    kind: "mysql",
+    label: "MySQL Query",
+    mysqlHost: "",
+    mysqlPort: "3306",
+    mysqlUsername: "",
+    mysqlPassword: "",
+    mysqlDatabase: "",
+    mysqlQuery: "",
+    mysqlOutputVariable: "",
+  },
   end: { kind: "end", label: "End", endMessage: "" },
   add_to_group: {
     kind: "add_to_group",

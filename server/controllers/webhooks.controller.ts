@@ -344,15 +344,32 @@ async function processIncomingMedia(
       const fileKey = `uploads/incoming/${filename}`;
       console.log(`☁️ Uploading incoming media to cloud storage: ${fileKey}`);
 
-      await s3.send(
-        new PutObjectCommand({
-          Bucket: bucket!,
-          Key: fileKey,
-          Body: buffer,
-          ACL: "public-read",
-          ContentType: mimeType,
-        })
-      );
+      // Upload to DO Spaces (with ACL fallback retry)
+      try {
+        await s3.send(
+          new PutObjectCommand({
+            Bucket: bucket!,
+            Key: fileKey,
+            Body: buffer,
+            ACL: "public-read",
+            ContentType: mimeType,
+          })
+        );
+      } catch (s3Error: any) {
+        if (s3Error.name === "AccessControlListNotSupported" || s3Error.message?.includes("ACL")) {
+          console.warn("⚠️ S3 bucket does not support ACLs. Retrying without public-read ACL...");
+          await s3.send(
+            new PutObjectCommand({
+              Bucket: bucket!,
+              Key: fileKey,
+              Body: buffer,
+              ContentType: mimeType,
+            })
+          );
+        } else {
+          throw s3Error;
+        }
+      }
 
       const endpointUrl = new URL(endpoint || "");
       const cloudUrl = `https://${bucket}.${endpointUrl.host}/${fileKey}`;

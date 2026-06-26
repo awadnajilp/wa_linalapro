@@ -33,6 +33,7 @@ import {
   CheckCheck,
   Info,
   MessageSquare,
+  Database,
 } from "lucide-react";
 import { NodeKind } from "./types";
 import {
@@ -168,6 +169,15 @@ const nodeCategories = [
         bg: "bg-orange-50",
         border: "border-orange-200",
         tip: "Call an external API or webhook URL. Send data from the conversation and use the response in subsequent steps. Great for CRM updates, order lookups, or integrations.",
+      },
+      {
+        kind: "mysql" as NodeKind,
+        name: "MySQL Query",
+        icon: Database,
+        color: "text-teal-600",
+        bg: "bg-teal-50",
+        border: "border-teal-200",
+        tip: "Execute queries on an external MySQL database to save, update, or retrieve data. Dynamic variables can be safely interpolated into your queries.",
       },
       {
         kind: "mark_as_read" as NodeKind,

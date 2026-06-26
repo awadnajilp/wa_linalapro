@@ -39,6 +39,7 @@ import { BaileysManager } from "./baileys-manager";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
+import * as mysql from "mysql2/promise";
 
 interface ExecutionContext {
   executionId: string;
@@ -225,6 +226,10 @@ export class AutomationExecutionService {
 
         case 'webhook':
           result = await this.executeWebhook(node, context);
+          break;
+
+        case 'mysql':
+          result = await this.executeMySQL(node, context);
           break;
 
         case 'end':
@@ -2515,6 +2520,84 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         };
       }
       throw error;
+    }
+  }
+
+  private async executeMySQL(node: any, context: ExecutionContext) {
+    const contact = context.contactId
+      ? await db.query.contacts.findFirst({ where: eq(contacts.id, context.contactId) })
+      : null;
+
+    const conversation = context.conversationId
+      ? await storage.getConversation(context.conversationId)
+      : null;
+
+    let channelData: any = null;
+    if (conversation?.channelId) {
+      channelData = await db.query.channels.findFirst({
+        where: eq(channels.id, conversation.channelId),
+      });
+    }
+
+    const templateVars = {
+      ...context.variables,
+      contact_name: contact?.name || '',
+      contact_phone: contact?.phone || '',
+      contact_email: (contact as any)?.email || '',
+      contact_groups: JSON.stringify(contact?.groups || []),
+      last_message: context.lastUserMessage || '',
+      conversation_id: context.conversationId || '',
+      channel_name: channelData?.name || '',
+      channel_phone: channelData?.phoneNumber || '',
+    };
+
+    const host = this.replaceVariables(node.data?.mysqlHost || '', templateVars);
+    const portStr = this.replaceVariables(node.data?.mysqlPort || '3306', templateVars);
+    const port = parseInt(portStr, 10) || 3306;
+    const user = this.replaceVariables(node.data?.mysqlUsername || '', templateVars);
+    const password = this.replaceVariables(node.data?.mysqlPassword || '', templateVars);
+    const database = this.replaceVariables(node.data?.mysqlDatabase || '', templateVars);
+    const query = this.replaceVariables(node.data?.mysqlQuery || '', templateVars);
+
+    if (!host || !user || !database || !query) {
+      throw new Error('Missing MySQL connection configuration or query');
+    }
+
+    console.log(`🛢️ Executing MySQL query: ${query} on ${host}:${port}/${database}`);
+
+    const connection = await mysql.createConnection({
+      host,
+      port,
+      user,
+      password,
+      database,
+      connectTimeout: 10000,
+    });
+
+    try {
+      const [results] = await connection.query(query);
+
+      // Store results in output variable if configured
+      if (node.data?.mysqlOutputVariable) {
+        context.variables[node.data.mysqlOutputVariable] = results;
+      }
+
+      // Store default results so subsequent nodes can check it (similar to _lastWebhookResponse)
+      context.variables['_lastMysqlResponse'] = results;
+      context.variables['_lastMysqlStatus'] = 'success';
+
+      return {
+        action: 'mysql_executed',
+        status: 'success',
+        results: results,
+      };
+    } catch (error: any) {
+      console.error(`❌ MySQL execution error:`, error);
+      context.variables['_lastMysqlResponse'] = { error: error.message };
+      context.variables['_lastMysqlStatus'] = 'error';
+      throw error;
+    } finally {
+      await connection.end();
     }
   }
 

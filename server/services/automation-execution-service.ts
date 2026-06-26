@@ -2551,16 +2551,16 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       channel_phone: channelData?.phoneNumber || '',
     };
 
-    const host = this.replaceVariables(node.data?.mysqlHost || '', templateVars);
-    const portStr = this.replaceVariables(node.data?.mysqlPort || '3306', templateVars);
+    const host = this.replaceVariables(node.data?.mysqlHost || '', templateVars) || process.env.MYSQL_HOST || 'localhost';
+    const portStr = this.replaceVariables(node.data?.mysqlPort || '', templateVars) || process.env.MYSQL_PORT || '3306';
     const port = parseInt(portStr, 10) || 3306;
-    const user = this.replaceVariables(node.data?.mysqlUsername || '', templateVars);
-    const password = this.replaceVariables(node.data?.mysqlPassword || '', templateVars);
-    const database = this.replaceVariables(node.data?.mysqlDatabase || '', templateVars);
+    const user = this.replaceVariables(node.data?.mysqlUsername || '', templateVars) || process.env.MYSQL_USER || '';
+    const password = this.replaceVariables(node.data?.mysqlPassword || '', templateVars) || process.env.MYSQL_PASSWORD || '';
+    const database = this.replaceVariables(node.data?.mysqlDatabase || '', templateVars) || process.env.MYSQL_DATABASE || '';
     const query = this.replaceVariables(node.data?.mysqlQuery || '', templateVars);
 
-    if (!host || !user || !database || !query) {
-      throw new Error('Missing MySQL connection configuration or query');
+    if (!host || !query) {
+      throw new Error('Missing MySQL host or query');
     }
 
     console.log(`🛢️ Executing MySQL query: ${query} on ${host}:${port}/${database}`);

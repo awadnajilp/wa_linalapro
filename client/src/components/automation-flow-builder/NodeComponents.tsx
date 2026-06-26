@@ -378,16 +378,17 @@ export function MySQLNode({ data }: { data: BuilderNodeData }) {
         bgColor="bg-teal-50"
         borderColor="border-teal-100"
       >
-        {data.mysqlHost ? (
+        {data.mysqlQuery ? (
           <div className="space-y-1">
             <div className="text-[11px] text-gray-500 truncate bg-gray-50 rounded px-2 py-1 font-mono border border-gray-100">
-              {data.mysqlUsername}@{data.mysqlHost}:{data.mysqlPort || "3306"}
+              {data.mysqlHost 
+                ? `${data.mysqlUsername || "root"}@${data.mysqlHost}:${data.mysqlPort || "3306"}`
+                : "Default Hosted DB"
+              }
             </div>
-            {data.mysqlQuery && (
-              <pre className="text-[10px] text-gray-600 bg-gray-50 rounded p-1 max-h-[60px] overflow-hidden truncate font-mono border border-gray-100">
-                {data.mysqlQuery}
-              </pre>
-            )}
+            <pre className="text-[10px] text-gray-600 bg-gray-50 rounded p-1 max-h-[60px] overflow-hidden truncate font-mono border border-gray-100">
+              {data.mysqlQuery}
+            </pre>
             {data.mysqlOutputVariable && (
               <div className="text-[10px] text-teal-700 font-medium">
                 Output: <code className="font-mono bg-teal-100/50 px-1 py-0.2 rounded">{data.mysqlOutputVariable}</code>
@@ -395,7 +396,7 @@ export function MySQLNode({ data }: { data: BuilderNodeData }) {
             )}
           </div>
         ) : (
-          <div className="text-gray-400 italic text-[11px]">No MySQL node configured</div>
+          <div className="text-gray-400 italic text-[11px]">No query configured</div>
         )}
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-teal-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />

@@ -785,22 +785,25 @@ export function ConfigPanel({
             <>
               <SectionHeader>MySQL Database Settings</SectionHeader>
               <div className="space-y-3 bg-teal-50/50 rounded-xl p-4 border border-teal-100">
+                <div className="text-[10px] text-teal-800 leading-normal mb-1 bg-teal-100/30 p-2 rounded border border-teal-200/40">
+                  💡 Leave host and credentials blank to connect by default to the application's main hosted MySQL server.
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-gray-700">Host</Label>
                     <Input
                       value={d.mysqlHost || ""}
                       onChange={(e) => onChange({ mysqlHost: e.target.value })}
-                      placeholder="localhost or IP"
+                      placeholder="Default: App Host"
                       className="h-9 text-sm rounded-lg bg-white"
                     />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-gray-700">Port</Label>
                     <Input
-                      value={d.mysqlPort || "3306"}
+                      value={d.mysqlPort || ""}
                       onChange={(e) => onChange({ mysqlPort: e.target.value })}
-                      placeholder="3306"
+                      placeholder="Default: 3306"
                       className="h-9 text-sm rounded-lg bg-white"
                     />
                   </div>
@@ -811,7 +814,7 @@ export function ConfigPanel({
                     <Input
                       value={d.mysqlUsername || ""}
                       onChange={(e) => onChange({ mysqlUsername: e.target.value })}
-                      placeholder="db_user"
+                      placeholder="Default: App User"
                       className="h-9 text-sm rounded-lg bg-white"
                     />
                   </div>
@@ -821,7 +824,7 @@ export function ConfigPanel({
                       type="password"
                       value={d.mysqlPassword || ""}
                       onChange={(e) => onChange({ mysqlPassword: e.target.value })}
-                      placeholder="db_password"
+                      placeholder="Default: App Pass"
                       className="h-9 text-sm rounded-lg bg-white"
                     />
                   </div>
@@ -831,7 +834,7 @@ export function ConfigPanel({
                   <Input
                     value={d.mysqlDatabase || ""}
                     onChange={(e) => onChange({ mysqlDatabase: e.target.value })}
-                    placeholder="my_database"
+                    placeholder="Default: App DB"
                     className="h-9 text-sm rounded-lg bg-white"
                   />
                 </div>

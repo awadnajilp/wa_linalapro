@@ -168,6 +168,7 @@ export async function sendBusinessMessage({
   }
   /* ───────── TEMPLATE MESSAGE ───────── */
   else if (templateName) {
+    const cleanMediaId = (id: any) => (id && /^\d+$/.test(String(id)) ? parseInt(String(id), 10) : id);
     const components: any[] = [];
 
     // HEADER IMAGE
@@ -177,7 +178,7 @@ export async function sendBusinessMessage({
         parameters: [
           {
             type: "image",
-            image: { id: mediaId },
+            image: { id: cleanMediaId(mediaId) },
           },
         ],
       });

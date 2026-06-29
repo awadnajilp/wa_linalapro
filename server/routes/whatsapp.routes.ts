@@ -742,6 +742,8 @@ if (type === "template") {
       status: "active",
     }));
 
+  const cleanMediaId = (id: any) => (id && /^\d+$/.test(String(id)) ? parseInt(String(id), 10) : id);
+
   const components: any[] = [];
 
   // 🔹 HEADER (IMAGE)
@@ -751,7 +753,7 @@ if (type === "template") {
       parameters: [
         {
           type: "video",
-          video: { id: headerMediaId },
+          video: { id: cleanMediaId(headerMediaId) },
         },
       ],
     });
@@ -763,7 +765,7 @@ if (type === "template") {
       parameters: [
         {
           type: "image",
-          image: { id: headerMediaId },
+          image: { id: cleanMediaId(headerMediaId) },
         },
       ],
     });

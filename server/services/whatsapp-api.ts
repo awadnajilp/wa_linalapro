@@ -1453,6 +1453,7 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
 
   const formattedPhone = this.formatPhoneNumber(to);
 
+  const cleanMediaId = (id: any) => (id && /^\d+$/.test(String(id)) ? parseInt(String(id), 10) : id);
   const components: any[] = [];
 
   // ✅ HEADER IMAGE
@@ -1462,7 +1463,7 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
       parameters: [
         {
           type: "image",
-          image: { id: mediaId },
+          image: { id: cleanMediaId(mediaId) },
         },
       ],
     });

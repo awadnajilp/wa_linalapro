@@ -511,11 +511,11 @@ export const campaignsController = {
     if (template.mediaUrl && !apiCarouselCards) {
       const mediaType = (template.mediaType || "image").toLowerCase();
       if (mediaType === "image") {
-        apiComponents.push({ type: "header", parameters: [{ type: "image", image: { id: template.mediaUrl } }] });
+        apiComponents.push({ type: "header", parameters: [{ type: "image", image: { id: cleanMediaId(template.mediaUrl) } }] });
       } else if (mediaType === "video") {
-        apiComponents.push({ type: "header", parameters: [{ type: "video", video: { id: template.mediaUrl } }] });
+        apiComponents.push({ type: "header", parameters: [{ type: "video", video: { id: cleanMediaId(template.mediaUrl) } }] });
       } else if (mediaType === "document") {
-        apiComponents.push({ type: "header", parameters: [{ type: "document", document: { id: template.mediaUrl } }] });
+        apiComponents.push({ type: "header", parameters: [{ type: "document", document: { id: cleanMediaId(template.mediaUrl) } }] });
       }
     }
 
@@ -547,7 +547,7 @@ export const campaignsController = {
         const cardMediaType = (card.mediaType || "image").toLowerCase();
         if (card.mediaUrl) {
           const isUrl = card.mediaUrl.startsWith("http");
-          const mediaRef = isUrl ? { link: card.mediaUrl } : { id: card.mediaUrl };
+          const mediaRef = isUrl ? { link: card.mediaUrl } : { id: cleanMediaId(card.mediaUrl) };
           cardComponents.push({
             type: "header",
             parameters: [
@@ -677,6 +677,8 @@ export const campaignsController = {
 };
 
 
+const cleanMediaId = (id: any) => (id && /^\d+$/.test(String(id)) ? parseInt(String(id), 10) : id);
+
 function buildContactComponents(contact: Contact, campaign: any, template: any, hasLimitedTimeOffer: boolean): any[] {
   const components: any[] = [];
 
@@ -688,11 +690,11 @@ function buildContactComponents(contact: Contact, campaign: any, template: any, 
   if (headerMediaId && !carouselCards) {
     const mediaType = (campaign.variableMapping?.headerType || template.mediaType || "image").toLowerCase();
     if (mediaType === "image") {
-      components.push({ type: "header", parameters: [{ type: "image", image: { id: headerMediaId } }] });
+      components.push({ type: "header", parameters: [{ type: "image", image: { id: cleanMediaId(headerMediaId) } }] });
     } else if (mediaType === "video") {
-      components.push({ type: "header", parameters: [{ type: "video", video: { id: headerMediaId } }] });
+      components.push({ type: "header", parameters: [{ type: "video", video: { id: cleanMediaId(headerMediaId) } }] });
     } else if (mediaType === "document") {
-      components.push({ type: "header", parameters: [{ type: "document", document: { id: headerMediaId } }] });
+      components.push({ type: "header", parameters: [{ type: "document", document: { id: cleanMediaId(headerMediaId) } }] });
     }
   }
 
@@ -780,7 +782,7 @@ function buildContactComponents(contact: Contact, campaign: any, template: any, 
 
       if (resolvedMediaUrl) {
         const isUrl = !campaignMediaId && resolvedMediaUrl.startsWith("http");
-        const mediaRef = isUrl ? { link: resolvedMediaUrl } : { id: resolvedMediaUrl };
+        const mediaRef = isUrl ? { link: resolvedMediaUrl } : { id: cleanMediaId(resolvedMediaUrl) };
         cardComponents.push({
           type: "header",
           parameters: [cardMediaType === "video" ? { type: "video", video: mediaRef } : { type: "image", image: mediaRef }],

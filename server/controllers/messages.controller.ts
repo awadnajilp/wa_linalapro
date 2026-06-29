@@ -880,10 +880,41 @@ export const getMediaProxy = asyncHandler(async (req: Request, res: Response) =>
       return res.status(404).json({ error: 'Media not found' });
     }
 
-    const cloudUrl = (message.metadata as any)?.cloudUrl;
-    if (cloudUrl && /^https?:\/\//i.test(cloudUrl)) {
-      console.log("Media proxy: Redirecting to metadata cloud URL:", cloudUrl);
-      return res.redirect(cloudUrl);
+    const cloudUrl = (message.metadata as any)?.cloudUrl || (message.mediaUrl && /^https?:\/\//i.test(message.mediaUrl) ? message.mediaUrl : null);
+    if (cloudUrl) {
+      const isMetaMedia = cloudUrl.includes("fbsbx.com") || 
+                          cloudUrl.includes("facebook.com") || 
+                          cloudUrl.includes("whatsapp.com");
+
+      if (!isMetaMedia) {
+        try {
+          const { createDOClient } = await import('../config/digitalOceanConfig');
+          const doClient = await createDOClient();
+          if (doClient) {
+            const { bucket, endpoint } = doClient;
+            const isOurBucket = cloudUrl.includes(bucket) || (endpoint && cloudUrl.includes(new URL(endpoint).host));
+            if (isOurBucket) {
+              console.log("Media proxy: Streaming private S3 media directly:", cloudUrl);
+              const buffer = await downloadFromCloudStorage(cloudUrl);
+              const contentType = message.mediaMimeType || 'application/octet-stream';
+              res.set({
+                'Content-Type': contentType,
+                'Cache-Control': 'public, max-age=86400',
+              });
+              if (download === 'true') {
+                const filename = (message.metadata as any)?.originalName || `media_${messageId}`;
+                res.set('Content-Disposition', `attachment; filename="${filename}"`);
+              }
+              return res.send(buffer);
+            }
+          }
+        } catch (s3ProxyErr) {
+          console.error("Media proxy: Failed to stream S3 directly:", s3ProxyErr);
+        }
+
+        console.log("Media proxy: Redirecting to cloud URL:", cloudUrl);
+        return res.redirect(cloudUrl);
+      }
     }
 
     if (message.mediaUrl) {

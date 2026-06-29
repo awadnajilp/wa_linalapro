@@ -10,6 +10,7 @@ type DOClientResult = {
   s3: S3Client;
   bucket: string;
   endpoint: string;
+  provider?: string;
 } | null;
 
 type CacheEntry = {
@@ -78,6 +79,7 @@ export const createDOClient = async (): Promise<DOClientResult> => {
         secretAccessKey: config.secretKey,
       },
       forcePathStyle: false,
+      maxAttempts: 1,
     });
 
     console.log("✅ S3 Client created successfully");
@@ -86,6 +88,7 @@ export const createDOClient = async (): Promise<DOClientResult> => {
       s3: s3Client,
       bucket: config.spaceName,
       endpoint: cleanEndpoint,
+      provider: config.provider,
     };
 
     cache.set(CACHE_KEY, { value: result, expiresAt: now + CACHE_TTL_MS });

@@ -152,10 +152,11 @@ export const handleDigitalOceanUpload = async (
       return next();
     }
 
-    const { s3, bucket, endpoint } = doClient;
-    console.log(`☁️ Uploading to DigitalOcean Spaces: ${bucket}`);
+    const { s3, bucket, endpoint, provider } = doClient;
+    const isAws = provider?.toLowerCase() === "aws";
+    console.log(`☁️ Uploading to cloud storage (${provider || "Spaces"}): ${bucket}`);
 
-    // Upload to DigitalOcean Spaces
+    // Upload to DigitalOcean Spaces / AWS S3
     for (const file of files) {
       try {
         console.log(`\n📤 Uploading: ${file.originalname}`);
@@ -175,18 +176,21 @@ export const handleDigitalOceanUpload = async (
         console.log(`   Cloud key: ${fileKey}`);
         console.log(`   File size: ${file.size} bytes`);
 
-        // Upload to DO Spaces (with ACL fallback retry)
+        // Upload to Cloud storage
         try {
-          await s3.send(
-            new PutObjectCommand({
-              Bucket: bucket!,
-              Key: fileKey,
-              Body: fs.createReadStream(file.path),
-              ContentLength: file.size,
-              ACL: "public-read",
-              ContentType: file.mimetype,
-            })
-          );
+          const putParams: any = {
+            Bucket: bucket!,
+            Key: fileKey,
+            Body: fs.createReadStream(file.path),
+            ContentLength: file.size,
+            ContentType: file.mimetype,
+          };
+
+          if (!isAws) {
+            putParams.ACL = "public-read";
+          }
+
+          await s3.send(new PutObjectCommand(putParams));
         } catch (s3Error: any) {
           if (s3Error.name === "AccessControlListNotSupported" || s3Error.message?.includes("ACL")) {
             console.warn("⚠️ S3 bucket does not support ACLs. Retrying without public-read ACL...");

@@ -556,9 +556,9 @@ export function CreateCampaignForm({
                   {mediaUrl && (
                     <div className="mb-2 rounded overflow-hidden max-h-[140px] bg-gray-100 border flex items-center justify-center">
                       {mediaMimeType?.startsWith("image/") ? (
-                        <img src={mediaUrl} alt="Header Preview" className="w-full h-full object-cover max-h-[140px]" />
+                        <img src={encodeURI(mediaUrl)} alt="Header Preview" className="w-full h-full object-cover max-h-[140px]" />
                       ) : mediaMimeType?.startsWith("video/") ? (
-                        <video src={mediaUrl} className="w-full h-full object-cover max-h-[140px]" controls />
+                        <video src={encodeURI(mediaUrl)} className="w-full h-full object-cover max-h-[140px]" controls />
                       ) : (
                         <div className="flex items-center gap-2 p-3 text-xs text-gray-600 w-full">
                           <FileText className="h-6 w-6 text-blue-500 shrink-0" />

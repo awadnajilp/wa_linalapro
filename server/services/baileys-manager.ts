@@ -613,7 +613,13 @@ export class BaileysManager {
     const mime = media.mimeType || "";
     let messageContent: any = {};
 
-    const mediaSource = media.buffer || { url: media.url };
+    let finalUrl = media.url;
+    if (finalUrl && finalUrl.startsWith("/uploads/")) {
+      const cleanPath = finalUrl.replace(/^\/+/, "");
+      finalUrl = path.join(process.cwd(), cleanPath);
+      console.log(`[BaileysManager] Resolved local media path: ${finalUrl}`);
+    }
+    const mediaSource = media.buffer || { url: finalUrl };
 
     if (mime.startsWith("image")) {
       messageContent = { image: mediaSource, caption };

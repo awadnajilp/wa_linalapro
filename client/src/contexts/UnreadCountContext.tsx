@@ -15,12 +15,16 @@
  * ============================================================
  */
 
-import { createContext, useContext, ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { createContext, useContext, ReactNode, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSocket } from "@/contexts/socket-context";
 
 const UnreadCountContext = createContext<number>(0);
 
 export function UnreadCountProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+  const { socket } = useSocket();
+
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["/api/conversations/unread-count"],
     queryFn: async () => {
@@ -34,6 +38,29 @@ export function UnreadCountProvider({ children }: { children: ReactNode }) {
     refetchInterval: 30000, // refetch every 30s
     staleTime: 20000,       // consider fresh for 20s
   });
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleInvalidate = () => {
+      console.log("⚡ Invalidation triggered by socket event - updating unread count");
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations/unread-count"] });
+    };
+
+    socket.on("new-message", handleInvalidate);
+    socket.on("new_message", handleInvalidate);
+    socket.on("messages_read", handleInvalidate);
+    socket.on("conversation_created", handleInvalidate);
+    socket.on("conversation_status_changed", handleInvalidate);
+
+    return () => {
+      socket.off("new-message", handleInvalidate);
+      socket.off("new_message", handleInvalidate);
+      socket.off("messages_read", handleInvalidate);
+      socket.off("conversation_created", handleInvalidate);
+      socket.off("conversation_status_changed", handleInvalidate);
+    };
+  }, [socket, queryClient]);
 
   return (
     <UnreadCountContext.Provider value={unreadCount}>

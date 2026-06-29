@@ -1140,6 +1140,67 @@ async uploadTemplateMedia(
 
 
 
+// Helper to resolve buffer from local path or cloud URL (including private S3/Spaces)
+async resolveMediaBuffer(urlOrPath: string): Promise<Buffer> {
+  const isLocal = !urlOrPath.startsWith("http://") && !urlOrPath.startsWith("https://");
+  
+  if (isLocal) {
+    const cleanPath = urlOrPath.startsWith("/") ? urlOrPath.substring(1) : urlOrPath;
+    const resolvedPath = path.resolve(cleanPath);
+    if (fs.existsSync(resolvedPath)) {
+      console.log(`[resolveMediaBuffer] Reading local file: ${resolvedPath}`);
+      return fs.readFileSync(resolvedPath);
+    } else {
+      throw new Error(`Local file not found at path: ${resolvedPath}`);
+    }
+  }
+
+  // Check if it's a cloud storage URL (S3 or DigitalOcean)
+  try {
+    const { createDOClient } = await import('../config/digitalOceanConfig');
+    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+    
+    const doClient = await createDOClient();
+    if (doClient) {
+      const { s3, bucket, endpoint } = doClient;
+      const isOurBucket = urlOrPath.includes(bucket) || (endpoint && urlOrPath.includes(new URL(endpoint).host));
+      
+      if (isOurBucket) {
+        let key = "";
+        if (urlOrPath.includes(`/${bucket}/`)) {
+          key = urlOrPath.substring(urlOrPath.indexOf(`/${bucket}/`) + bucket.length + 2);
+        } else {
+          const parsedUrl = new URL(urlOrPath);
+          key = parsedUrl.pathname.replace(/^\/+/, "");
+        }
+        key = decodeURIComponent(key);
+        
+        console.log(`[resolveMediaBuffer] Cloud storage match found! Downloading object: ${key}`);
+        const response = await s3.send(
+          new GetObjectCommand({
+            Bucket: bucket,
+            Key: key,
+          })
+        );
+        if (response.Body) {
+          const byteArray = await response.Body.transformToByteArray();
+          return Buffer.from(byteArray);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[resolveMediaBuffer] Failed to download from S3, falling back to HTTP fetch:", err);
+  }
+
+  // Fallback to normal HTTP download using Axios
+  console.log(`[resolveMediaBuffer] Downloading via Axios: ${urlOrPath}`);
+  const response = await axios.get(urlOrPath, {
+    responseType: 'arraybuffer',
+    timeout: 30000,
+  });
+  return Buffer.from(response.data);
+}
+
 // Add new function for URL uploads
 async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<string> {
   const tempDir = path.join(__dirname, '../../temp');
@@ -1151,17 +1212,12 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
   const tempFilePath = path.join(tempDir, tempFileName);
 
   try {
-    console.log("📥 Downloading media from URL:", url);
-    
-    // Download file
-    const response = await axios.get(url, {
-      responseType: 'arraybuffer',
-      timeout: 30000, // 30 seconds timeout
-    });
+    console.log("📥 Resolving media from url/path:", url);
+    const buffer = await this.resolveMediaBuffer(url);
     
     // Save to temp file
-    fs.writeFileSync(tempFilePath, Buffer.from(response.data));
-    console.log("✅ File downloaded to:", tempFilePath);
+    fs.writeFileSync(tempFilePath, buffer);
+    console.log("✅ File written to:", tempFilePath);
 
     // Upload using existing function
     const mediaId = await this.uploadMedia(tempFilePath, mimeType);

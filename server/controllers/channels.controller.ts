@@ -768,6 +768,16 @@ export const updateChannel = asyncHandler(async (req: Request, res: Response) =>
     throw new AppError(404, 'Channel not found');
   }
 
+  // Ensure QR session is active in memory on activation
+  if (req.body.isActive === true && channel.connectionMethod === "qr_code") {
+    if (!BaileysManager.getActiveSocket(channel.id)) {
+      console.log(`[updateChannel] Initializing QR session for activated channel: ${channel.id}`);
+      BaileysManager.createSession(channel.id, channel.name, channel.phoneNumber || undefined).catch(err => {
+        console.error(`[updateChannel] Failed to initialize QR session on channel activation:`, err);
+      });
+    }
+  }
+
   // Re-subscribe to webhooks whenever access token or WABA ID key is present in the update payload
   const credentialsChanged = "accessToken" in req.body || "whatsappBusinessAccountId" in req.body;
   if (credentialsChanged && channel.whatsappBusinessAccountId && channel.accessToken) {

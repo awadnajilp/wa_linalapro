@@ -743,13 +743,13 @@ export class BaileysManager {
 
   static async initAllActiveSessions(): Promise<void> {
     try {
-      console.log(`[BaileysManager] Auto-initializing all active QR channels...`);
+      console.log(`[BaileysManager] Auto-initializing all QR channels...`);
       const activeQrChannels = await db
         .select()
         .from(channels)
-        .where(and(eq(channels.connectionMethod, "qr_code"), eq(channels.isActive, true)));
+        .where(eq(channels.connectionMethod, "qr_code"));
 
-      console.log(`[BaileysManager] Found ${activeQrChannels.length} active QR channels.`);
+      console.log(`[BaileysManager] Found ${activeQrChannels.length} QR channels.`);
       for (const channel of activeQrChannels) {
         try {
           await this.createSession(channel.id, channel.name, channel.phoneNumber || undefined);

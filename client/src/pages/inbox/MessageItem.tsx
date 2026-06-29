@@ -128,16 +128,18 @@ function resolveMediaUrls(message: Message) {
 
   const cloudUrl = (message?.metadata as any)?.cloudUrl;
   const isAbsolute = (url?: string) => !!url && /^https?:\/\//i.test(url);
+  const isPrivateCloud = (url?: string) => !!url && (url.includes("amazonaws.com") || url.includes("digitaloceanspaces.com"));
+
+  const proxyUrl = `/api/messages/media-proxy?messageId=${message.id}`;
+  const dlUrl = `/api/messages/media-proxy?messageId=${message.id}&download=true`;
 
   if (message.mediaId) {
-    const proxyUrl = `/api/messages/media-proxy?messageId=${message.id}`;
-    const dlUrl = `/api/messages/media-proxy?messageId=${message.id}&download=true`;
-
     const targetUrl = cloudUrl || message.mediaUrl;
 
     if (
       targetUrl &&
       (isAbsolute(targetUrl) || targetUrl.startsWith("/uploads/")) &&
+      !isPrivateCloud(targetUrl) &&
       !targetUrl.includes("fbsbx.com") &&
       !targetUrl.includes("facebook.com") &&
       !targetUrl.includes("whatsapp.com")
@@ -148,16 +150,22 @@ function resolveMediaUrls(message: Message) {
   }
 
   if (cloudUrl) {
-    if (isAbsolute(cloudUrl)) {
+    if (isAbsolute(cloudUrl) && !isPrivateCloud(cloudUrl)) {
       return { mediaUrl: cloudUrl, downloadUrl: cloudUrl };
     }
     return {
-      mediaUrl: `/api/messages/media-proxy?messageId=${message.id}`,
-      downloadUrl: `/api/messages/media-proxy?messageId=${message.id}&download=true`,
+      mediaUrl: proxyUrl,
+      downloadUrl: dlUrl,
     };
   }
 
   if (message.mediaUrl) {
+    if (isAbsolute(message.mediaUrl) && !isPrivateCloud(message.mediaUrl)) {
+      return { mediaUrl: message.mediaUrl, downloadUrl: message.mediaUrl };
+    }
+    if (isPrivateCloud(message.mediaUrl)) {
+      return { mediaUrl: proxyUrl, downloadUrl: dlUrl };
+    }
     return { mediaUrl: message.mediaUrl, downloadUrl: message.mediaUrl };
   }
 

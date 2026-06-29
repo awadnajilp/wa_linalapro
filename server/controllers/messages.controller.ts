@@ -26,6 +26,50 @@ import { triggerService } from "../services/automation-execution-service";
 import path from 'path';
 import fs from 'fs';
 
+async function downloadFromCloudStorage(url: string): Promise<Buffer> {
+  try {
+    const { createDOClient } = await import('../config/digitalOceanConfig');
+    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+    
+    const doClient = await createDOClient();
+    if (doClient) {
+      const { s3, bucket, endpoint } = doClient;
+      const isOurBucket = url.includes(bucket) || (endpoint && url.includes(new URL(endpoint).host));
+      
+      if (isOurBucket) {
+        let key = "";
+        if (url.includes(`/${bucket}/`)) {
+          key = url.substring(url.indexOf(`/${bucket}/`) + bucket.length + 2);
+        } else {
+          const parsedUrl = new URL(url);
+          key = parsedUrl.pathname.replace(/^\/+/, "");
+        }
+        key = decodeURIComponent(key);
+        
+        console.log(`[MessagesController] S3 match found! Downloading object from S3: ${key}`);
+        const response = await s3.send(
+          new GetObjectCommand({
+            Bucket: bucket,
+            Key: key,
+          })
+        );
+        if (response.Body) {
+          const byteArray = await response.Body.transformToByteArray();
+          return Buffer.from(byteArray);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[MessagesController] Failed to download from S3, falling back to HTTP fetch:", err);
+  }
+  
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new AppError(400, "Failed to download uploaded file from cloud storage");
+  }
+  return Buffer.from(await response.arrayBuffer());
+}
+
 export const getMessages = asyncHandler(async (req: Request, res: Response) => {
   const { conversationId } = req.params;
   const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 100, 1), 200);
@@ -177,9 +221,7 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
           buffer = fs.readFileSync(filePath);
         } else if ((file as any).cloudUrl) {
           console.log(`📤 File not on disk, downloading from cloud: ${(file as any).cloudUrl}`);
-          const dlResponse = await fetch((file as any).cloudUrl);
-          if (!dlResponse.ok) throw new AppError(400, "Failed to download uploaded file from cloud storage");
-          buffer = Buffer.from(await dlResponse.arrayBuffer());
+          buffer = await downloadFromCloudStorage((file as any).cloudUrl);
         } else if (file.buffer) {
           buffer = file.buffer;
         } else {
@@ -385,8 +427,7 @@ export const createMessagennn = asyncHandler(async (req: Request, res: Response)
           if (isCloudFile) {
             // Download from cloud URL
             console.log("⬇️ Downloading from cloud for WhatsApp upload...");
-            const response = await fetch(file.cloudUrl!);
-            const buffer = Buffer.from(await response.arrayBuffer());
+            const buffer = await downloadFromCloudStorage(file.cloudUrl!);
             mediaId = await whatsappApi.uploadMediaBuffer(buffer, mimeType, file.originalname);
             console.log("✅ Media uploaded to WhatsApp, ID:", mediaId);
           } else {
@@ -578,8 +619,7 @@ let messageStatus: "sent" | "failed" = "sent";
         if (isCloudFile) {
           // Download from cloud URL and upload to WhatsApp
           console.log("⬇️ Downloading from cloud for WhatsApp upload...");
-          const response = await fetch(file.cloudUrl!);
-          const buffer = Buffer.from(await response.arrayBuffer());
+          const buffer = await downloadFromCloudStorage(file.cloudUrl!);
           
           // Upload buffer to WhatsApp
           mediaId = await whatsappApi.uploadMediaBuffer(buffer, mimeType, file.originalname);

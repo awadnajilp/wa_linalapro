@@ -167,15 +167,13 @@ export const handleDigitalOceanUpload = async (
           continue;
         }
         
-        // Read file buffer
-        const fileBuffer = fs.readFileSync(file.path);
         const { conversationId } = req.params;
-        console.log(`   File read successfully: ${file.path} , conversationId: ${conversationId}`);
+        console.log(`   File verified: ${file.path} , conversationId: ${conversationId}`);
         const userId = (req as any).user?.id || (req.body?.userId) || conversationId || "guest";
         const fileKey = `uploads/${userId}/${Date.now()}-${path.basename(file.originalname)}`;
 
         console.log(`   Cloud key: ${fileKey}`);
-        console.log(`   File size: ${fileBuffer.length} bytes`);
+        console.log(`   File size: ${file.size} bytes`);
 
         // Upload to DO Spaces (with ACL fallback retry)
         try {
@@ -183,7 +181,8 @@ export const handleDigitalOceanUpload = async (
             new PutObjectCommand({
               Bucket: bucket!,
               Key: fileKey,
-              Body: fileBuffer,
+              Body: fs.createReadStream(file.path),
+              ContentLength: file.size,
               ACL: "public-read",
               ContentType: file.mimetype,
             })
@@ -195,7 +194,8 @@ export const handleDigitalOceanUpload = async (
               new PutObjectCommand({
                 Bucket: bucket!,
                 Key: fileKey,
-                Body: fileBuffer,
+                Body: fs.createReadStream(file.path),
+                ContentLength: file.size,
                 ContentType: file.mimetype,
               })
             );

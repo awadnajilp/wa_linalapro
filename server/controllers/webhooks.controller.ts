@@ -29,12 +29,14 @@ import {
   webhookConfigs,
   plans,
   paymentProviders,
+  sites,
 } from "@shared/schema";
 import { AppError, asyncHandler } from "../middlewares/error.middleware";
 import crypto from "crypto";
 import { startAutomationExecutionFunction } from "./automation.controller";
 import { triggerService } from "server/services/automation-execution-service";
 import { WhatsAppApiService } from "server/services/whatsapp-api";
+import { searchTrainingData } from "../services/training.service";
 import { getWhatsAppError } from "@shared/whatsapp-error-codes";
 import { db } from "server/db";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -921,6 +923,41 @@ async function checkAndSendAiReply(
     return false;
   }
 
+  // Fetch site matching this channel to load prompt/training data configurations
+  const channelSites = await db
+    .select()
+    .from(sites)
+    .where(eq(sites.channelId, conversation.channelId))
+    .limit(1);
+
+  let site = channelSites[0];
+  if (!site) {
+    const [newSite] = await db
+      .insert(sites)
+      .values({
+        name: conversation.channelName || "Default Site",
+        domain: "localhost",
+        channelId: conversation.channelId,
+        widgetEnabled: true,
+        widgetConfig: {
+          systemPrompt: `You are a helpful customer support AI assistant for our company. Answer questions using the provided knowledge base.`,
+          escalationRules: {
+            enabled: true,
+            maxAttempts: 3,
+            escalationMessage: "I'm transferring you to a human agent who can better assist you.",
+          }
+        },
+        aiTrainingConfig: {
+          model: "gpt-4o-mini",
+          temperature: "0.7",
+          maxTokens: "500",
+        }
+      })
+      .returning();
+    site = newSite;
+    console.log(`[AI Cloud API] Auto-created site ${site.id} for channel ${conversation.channelId} during AI reply processing`);
+  }
+
   let triggerWords: string[] = [];
   if (Array.isArray(getAiSettings.words)) {
     triggerWords = getAiSettings.words;
@@ -934,59 +971,59 @@ async function checkAndSendAiReply(
 
   const messageLower = messageContent.toLowerCase().trim();
 
-  if (triggerWords.length > 0) {
-    const hasMatch = triggerWords.some((word: string) =>
-      messageLower.includes(word.toLowerCase().trim())
-    );
-
-    if (!hasMatch) {
-      const recentMessages = await db
-        .select()
-        .from(messages)
-        .where(eq(messages.conversationId, conversation.id))
-        .orderBy(desc(messages.timestamp))
-        .limit(10);
-
-      const hasAiHistory = recentMessages.some((msg: any) => {
-        if (!msg.metadata) return false;
-        try {
-          const meta = typeof msg.metadata === "string" ? JSON.parse(msg.metadata) : msg.metadata;
-          return meta?.aiGenerated === true;
-        } catch {
-          return false;
-        }
-      });
-
-      if (!hasAiHistory) {
-        console.log(`[AI] No trigger word match and no AI history, skipping`);
-        return false;
-      }
-
-      console.log(`[AI] Continuing AI conversation (existing history) for: "${messageContent}"`);
-    } else {
-      console.log(`[AI] Trigger word matched: "${messageContent}"`);
-    }
-  } else {
-    console.log(`[AI] No trigger words configured — replying to all messages`);
-  }
-
-  // Get conversation history for context
+  // Load message history to evaluate conversational trigger activation and context
   const conversationHistory = await db
     .select()
     .from(messages)
     .where(eq(messages.conversationId, conversation.id))
     .orderBy(desc(messages.timestamp));
 
-  // Generate AI response
-  const aiResponse = await generateAiResponse(
+  const hasBotReplied = conversationHistory.some(
+    (m: any) => m.direction === "outbound" && m.fromType === "bot"
+  );
+
+  if (triggerWords.length > 0) {
+    const hasMatch = triggerWords.some((word: string) =>
+      messageLower.includes(word.toLowerCase().trim())
+    );
+
+    if (!hasMatch && !hasBotReplied) {
+      console.log(`[AI Cloud API] Skipping auto-reply for channel ${conversation.channelId} - trigger word not matched and bot has not replied yet in this conversation`);
+      return false;
+    }
+    
+    if (hasMatch) {
+      console.log(`[AI Cloud API] Trigger word matched: "${messageContent}"`);
+    } else {
+      console.log(`[AI Cloud API] Continuing active AI conversation for message: "${messageContent}"`);
+    }
+  } else {
+    console.log(`[AI Cloud API] No trigger words configured — replying to all messages`);
+  }
+
+  // Generate AI response with full site widget/training data context
+  let aiResponse = await generateAiResponse(
     messageContent,
     conversationHistory,
     contact,
-    getAiSettings
+    getAiSettings,
+    site
   );
 
   if (!aiResponse) {
     console.error("❌ Failed to generate AI response");
+    return false;
+  }
+
+  // Check if AI requested escalation to human agent
+  let escalated = false;
+  if (aiResponse.includes("[ESCALATE_TO_AGENT]")) {
+    aiResponse = aiResponse.replace(/\[ESCALATE_TO_AGENT\]/g, "").trim();
+    escalated = true;
+  }
+
+  if (!aiResponse.trim()) {
+    console.log("[AI Cloud API] Generated empty response after stripping escalation tags, skipping");
     return false;
   }
 
@@ -997,11 +1034,12 @@ async function checkAndSendAiReply(
       aiResponse
     );
 
-    // Save AI response as outbound message
+    // Save AI response as outbound message with correct bot labels
     const aiMessage = await storage.createMessage({
       conversationId: conversation.id,
       content: aiResponse,
-      fromUser: true,
+      fromUser: false,
+      fromType: "bot",
       direction: "outbound",
       status: "sent",
       whatsappMessageId: result.messages?.[0]?.id || null,
@@ -1015,6 +1053,26 @@ async function checkAndSendAiReply(
       lastMessageAt: new Date(),
       lastMessageText: aiResponse,
     });
+
+    // Handle escalation side effects
+    if (escalated) {
+      await db
+        .update(conversations)
+        .set({
+          status: "assigned",
+          updatedAt: new Date(),
+        })
+        .where(eq(conversations.id, conversation.id));
+
+      console.log(`[AI Cloud API] Escalated conversation ${conversation.id} to human agents`);
+
+      if ((global as any).io) {
+        (global as any).io.emit("conversation-updated", {
+          conversationId: conversation.id,
+          status: "assigned",
+        });
+      }
+    }
 
     // Broadcast AI message via WebSocket
     if ((global as any).broadcastToConversation) {
@@ -1035,7 +1093,7 @@ async function checkAndSendAiReply(
 
     return true;
   } catch (error) {
-    console.error("❌ Failed to send AI reply:", error);
+    console.error("❌ Failed to send AI reply via Cloud API:", error);
     throw error;
   }
 }
@@ -1045,26 +1103,72 @@ async function generateAiResponse(
   userMessage: string,
   conversationHistory: any[],
   contact: any,
-  aiSettings: any
+  aiSettings: any,
+  site: any
 ): Promise<string | null> {
   try {
     const { provider, apiKey, model, endpoint, temperature, maxTokens } = aiSettings;
+    const siteId = site?.id || "";
+    const channelId = site?.channelId || "";
 
-    // Build conversation context
+    // Retrieve relevant chunks and QA pairs from Knowledge Base training database
+    let trainingContext = "";
+    try {
+      if (siteId) {
+        const trainingResults = await searchTrainingData(siteId, channelId, userMessage);
+        if (trainingResults.chunks.length > 0) {
+          trainingContext += "\n\n--- RELEVANT KNOWLEDGE BASE & TRAINING DATA ---\n";
+          trainingContext += trainingResults.chunks.join("\n\n");
+        }
+        if (trainingResults.qaPairs.length > 0) {
+          trainingContext += "\n\n--- RELEVANT FAQ PAIRS ---\n";
+          for (const qa of trainingResults.qaPairs) {
+            trainingContext += `Q: ${qa.question}\nA: ${qa.answer}\n\n`;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[AI webhooks] Training data search failed:", err);
+    }
+
+    const widgetCfg = site?.widgetConfig || {};
+    const escalationConfig = widgetCfg.escalationRules || {};
+    const maxAttempts = escalationConfig.maxAttempts || 3;
+
+    // Count unanswered questions to trigger auto-escalation
+    const unansweredCount = conversationHistory.filter((m: any) =>
+      m.direction === "outbound" && m.fromType === "bot" &&
+      (m.content.includes("I don't have") || m.content.includes("I'm not sure") || m.content.includes("I cannot find"))
+    ).length;
+
+    const siteName = site?.name || "our company";
+    const basePrompt = widgetCfg.systemPrompt ||
+      `You are a helpful, friendly customer support assistant for ${siteName}. Answer questions using the provided knowledge base. Be conversational and helpful. Keep responses concise for WhatsApp (under 300 words). If you don't know the answer, be honest about it.`;
+
+    const escalationInstruction = `\n\nESCALATION RULES:
+- If you cannot answer the user's question from the provided knowledge base/training data, you MUST start your response with "[ESCALATE_TO_AGENT]" and then provide a brief polite message explaining you're transferring them to a human agent.
+- If you are unsure or the question is outside your trained knowledge, use "[ESCALATE_TO_AGENT]".
+${unansweredCount >= maxAttempts - 1 ? `- The user has had ${unansweredCount} unanswered questions. If you cannot answer this one confidently, you MUST escalate with "[ESCALATE_TO_AGENT]".` : ""}
+- Always try to answer from the provided knowledge base first before escalating.
+- When escalating, be polite and tell the user you are transferring them to a human agent.`;
+
+    const systemPrompt = basePrompt + trainingContext + escalationInstruction;
+
+    // Build context payload
     const messages = [
       {
         role: "system",
-        content: `You are a helpful WhatsApp assistant. Respond naturally and helpfully to customer messages. Keep responses concise and friendly. Customer name: ${contact?.name || "Customer"}`,
+        content: systemPrompt,
       },
     ];
 
-    // Add conversation history (last 10 messages for context)
+    // Add conversation history in chronological order (max 10)
     conversationHistory
-      .slice(-10)
+      .slice(0, 10)
       .reverse()
       .forEach((msg) => {
         messages.push({
-          role: msg.fromUser ? "assistant" : "user",
+          role: msg.direction === "inbound" ? "user" : "assistant",
           content: msg.content,
         });
       });
@@ -1075,26 +1179,28 @@ async function generateAiResponse(
       content: userMessage,
     });
 
-    // Call AI API based on provider
     let aiResponse: string | null = null;
+    const finalModel = model || "gpt-4o-mini";
+    const finalTemp = parseFloat(temperature || "0.7");
+    const finalMaxTokens = parseInt(maxTokens || "500", 10);
 
     if (provider === "openai") {
       aiResponse = await callOpenAI(
         messages,
         apiKey,
-        model,
+        finalModel,
         endpoint || "https://api.openai.com/v1",
-        parseFloat(temperature || "0.7"),
-        parseInt(maxTokens || "2048", 10)
+        finalTemp,
+        finalMaxTokens
       );
     } else if (provider === "anthropic") {
       aiResponse = await callAnthropic(
         messages,
         apiKey,
-        model,
+        finalModel,
         endpoint || "https://api.anthropic.com/v1",
-        parseFloat(temperature || "0.7"),
-        parseInt(maxTokens || "2048", 10)
+        finalTemp,
+        finalMaxTokens
       );
     } else {
       console.error(`Unsupported AI provider: ${provider}`);

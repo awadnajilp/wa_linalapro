@@ -212,13 +212,22 @@ export default function AITrainingPanel({
   const saveAiConfig = async () => {
     try {
       setIsSavingAiConfig(true);
+      let finalConfig = { ...aiConfigForm };
+      if (newTriggerWord.trim()) {
+        finalConfig.words = [...finalConfig.words, newTriggerWord.trim()];
+        setAiConfigForm(prev => ({
+          ...prev,
+          words: [...prev.words, newTriggerWord.trim()]
+        }));
+        setNewTriggerWord("");
+      }
       const method = aiConfigId ? "PUT" : "POST";
       const url = aiConfigId ? `/api/ai-settings/${aiConfigId}` : "/api/ai-settings";
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ ...aiConfigForm, channelId }),
+        body: JSON.stringify({ ...finalConfig, channelId }),
       });
       if (!res.ok) throw new Error("Failed to save");
       const saved = await res.json();

@@ -46,6 +46,7 @@ import {
 interface SidebarProps {
   onAddNode: (kind: NodeKind) => void;
   isQrChannel?: boolean;
+  onDragStart?: (event: React.DragEvent, kind: NodeKind) => void;
 }
 
 const nodeCategories = [
@@ -224,13 +225,13 @@ const nodeCategories = [
   },
 ];
 
-export function Sidebar({ onAddNode, isQrChannel }: SidebarProps) {
+export function Sidebar({ onAddNode, isQrChannel, onDragStart }: SidebarProps) {
   return (
     <TooltipProvider delayDuration={200}>
       <div className="col-span-2 bg-white flex flex-col border-r border-gray-200 overflow-hidden">
         <div className="px-3 py-2.5 border-b border-gray-200">
           <div className="font-semibold text-xs text-gray-900">Flow Nodes</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Click to add · hover <Info className="w-2.5 h-2.5 inline" /> for help</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">Click or Drag to add · hover <Info className="w-2.5 h-2.5 inline" /> for help</div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-2 py-2 space-y-2.5">
@@ -246,6 +247,8 @@ export function Sidebar({ onAddNode, isQrChannel }: SidebarProps) {
                     <div key={item.kind} className="relative">
                       <button
                         onClick={() => onAddNode(item.kind)}
+                        draggable
+                        onDragStart={(e) => onDragStart?.(e, item.kind)}
                         className={`w-full flex flex-col items-center gap-1.5 px-2 py-3 rounded-lg border ${item.border} ${item.bg} hover:shadow-sm transition-all duration-150 cursor-pointer active:scale-95`}
                       >
                         <Icon className={`w-5 h-5 ${item.color}`} />

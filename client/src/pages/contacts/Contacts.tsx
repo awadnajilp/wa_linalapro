@@ -156,7 +156,7 @@ export default function Contacts() {
   const { data: groupsFormateData } = useQuery({
     queryKey: ["/api/groups", activeChannel?.id],
     queryFn: async () => {
-      const response = await fetch(`/api/groups?channelId=${activeChannel?.id}`);
+      const response = await apiRequest("GET", `/api/groups?channelId=${activeChannel?.id}`);
       return await response.json();
     },
     enabled: !!activeChannel?.id,

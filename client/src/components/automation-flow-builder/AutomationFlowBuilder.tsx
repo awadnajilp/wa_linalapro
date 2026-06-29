@@ -183,14 +183,74 @@ export default function AutomationFlowBuilder({
   
   const members = teamMembers?.data || [];
 
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+
+  const onDragStart = (event: React.DragEvent, nodeType: NodeKind) => {
+    event.dataTransfer.setData("application/reactflow", nodeType);
+    event.dataTransfer.effectAllowed = "move";
+  };
+
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+
+      if (!reactFlowInstance) return;
+
+      const type = event.dataTransfer.getData("application/reactflow") as NodeKind;
+
+      if (typeof type === "undefined" || !type) {
+        return;
+      }
+
+      const position = reactFlowInstance.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      const id = uid();
+      const base = defaultsByKind[type];
+
+      const newNode: Node<BuilderNodeData> = {
+        id,
+        type,
+        position,
+        data: { ...(base as BuilderNodeData) },
+      };
+
+      setNodes((nds) => [...nds, newNode]);
+      setSelectedId(id);
+    },
+    [reactFlowInstance, setNodes]
+  );
+
   const addNode = (kind: NodeKind) => {
     const id = uid();
     const base = defaultsByKind[kind];
 
+    let position = { x: 200, y: (nodes.length + 1) * 140 };
+
+    if (selectedNode) {
+      position = {
+        x: selectedNode.position.x + 250,
+        y: selectedNode.position.y,
+      };
+    } else if (nodes.length > 0) {
+      const lastNode = nodes[nodes.length - 1];
+      position = {
+        x: lastNode.position.x,
+        y: lastNode.position.y + 150,
+      };
+    }
+
     const newNode: Node<BuilderNodeData> = {
       id,
       type: kind,
-      position: { x: 200, y: (nodes.length + 1) * 140 },
+      position,
       data: { ...(base as BuilderNodeData) },
     };
 
@@ -423,9 +483,10 @@ export default function AutomationFlowBuilder({
     }
   }, [edges.length, nodes.length, cleanupEdges]);
 
-  const onInit = useCallback((reactFlowInstance: any) => {
+  const onInit = useCallback((instance: any) => {
+    setReactFlowInstance(instance);
     (
-      reactFlowInstance as ReactFlowInstance<Node<BuilderNodeData>, Edge>
+      instance as ReactFlowInstance<Node<BuilderNodeData>, Edge>
     ).setViewport({ x: 0, y: 0, zoom: 1 });
   }, []);
 
@@ -435,7 +496,7 @@ export default function AutomationFlowBuilder({
 
   return (
     <div className="h-screen w-full grid grid-cols-12 bg-gray-50">
-      <Sidebar onAddNode={addNode} isQrChannel={isQrChannel} />
+      <Sidebar onAddNode={addNode} isQrChannel={isQrChannel} onDragStart={onDragStart} />
 
       <div className="col-span-7 flex flex-col">
         <Header
@@ -464,6 +525,8 @@ export default function AutomationFlowBuilder({
             onInit={onInit}
             fitView
             edgeTypes={edgeTypes}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
           >
             <MiniMap
               nodeStrokeColor="#94a3b8"

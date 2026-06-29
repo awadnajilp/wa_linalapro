@@ -614,6 +614,48 @@ export class BaileysManager {
     let messageContent: any = {};
 
     let finalUrl = media.url;
+    let fileBuffer = media.buffer;
+
+    if (finalUrl && finalUrl.startsWith("http")) {
+      try {
+        const { createDOClient } = await import("../config/digitalOceanConfig");
+        const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+        
+        const doClient = await createDOClient();
+        if (doClient) {
+          const { s3, bucket, endpoint } = doClient;
+          const isOurBucket = finalUrl.includes(bucket) || (endpoint && finalUrl.includes(new URL(endpoint).host));
+          
+          if (isOurBucket) {
+            let key = "";
+            if (finalUrl.includes(`/${bucket}/`)) {
+              key = finalUrl.substring(finalUrl.indexOf(`/${bucket}/`) + bucket.length + 2);
+            } else {
+              const parsedUrl = new URL(finalUrl);
+              key = parsedUrl.pathname.replace(/^\/+/, "");
+            }
+            key = decodeURIComponent(key);
+            
+            console.log(`[BaileysManager] S3 match found! Downloading private S3 object. Bucket: ${bucket}, Key: ${key}`);
+            const response = await s3.send(
+              new GetObjectCommand({
+                Bucket: bucket,
+                Key: key,
+              })
+            );
+            if (response.Body) {
+              const byteArray = await response.Body.transformToByteArray();
+              fileBuffer = Buffer.from(byteArray);
+              finalUrl = undefined;
+              console.log(`[BaileysManager] Successfully fetched buffer directly from S3 client for ${key}`);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[BaileysManager] Failed to fetch object directly from S3:", err);
+      }
+    }
+
     if (finalUrl && finalUrl.startsWith("/uploads/")) {
       const cleanPath = finalUrl.replace(/^\/+/, "");
       let absolutePath = path.join(process.cwd(), cleanPath);
@@ -652,7 +694,7 @@ export class BaileysManager {
       finalUrl = absolutePath;
       console.log(`[BaileysManager] Resolved local media path: ${finalUrl}`);
     }
-    const mediaSource = media.buffer || { url: finalUrl };
+    const mediaSource = fileBuffer || { url: finalUrl };
 
     if (mime.startsWith("image")) {
       messageContent = { image: mediaSource, caption };

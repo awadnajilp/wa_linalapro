@@ -765,14 +765,17 @@ export class WebhookHandler {
       .from(messages)
       .where(eq(messages.conversationId, conversation.id));
 
-    const isFirstMessage = existingMessages.length <= 1;
+    const hasBotReplied = existingMessages.some(
+      (m: any) => m.direction === "outbound" && m.fromType === "bot"
+    );
 
-    if (triggerWords.length > 0 && isFirstMessage) {
+    if (triggerWords.length > 0) {
       const msgLower = messageContent.toLowerCase().trim();
       const hasMatch = triggerWords.some((word: string) =>
         msgLower.includes(word.toLowerCase().trim())
       );
-      if (!hasMatch) {
+      if (!hasMatch && !hasBotReplied) {
+        console.log(`[AI] Skipping auto-reply for channel ${channelId} - trigger word not matched and bot has not replied yet in this conversation`);
         return;
       }
     }

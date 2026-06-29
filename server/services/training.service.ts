@@ -122,6 +122,30 @@ function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 export async function scrapeUrl(url: string): Promise<string> {
+  // Try Jina Reader API first (renders JS, handles client-side single page apps beautifully)
+  try {
+    const jinaUrl = `https://r.jina.ai/${url}`;
+    const jinaResponse = await fetch(jinaUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/plain",
+      },
+      signal: AbortSignal.timeout(15000),
+      redirect: "follow",
+    });
+    if (jinaResponse.ok) {
+      const text = await jinaResponse.text();
+      // Ensure the scraped response contains actual content, not a loading screen
+      if (text && text.trim().length > 100 && !text.toLowerCase().includes("loading...") && !text.toLowerCase().includes("enable javascript")) {
+        console.log(`[Scraper] Successfully scraped ${url} using Jina Reader API`);
+        return text.trim();
+      }
+    }
+  } catch (jinaErr) {
+    console.warn("[Scraper] Jina Reader API failed, falling back to static cheerio scraper:", jinaErr);
+  }
+
+  // Fallback to static HTML parsing
   const response = await fetch(url, {
     headers: {
       "User-Agent":

@@ -616,7 +616,40 @@ export class BaileysManager {
     let finalUrl = media.url;
     if (finalUrl && finalUrl.startsWith("/uploads/")) {
       const cleanPath = finalUrl.replace(/^\/+/, "");
-      finalUrl = path.join(process.cwd(), cleanPath);
+      let absolutePath = path.join(process.cwd(), cleanPath);
+      
+      if (!fs.existsSync(absolutePath)) {
+        const filename = path.basename(cleanPath);
+        const uploadsDir = path.join(process.cwd(), "uploads");
+        
+        const findFileRecursive = (dir: string, targetName: string): string | null => {
+          if (!fs.existsSync(dir)) return null;
+          try {
+            const items = fs.readdirSync(dir);
+            for (const item of items) {
+              const fullPath = path.join(dir, item);
+              const stat = fs.statSync(fullPath);
+              if (stat.isDirectory()) {
+                const found = findFileRecursive(fullPath, targetName);
+                if (found) return found;
+              } else if (item === targetName) {
+                return fullPath;
+              }
+            }
+          } catch (e) {
+            console.error(`[BaileysManager] Error reading dir ${dir}:`, e);
+          }
+          return null;
+        };
+
+        const healedPath = findFileRecursive(uploadsDir, filename);
+        if (healedPath) {
+          absolutePath = healedPath;
+          console.log(`[BaileysManager] Healed path from ${cleanPath} to ${healedPath}`);
+        }
+      }
+      
+      finalUrl = absolutePath;
       console.log(`[BaileysManager] Resolved local media path: ${finalUrl}`);
     }
     const mediaSource = media.buffer || { url: finalUrl };

@@ -18,7 +18,7 @@
 import type { Request, Response } from 'express';
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { db, dbRead } from '../db';
-import { messages, campaigns, conversations, whatsappChannels } from '@shared/schema';
+import { messages, campaigns, conversations, whatsappChannels, campaignRecipients, messageQueue, contacts as contactsTable } from '@shared/schema';
 import { AppError, asyncHandler } from '../middlewares/error.middleware';
 import { eq, and, gte, lte, count, sql, desc } from 'drizzle-orm';
 import PDFDocument from 'pdfkit';
@@ -220,9 +220,60 @@ export const getCampaignAnalyticsById = asyncHandler(async (req: Request, res: R
 
   // Get campaign details
   const campaign = await storage.getCampaign(campaignId);
-      if (!campaign) {
-        return res.status(404).json({ error: "Campaign not found" });
-      }
+  if (!campaign) {
+    return res.status(404).json({ error: "Campaign not found" });
+  }
+
+  // Get all recipients for this campaign
+  let recipientsList = await dbRead
+    .select()
+    .from(campaignRecipients)
+    .where(eq(campaignRecipients.campaignId, campaignId));
+
+  if (recipientsList.length === 0) {
+    // Fallback: fetch from messageQueue and dynamically return
+    const queueEntries = await dbRead
+      .select({
+        id: messageQueue.id,
+        campaignId: messageQueue.campaignId,
+        phone: messageQueue.recipientPhone,
+        status: messageQueue.status,
+        whatsappMessageId: messageQueue.whatsappMessageId,
+        sentAt: messageQueue.processedAt,
+        deliveredAt: messageQueue.deliveredAt,
+        readAt: messageQueue.readAt,
+        errorCode: messageQueue.errorCode,
+        errorMessage: messageQueue.errorMessage,
+        name: contactsTable.name,
+        contactId: contactsTable.id,
+      })
+      .from(messageQueue)
+      .leftJoin(contactsTable, and(
+        eq(contactsTable.phone, messageQueue.recipientPhone),
+        eq(contactsTable.channelId, messageQueue.channelId)
+      ))
+      .where(and(
+        eq(messageQueue.campaignId, campaignId),
+        sql`${messageQueue.messageType} = 'marketing'`
+      ));
+
+    if (queueEntries.length > 0) {
+      recipientsList = queueEntries.map(e => ({
+        id: e.id,
+        campaignId: e.campaignId,
+        phone: e.phone,
+        status: e.status,
+        whatsappMessageId: e.whatsappMessageId,
+        sentAt: e.sentAt || null,
+        deliveredAt: e.deliveredAt || null,
+        readAt: e.readAt || null,
+        errorCode: e.errorCode || null,
+        errorMessage: e.errorMessage || null,
+        name: e.name || "Unknown",
+        contactId: e.contactId || null,
+      }));
+    }
+  }
 
   // Get daily message stats for this campaign
   const endDate = new Date();
@@ -270,6 +321,7 @@ export const getCampaignAnalyticsById = asyncHandler(async (req: Request, res: R
     dailyStats,
     recipientStats,
     errorAnalysis,
+    recipients: recipientsList,
   });
 });
 

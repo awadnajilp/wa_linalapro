@@ -21,6 +21,7 @@ import { storage } from "../storage";
 import {
   aiSettings,
   campaigns,
+  campaignRecipients,
   insertMessageSchema,
   messageQueue,
   messages,
@@ -987,16 +988,12 @@ async function checkAndSendAiReply(
       messageLower.includes(word.toLowerCase().trim())
     );
 
-    if (!hasMatch && !hasBotReplied) {
-      console.log(`[AI Cloud API] Skipping auto-reply for channel ${conversation.channelId} - trigger word not matched and bot has not replied yet in this conversation`);
+    if (!hasMatch) {
+      console.log(`[AI Cloud API] Skipping auto-reply for channel ${conversation.channelId} - trigger word not matched`);
       return false;
     }
     
-    if (hasMatch) {
-      console.log(`[AI Cloud API] Trigger word matched: "${messageContent}"`);
-    } else {
-      console.log(`[AI Cloud API] Continuing active AI conversation for message: "${messageContent}"`);
-    }
+    console.log(`[AI Cloud API] Trigger word matched: "${messageContent}"`);
   } else {
     console.log(`[AI Cloud API] No trigger words configured — replying to all messages`);
   }
@@ -1143,14 +1140,14 @@ async function generateAiResponse(
 
     const siteName = site?.name || "our company";
     const basePrompt = widgetCfg.systemPrompt ||
-      `You are a helpful, friendly customer support assistant for ${siteName}. Answer questions using the provided knowledge base. Be conversational and helpful. Keep responses concise for WhatsApp (under 300 words). If you don't know the answer, be honest about it.`;
+      `You are a helpful, friendly customer support assistant for ${siteName}. Answer questions using the provided facts in the knowledge base. Be conversational and helpful. Keep responses concise for WhatsApp (under 300 words). If you don't know the answer, be honest about it.`;
 
-    const escalationInstruction = `\n\nESCALATION RULES:
-- If you cannot answer the user's question from the provided knowledge base/training data, you MUST start your response with "[ESCALATE_TO_AGENT]" and then provide a brief polite message explaining you're transferring them to a human agent.
-- If you are unsure or the question is outside your trained knowledge, use "[ESCALATE_TO_AGENT]".
-${unansweredCount >= maxAttempts - 1 ? `- The user has had ${unansweredCount} unanswered questions. If you cannot answer this one confidently, you MUST escalate with "[ESCALATE_TO_AGENT]".` : ""}
-- Always try to answer from the provided knowledge base first before escalating.
-- When escalating, be polite and tell the user you are transferring them to a human agent.`;
+    const escalationInstruction = `\n\nCRITICAL INSTRUCTIONS:
+- You are strictly restricted to only answering questions using the facts provided in the "RELEVANT KNOWLEDGE BASE & TRAINING DATA" or "RELEVANT FAQ PAIRS" sections above.
+- If the answer to the user's message is not explicitly found in the provided knowledge base, or if the user asks a general question, or if the message is a greeting/typo/meaningless character, you MUST start your response with exactly: "[ESCALATE_TO_AGENT]" and then explain politely that you are transferring them to a human assistant.
+- Do NOT use your general pre-trained knowledge to answer questions that are not covered in the knowledge base.
+- When escalating, you MUST include the text "[ESCALATE_TO_AGENT]" at the very beginning of your response.
+${unansweredCount >= maxAttempts - 1 ? `- The user has had ${unansweredCount} unanswered questions. If you cannot answer this one confidently, you MUST escalate with "[ESCALATE_TO_AGENT]".` : ""}`;
 
     const systemPrompt = basePrompt + trainingContext + escalationInstruction;
 
@@ -1163,8 +1160,9 @@ ${unansweredCount >= maxAttempts - 1 ? `- The user has had ${unansweredCount} un
     ];
 
     // Add conversation history in chronological order (max 10)
+    // We start slice at 1 to skip the current incoming message which was already inserted into the database!
     conversationHistory
-      .slice(0, 10)
+      .slice(1, 11)
       .reverse()
       .forEach((msg) => {
         messages.push({
@@ -1391,6 +1389,15 @@ async function handleMessageStatuses(statuses: any[], metadata: any) {
         await db.update(messageQueue)
           .set(updateFields)
           .where(eq(messageQueue.id, queueEntry.id));
+
+        if (campaignId) {
+          await db.update(campaignRecipients)
+            .set(updateFields)
+            .where(and(
+              eq(campaignRecipients.campaignId, campaignId),
+              eq(campaignRecipients.phone, queueEntry.recipientPhone)
+            ));
+        }
       }
 
       // Increment campaign counters only for first attainment of each milestone
@@ -1530,33 +1537,7 @@ if (io && message.conversationId) {
 }
 
 
-    const campaignId = (message as any).campaignId || (message.metadata as any)?.campaignId;
-    if (campaignId) {
-      const campaign = await storage.getCampaign(campaignId);
-      if (campaign) {
-        if (messageStatus === "delivered" && message.status !== "delivered") {
-          await db.update(campaigns).set({
-            deliveredCount: sql`COALESCE(${campaigns.deliveredCount}, 0) + 1`,
-          }).where(eq(campaigns.id, campaignId));
-        } else if (messageStatus === "read" && message.status !== "read") {
-          await db.update(campaigns).set({
-            readCount: sql`COALESCE(${campaigns.readCount}, 0) + 1`,
-          }).where(eq(campaigns.id, campaignId));
-        } else if (messageStatus === "failed" && message.status !== "failed") {
-          await db.update(campaigns).set({
-            failedCount: sql`COALESCE(${campaigns.failedCount}, 0) + 1`,
-            sentCount: message.status === "sent"
-              ? sql`GREATEST(COALESCE(${campaigns.sentCount}, 0) - 1, 0)`
-              : campaigns.sentCount,
-          }).where(eq(campaigns.id, campaignId));
-
-          const failureReason = errorDetails
-            ? `${errorDetails.title || "Error"}: ${errorDetails.message || "Unknown"} (code: ${errorDetails.code || "N/A"})`
-            : "Unknown failure";
-          console.error(`❌ [Campaign ${campaignId}] Message failed to ${recipient_id}: ${failureReason}`);
-        }
-      }
-    }
+    // Campaign counters are updated in the messageQueue milestone block above to avoid double-counting.
   }
 }
 

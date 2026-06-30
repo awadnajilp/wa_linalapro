@@ -774,8 +774,8 @@ export class WebhookHandler {
       const hasMatch = triggerWords.some((word: string) =>
         msgLower.includes(word.toLowerCase().trim())
       );
-      if (!hasMatch && !hasBotReplied) {
-        console.log(`[AI] Skipping auto-reply for channel ${channelId} - trigger word not matched and bot has not replied yet in this conversation`);
+      if (!hasMatch) {
+        console.log(`[AI] Skipping auto-reply for channel ${channelId} - trigger word not matched`);
         return;
       }
     }
@@ -818,7 +818,7 @@ export class WebhookHandler {
 
     const conversationHistory = existingMessages
       .sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-      .slice(-10)
+      .slice(-11, -1) // gets the last 10 messages before the current one
       .map((msg: any) => ({
         role: msg.direction === "inbound" ? "user" as const : "assistant" as const,
         content: msg.content,
@@ -854,14 +854,14 @@ export class WebhookHandler {
 
     const siteName = site?.name || channelData?.name || "our company";
     const basePrompt = widgetCfg.systemPrompt ||
-      `You are a helpful, friendly customer support assistant for ${siteName}. Answer questions using the provided knowledge base. Be conversational and helpful. Keep responses concise for WhatsApp (under 300 words). If you don't know the answer, be honest about it.`;
+      `You are a helpful, friendly customer support assistant for ${siteName}. Answer questions using the provided facts in the knowledge base. Be conversational and helpful. Keep responses concise for WhatsApp (under 300 words). If you don't know the answer, be honest about it.`;
 
-    const escalationInstruction = `\n\nESCALATION RULES:
-- If you cannot answer the user's question from the provided knowledge base/training data, you MUST start your response with "[ESCALATE_TO_AGENT]" and then provide a brief polite message explaining you're transferring them to a human agent.
-- If you are unsure or the question is outside your trained knowledge, use "[ESCALATE_TO_AGENT]".
-${unansweredCount >= maxAttempts - 1 ? `- The user has had ${unansweredCount} unanswered questions. If you cannot answer this one confidently, you MUST escalate with "[ESCALATE_TO_AGENT]".` : ""}
-- Always try to answer from the provided knowledge base first before escalating.
-- When escalating, be polite and tell the user you are transferring them to a human agent.`;
+    const escalationInstruction = `\n\nCRITICAL INSTRUCTIONS:
+- You are strictly restricted to only answering questions using the facts provided in the "RELEVANT KNOWLEDGE BASE & TRAINING DATA" or "RELEVANT FAQ PAIRS" sections above.
+- If the answer to the user's message is not explicitly found in the provided knowledge base, or if the user asks a general question, or if the message is a greeting/typo/meaningless character, you MUST start your response with exactly: "[ESCALATE_TO_AGENT]" and then explain politely that you are transferring them to a human assistant.
+- Do NOT use your general pre-trained knowledge to answer questions that are not covered in the knowledge base.
+- When escalating, you MUST include the text "[ESCALATE_TO_AGENT]" at the very beginning of your response.
+${unansweredCount >= maxAttempts - 1 ? `- The user has had ${unansweredCount} unanswered questions. If you cannot answer this one confidently, you MUST escalate with "[ESCALATE_TO_AGENT]".` : ""}`;
 
     const systemPrompt = basePrompt + trainingContext + escalationInstruction;
 

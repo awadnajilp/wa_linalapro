@@ -24,7 +24,7 @@ import { randomUUID } from "crypto";
 import { WhatsAppApiService } from "../services/whatsapp-api";
 import { triggerNotification, NOTIFICATION_EVENTS } from "../services/notification.service";
 import { db, dbRead } from "../db";
-import { channels, messageQueue, users, contacts as contactsTable } from "@shared/schema";
+import { channels, messageQueue, users, contacts as contactsTable, campaignRecipients } from "@shared/schema";
 import { eq, and, or, isNull, lte, inArray } from "drizzle-orm";
 import { parseMessagingTier } from "../utils/messaging-tiers";
 
@@ -956,6 +956,7 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
   let totalFailed = 0;
   let lastHeartbeat = Date.now();
   const rows: any[] = [];
+  const recipientRows: any[] = [];
 
   for (let i = 0; i < contacts.length; i += chunkSize) {
     const chunk = contacts.slice(i, i + chunkSize);
@@ -977,6 +978,14 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
           messageType: "marketing",
           status: "queued" as const,
         });
+        recipientRows.push({
+          campaignId,
+          contactId: contact.id,
+          phone: contact.phone,
+          name: contact.name || null,
+          status: "pending",
+          templateParams: components,
+        });
       } catch (err: any) {
         console.error(`[Campaign ${campaignId}] Failed to build components for ${contact.phone}: ${err.message}`);
         totalFailed++;
@@ -989,6 +998,15 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
           templateParams: [],
           messageType: "marketing",
           status: "failed" as const,
+        });
+        recipientRows.push({
+          campaignId,
+          contactId: contact.id,
+          phone: contact.phone,
+          name: contact.name || null,
+          status: "failed",
+          errorCode: "BUILD_ERROR",
+          errorMessage: err.message || "Failed to build template components",
         });
       }
     });
@@ -1042,6 +1060,12 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
       await storage.updateCampaign(campaignId, { populationStartedAt: new Date() });
       lastHeartbeat = Date.now();
     }
+  }
+
+  // Insert recipients in batches of 100
+  for (let i = 0; i < recipientRows.length; i += BATCH_SIZE_INSERT) {
+    const batch = recipientRows.slice(i, i + BATCH_SIZE_INSERT);
+    await db.insert(campaignRecipients).values(batch);
   }
 
   console.log(`[Campaign ${campaignId}] Queued ${totalQueued}/${contacts.length}${totalFailed > 0 ? ` (${totalFailed} failed to build)` : ""}`);

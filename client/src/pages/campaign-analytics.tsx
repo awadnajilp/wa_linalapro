@@ -139,6 +139,9 @@ const SafeMessageChart = ({ data }: { data: any[] }) => {
 export default function CampaignAnalytics() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const [exportLoading, setExportLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: campaignData, isLoading: loading, error: queryError } = useQuery({
     queryKey: ["campaign-analytics", campaignId],
@@ -680,6 +683,170 @@ export default function CampaignAnalytics() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Recipient Details List */}
+        <Card>
+          <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 pb-4">
+            <CardTitle>Full Campaign Report ({Array.isArray(campaignData?.recipients) ? campaignData.recipients.filter(r => {
+              const nameMatch = (r.name || "").toLowerCase().includes(searchTerm.toLowerCase());
+              const phoneMatch = (r.phone || "").toLowerCase().includes(searchTerm.toLowerCase());
+              const statusMatch = statusFilter === "all" || r.status === statusFilter;
+              return (nameMatch || phoneMatch) && statusMatch;
+            }).length : 0})</CardTitle>
+            <div className="flex items-center space-x-2 w-full md:w-auto">
+              <input
+                type="text"
+                placeholder="Search name or number..."
+                className="px-3 py-1.5 text-sm border rounded-md max-w-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-full md:w-64"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
+              />
+              <select
+                className="px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="all">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="sent">Sent</option>
+                <option value="delivered">Delivered</option>
+                <option value="read">Read</option>
+                <option value="failed">Failed</option>
+              </select>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const recipients = Array.isArray(campaignData?.recipients) ? campaignData.recipients : [];
+              const filteredRecipients = recipients.filter((rec) => {
+                const nameMatch = (rec.name || "").toLowerCase().includes(searchTerm.toLowerCase());
+                const phoneMatch = (rec.phone || "").toLowerCase().includes(searchTerm.toLowerCase());
+                const statusMatch = statusFilter === "all" || rec.status === statusFilter;
+                return (nameMatch || phoneMatch) && statusMatch;
+              });
+              const itemsPerPage = 10;
+              const totalPages = Math.ceil(filteredRecipients.length / itemsPerPage);
+              const paginatedRecipients = filteredRecipients.slice(
+                (currentPage - 1) * itemsPerPage,
+                currentPage * itemsPerPage
+              );
+
+              return paginatedRecipients.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="overflow-x-auto rounded-md border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="text-left px-6 py-3 font-medium text-gray-500 uppercase tracking-wider text-xs">
+                            Recipient
+                          </th>
+                          <th className="text-left px-6 py-3 font-medium text-gray-500 uppercase tracking-wider text-xs">
+                            Phone Number
+                          </th>
+                          <th className="text-left px-6 py-3 font-medium text-gray-500 uppercase tracking-wider text-xs">
+                            Status
+                          </th>
+                          <th className="text-left px-6 py-3 font-medium text-gray-500 uppercase tracking-wider text-xs">
+                            Timeline / Details
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 bg-white">
+                        {paginatedRecipients.map((rec, idx) => {
+                          const getStatusBadge = (status) => {
+                            switch (status) {
+                              case "read":
+                                return "bg-blue-100 text-blue-800";
+                              case "delivered":
+                                return "bg-green-100 text-green-800";
+                              case "sent":
+                                return "bg-purple-100 text-purple-800";
+                              case "failed":
+                                return "bg-red-100 text-red-800";
+                              default:
+                                return "bg-yellow-100 text-yellow-800";
+                            }
+                          };
+
+                          const getTimelineText = () => {
+                            if (rec.status === "failed") {
+                              return (
+                                <div className="text-xs text-red-600 font-normal">
+                                  <span className="font-semibold">{rec.errorCode || "Error"}: </span>
+                                  {rec.errorMessage || "Unknown issue"}
+                                </div>
+                              );
+                            }
+                            const dateToUse = rec.readAt || rec.deliveredAt || rec.sentAt;
+                            if (dateToUse) {
+                              return new Date(dateToUse).toLocaleString();
+                            }
+                            return "N/A";
+                          };
+
+                          return (
+                            <tr key={rec.id || idx} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 font-medium text-gray-900">
+                                {rec.name || "Unknown"}
+                              </td>
+                              <td className="px-6 py-4 text-gray-500">
+                                {rec.phone}
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(rec.status)}`}>
+                                  {rec.status}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-gray-500">
+                                {getTimelineText()}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between border-t pt-4">
+                      <div className="text-sm text-gray-500">
+                        Showing Page {currentPage} of {totalPages} ({filteredRecipients.length} total)
+                      </div>
+                      <div className="flex space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={currentPage === 1}
+                          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={currentPage === totalPages}
+                          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No recipients found matching current filters.
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
 
         {/* Error Analysis */}
         {errorAnalysis.length > 0 && (

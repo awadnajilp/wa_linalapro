@@ -514,6 +514,18 @@ export class MessageQueueService {
               sentCount: sql`${campaigns.sentCount} + 1`
             })
             .where(eq(campaigns.id, message.campaignId));
+
+          await db
+            .update(campaignRecipients)
+            .set({
+              status: "sent",
+              whatsappMessageId: waMessageId,
+              sentAt: new Date()
+            })
+            .where(and(
+              eq(campaignRecipients.campaignId, message.campaignId),
+              eq(campaignRecipients.phone, message.recipientPhone)
+            ));
         }
       }
 
@@ -593,6 +605,24 @@ export class MessageQueueService {
             failedCount: sql`${campaigns.failedCount} + 1`
           })
           .where(eq(campaigns.id, message.campaignId));
+
+        const rawMetaCode = err?.metaErrorCode;
+        const errorCode = rawMetaCode
+          ? String(rawMetaCode)
+          : err instanceof Error ? err.name : "UNKNOWN_ERROR";
+        const rawErrorMsg = err instanceof Error ? err.message : String(err);
+
+        await db
+          .update(campaignRecipients)
+          .set({
+            status: "failed",
+            errorCode: errorCode,
+            errorMessage: rawErrorMsg,
+          })
+          .where(and(
+            eq(campaignRecipients.campaignId, message.campaignId),
+            eq(campaignRecipients.phone, message.recipientPhone)
+          ));
       }
 
       if (message.attempts >= 2) {

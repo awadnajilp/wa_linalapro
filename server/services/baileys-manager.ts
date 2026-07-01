@@ -314,8 +314,58 @@ export class BaileysManager {
             const filePath = path.join(incomingDir, filename);
             fs.writeFileSync(filePath, buffer);
             
-            const downloadedUrl = `/uploads/incoming/${filename}`;
+            let downloadedUrl = `/uploads/incoming/${filename}`;
             console.log(`[BaileysManager] Media saved to local file: ${filePath}`);
+
+            // Try uploading to cloud storage if active
+            try {
+              const { createDOClient } = await import("../config/digitalOceanConfig");
+              const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+              const doClient = await createDOClient();
+              if (doClient) {
+                const { s3, bucket, endpoint } = doClient;
+                const fileKey = `uploads/incoming/${filename}`;
+                console.log(`[BaileysManager] Uploading incoming media to cloud storage: ${fileKey}`);
+
+                try {
+                  await s3.send(
+                    new PutObjectCommand({
+                      Bucket: bucket!,
+                      Key: fileKey,
+                      Body: buffer,
+                      ACL: "public-read",
+                      ContentType: mimeType,
+                    })
+                  );
+                } catch (s3Error: any) {
+                  if (s3Error.name === "AccessControlListNotSupported" || s3Error.message?.includes("ACL")) {
+                    console.warn("[BaileysManager] S3 bucket does not support ACLs. Retrying without public-read ACL...");
+                    await s3.send(
+                      new PutObjectCommand({
+                        Bucket: bucket!,
+                        Key: fileKey,
+                        Body: buffer,
+                        ContentType: mimeType,
+                      })
+                    );
+                  } else {
+                    throw s3Error;
+                  }
+                }
+
+                const endpointUrl = new URL(endpoint || "");
+                downloadedUrl = `https://${bucket}.${endpointUrl.host}/${fileKey}`;
+                console.log(`[BaileysManager] Cloud upload successful: ${downloadedUrl}`);
+                
+                // Delete local file after cloud upload
+                if (fs.existsSync(filePath)) {
+                  fs.unlinkSync(filePath);
+                  console.log(`[BaileysManager] Local file deleted after cloud upload`);
+                }
+              }
+            } catch (cloudErr) {
+              console.error("[BaileysManager] Cloud upload failed:", cloudErr);
+            }
             
             // Cache it in WhatsAppApiService
             const mediaId = `baileys_media_${messageId}`;

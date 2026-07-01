@@ -655,7 +655,11 @@ export class WebhookHandler {
                 channelId,
                 contact[0]?.id
               );
-            } else {
+            }
+            
+            // If it was a new conversation but no "new_conversation" flow was triggered,
+            // or if it's an existing conversation, try triggering "message_received" flows!
+            if (!automationHandled) {
               let interactiveData: any = null;
               if (message.type === "interactive") {
                 const interactive = (message as any).interactive;

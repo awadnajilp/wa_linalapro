@@ -140,6 +140,18 @@ export function ConfigPanel({
     },
   });
 
+  const contactsList = Array.isArray(contacts)
+    ? contacts
+    : (contacts as any)?.data && Array.isArray((contacts as any).data)
+      ? (contacts as any).data
+      : [];
+
+  const channelsList = Array.isArray(userChannels)
+    ? userChannels
+    : (userChannels as any)?.data && Array.isArray((userChannels as any).data)
+      ? (userChannels as any).data
+      : [];
+
   useEffect(() => {
     setTemplateMeta(null);
     if (selected) {
@@ -1482,7 +1494,7 @@ export function ConfigPanel({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="default">Default (Automation Channel)</SelectItem>
-                      {(userChannels as any[]).map((ch: any) => (
+                      {channelsList.map((ch: any) => (
                         <SelectItem key={ch.id} value={ch.id}>
                           {ch.name} ({ch.phoneNumber || ch.connectionMethod})
                         </SelectItem>
@@ -1514,11 +1526,11 @@ export function ConfigPanel({
                     </span>
                   </Label>
                   <ScrollArea className="h-40 border border-gray-200 rounded-lg p-2 bg-white">
-                    {contacts.length === 0 ? (
+                    {contactsList.length === 0 ? (
                       <div className="text-[10px] text-gray-400 italic p-2">No contacts found.</div>
                     ) : (
                       (() => {
-                        const filtered = (contacts as any[]).filter(
+                        const filtered = contactsList.filter(
                           (c: any) =>
                             c.name?.toLowerCase().includes(searchContactQuery.toLowerCase()) ||
                             c.phone?.includes(searchContactQuery)

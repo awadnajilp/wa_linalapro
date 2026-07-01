@@ -274,76 +274,14 @@ export function validateNodeConfig(node: any): string | null {
         return `Node "${label}" (Template) requires a template selection.`;
       }
       break;
-    case "assign_user":
-      if (!data.assigneeId) {
-        return `Node "${label}" (Assign User) requires an assignee selection.`;
-      }
-      break;
     case "webhook":
       if (!data.webhookUrl?.trim()) {
         return `Node "${label}" (Webhook) requires a target URL.`;
       }
       break;
-    case "mysql":
-      if (!data.mysqlHost?.trim() || !data.mysqlUsername?.trim() || !data.mysqlDatabase?.trim() || !data.mysqlQuery?.trim()) {
-        return `Node "${label}" (MySQL Query) requires host, username, database, and query configuration.`;
-      }
-      if (!data.mysqlOutputVariable?.trim()) {
-        return `Node "${label}" (MySQL Query) requires an output variable name.`;
-      }
-      break;
-    case "add_to_group":
-      if (!data.groupId) {
-        return `Node "${label}" (Add to Group) requires a target group selection.`;
-      }
-      break;
-    case "update_contact":
-      if (!data.contactFieldValue?.trim()) {
-        return `Node "${label}" (Update Contact) requires a value to set.`;
-      }
-      break;
-    case "set_variable":
-      if (!data.variableName?.trim()) {
-        return `Node "${label}" (Set Variable) requires a variable name.`;
-      }
-      break;
-    case "send_location":
-      if (!data.latitude || !data.longitude) {
-        return `Node "${label}" (Send Location) requires both latitude and longitude values.`;
-      }
-      break;
-    case "send_list_message":
-      if (!data.message?.trim()) {
-        return `Node "${label}" (List Message) requires message body text.`;
-      }
-      if (!data.listButtonText?.trim()) {
-        return `Node "${label}" (List Message) requires a list button text.`;
-      }
-      break;
     case "send_media":
-      if (!data.mediaUrl?.trim() && !data.imageFile && !data.videoFile && !data.audioFile && !data.documentFile) {
+      if (!data.mediaUrl?.trim() && !data.mediaId) {
         return `Node "${label}" (Send Media) requires a media URL or file upload.`;
-      }
-      break;
-    case "wait_reply":
-      if (!data.saveAs?.trim()) {
-        return `Node "${label}" (Wait Reply) requires a variable name to save the answer in.`;
-      }
-      break;
-    case "ai_agent":
-      if (!data.aiOutputVariable?.trim()) {
-        return `Node "${label}" (AI Agent) requires an output variable name.`;
-      }
-      if (!data.aiConfigUseSettings && !data.aiApiKey?.trim()) {
-        return `Node "${label}" (AI Agent) requires an API Key when not using system settings.`;
-      }
-      break;
-    case "send_contact_message":
-      if (!data.targetContactIds || data.targetContactIds.length === 0) {
-        return `Node "${label}" (Send to Contacts) requires at least one recipient contact selected.`;
-      }
-      if (!data.message?.trim()) {
-        return `Node "${label}" (Send to Contacts) requires message text.`;
       }
       break;
     default:

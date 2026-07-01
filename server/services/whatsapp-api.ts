@@ -1243,6 +1243,14 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
 
 
   async getMediaUrl(mediaId: string): Promise<string | null> {
+    if (this.channel.connectionMethod === "qr_code" || mediaId.startsWith("baileys_media_")) {
+      const cached = WhatsAppApiService.mediaCache.get(mediaId);
+      if (cached?.url) {
+        return cached.url;
+      }
+      return null;
+    }
+
     try {
       const response = await fetch(
         `https://graph.facebook.com/v24.0/${mediaId}`,
@@ -1281,7 +1289,16 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
         return null;
       }
 
-      // Then, download the media content
+      // Check if it's a cloud storage or local URL
+      const isMetaMedia = mediaUrl.includes("fbsbx.com") || 
+                          mediaUrl.includes("facebook.com") || 
+                          mediaUrl.includes("whatsapp.com");
+
+      if (!isMetaMedia) {
+        return await this.resolveMediaBuffer(mediaUrl);
+      }
+
+      // Then, download the media content from Meta
       const response = await fetch(mediaUrl, {
         headers: {
           Authorization: `Bearer ${this.channel.accessToken}`,
@@ -1317,7 +1334,46 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
         return false;
       }
 
-      // Stream using axios
+      // Check if it's a local file or cloud S3/Spaces URL
+      const isMetaMedia = mediaUrl.includes("fbsbx.com") || 
+                          mediaUrl.includes("facebook.com") || 
+                          mediaUrl.includes("whatsapp.com");
+
+      if (!isMetaMedia) {
+        if (!mediaUrl.startsWith("http://") && !mediaUrl.startsWith("https://")) {
+          // Local file path
+          const cleanPath = mediaUrl.replace(/^\//, "");
+          const localPath = path.join(process.cwd(), cleanPath);
+          if (fs.existsSync(localPath)) {
+            res.sendFile(localPath);
+            return true;
+          }
+          return false;
+        } else {
+          // Cloud S3 URL, stream using direct axios request without authorization header
+          const response = await axios({
+            method: "get",
+            url: mediaUrl,
+            responseType: "stream",
+          });
+          if (response.status !== 200) {
+            return false;
+          }
+          if (response.headers["content-length"]) {
+            res.set("Content-Length", response.headers["content-length"]);
+          }
+          response.data.pipe(res);
+          return new Promise((resolve, reject) => {
+            response.data.on("end", () => resolve(true));
+            response.data.on("error", (error: any) => {
+              console.error("Stream error:", error);
+              reject(false);
+            });
+          });
+        }
+      }
+
+      // Stream Meta Cloud API media using axios with Authorization header
       const response = await axios({
         method: "get",
         url: mediaUrl,

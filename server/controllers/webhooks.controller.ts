@@ -517,6 +517,11 @@ async function handleMessageChange(value: any) {
     let messageContent = "";
     let interactiveData: any = null;
 
+    // Check for Meta Ads click-to-chat referral payload
+    if (message.referral) {
+      interactiveData = { type: "referral", referral: message.referral };
+    }
+
     let mediaId: string | null = null;
     let mediaUrl: string | null = null;
     let mediaMimeType: string | null = null;
@@ -853,7 +858,11 @@ if (io) {
             channel.id,
             contact?.id
           );
-        } else {
+        }
+        
+        // If it was a new conversation but no "new_conversation" flow was triggered,
+        // or if it's an existing conversation, try triggering "message_received" flows!
+        if (!automationHandled) {
           automationHandled = await triggerService.handleMessageReceived(
             conversation.id,
             {

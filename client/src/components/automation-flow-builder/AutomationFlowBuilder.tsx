@@ -598,7 +598,7 @@ export default function AutomationFlowBuilder({
   }), [setEdges]);
 
   return (
-    <div className="h-screen w-full grid grid-cols-12 bg-gray-50">
+    <div className="h-full w-full grid grid-cols-12 bg-gray-50 overflow-hidden">
       <Sidebar onAddNode={addNode} isQrChannel={isQrChannel} onDragStart={onDragStart} />
 
       <div className="col-span-7 flex flex-col">

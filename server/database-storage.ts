@@ -103,19 +103,15 @@ export class DatabaseStorage implements IStorage {
   return this.campaignRepo.getScheduledCampaigns(now);
 }
 
-  async getSites(): Promise<Site | undefined> {
-  const [site] = await db
-    .select()
-    .from(sites)
-
-  return site || [];
-}
+  async getSites(): Promise<Site[]> {
+    return await db.select().from(sites);
+  }
 
   async getSitesByChannel(channelId: string): Promise<Site[]> {
     return await db.select().from(sites).where(eq(sites.channelId, channelId));
   }
 
-  async createSite(insertSite: InsertSite): Promise<Site> {
+  async createSite(insertSite: any): Promise<Site> {
     const widgetCode = `wc_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     const [site] = await db
       .insert(sites)
@@ -335,12 +331,7 @@ async getContactsByUser(
   async getCampaigns(
   page: number = 1,
   limit: number = 10
-): Promise<{
-  data: Campaign[];
-  total: number;
-  page: number;
-  limit: number;
-}> {
+): Promise<any> {
   return this.campaignRepo.getAll(page, limit);
 }
 
@@ -360,7 +351,7 @@ async getContactsByUser(
     return this.campaignRepo.getById(id);
   }
 
-  async getCampaignByUserId(userId: string, page: number = 1, limit: number = 10): Promise<Campaign | undefined> {
+  async getCampaignByUserId(userId: string, page: number = 1, limit: number = 10): Promise<any> {
     return this.campaignRepo.getCampaignByUserId(userId, page, limit);
   }
 
@@ -456,10 +447,7 @@ async getActiveChannelByUserId(userId: string): Promise<Channel | undefined> {
 
   // database-storage.ts
 
-async getTemplates(page = 1, limit = 10): Promise<{
-  data: Template[];
-  pagination: { total: number; totalPages: number; page: number; limit: number };
-}> {
+async getTemplates(page = 1, limit = 10): Promise<any> {
   const result = await this.templateRepo.getAll(page, limit);
   return {
     data: result.data,
@@ -484,7 +472,8 @@ async getTemplatesByChannelAndUser(channelId: string, userId: string): Promise<T
     return [];
   }
 
-  const allTemplates = await this.templateRepo.getAll();
+  const allTemplatesResult = await this.templateRepo.getAll(1, 1000);
+  const allTemplates = allTemplatesResult?.data || [];
   return allTemplates
     .filter(template => template.channelId === channelId)
     .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
@@ -493,7 +482,7 @@ async getTemplatesByChannelAndUser(channelId: string, userId: string): Promise<T
 
   
 
-  async getTemplatesByChannelOLd(channelId: string): Promise<Template[]> {
+  async getTemplatesByChannelOLd(channelId: string): Promise<any> {
     return this.templateRepo.getByChannel(channelId);
   }
 
@@ -501,7 +490,7 @@ async getTemplatesByChannelAndUser(channelId: string, userId: string): Promise<T
   channelId: string,
   page: number = 1,
   limit: number = 10
-): Promise<{ data: Template[]; total: number }> {
+): Promise<any> {
   return this.templateRepo.getByChannel(channelId, page, limit);
 }
 
@@ -619,8 +608,22 @@ async getTemplatesByChannelAndUser(channelId: string, userId: string): Promise<T
     return this.messageRepo.getByWhatsAppId(whatsappMessageId);
   }
 
-  async getConversationMessages(conversationId: string): Promise<Message | undefined> {
-    return this.messageRepo.getByConversation(conversationId);
+  async getConversationMessages(conversationId: string): Promise<Message[]> {
+    return this.messageRepo.getConversationMessages(conversationId);
+  }
+
+  async markMessagesAsRead(conversationId: string): Promise<void> {
+    const messages = await this.getConversationMessages(conversationId);
+    const unreadMessages = messages.filter((msg) => !msg.fromUser && msg.status !== "read");
+    for (const msg of unreadMessages) {
+      await this.updateMessage(msg.id, {
+        status: "read",
+        readAt: new Date(),
+      });
+    }
+    await this.updateConversation(conversationId, {
+      unreadCount: 0,
+    });
   }
 
   async getMessage(id: string): Promise<Message | undefined> {
@@ -800,7 +803,7 @@ async getTemplatesByChannelAndUser(channelId: string, userId: string): Promise<T
       .getAllCampaignCount()
     const totalTemplates = await this.templateRepo
       .getAll()
-      .then((t) => t.length);
+      .then((t) => t.pagination?.total || t.data?.length || 0);
     const messageStats = await this.messageQueueRepo.getMessageStats();
 
     const totalUsers = await this.userRepo.getAll().then(users => users.filter(user => user.role === "admin").length);

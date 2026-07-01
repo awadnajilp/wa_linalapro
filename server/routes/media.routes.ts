@@ -17,6 +17,7 @@
 
 import type { Express } from "express";
 import { handleDigitalOceanUpload, upload } from "../middlewares/upload.middleware";
+import crypto from "crypto";
 
 export function registerMediaRoutes(app: Express) {
   // General media upload

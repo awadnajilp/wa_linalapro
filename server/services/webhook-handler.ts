@@ -20,7 +20,7 @@ import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
 import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
-import { triggerThrottledNotification, NOTIFICATION_EVENTS } from "./notification.service";
+import { triggerNotification, triggerThrottledNotification, NOTIFICATION_EVENTS } from "./notification.service";
 import OpenAI from "openai";
 import { searchTrainingData } from "./training.service";
 import { WhatsAppApiService } from "./whatsapp-api";
@@ -794,6 +794,7 @@ export class WebhookHandler {
           name: channelData?.name || "Default Site",
           domain: "localhost",
           channelId: channelId,
+          widgetCode: `whatsapp-${channelId}`,
           widgetEnabled: true,
           widgetConfig: {
             systemPrompt: `You are a helpful customer support AI assistant for ${channelData?.name || 'our company'}. Answer questions using the provided knowledge base.`,
@@ -848,7 +849,7 @@ export class WebhookHandler {
       (m.content.includes("I don't have") || m.content.includes("I'm not sure") || m.content.includes("I cannot find"))
     ).length;
 
-    const widgetCfg = site?.widgetConfig || {};
+    const widgetCfg = (site?.widgetConfig as any) || {};
     const escalationConfig = widgetCfg.escalationRules || {};
     const maxAttempts = escalationConfig.maxAttempts || 3;
 
@@ -926,11 +927,11 @@ ${unansweredCount >= maxAttempts - 1 ? `- The user has had ${unansweredCount} un
 
         if (validMembers.length === 0 && channelData?.createdBy) {
           const ownerAndTeam = await db
-            .select({ id: users.id, name: users.name })
+            .select({ id: users.id, name: users.username })
             .from(users)
             .where(eq(users.id, channelData.createdBy));
           const teamUsers = await db
-            .select({ id: users.id, name: users.name })
+            .select({ id: users.id, name: users.username })
             .from(users)
             .where(eq(users.createdBy, channelData.createdBy));
           const allAgents = [...ownerAndTeam, ...teamUsers];
@@ -1013,11 +1014,11 @@ ${unansweredCount >= maxAttempts - 1 ? `- The user has had ${unansweredCount} un
 
       if (fallbackMembers.length === 0 && channelData?.createdBy) {
         const ownerAndTeam = await db
-          .select({ id: users.id, name: users.name })
+          .select({ id: users.id, name: users.username })
           .from(users)
           .where(eq(users.id, channelData.createdBy));
         const teamUsers = await db
-          .select({ id: users.id, name: users.name })
+          .select({ id: users.id, name: users.username })
           .from(users)
           .where(eq(users.createdBy, channelData.createdBy));
         fallbackMembers = [...ownerAndTeam, ...teamUsers].map(u => ({ userId: u.id, name: u.name }));
@@ -1191,6 +1192,10 @@ ${unansweredCount >= maxAttempts - 1 ? `- The user has had ${unansweredCount} un
 
       if (templateRecord && (event === "APPROVED" || event === "REJECTED")) {
         try {
+          if (!templateRecord.channelId) {
+            console.warn("Template channelId is null, cannot send status notification");
+            return;
+          }
           const channel = await db.select().from(channels).where(eq(channels.id, templateRecord.channelId)).limit(1);
           const channelName = channel[0]?.name || "Unknown";
           const eventType = event === "APPROVED" ? NOTIFICATION_EVENTS.TEMPLATE_APPROVED : NOTIFICATION_EVENTS.TEMPLATE_REJECTED;

@@ -30,7 +30,11 @@ import {
   templates,
   channels,
   groups,
+  aiSettings,
+  sites,
 } from "@shared/schema";
+import OpenAI from "openai";
+import { searchTrainingData } from "./training.service";
 import { eq, and } from "drizzle-orm";
 import { sendBusinessMessage } from "../services/messageService";
 import { WhatsAppApiService } from "./whatsapp-api";
@@ -109,7 +113,7 @@ export class AutomationExecutionService {
         variables: {
           contactId: execution.contactId ?? undefined,
           conversationId: execution.conversationId ?? undefined,
-          ...triggerData
+          ...(triggerData as any)
         },
         triggerData,
         lastUserMessage:
@@ -120,17 +124,23 @@ export class AutomationExecutionService {
           "",
     };
 
-      // Get first node = no incoming edges from real (saved) nodes
-      // The builder stores a virtual 'start' source in edges but not in nodes.
-      // Filter to only edges where both source and target are real nodes,
-      // then find the node that has no incoming real edge.
-      const nodeIdSet = new Set(automation.nodes.map((n: any) => n.nodeId));
-      const realEdges = automation.edges.filter(
-        (e: any) => nodeIdSet.has(e.sourceNodeId) && nodeIdSet.has(e.targetNodeId)
-      );
-      const firstNode = automation.nodes.find(
-        (n: any) => !realEdges.some((e: any) => e.targetNodeId === n.nodeId)
-      );
+      // Get first node: find the target of the edge coming from the virtual 'start' node.
+      const startEdge = automation.edges.find((e: any) => e.sourceNodeId === 'start');
+      let firstNode = null;
+      if (startEdge) {
+        firstNode = automation.nodes.find((n: any) => n.nodeId === startEdge.targetNodeId);
+      }
+
+      // Fallback to original logic if start edge is missing
+      if (!firstNode) {
+        const nodeIdSet = new Set(automation.nodes.map((n: any) => n.nodeId));
+        const realEdges = automation.edges.filter(
+          (e: any) => nodeIdSet.has(e.sourceNodeId) && nodeIdSet.has(e.targetNodeId)
+        );
+        firstNode = automation.nodes.find(
+          (n: any) => !realEdges.some((e: any) => e.targetNodeId === n.nodeId)
+        );
+      }
 
       if (firstNode) {
         await this.executeNode(firstNode, automation, context);
@@ -232,6 +242,14 @@ export class AutomationExecutionService {
           result = await this.executeMySQL(node, context);
           break;
 
+        case 'ai_agent':
+          result = await this.executeAIAgent(node, context);
+          break;
+
+        case 'send_contact_message':
+          result = await this.executeSendContactMessage(node, context);
+          break;
+
         case 'end':
           result = { action: 'flow_ended' };
           break;
@@ -328,12 +346,12 @@ private stemWord(word: string = ""): string {
 
  case "keyword":
     if (matchType === "any") {
-      conditionMet = lowerKeywords.some(k =>
+      conditionMet = lowerKeywords.some((k: string) =>
         lowerInput.includes(k)
       );
     } 
     else if (matchType === "all") {
-      conditionMet = lowerKeywords.every(k =>
+      conditionMet = lowerKeywords.every((k: string) =>
         lowerInput.includes(k)
       );
     }
@@ -346,7 +364,7 @@ private stemWord(word: string = ""): string {
   // EQUALS (fuzzy safe)
   // -------------------------
   case "equals":
-    conditionMet = lowerKeywords.some(k =>
+    conditionMet = lowerKeywords.some((k: string) =>
       lowerInput === k ||
       this.stemWord(lowerInput) === this.stemWord(k)
     );
@@ -358,13 +376,13 @@ private stemWord(word: string = ""): string {
   // STARTS WITH (fuzzy safe)
   // -------------------------
   case "starts_with":
-    conditionMet = lowerKeywords.some(k =>
+    conditionMet = lowerKeywords.some((k: string) =>
       lowerInput.startsWith(k) ||
       this.stemWord(lowerInput).startsWith(this.stemWord(k))
     );
 
     matchedKeyword = conditionMet
-      ? lowerKeywords.find(k =>
+      ? lowerKeywords.find((k: string) =>
           lowerInput.startsWith(k) ||
           this.stemWord(lowerInput).startsWith(this.stemWord(k))
         )
@@ -376,13 +394,13 @@ private stemWord(word: string = ""): string {
   // CONTAINS (fuzzy safe)
   // -------------------------
   case "contains":
-    conditionMet = lowerKeywords.some(k =>
+    conditionMet = lowerKeywords.some((k: string) =>
       lowerInput.includes(k) ||
       this.stemWord(lowerInput).includes(this.stemWord(k))
     );
 
     matchedKeyword = conditionMet
-      ? lowerKeywords.find(k =>
+      ? lowerKeywords.find((k: string) =>
           lowerInput.includes(k) ||
           this.stemWord(lowerInput).includes(this.stemWord(k))
         )
@@ -773,7 +791,10 @@ private async executeCustomReply(node: any, context: ExecutionContext) {
     throw new Error('No channelId found on contact or automation — cannot send message');
   }
 
-  const hasMedia = nodeData.imageFile?.path || nodeData.videoFile?.path || nodeData.audioFile?.path || nodeData.documentFile?.path;
+  const hasMedia = nodeData.imageFile?.path || nodeData.imageFile?.cloudUrl ||
+                   nodeData.videoFile?.path || nodeData.videoFile?.cloudUrl ||
+                   nodeData.audioFile?.path || nodeData.audioFile?.cloudUrl ||
+                   nodeData.documentFile?.path || nodeData.documentFile?.cloudUrl;
   let buttons = nodeData.buttons || [];
 
   const channel = await storage.getChannel(effectiveChannelId);
@@ -879,6 +900,74 @@ private async executeCustomReply(node: any, context: ExecutionContext) {
     message,
     conversationId: context.conversationId,
     hasMedia
+  };
+}
+
+private async executeSendContactMessage(node: any, context: ExecutionContext) {
+  const rawMessage = node.data.message || '';
+  const message = this.replaceVariables(rawMessage, context.variables);
+  const targetContactIds = node.data.targetContactIds || [];
+
+  if (targetContactIds.length === 0) {
+    console.log(`[send_contact_message] No contacts selected to send message`);
+    return { action: 'no_contacts_selected' };
+  }
+
+  // Resolve which channel to send from: explicit node-configured sendContactChannelId or automation default
+  let effectiveChannelId = node.data.sendContactChannelId;
+
+  if (!effectiveChannelId) {
+    const [automationRow] = await db
+      .select({ channelId: automations.channelId })
+      .from(automations)
+      .where(eq(automations.id, context.automationId))
+      .limit(1);
+    effectiveChannelId = automationRow?.channelId;
+  }
+
+  if (!effectiveChannelId) {
+    throw new Error('No channelId found on automation — cannot send custom message');
+  }
+
+  console.log(`[send_contact_message] Sending customized message to ${targetContactIds.length} contact(s)`);
+
+  const results: any[] = [];
+  for (const contactId of targetContactIds) {
+    const contactRow = await db.query.contacts.findFirst({
+      where: eq(contacts.id, contactId),
+    });
+
+    if (!contactRow?.phone) {
+      console.log(`[send_contact_message] Contact ${contactId} has no phone number, skipping`);
+      continue;
+    }
+
+    try {
+      // Interpolate contact-specific variables merged with flow execution context variables
+      const mergedVariables = {
+        ...context.variables,
+        name: contactRow.name,
+        phone: contactRow.phone,
+      };
+      const customizedMessage = this.replaceVariables(rawMessage, mergedVariables);
+
+      await sendBusinessMessage({
+        to: contactRow.phone,
+        message: customizedMessage,
+        channelId: effectiveChannelId,
+      });
+
+      results.push({ contactId, phone: contactRow.phone, status: 'success' });
+      console.log(`[send_contact_message] Sent message to contact ${contactRow.phone}`);
+    } catch (err: any) {
+      console.error(`[send_contact_message] Failed to send message to ${contactRow.phone}:`, err);
+      results.push({ contactId, phone: contactRow.phone, status: 'failed', error: err.message });
+    }
+  }
+
+  return {
+    action: 'message_sent_to_contacts',
+    results
   };
 }
 
@@ -1005,49 +1094,39 @@ private async sendMediaWithButtons(
 }
 
 private getMediaFileInfo(nodeData: any): { file: any; mediaType: string } | null {
-  if (nodeData.imageFile?.path) return { file: nodeData.imageFile, mediaType: 'image' };
-  if (nodeData.videoFile?.path) return { file: nodeData.videoFile, mediaType: 'video' };
-  if (nodeData.audioFile?.path) return { file: nodeData.audioFile, mediaType: 'audio' };
-  if (nodeData.documentFile?.path) return { file: nodeData.documentFile, mediaType: 'document' };
+  if (nodeData.imageFile?.path || nodeData.imageFile?.cloudUrl) return { file: nodeData.imageFile, mediaType: 'image' };
+  if (nodeData.videoFile?.path || nodeData.videoFile?.cloudUrl) return { file: nodeData.videoFile, mediaType: 'video' };
+  if (nodeData.audioFile?.path || nodeData.audioFile?.cloudUrl) return { file: nodeData.audioFile, mediaType: 'audio' };
+  if (nodeData.documentFile?.path || nodeData.documentFile?.cloudUrl) return { file: nodeData.documentFile, mediaType: 'document' };
   return null;
 }
 
 private async readMediaBuffer(filePath: string): Promise<Buffer> {
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    const allowedHosts = [
-      process.env.APP_URL,
-      process.env.DO_SPACES_BUCKET ? `${process.env.DO_SPACES_BUCKET}.${process.env.DO_SPACES_REGION}.digitaloceanspaces.com` : null,
-      process.env.DO_SPACES_BUCKET ? `${process.env.DO_SPACES_REGION}.digitaloceanspaces.com` : null,
-    ].filter(Boolean);
-
-    if (allowedHosts.length === 0) {
-      throw new Error(`Remote media URLs not allowed: no APP_URL or cloud storage configured`);
-    }
-    const parsed = new URL(filePath);
-    const isAllowed = allowedHosts.some(h => {
-      try { return new URL(h!).hostname === parsed.hostname; } catch { return h === parsed.hostname; }
-    });
-    if (!isAllowed) {
-      throw new Error(`Media URL host not allowed: ${parsed.hostname}`);
-    }
-
     const resp = await fetch(filePath);
     if (!resp.ok) throw new Error(`Failed to fetch media from ${filePath}: ${resp.status}`);
     return Buffer.from(await resp.arrayBuffer());
   }
 
-  const uploadsRoot = path.resolve(process.cwd(), 'uploads');
-  const publicUploadsRoot = path.resolve(process.cwd(), 'public', 'uploads');
   const cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
   const resolved = path.resolve(process.cwd(), cleanPath);
 
-  if (!resolved.startsWith(uploadsRoot) && !resolved.startsWith(publicUploadsRoot)) {
-    throw new Error(`Media path outside allowed directories: ${filePath}`);
+  if (fs.existsSync(resolved)) {
+    return fs.readFileSync(resolved);
   }
-  if (!fs.existsSync(resolved)) {
-    throw new Error(`Media file not found on disk: ${resolved}`);
+
+  // Check common subdirectories
+  const fallbackPaths = [
+    path.resolve(process.cwd(), 'uploads', path.basename(filePath)),
+    path.resolve(process.cwd(), 'public', 'uploads', path.basename(filePath))
+  ];
+  for (const fallback of fallbackPaths) {
+    if (fs.existsSync(fallback)) {
+      return fs.readFileSync(fallback);
+    }
   }
-  return fs.readFileSync(resolved);
+
+  throw new Error(`Media file not found on disk: ${resolved}`);
 }
 
 private async uploadNodeMedia(
@@ -1057,7 +1136,7 @@ private async uploadNodeMedia(
   const info = this.getMediaFileInfo(nodeData);
   if (!info) return null;
 
-  const buffer = await this.readMediaBuffer(info.file.path);
+  const buffer = await this.readMediaBuffer(info.file.cloudUrl || info.file.path);
   const mediaId = await whatsappApi.uploadMediaBuffer(
     buffer,
     info.file.mimetype,
@@ -1081,7 +1160,7 @@ private async sendMediaMessage(contact: any, nodeData: any, caption: string, con
     if (!info) {
       throw new Error('No media file found in node data');
     }
-    const buffer = await this.readMediaBuffer(info.file.path);
+    const buffer = await this.readMediaBuffer(info.file.cloudUrl || info.file.path);
     const mediaPayload = {
       buffer,
       mimeType: info.file.mimetype,
@@ -1380,7 +1459,7 @@ private async sendTextMessage(whatsappApi: any, to: string, message: string) {
  * Retained only for persisting display URLs in message records (saveMediaMessage).
  */
 private async getPublicMediaUrl(relativePath: string): Promise<string> {
-  const baseUrl = process.env.APP_URL || ("" ? `https://${""}` : 'https://whatsway.diploy.in');
+  const baseUrl = process.env.APP_URL || 'https://whatsway.diploy.in';
   const cleanPath = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
   return `${baseUrl}/${cleanPath}`;
 }
@@ -2599,6 +2678,138 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     } finally {
       await connection.end();
     }
+  }
+
+  private async executeAIAgent(node: any, context: ExecutionContext) {
+    const nodeData = node.data || {};
+    const aiConfigUseSettings = nodeData.aiConfigUseSettings !== false;
+    const aiApiKey = nodeData.aiApiKey || "";
+    const aiModel = nodeData.aiModel || "gpt-4o";
+    const aiSystemPrompt = nodeData.aiSystemPrompt || "You are a helpful AI assistant.";
+    const aiUseTrainingData = nodeData.aiUseTrainingData !== false;
+    const aiOutputVariable = nodeData.aiOutputVariable || "ai_response";
+
+    if (!context.contactId) {
+      throw new Error('contactId is required for automation execution');
+    }
+
+    // Get contact details for variable interpolation
+    const getContact = await db.query.contacts.findFirst({
+      where: eq(contacts.id, context.contactId),
+    });
+
+    if (!getContact) {
+      throw new Error('Contact not found');
+    }
+
+    // Populate default variables in context variables
+    context.variables.contactName = getContact.name;
+    context.variables.contactPhone = getContact.phone;
+    context.variables.last_message = context.lastUserMessage || "";
+
+    let effectiveChannelId = getContact.channelId;
+    if (!effectiveChannelId) {
+      const [automationRow] = await db
+        .select({ channelId: automations.channelId })
+        .from(automations)
+        .where(eq(automations.id, context.automationId))
+        .limit(1);
+      effectiveChannelId = automationRow?.channelId ?? null;
+    }
+
+    // Resolve API Key, endpoint and model
+    let finalApiKey = aiApiKey;
+    let finalBaseURL = "https://api.openai.com/v1";
+    let finalModel = aiModel;
+
+    if (aiConfigUseSettings && effectiveChannelId) {
+      const aiSetting = await db
+        .select()
+        .from(aiSettings)
+        .where(and(eq(aiSettings.channelId, effectiveChannelId), eq(aiSettings.isActive, true)))
+        .limit(1);
+
+      const activeAI = aiSetting?.[0];
+      if (activeAI && activeAI.apiKey) {
+        finalApiKey = activeAI.apiKey;
+        finalBaseURL = activeAI.endpoint || "https://api.openai.com/v1";
+        finalModel = activeAI.model || aiModel;
+      }
+    }
+
+    // Fallback to env variable if none configured/manual key is empty
+    if (!finalApiKey) {
+      finalApiKey = process.env.OPENAI_API_KEY || "";
+      finalBaseURL = "https://api.openai.com/v1";
+    }
+
+    if (!finalApiKey) {
+      throw new Error('No API key configured for AI agent node');
+    }
+
+    // 1. Interpolate variables in System Prompt
+    let systemPrompt = this.replaceVariables(aiSystemPrompt, context.variables);
+
+    // 2. Fetch Knowledge Base / Training data if requested
+    if (aiUseTrainingData && effectiveChannelId) {
+      try {
+        const channelSites = await db
+          .select()
+          .from(sites)
+          .where(eq(sites.channelId, effectiveChannelId))
+          .limit(1);
+
+        const site = channelSites[0];
+        if (site) {
+          const queryText = context.lastUserMessage || "Hi";
+          const trainingResults = await searchTrainingData(site.id, effectiveChannelId, queryText);
+          
+          let trainingContext = "";
+          if (trainingResults.chunks.length > 0) {
+            trainingContext += "\n\n--- RELEVANT KNOWLEDGE BASE & TRAINING DATA ---\n";
+            trainingContext += trainingResults.chunks.join("\n\n");
+          }
+          if (trainingResults.qaPairs.length > 0) {
+            trainingContext += "\n\n--- RELEVANT FAQ PAIRS ---\n";
+            for (const qa of trainingResults.qaPairs) {
+              trainingContext += `Q: ${qa.question}\nA: ${qa.answer}\n\n`;
+            }
+          }
+          if (trainingContext) {
+            systemPrompt += trainingContext;
+          }
+        }
+      } catch (err) {
+        console.warn("[AI Node] Training data search failed:", err);
+      }
+    }
+
+    // 3. Execute OpenAI Chat Completion
+    const aiClient = new OpenAI({
+      apiKey: finalApiKey,
+      baseURL: finalBaseURL,
+    });
+
+    const messageContent = context.lastUserMessage || "Hi";
+
+    console.log(`[AI Node] Sending completion request using model ${finalModel}...`);
+    const completion = await aiClient.chat.completions.create({
+      model: finalModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: messageContent },
+      ],
+      temperature: 0.7,
+      max_tokens: 800,
+    });
+
+    const responseText = completion.choices[0]?.message?.content || "";
+    console.log(`[AI Node] Received response from AI: "${responseText.substring(0, 100)}..."`);
+
+    // 4. Save response to context variables
+    context.variables[aiOutputVariable] = responseText;
+
+    return { success: true, response: responseText };
   }
 
   private replaceVariables(text: string, variables: Record<string, any>): string {

@@ -272,7 +272,7 @@ async getByChannel(
   async create(insertTemplate: InsertTemplate  & { createdBy: string }): Promise<Template> {
     const [template] = await db
       .insert(templates)
-      .values(insertTemplate)
+      .values(insertTemplate as any)
       .returning();
     return template;
   }

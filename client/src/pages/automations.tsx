@@ -15,7 +15,7 @@
  * ============================================================
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,8 @@ import {
   Search,
   Download,
   History,
+  Copy,
+  Upload,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -113,6 +115,7 @@ export default function Automations() {
   const [showFlowBuilder, setShowFlowBuilder] = useState(false);
   const [selectedAutomation, setSelectedAutomation] = useState<any>(null);
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: activeChannel } = useQuery({
     queryKey: ["/api/channels/active"],
@@ -326,6 +329,7 @@ export default function Automations() {
   });
 
   const seedMutation = useMutation({
+    queryKey: ["/api/automations/seed-templates"],
     mutationFn: async () => {
       if (!activeChannel?.id) throw new Error("No active channel");
       const response = await apiRequest("POST", "/api/automations/seed-templates", {
@@ -344,6 +348,120 @@ export default function Automations() {
       toast({ title: "Failed to load templates", variant: "destructive" });
     },
   });
+
+  const duplicateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("POST", `/api/automations/${id}/duplicate`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/automations"] });
+      toast({ title: "Automation duplicated successfully" });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to duplicate automation",
+        description: err.message || "An error occurred",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const importMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const response = await apiRequest("POST", "/api/automations/import", {
+        ...payload,
+        channelId: activeChannel?.id,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/automations"] });
+      toast({ title: "Automation imported successfully" });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to import automation",
+        description: err.message || "Invalid flow configuration file",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleExport = (automation: any) => {
+    try {
+      const exportData = {
+        name: `${automation.name}`,
+        description: automation.description || "",
+        trigger: automation.trigger,
+        triggerConfig: automation.triggerConfig || {},
+        nodes: (automation.automation_nodes || []).map((node: any) => ({
+          id: node.nodeId,
+          type: node.type,
+          subtype: node.subtype,
+          position: node.position || {},
+          measured: node.measured || {},
+          data: node.data || {},
+          connections: node.connections || [],
+        })),
+        edges: (automation.automation_edges || []).map((edge: any) => ({
+          source: edge.sourceNodeId,
+          target: edge.targetNodeId,
+          sourceHandle: edge.sourceHandle,
+          animated: !!edge.animated,
+        })),
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${automation.name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_flow.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({ title: "Flow exported successfully" });
+    } catch (err: any) {
+      toast({
+        title: "Export failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (!parsed.name || !parsed.trigger) {
+          toast({
+            title: "Invalid file format",
+            description: "The JSON file must contain at least 'name' and 'trigger' properties.",
+            variant: "destructive",
+          });
+          return;
+        }
+        importMutation.mutate(parsed);
+      } catch (err) {
+        toast({
+          title: "Failed to parse JSON",
+          description: "Please upload a valid JSON flow export.",
+          variant: "destructive",
+        });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   const handleCreateNew = () => {
     setSelectedAutomation(null);
@@ -449,6 +567,26 @@ export default function Automations() {
               Load Sample Templates
             </Button>
           )}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImportFileChange}
+            style={{ display: "none" }}
+            accept=".json"
+          />
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importMutation.isPending}
+            className="gap-1.5 border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+          >
+            {importMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="h-4 w-4" />
+            )}
+            Import Flow
+          </Button>
           <Button
             onClick={handleCreateNew}
             className="gap-1.5"
@@ -675,19 +813,40 @@ export default function Automations() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="flex-1 text-xs h-9 text-gray-600 hover:text-blue-600 hover:bg-blue-50/50 rounded-none font-medium"
+                        className="flex-1 text-[11px] px-1 h-9 text-gray-600 hover:text-blue-600 hover:bg-blue-50/50 rounded-none font-medium"
                         onClick={() => handleEdit(automation)}
                         data-testid={`button-edit-${automation.id}`}
                         disabled={user?.username === "demouser"}
                       >
-                        <Edit className="h-3.5 w-3.5 mr-1" />
+                        <Edit className="h-3 w-3 mr-0.5" />
                         Edit
                       </Button>
                       <div className="w-px h-5 bg-gray-100" />
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="flex-1 text-xs h-9 text-gray-600 hover:text-red-600 hover:bg-red-50/50 rounded-none font-medium"
+                        className="flex-1 text-[11px] px-1 h-9 text-gray-600 hover:text-purple-600 hover:bg-purple-50/50 rounded-none font-medium"
+                        onClick={() => duplicateMutation.mutate(automation.id)}
+                        disabled={user?.username === "demouser" || duplicateMutation.isPending}
+                      >
+                        <Copy className="h-3 w-3 mr-0.5" />
+                        Duplicate
+                      </Button>
+                      <div className="w-px h-5 bg-gray-100" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1 text-[11px] px-1 h-9 text-gray-600 hover:text-green-600 hover:bg-green-50/50 rounded-none font-medium"
+                        onClick={() => handleExport(automation)}
+                      >
+                        <Download className="h-3 w-3 mr-0.5" />
+                        Export
+                      </Button>
+                      <div className="w-px h-5 bg-gray-100" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1 text-[11px] px-1 h-9 text-gray-600 hover:text-red-600 hover:bg-red-50/50 rounded-none font-medium"
                         onClick={() => {
                           if (
                             confirm(
@@ -704,7 +863,7 @@ export default function Automations() {
                         }
                         data-testid={`button-delete-${automation.id}`}
                       >
-                        <Trash2 className="h-3.5 w-3.5 mr-1" />
+                        <Trash2 className="h-3 w-3 mr-0.5" />
                         Delete
                       </Button>
                     </div>

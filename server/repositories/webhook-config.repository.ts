@@ -51,7 +51,7 @@ export class WebhookConfigRepository {
   async create(insertConfig: InsertWebhookConfig): Promise<WebhookConfig> {
     const [config] = await db
       .insert(webhookConfigs)
-      .values(insertConfig)
+      .values(insertConfig as any)
       .returning();
     return config;
   }

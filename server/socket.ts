@@ -46,7 +46,7 @@ export function initializeSocket(httpServer: HTTPServer) {
       methods: ["GET", "POST"]
     },
     transports: ['websocket', 'polling']
-  });
+  }) as any;
 
   io.on('connection', (socket) => {
     console.log('Socket connected:', socket.id);

@@ -87,7 +87,7 @@ export class BaileysManager {
           this.qrStates.set(channelId, { status: "authenticated" });
 
           const sockUser = sock.user || {};
-          const connectedPhone = sockUser.id ? sockUser.id.split(":")[0].split("@")[0] : (phoneNumber || "");
+          const connectedPhone = (sockUser as any).id ? (sockUser as any).id.split(":")[0].split("@")[0] : (phoneNumber || "");
 
           // Retrieve channel info to check creator
           const [channelInfo] = await db
@@ -244,10 +244,10 @@ export class BaileysManager {
           content = "[Location]";
           type = "location";
         } else if (msg.buttonsResponseMessage) {
-          content = msg.buttonsResponseMessage.selectedButtonId || msg.buttonsResponseMessage.displayText || "";
+          content = (msg.buttonsResponseMessage as any).selectedButtonId || (msg.buttonsResponseMessage as any).displayText || "";
           type = "button";
         } else if (msg.templateButtonReplyMessage) {
-          content = msg.templateButtonReplyMessage.selectedId || msg.templateButtonReplyMessage.displayText || "";
+          content = (msg.templateButtonReplyMessage as any).selectedId || (msg.templateButtonReplyMessage as any).displayText || "";
           type = "button";
         }
 
@@ -285,10 +285,10 @@ export class BaileysManager {
         if (msg.imageMessage || msg.videoMessage || msg.audioMessage || msg.documentMessage) {
           try {
             console.log(`[BaileysManager] Downloading incoming media for message ${messageId}...`);
-            const buffer = await downloadMediaMessage(message, "buffer", {}, {});
+            const buffer = await downloadMediaMessage(message, "buffer", {}, {} as any);
             
             const mediaMsg = msg.imageMessage || msg.videoMessage || msg.audioMessage || msg.documentMessage;
-            const mimeType = mediaMsg.mimetype || "application/octet-stream";
+            const mimeType = mediaMsg!.mimetype || "application/octet-stream";
             const originalName = (mediaMsg as any).fileName || "file";
             
             let ext = "bin";

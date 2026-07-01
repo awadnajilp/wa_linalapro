@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Save, Loader2, Zap } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Zap, Download } from "lucide-react";
 
 interface HeaderProps {
   name: string;
@@ -37,6 +37,7 @@ interface HeaderProps {
   automation: any;
   onClose: () => void;
   onSave: () => void;
+  onExport: () => void;
   isSaving: boolean;
   isDemo: boolean;
 }
@@ -51,6 +52,7 @@ export function Header({
   automation,
   onClose,
   onSave,
+  onExport,
   isSaving,
   isDemo,
 }: HeaderProps) {
@@ -107,6 +109,16 @@ export function Header({
         >
           {automation?.id ? "Editing" : "New Flow"}
         </Badge>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onExport}
+          className="h-8 px-3 text-xs font-medium gap-1.5 border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Export Flow
+        </Button>
 
         <Button
           size="sm"

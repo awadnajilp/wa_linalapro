@@ -31,7 +31,6 @@ import {
   plans,
   paymentProviders,
   sites,
-  conversations,
 } from "@shared/schema";
 import { AppError, asyncHandler } from "../middlewares/error.middleware";
 import crypto from "crypto";
@@ -1386,8 +1385,6 @@ async function handleMessageStatuses(statuses: any[], metadata: any) {
         shouldDecrementSent = queueEntry.status === "sent";
       }
 
-      const campaignId = queueEntry.campaignId;
-
       if (Object.keys(updateFields).length > 0) {
         await db.update(messageQueue)
           .set(updateFields)
@@ -1404,6 +1401,7 @@ async function handleMessageStatuses(statuses: any[], metadata: any) {
       }
 
       // Increment campaign counters only for first attainment of each milestone
+      const campaignId = queueEntry.campaignId;
       if (campaignId && (shouldIncrementDelivered || shouldIncrementRead || shouldIncrementFailed)) {
         const counterUpdate: Record<string, any> = {};
         if (shouldIncrementDelivered) {

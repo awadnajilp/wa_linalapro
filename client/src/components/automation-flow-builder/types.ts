@@ -33,7 +33,9 @@ export type NodeKind =
   | "send_list_message"
   | "send_media"
   | "mark_as_read"
-  | "wait_reply";
+  | "wait_reply"
+  | "ai_agent"
+  | "send_contact_message";
 
 export interface ListSection {
   title: string;
@@ -48,6 +50,8 @@ export interface BuilderNodeData {
   kind: NodeKind;
   label?: string;
   message?: string;
+  targetContactIds?: string[];
+  sendContactChannelId?: string;
   imageFile?: File | null;
   imagePreview?: string;
   videoFile?: File | null;
@@ -94,6 +98,12 @@ export interface BuilderNodeData {
   mediaSourceType?: "url" | "upload";
   mediaFileName?: string;
   mediaCaption?: string;
+  aiConfigUseSettings?: boolean;
+  aiApiKey?: string;
+  aiSystemPrompt?: string;
+  aiUseTrainingData?: boolean;
+  aiOutputVariable?: string;
+  aiModel?: string;
   [key: string]: unknown;
 }
 

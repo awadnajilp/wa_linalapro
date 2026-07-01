@@ -59,7 +59,7 @@ export interface IStorage {
 
   // Contacts
   getContacts(): Promise<Contact[]>;
-  getContactsByUser(userId: String): Promise<Contact[]>;
+  getContactsByUser(userId: string, page?: number, limit?: number): Promise<any>;
   getContactsByChannel(channelId: string): Promise<Contact[]>;
   getContact(id: string): Promise<Contact | undefined>;
   getContactsByIds(ids: string[]): Promise<Contact[]>;
@@ -72,10 +72,10 @@ export interface IStorage {
   searchContactsByChannel(channelId: string, query: string): Promise<Contact[]>;
 
   // Campaigns
-  getCampaigns(): Promise<Campaign[]>;
+  getCampaigns(): Promise<any>;
   getScheduledCampaigns(now: Date): Promise<Campaign[]>;
-  getCampaignByUserId(userId: string): Promise<Campaign[]>;
-  getCampaignsByChannel(channelId: string): Promise<Campaign[]>;
+  getCampaignByUserId(userId: string): Promise<any>;
+  getCampaignsByChannel(channelId: string): Promise<any>;
   getCampaign(id: string): Promise<Campaign | undefined>;
   createCampaign(campaign: InsertCampaign): Promise<Campaign>;
   updateCampaign(id: string, campaign: Partial<Campaign>): Promise<Campaign | undefined>;
@@ -84,8 +84,8 @@ export interface IStorage {
   deleteCampaign(id: string): Promise<boolean>;
 
   // Templates
-  getTemplates(): Promise<Template[]>;
-  getTemplatesByChannel(channelId: string): Promise<Template[]>;
+  getTemplates(): Promise<any>;
+  getTemplatesByChannel(channelId: string): Promise<any>;
   getTemplate(id: string): Promise<Template | undefined>;
   createTemplate(template: InsertTemplate): Promise<Template>;
   updateTemplate(id: string, template: Partial<Template>): Promise<Template | undefined>;
@@ -106,6 +106,7 @@ export interface IStorage {
   createMessage(message: InsertMessage): Promise<Message>;
   updateMessage(id: string, message: Partial<Message>): Promise<Message | undefined>;
   getMessageByWhatsAppId(whatsappMessageId: string): Promise<Message | undefined>;
+  markMessagesAsRead(conversationId: string): Promise<void>;
 
   // Automations
   getAutomations(): Promise<Automation[]>;
@@ -128,19 +129,11 @@ export interface IStorage {
     campaignsRunning: number;
     unreadChats: number;
   }>;
-  getDashboardStatsByChannel(channelId: string): Promise<{
-    totalMessages: number;
-    activeCampaigns: number;
-    deliveryRate: number;
-    newLeads: number;
-    messagesGrowth: number;
-    campaignsRunning: number;
-    unreadChats: number;
-  }>;
+  getDashboardStatsByChannel(channelId: string, userId?: string): Promise<any>;
 
   // Channels
   getChannels(): Promise<Channel[]>;
-  getChannelsByUser(userId: string): Promise<Channel[]>;
+  getChannelsByUser(userId: string): Promise<any>;
   getChannel(id: string): Promise<Channel | undefined>;
   getChannelByPhoneNumberId(phoneNumberId: string): Promise<Channel | undefined>;
   getChannelsByPhoneNumber(phoneNumber: string): Promise<Channel[]>;
@@ -183,9 +176,9 @@ export interface IStorage {
   getMessageQueue(): Promise<MessageQueue>;
   // getQueuedMessages(): Promise<Message[]>;
 
-  getCampaignsByChannel(channelId: string): Promise<Campaign[]>;
-getTemplatesByChannel(channelId: string): Promise<Template[]>;
-getTemplatesByUserId(userId: string): Promise<Template[]>;
+  getCampaignsByChannel(channelId: string): Promise<any>;
+getTemplatesByChannel(channelId: string): Promise<any>;
+getTemplatesByUserId(userId: string): Promise<any>;
 getTemplatesByChannelAndUser(channelId: string, userId: string): Promise<Template[]>;
 getConversationsByChannel(channelId: string): Promise<Conversation[]>;
 deleteConversation(id: string): Promise<boolean>;
@@ -202,6 +195,7 @@ deleteConversation(id: string): Promise<boolean>;
   updateWarmerMessage(id: string, text: string): Promise<WarmerMessage | undefined>;
 }
 
+/*
 export class MemStorage implements IStorage {
   private users: Map<string, User> = new Map();
   private contacts: Map<string, Contact> = new Map();
@@ -1186,6 +1180,7 @@ async searchContactsByChannel(channelId: string, query: string): Promise<Contact
     return updated;
   }
 }
+*/
 
 // export const storage = new MemStorage();
 

@@ -12,7 +12,7 @@
  * have a stale database.  This file self-heals those databases.
  */
 
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 interface MigrationStep {
   description: string;
@@ -358,24 +358,24 @@ const steps: MigrationStep[] = [
  * report what was actually added vs already present.
  */
 async function getExistingColumns(
-  client: Awaited<ReturnType<Pool["connect"]>>
+  client: PoolClient
 ): Promise<Set<string>> {
   const { rows } = await client.query<{ key: string }>(`
     SELECT table_name || '.' || column_name AS key
     FROM information_schema.columns
     WHERE table_schema = 'public'
   `);
-  return new Set(rows.map((r) => r.key));
+  return new Set(rows.map((r: { key: string }) => r.key));
 }
 
 async function getExistingTables(
-  client: Awaited<ReturnType<Pool["connect"]>>
+  client: PoolClient
 ): Promise<Set<string>> {
   const { rows } = await client.query<{ table_name: string }>(`
     SELECT table_name FROM information_schema.tables
     WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
   `);
-  return new Set(rows.map((r) => r.table_name));
+  return new Set(rows.map((r: { table_name: string }) => r.table_name));
 }
 
 export async function runStartupMigration(pool: Pool): Promise<void> {

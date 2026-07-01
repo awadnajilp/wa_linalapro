@@ -34,6 +34,7 @@ import {
   Info,
   MessageSquare,
   Database,
+  Brain,
 } from "lucide-react";
 import { NodeKind } from "./types";
 import {
@@ -61,6 +62,15 @@ const nodeCategories = [
         bg: "bg-blue-50",
         border: "border-blue-200",
         tip: "Send a text message, image, video, or button reply to the customer. Use this for greetings, confirmations, or any direct communication.",
+      },
+      {
+        kind: "send_contact_message" as NodeKind,
+        name: "Send to Contacts",
+        icon: Users,
+        color: "text-indigo-600",
+        bg: "bg-indigo-50",
+        border: "border-indigo-200",
+        tip: "Send a custom text message to one or more selected contacts from your list. Variables from the flow are interpolated dynamically.",
       },
       {
         kind: "user_reply" as NodeKind,
@@ -147,6 +157,15 @@ const nodeCategories = [
         bg: "bg-amber-50",
         border: "border-amber-200",
         tip: "Pause the flow until the customer sends a new message. You can optionally save their reply into a custom variable.",
+      },
+      {
+        kind: "ai_agent" as NodeKind,
+        name: "AI Agent",
+        icon: Brain,
+        color: "text-purple-600",
+        bg: "bg-purple-50",
+        border: "border-purple-200",
+        tip: "Connect to AI (GPT/Gemini) to generate a response. Optionally query your knowledge base (training data), customize the system prompt, and save the AI's output in a variable.",
       },
     ],
   },

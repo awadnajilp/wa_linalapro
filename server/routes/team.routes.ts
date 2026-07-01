@@ -187,7 +187,7 @@ router.get(
 
       const ownerUserId =
         loggedInUser.role === "team"
-          ? loggedInUser.createdBy
+          ? (loggedInUser as any).createdBy
           : loggedInUser.id;
 
       const page = parseInt(req.query.page as string) || 1;

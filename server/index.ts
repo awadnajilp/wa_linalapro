@@ -225,7 +225,7 @@ io.on("connection", (socket) => {
           status: "assigned",
           assignedTo: agentId,
           assignedToName: agentName,
-        });
+        } as any);
       } catch (error) {
         console.error("Error updating conversation:", error);
       }
@@ -266,7 +266,7 @@ io.on("connection", (socket) => {
           status: "assigned",
           assignedTo: agentId,
           assignedToName: agentName,
-        });
+        } as any);
       } catch (error) {
         console.error("Error updating conversation:", error);
       }
@@ -514,7 +514,14 @@ app.use(
 // Get online agents
 app.get("/api/agents/online", (req, res) => {
   const { siteId } = req.query;
-  const agents = io.getOnlineAgents?.(siteId as string) || [];
+  const agents: any[] = [];
+  connectedUsers.forEach((user: any) => {
+    if (user.role === 'agent' || user.role === 'admin') {
+      if (!siteId || user.siteId === siteId) {
+        agents.push(user);
+      }
+    }
+  });
   res.json({ agents });
 });
 

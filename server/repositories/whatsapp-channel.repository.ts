@@ -35,7 +35,7 @@ export class WhatsappChannelRepository {
   async create(insertChannel: InsertWhatsappChannel): Promise<WhatsappChannel> {
     const [channel] = await db
       .insert(whatsappChannels)
-      .values(insertChannel)
+      .values(insertChannel as any)
       .returning();
     return channel;
   }

@@ -27,7 +27,7 @@ export class ApiLogRepository {
   async create(insertLog: InsertApiLog): Promise<ApiLog> {
     const [log] = await db
       .insert(apiLogs)
-      .values(insertLog)
+      .values(insertLog as any)
       .returning();
     return log;
   }

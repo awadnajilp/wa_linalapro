@@ -129,7 +129,7 @@ export const getAutomations = asyncHandler(async (req: Request, res: Response) =
 });
 
 
-// GET single automation (with nodes)
+// GET single automation (with nodes and edges)
 export const getAutomation = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
 
@@ -140,8 +140,9 @@ export const getAutomation = asyncHandler(async (req: Request, res: Response) =>
   if (!automation) throw new AppError(404, "Automation not found");
 
   const nodes = await db.select().from(automationNodes).where(eq(automationNodes.automationId, id));
+  const edges = await db.select().from(automationEdges).where(eq(automationEdges.automationId, id));
 
-  res.json({ ...automation, nodes });
+  res.json({ ...automation, nodes, edges });
 });
 
 // CREATE automation (empty flow or with initial nodes)
@@ -1332,4 +1333,131 @@ export const triggerMessageReceived = asyncHandler(async (req: Request, res: Res
     console.error("Error processing message triggers:", error);
     throw new AppError(500, `Failed to process triggers: ${(error as Error).message}`);
   }
+});
+
+// Duplicate an automation (flow)
+export const duplicateAutomation = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  // 1. Fetch the original automation
+  const original = await db.query.automations.findFirst({
+    where: eq(automations.id, id),
+  });
+
+  if (!original) {
+    throw new AppError(404, "Original automation not found");
+  }
+
+  // 2. Fetch original nodes and edges
+  const originalNodes = await db.select().from(automationNodes).where(eq(automationNodes.automationId, id));
+  const originalEdges = await db.select().from(automationEdges).where(eq(automationEdges.automationId, id));
+
+  // 3. Create duplicate automation
+  const newAutomationId = crypto.randomUUID();
+  const [duplicate] = await db.insert(automations).values({
+    id: newAutomationId,
+    channelId: original.channelId,
+    name: `${original.name} (Copy)`,
+    description: original.description,
+    trigger: original.trigger,
+    triggerConfig: original.triggerConfig || {},
+    status: "inactive", // Duplicate should be inactive initially
+  }).returning();
+
+  // 4. Duplicate nodes
+  for (const node of originalNodes) {
+    await db.insert(automationNodes).values({
+      automationId: newAutomationId,
+      nodeId: node.nodeId,
+      type: node.type,
+      subtype: node.subtype,
+      position: node.position || {},
+      measured: node.measured || {},
+      data: node.data || {},
+      connections: node.connections || [],
+    });
+  }
+
+  // 5. Duplicate edges
+  for (const edge of originalEdges) {
+    await db.insert(automationEdges).values({
+      id: crypto.randomUUID(),
+      automationId: newAutomationId,
+      sourceNodeId: edge.sourceNodeId,
+      targetNodeId: edge.targetNodeId,
+      sourceHandle: edge.sourceHandle,
+      animated: edge.animated,
+    });
+  }
+
+  res.json({
+    success: true,
+    message: "Automation duplicated successfully",
+    automation: duplicate,
+  });
+});
+
+// Import automation (flow) from JSON
+export const importAutomation = asyncHandler(async (req: Request, res: Response) => {
+  const { name, description, trigger, triggerConfig, nodes = [], edges = [], channelId } = req.body;
+
+  if (!name || !trigger) {
+    throw new AppError(400, "Automation name and trigger type are required");
+  }
+
+  // Determine channel ID
+  let targetChannelId = channelId;
+  if (!targetChannelId) {
+    const activeChannel = await storage.getActiveChannel();
+    if (activeChannel) targetChannelId = activeChannel.id;
+  }
+
+  if (!targetChannelId) {
+    throw new AppError(400, "No active channel found to import flow to");
+  }
+
+  const newAutomationId = crypto.randomUUID();
+
+  // 1. Insert imported automation
+  const [imported] = await db.insert(automations).values({
+    id: newAutomationId,
+    channelId: targetChannelId,
+    name,
+    description: description || "",
+    trigger,
+    triggerConfig: triggerConfig || {},
+    status: "inactive",
+  }).returning();
+
+  // 2. Insert nodes
+  for (const node of nodes) {
+    await db.insert(automationNodes).values({
+      automationId: newAutomationId,
+      nodeId: node.id || node.nodeId,
+      type: node.type,
+      subtype: node.subtype || node.type,
+      position: node.position || {},
+      measured: node.measured || {},
+      data: node.data || {},
+      connections: node.connections || [],
+    });
+  }
+
+  // 3. Insert edges
+  for (const edge of edges) {
+    await db.insert(automationEdges).values({
+      id: crypto.randomUUID(),
+      automationId: newAutomationId,
+      sourceNodeId: edge.source || edge.sourceNodeId,
+      targetNodeId: edge.target || edge.targetNodeId,
+      sourceHandle: edge.sourceHandle || null,
+      animated: !!edge.animated,
+    });
+  }
+
+  res.json({
+    success: true,
+    message: "Automation imported successfully",
+    automation: imported,
+  });
 });

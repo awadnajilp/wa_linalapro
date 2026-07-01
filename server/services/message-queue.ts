@@ -149,7 +149,7 @@ export class MessageQueueService {
           })
           .where(inArray(messageQueue.id, messageIds));
 
-        const channelIds = [...new Set(messages.map(m => m.channelId).filter(Boolean))];
+        const channelIds = [...new Set(messages.map(m => m.channelId).filter(Boolean))] as string[];
         const channelCache = new Map<string, any>();
         if (channelIds.length > 0) {
           const fetchedChannels = await db

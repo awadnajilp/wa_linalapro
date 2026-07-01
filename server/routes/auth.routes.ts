@@ -308,8 +308,10 @@ router.post("/reset-password", async (req, res) => {
       .select()
       .from(otpVerifications)
       .where(
-        eq(otpVerifications.userId, userId),
-        eq(otpVerifications.isUsed, false)
+        and(
+          eq(otpVerifications.userId, userId),
+          eq(otpVerifications.isUsed, false)
+        )
       )
       .limit(1);
 

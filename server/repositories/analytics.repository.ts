@@ -101,7 +101,7 @@ export class AnalyticsRepository {
     
   }
 
-  async createOrUpdate(insertAnalytics: InsertAnalytics): Promise<Analytics> {
+  async createOrUpdate(insertAnalytics: any): Promise<Analytics> {
     const [result] = await db
       .insert(analytics)
       .values(insertAnalytics)

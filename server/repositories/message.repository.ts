@@ -16,7 +16,7 @@
  */
 
 import { db } from "../db";
-import { eq, and, lt, or, desc, SQL } from "drizzle-orm";
+import { eq, and, lt, or, desc, asc, SQL } from "drizzle-orm";
 import { 
   messages, 
   type Message, 
@@ -60,7 +60,7 @@ export class MessageRepository {
   async create(insertMessage: InsertMessage): Promise<Message> {
     const [message] = await db
       .insert(messages)
-      .values(insertMessage)
+      .values(insertMessage as any)
       .returning();
     return message;
   }
@@ -82,12 +82,12 @@ export class MessageRepository {
     return message || undefined;
   }
   
-  async getConversationMessages(conversationId: string): Promise<Message | undefined> {
-    const [message] = await db
+  async getConversationMessages(conversationId: string): Promise<Message[]> {
+    return db
       .select()
       .from(messages)
-      .where(eq(messages.conversationId, conversationId));
-    return message || undefined;
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(asc(messages.createdAt));
   }
 
 

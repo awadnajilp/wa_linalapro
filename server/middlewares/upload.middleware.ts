@@ -211,10 +211,10 @@ export const handleDigitalOceanUpload = async (
         // Construct cloud URL
         const endpointUrl = new URL(endpoint || "");
         // console.log('endpointUrl:', endpointUrl);
-        file.cloudUrl = `https://${bucket}.${endpointUrl.host}/${fileKey}`;
+        (file as any).cloudUrl = `https://${bucket}.${endpointUrl.host}/${fileKey}`;
 
         console.log(`   ✅ Upload successful!`);
-        console.log(`   🌐 Cloud URL: ${file.cloudUrl}`);
+        console.log(`   🌐 Cloud URL: ${(file as any).cloudUrl}`);
 
         // Delete local file after successful upload
         fs.unlinkSync(file.path);

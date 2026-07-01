@@ -27,7 +27,7 @@ function resolveLogoUrl(smtpLogo?: string | null, panelLogo?: string | null): st
   const logo = smtpLogo || panelLogo;
   if (!logo) return undefined;
   if (logo.startsWith("http://") || logo.startsWith("https://")) return logo;
-  const baseUrl = (process.env.APP_URL || ("" ? `https://${""}` : "")).replace(/\/$/, "");
+  const baseUrl = (process.env.APP_URL || "").replace(/\/$/, "");
   if (!baseUrl) return undefined;
   const path = logo.startsWith("/") ? logo : `/uploads/${logo}`;
   return `${baseUrl}${path}`;
@@ -39,7 +39,7 @@ async function getTransporter() {
   const config = await getSMTPConfig();
 
   if (config) {
-    const port = parseInt(config.port, 10);
+    const port = config.port;
     const secure = port === 465;
 
     transporter = nodemailer.createTransport({
@@ -49,7 +49,7 @@ async function getTransporter() {
       ...(!secure && (port === 587 || !!config.secure) ? { requireTLS: true } : {}),
       auth: {
         user: config.user,
-        pass: config.password,
+        pass: config.password || undefined,
       },
     });
   } else {

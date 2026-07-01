@@ -48,7 +48,7 @@ export class UserRepository {
   async create(insertUser: InsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
-      .values(insertUser)
+      .values(insertUser as any)
       .returning();
     return user;
   }

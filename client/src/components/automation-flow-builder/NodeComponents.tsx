@@ -39,6 +39,8 @@ import {
   CheckCheck,
   MessageSquare,
   Database,
+  Brain,
+  Copy,
 } from "lucide-react";
 import { BuilderNodeData } from "./types";
 
@@ -61,13 +63,13 @@ function NodeShell({
 }) {
   return (
     <div
-      className={`rounded-xl bg-white shadow-md min-w-[240px] max-w-[280px] overflow-hidden transition-all duration-200 border ${
+      className={`rounded-xl bg-white shadow-md min-w-[240px] max-w-[280px] transition-all duration-200 border relative ${
         selected
           ? "border-blue-400 ring-2 ring-blue-100"
           : "border-gray-200 hover:shadow-lg"
       }`}
     >
-      <div className={`flex items-center gap-2.5 px-3.5 py-2.5 ${bgColor} border-b ${borderColor}`}>
+      <div className={`flex items-center gap-2.5 px-3.5 py-2.5 ${bgColor} border-b ${borderColor} rounded-t-xl`}>
         <div className={`w-7 h-7 rounded-lg bg-white/80 flex items-center justify-center ${color} shrink-0`}>
           {icon}
         </div>
@@ -603,6 +605,37 @@ export function SendMediaNode({ data }: { data: BuilderNodeData }) {
   );
 }
 
+export function SendContactMessageNode({ data }: { data: BuilderNodeData }) {
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-indigo-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<Users className="w-4 h-4" />}
+        title={data.label || "Send to Contacts"}
+        color="text-indigo-600"
+        bgColor="bg-indigo-50/50"
+        borderColor="border-indigo-100"
+      >
+        <div className="space-y-1">
+          <p className="text-[10px] text-gray-400 uppercase font-medium">Recipient Contacts</p>
+          <p className="text-gray-700 font-medium truncate">
+            {data.targetContactIds && data.targetContactIds.length > 0
+              ? `${data.targetContactIds.length} contact(s) selected`
+              : "No contacts selected"}
+          </p>
+        </div>
+        {data.message && (
+          <div className="mt-1.5 border-t border-gray-100 pt-1.5">
+            <p className="text-[10px] text-gray-400 uppercase font-medium">Message</p>
+            <p className="text-gray-600 line-clamp-2 italic">"{data.message}"</p>
+          </div>
+        )}
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} className="!bg-indigo-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+    </div>
+  );
+}
+
 export function MarkAsReadNode() {
   return (
     <div className="relative">
@@ -652,23 +685,86 @@ export function WaitReplyNode({ data, selected }: { data: BuilderNodeData; selec
   );
 }
 
+export function AIAgentNode({ data, selected }: { data: BuilderNodeData; selected?: boolean }) {
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-purple-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<Brain className="w-4 h-4" />}
+        title="AI Agent"
+        color="text-purple-700"
+        bgColor="bg-purple-50"
+        borderColor="border-purple-100"
+        selected={selected}
+      >
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+            <span className="font-semibold text-gray-700">Model:</span>
+            <span>{data.aiModel || "gpt-4o"}</span>
+          </div>
+          <div className="text-[10px] text-gray-500 truncate">
+            <span className="font-semibold text-gray-700">Output:</span>{" "}
+            <code className="font-mono bg-gray-100 px-1 py-0.5 rounded text-gray-800">
+              {data.aiOutputVariable || "ai_response"}
+            </code>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${data.aiConfigUseSettings ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
+              {data.aiConfigUseSettings ? "Global Settings" : "Manual API Key"}
+            </span>
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${data.aiUseTrainingData ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
+              {data.aiUseTrainingData ? "+ Knowledge" : "Prompt Only"}
+            </span>
+          </div>
+        </div>
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} className="!bg-purple-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+    </div>
+  );
+}
+
+const withNodeActions = (WrappedComponent: any) => {
+  return function NodeActionsWrapper(props: any) {
+    const { id, data } = props;
+    return (
+      <div className="relative group">
+        <WrappedComponent {...props} />
+        {id !== "start" && data?.onDuplicate && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onDuplicate(id);
+            }}
+            className="absolute top-2.5 right-2.5 w-6 h-6 rounded bg-white/90 hover:bg-white flex items-center justify-center text-gray-400 hover:text-blue-600 shadow-sm border border-gray-200 transition-all opacity-80 hover:opacity-100 z-50 cursor-pointer"
+            title="Duplicate Node"
+          >
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+    );
+  };
+};
+
 export const nodeTypes = {
   start: StartNode,
-  conditions: ConditionsNode,
-  custom_reply: CustomReplyNode,
-  user_reply: UserReplyNode,
-  time_gap: TimeGapNode,
-  send_template: SendTemplateNode,
-  assign_user: AssignUserNode,
-  webhook: WebhookNode,
-  mysql: MySQLNode,
-  end: EndNode,
-  add_to_group: AddToGroupNode,
-  update_contact: UpdateContactNode,
-  set_variable: SetVariableNode,
-  send_location: SendLocationNode,
-  send_list_message: SendListMessageNode,
-  send_media: SendMediaNode,
-  mark_as_read: MarkAsReadNode,
-  wait_reply: WaitReplyNode,
+  conditions: withNodeActions(ConditionsNode),
+  custom_reply: withNodeActions(CustomReplyNode),
+  user_reply: withNodeActions(UserReplyNode),
+  time_gap: withNodeActions(TimeGapNode),
+  send_template: withNodeActions(SendTemplateNode),
+  assign_user: withNodeActions(AssignUserNode),
+  webhook: withNodeActions(WebhookNode),
+  mysql: withNodeActions(MySQLNode),
+  end: withNodeActions(EndNode),
+  add_to_group: withNodeActions(AddToGroupNode),
+  update_contact: withNodeActions(UpdateContactNode),
+  set_variable: withNodeActions(SetVariableNode),
+  send_location: withNodeActions(SendLocationNode),
+  send_list_message: withNodeActions(SendListMessageNode),
+  send_media: withNodeActions(SendMediaNode),
+  mark_as_read: withNodeActions(MarkAsReadNode),
+  wait_reply: withNodeActions(WaitReplyNode),
+  ai_agent: withNodeActions(AIAgentNode),
+  send_contact_message: withNodeActions(SendContactMessageNode),
 };

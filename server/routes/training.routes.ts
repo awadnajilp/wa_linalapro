@@ -112,7 +112,7 @@ export function registerTrainingRoutes(app: Express) {
         if (file.mimetype === "application/pdf") {
           const uint8Array = new Uint8Array(file.buffer.buffer, file.buffer.byteOffset, file.buffer.byteLength);
           const parser = new PDFParse(uint8Array);
-          await parser.load();
+          await (parser as any).load();
           const result = await parser.getText();
           content = typeof result === "string" ? result : (result?.text || "");
         } else if (file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {

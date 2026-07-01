@@ -195,7 +195,7 @@ export function registerWhatsAppRoutes(app: Express) {
       let config = await storage.getWarmerConfig(channelId);
       if (!config) {
         // Create one if it doesn't exist
-        const userId = req.user.role === "team" && (req.user as any).createdBy ? (req.user as any).createdBy : req.user.id;
+        const userId = req.user!.role === "team" && (req.user as any).createdBy ? (req.user as any).createdBy : req.user!.id;
         config = await storage.createWarmerConfig({
           channelId,
           isActive: false,
@@ -223,7 +223,7 @@ export function registerWhatsAppRoutes(app: Express) {
       const { isActive, minDelay, maxDelay } = req.body;
       let config = await storage.getWarmerConfig(channelId);
       if (!config) {
-        const userId = req.user.role === "team" && (req.user as any).createdBy ? (req.user as any).createdBy : req.user.id;
+        const userId = req.user!.role === "team" && (req.user as any).createdBy ? (req.user as any).createdBy : req.user!.id;
         config = await storage.createWarmerConfig({
           channelId,
           isActive: isActive ?? false,
@@ -258,7 +258,7 @@ export function registerWhatsAppRoutes(app: Express) {
       }
       let config = await storage.getWarmerConfig(channelId);
       if (!config) {
-        const userId = req.user.role === "team" && (req.user as any).createdBy ? (req.user as any).createdBy : req.user.id;
+        const userId = req.user!.role === "team" && (req.user as any).createdBy ? (req.user as any).createdBy : req.user!.id;
         config = await storage.createWarmerConfig({
           channelId,
           isActive: false,
@@ -740,7 +740,7 @@ if (type === "template") {
       email: "",
       channelId: channel.id,
       status: "active",
-    }));
+    } as any));
 
   const cleanMediaId = (id: any) => (id && /^\d+$/.test(String(id)) ? parseInt(String(id), 10) : id);
 
@@ -920,7 +920,7 @@ if (type === "template") {
         email: "",
         channelId: channel.id,
         status: "active",
-      }));
+      } as any));
 
     // ================= CONVERSATION =================
     let conversation = await storage.getConversationByPhone(to);
@@ -939,7 +939,7 @@ if (type === "template") {
 
     const createdMsg = await storage.createMessage({
       conversationId: conversation.id,
-      content: newMsg,
+      content: newMsg || "",
       direction: "outgoing",
       type,
       status: "sent",
@@ -1069,8 +1069,8 @@ app.post(
         });
       }
 
-      const mediaFile = Array.isArray(req.files?.mediaFile)
-        ? req.files.mediaFile[0]
+      const mediaFile = Array.isArray((req.files as any)?.mediaFile)
+        ? (req.files as any).mediaFile[0]
         : null;
 
       if (!mediaFile) {
@@ -1141,8 +1141,8 @@ app.post(
         return res.status(400).json({ message: "Channel is not configured for WhatsApp" });
       }
 
-      const mediaFile = Array.isArray(req.files?.mediaFile)
-        ? req.files.mediaFile[0]
+      const mediaFile = Array.isArray((req.files as any)?.mediaFile)
+        ? (req.files as any).mediaFile[0]
         : null;
 
       if (!mediaFile) {
@@ -1198,8 +1198,8 @@ app.post(
 
       // 🔥 multer.fields output handling
       const mediaFile =
-        Array.isArray(req.files?.mediaFile)
-          ? req.files.mediaFile[0]
+        Array.isArray((req.files as any)?.mediaFile)
+          ? (req.files as any).mediaFile[0]
           : null;
 
       if (!mediaFile) {

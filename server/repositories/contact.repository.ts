@@ -127,7 +127,7 @@ export class ContactRepository {
     return await db
       .select()
       .from(contacts)
-      .where(eq(contacts.tenantId, tenantId))
+      .where(eq(contacts.createdBy, tenantId))
       .orderBy(desc(contacts.createdAt));
   }
   async getContactByEmail(email: string): Promise<Contact[]> {
@@ -147,7 +147,7 @@ export class ContactRepository {
 
   async getContactStats(channelId?: string) {
     const todayStart = startOfDay(new Date());
-    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday start
+    const weekStart = startOfWeek(new Date()); // Monday start
     const lastWeekStart = subWeeks(weekStart, 1);
     const lastWeekEnd = weekStart;
     // Build condition dynamically
@@ -252,7 +252,7 @@ export class ContactRepository {
 
   const [contact] = await db
     .insert(contacts)
-    .values(insertContact)
+    .values(insertContact as any)
     .returning();
   return contact;
 }
@@ -290,7 +290,7 @@ export class ContactRepository {
 
   async createBulk(insertContacts: InsertContact[]): Promise<Contact[]> {
     if (insertContacts.length === 0) return [];
-    return await db.insert(contacts).values(insertContacts).returning();
+    return await db.insert(contacts).values(insertContacts as any).returning();
   }
 
   async checkExistingPhones(

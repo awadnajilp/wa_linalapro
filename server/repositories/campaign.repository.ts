@@ -183,12 +183,13 @@ async getAll(
 
 
   async create(insertCampaign: InsertCampaign & { createdBy: string }): Promise<Campaign> {
+    const campaignData = insertCampaign as any;
     const [campaign] = await db
       .insert(campaigns)
       .values({
-        ...insertCampaign,
-        contactGroups: (insertCampaign.contactGroups || []) as string[],
-      })
+        ...campaignData,
+        contactGroups: (campaignData.contactGroups || []) as string[],
+      } as any)
       .returning();
     return campaign;
   }

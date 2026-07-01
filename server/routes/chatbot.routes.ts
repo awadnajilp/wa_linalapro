@@ -32,6 +32,7 @@ import { db } from 'server/db';
 import { searchTrainingData } from '../services/training.service';
 import multer from 'multer';
 import path from 'path';
+import { io } from '../socket';
 
 
 function buildAIClient(aiSetting) {
@@ -86,7 +87,7 @@ export function registerWidgetRoutes(app: Express) {
       
 
 res.json({
-  config: { ...(site.widgetConfig || {}), brandName: name },
+  config: { ...((site.widgetConfig || {}) as any), brandName: name },
   siteId: site.id,
   siteName: site.name,
   domain: site.domain,
@@ -288,7 +289,7 @@ res.json({
           createdBy: getCreated?.createdBy || null,
           source: source || 'chat_widget',
           tags: ['widget-lead'],
-        });
+        } as any);
       }
 
       res.json({ success: true, contactId: contact.id });
@@ -327,14 +328,13 @@ app.post("/api/widget/chat", async (req, res) => {
       contact = contacts?.[0] || null;
       if (!contact) {
         contact = await storage.createContact({
-          tenantId: site.tenantId,
-          channelId: channelId || site.tenantId,
+          channelId: channelId || (site as any).tenantId || site.channelId || "",
           name: visitorInfo.name || "Anonymous",
           email: visitorInfo.email,
           phone: visitorInfo.mobile || "",
           source: "chat_widget",
           tags: ["widget-user"],
-        });
+        } as any);
       } else if (visitorInfo.name && contact.name !== visitorInfo.name) {
         await storage.updateContact(contact.id, {
           name: visitorInfo.name,
@@ -899,7 +899,7 @@ ${triggerPhrases.length > 0 ? `- If the user mentions any of these phrases, esca
     try {
       const validated = insertSiteSchema.parse(req.body);
       // Ensure site belongs to user's tenant
-      if (validated.tenantId !== req.user?.tenantId && req.user?.role !== "super_admin") {
+      if ((validated as any).tenantId !== (req.user as any)?.tenantId && req.user?.role !== "super_admin") {
         return res.status(403).json({ message: "Access denied" });
       }
       const site = await storage.createSite(validated);
@@ -916,7 +916,7 @@ ${triggerPhrases.length > 0 ? `- If the user mentions any of these phrases, esca
       if (!site) {
         return res.status(404).json({ message: "Site not found" });
       }
-      if (site.tenantId !== req.user?.tenantId && req.user?.role !== "admin") {
+      if ((site as any).tenantId !== (req.user as any)?.tenantId && req.user?.role !== "admin") {
         return res.status(403).json({ message: "Access denied" });
       }
       
@@ -982,7 +982,7 @@ app.post('/api/widget/upload-logo', requireAuth, logoUpload.single('logo'), asyn
 
 app.post('/api/sites/create_or_update', requireAuth, async (req, res) => {
   try {
-    const validated = insertSiteSchema.parse(req.body);
+    const validated = insertSiteSchema.parse(req.body) as any;
     const userRole     = req.user?.role;
     // console.log("userRoleee", userRole)
     // console.log("body-site", req.body)

@@ -39,7 +39,9 @@ import {
   getAutomationExecutions,
   triggerNewConversation,
   triggerMessageReceived,
-  seedAutomationTemplates
+  seedAutomationTemplates,
+  duplicateAutomation,
+  importAutomation
 } from "../controllers/automation.controller";
 import {
   getFlowData,
@@ -118,6 +120,22 @@ export function registerAutomationRoutes(app: Express) {
     requireAuth,
     extractChannelId,
     toggleAutomation
+  );
+
+  // Duplicate automation
+  app.post(
+    "/api/automations/:id/duplicate",
+    requireAuth,
+    extractChannelId,
+    duplicateAutomation
+  );
+
+  // Import automation
+  app.post(
+    "/api/automations/import",
+    requireAuth,
+    extractChannelId,
+    importAutomation
   );
 
   //

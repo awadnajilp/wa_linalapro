@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loading } from "@/components/ui/loading";
+import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   MoreVertical,
@@ -40,6 +44,7 @@ import {
   UserPlus,
   User as UserIcon,
   ArrowLeft,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { normalizeDate } from "./utils";
@@ -185,6 +190,61 @@ interface MessageThreadProps {
   onCancelReply,
   }: MessageThreadProps) => {
   const demo = isDemoUser(user?.username);
+  const { toast } = useToast();
+
+  const { data: automations = [] } = useQuery<any[]>({
+    queryKey: ["/api/automations", activeChannelId],
+    queryFn: async () => {
+      if (!activeChannelId) return [];
+      const res = await fetch(`/api/automations?channelId=${activeChannelId}`);
+      if (!res.ok) return [];
+      return await res.json();
+    },
+    enabled: !!activeChannelId,
+  });
+
+  const handleTriggerFlow = async (automationId: string, flowName: string) => {
+    const contactId = selectedConversation.contactId || (selectedConversation as any).contact?.id;
+    if (!contactId) {
+      toast({
+        title: "Cannot trigger flow",
+        description: "This conversation is not associated with a registered contact.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/automations/${automationId}/executions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contactId,
+          conversationId: selectedConversation.id,
+          triggerData: {
+            message: {
+              content: `[Manual Trigger: ${flowName}]`,
+            },
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to trigger flow");
+      }
+
+      toast({
+        title: "Flow triggered successfully",
+        description: `Successfully started flow: ${flowName}`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Failed to trigger flow",
+        description: err.message || "An error occurred",
+        variant: "destructive",
+      });
+    }
+  };
 
   const headerName = demo
     ? maskName((selectedConversation as any)?.contactName || "")
@@ -282,6 +342,29 @@ interface MessageThreadProps {
                   <Check className="mr-2 h-4 w-4" />
                   Mark as Resolved
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Zap className="mr-2 h-4 w-4 text-amber-500" />
+                    Trigger Flow
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="max-h-60 overflow-y-auto">
+                    {automations.length === 0 ? (
+                      <DropdownMenuItem disabled>No flows available</DropdownMenuItem>
+                    ) : (
+                      automations
+                        .filter((auto: any) => auto.status === "active")
+                        .map((auto: any) => (
+                          <DropdownMenuItem
+                            key={auto.id}
+                            onClick={() => handleTriggerFlow(auto.id, auto.name)}
+                          >
+                            {auto.name}
+                          </DropdownMenuItem>
+                        ))
+                    )}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onViewContact}>
                   <UserIcon className="mr-2 h-4 w-4" />

@@ -81,7 +81,7 @@ export class MessageQueueRepository {
   async create(insertMessage: InsertMessageQueue): Promise<MessageQueue> {
     const [message] = await db
       .insert(messageQueue)
-      .values(insertMessage)
+      .values(insertMessage as any)
       .returning();
     return message;
   }
@@ -90,7 +90,7 @@ export class MessageQueueRepository {
     if (insertMessages.length === 0) return [];
     return await db
       .insert(messageQueue)
-      .values(insertMessages)
+      .values(insertMessages as any)
       .returning();
   }
 

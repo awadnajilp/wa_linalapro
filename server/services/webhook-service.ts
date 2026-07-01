@@ -42,7 +42,7 @@ export interface WhatsAppWebhookPayload {
           from: string;
           id: string;
           timestamp: string;
-          type: "text" | "image" | "document" | "audio" | "video" | "location" | "sticker" | "contacts";
+          type: string;
           text?: {
             body: string;
           };
@@ -169,7 +169,7 @@ export class WebhookService {
    */
   private static async handleIncomingMessage(
     message: NonNullable<WhatsAppWebhookPayload["entry"][0]["changes"][0]["value"]["messages"]>[0],
-    contact: WhatsAppWebhookPayload["entry"][0]["changes"][0]["value"]["contacts"] extends Array<infer T> ? T | undefined : undefined,
+    contact: NonNullable<WhatsAppWebhookPayload["entry"][0]["changes"][0]["value"]["contacts"]>[0] | undefined,
     channelId: string
   ): Promise<void> {
     try {
@@ -203,13 +203,14 @@ export class WebhookService {
             });
 
             try {
-              const { getIO } = await import('../socket');
-              const io = getIO();
-              io.to(`conversation:${reactedMessage.conversationId}`).emit('message_reaction', {
-                conversationId: reactedMessage.conversationId,
-                messageId: reactedMessage.id,
-                reactions: [...reactions],
-              });
+              const { io } = await import('../socket');
+              if (io) {
+                io.to(`conversation:${reactedMessage.conversationId}`).emit('message_reaction', {
+                  conversationId: reactedMessage.conversationId,
+                  messageId: reactedMessage.id,
+                  reactions: [...reactions],
+                });
+              }
             } catch (socketErr) {
               console.warn('Failed to emit reaction socket event:', socketErr);
             }
@@ -282,7 +283,7 @@ export class WebhookService {
         await storage.updateMessage(message.id, {
           status: status.status,
           metadata: {
-            ...message.metadata,
+            ...(message.metadata as Record<string, any>),
             conversationId: status.conversation?.id,
             pricing: status.pricing,
           },

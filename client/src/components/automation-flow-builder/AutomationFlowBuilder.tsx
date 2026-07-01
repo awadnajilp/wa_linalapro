@@ -45,7 +45,7 @@ import {
   Template,
   Member,
 } from "./types";
-import { uid, defaultsByKind, transformAutomationToFlow } from "./utils";
+import { uid, defaultsByKind, transformAutomationToFlow, validateNodeConfig } from "./utils";
 import { nodeTypes } from "./NodeComponents";
 import { CustomEdge } from "./CustomEdge";
 import { ConfigPanel } from "./ConfigPanel";
@@ -277,6 +277,39 @@ export default function AutomationFlowBuilder({
     );
   };
 
+  const duplicateNode = useCallback((nodeId: string) => {
+    setNodes((currentNodes) => {
+      const originalNode = currentNodes.find((n) => n.id === nodeId);
+      if (!originalNode) return currentNodes;
+
+      const id = uid();
+      const newNode: Node<BuilderNodeData> = {
+        id,
+        type: originalNode.type,
+        position: {
+          x: originalNode.position.x + 50,
+          y: originalNode.position.y + 50,
+        },
+        data: {
+          ...JSON.parse(JSON.stringify(originalNode.data)),
+        },
+      };
+
+      setTimeout(() => setSelectedId(id), 0);
+      return [...currentNodes, newNode];
+    });
+  }, [setNodes]);
+
+  const nodesWithCallbacks = useMemo(() => {
+    return nodes.map((node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        onDuplicate: duplicateNode,
+      },
+    }));
+  }, [nodes, duplicateNode]);
+
   const saveMutation = useMutation({
     mutationFn: async (payload: any) => {
       const formData = new FormData();
@@ -340,6 +373,61 @@ export default function AutomationFlowBuilder({
     },
   });
 
+  const handleExport = () => {
+    try {
+      const backendNodes = nodes
+        .filter((n) => n.id !== "start")
+        .map((node) => ({
+          nodeId: node.id,
+          type: node.type,
+          subtype: node.data?.kind || node.type,
+          position: {
+            x: node.position.x,
+            y: node.position.y,
+          },
+          measured: node.measured || {},
+          data: node.data || {},
+          connections: node.data?.connections || [],
+        }));
+
+      const backendEdges = edges.map((edge) => ({
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: edge.sourceHandle || null,
+        animated: !!edge.animated,
+      }));
+
+      const exportData = {
+        name,
+        description,
+        trigger,
+        triggerConfig: automation?.triggerConfig || {},
+        nodes: backendNodes,
+        edges: backendEdges,
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_flow.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({ title: "Flow exported successfully" });
+    } catch (err: any) {
+      toast({
+        title: "Export failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSave = () => {
     if (!name.trim()) {
       toast({
@@ -348,6 +436,21 @@ export default function AutomationFlowBuilder({
         variant: "destructive",
       });
       return;
+    }
+
+    // Validate each node config
+    for (const node of nodes) {
+      if (node.id === "start") continue;
+      const errorMsg = validateNodeConfig(node);
+      if (errorMsg) {
+        toast({
+          title: "Incomplete Node Configuration",
+          description: errorMsg,
+          variant: "destructive",
+        });
+        setSelectedId(node.id);
+        return;
+      }
     }
 
     const backendNodes = nodes
@@ -509,13 +612,14 @@ export default function AutomationFlowBuilder({
           automation={automation}
           onClose={onClose}
           onSave={handleSave}
+          onExport={handleExport}
           isSaving={saveMutation.isPending}
           isDemo={user?.username === "demouser"}
         />
 
         <div className="flex-1">
           <ReactFlow
-            nodes={nodes}
+            nodes={nodesWithCallbacks}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}

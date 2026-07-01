@@ -54,6 +54,7 @@ import {
   Paperclip,
   CheckCheck,
   MessageSquare,
+  Brain,
 } from "lucide-react";
 import { BuilderNodeData, NodeKind, Template, Member, ListSection } from "./types";
 import { FileUploadButton } from "./FileUploadButton";
@@ -62,6 +63,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Upload, Link as LinkIcon, Loader2 } from "lucide-react";
 
 interface ConfigPanelProps {
@@ -93,6 +95,8 @@ const kindMeta: Record<NodeKind, { icon: any; label: string; color: string; bgTi
   send_media: { icon: Paperclip, label: "Send Media", color: "text-pink-600", bgTint: "bg-pink-50" },
   mark_as_read: { icon: CheckCheck, label: "Mark as Read", color: "text-lime-600", bgTint: "bg-lime-50" },
   wait_reply: { icon: MessageSquare, label: "Wait for Reply", color: "text-amber-600", bgTint: "bg-amber-50" },
+  ai_agent: { icon: Brain, label: "AI Agent", color: "text-purple-600", bgTint: "bg-purple-50" },
+  send_contact_message: { icon: Users, label: "Send to Contacts", color: "text-indigo-600", bgTint: "bg-indigo-50" },
 };
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -114,6 +118,27 @@ export function ConfigPanel({
   const [mediaUploading, setMediaUploading] = useState(false);
   const [localHeaders, setLocalHeaders] = useState<{ id: string; key: string; value: string }[]>([]);
   const { toast } = useToast();
+  const [searchContactQuery, setSearchContactQuery] = useState("");
+
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["/api/contacts-all", channelId],
+    queryFn: async () => {
+      if (!channelId) return [];
+      const res = await apiRequest("GET", `/api/contacts-all?channelId=${channelId}`);
+      if (!res.ok) return [];
+      return await res.json();
+    },
+    enabled: !!channelId,
+  });
+
+  const { data: userChannels = [] } = useQuery({
+    queryKey: ["/api/channels"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/channels");
+      if (!res.ok) return [];
+      return await res.json();
+    },
+  });
 
   useEffect(() => {
     setTemplateMeta(null);
@@ -925,6 +950,121 @@ export function ConfigPanel({
             </>
           )}
 
+          {d.kind === "ai_agent" && (
+            <>
+              <SectionHeader>AI Agent Configuration</SectionHeader>
+              <div className="space-y-4 bg-purple-50/50 rounded-xl p-4 border border-purple-100">
+                
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">API Key Source</Label>
+                  <Select
+                    value={d.aiConfigUseSettings !== false ? "settings" : "manual"}
+                    onValueChange={(v) => onChange({ aiConfigUseSettings: v === "settings" })}
+                  >
+                    <SelectTrigger className="h-9 rounded-lg bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="settings">Use Settings Configuration</SelectItem>
+                      <SelectItem value="manual">Manual API Key</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {d.aiConfigUseSettings === false && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">OpenAI API Key</Label>
+                    <Input
+                      type="password"
+                      value={d.aiApiKey || ""}
+                      onChange={(e) => onChange({ aiApiKey: e.target.value })}
+                      placeholder="sk-proj-..."
+                      className="h-9 text-sm rounded-lg bg-white"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Model</Label>
+                  <Select
+                    value={d.aiModel || "gpt-4o"}
+                    onValueChange={(v) => onChange({ aiModel: v })}
+                  >
+                    <SelectTrigger className="h-9 rounded-lg bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gpt-4o">gpt-4o (Recommended)</SelectItem>
+                      <SelectItem value="gpt-4-turbo">gpt-4-turbo</SelectItem>
+                      <SelectItem value="gpt-3.5-turbo">gpt-3.5-turbo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-gray-100">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs font-semibold text-gray-700">Use Training Data</Label>
+                    <div className="text-[10px] text-gray-400">Search PDFs, DOCX, URLs, and articles</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={d.aiUseTrainingData !== false}
+                    onChange={(e) => onChange({ aiUseTrainingData: e.target.checked })}
+                    className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">System Prompt</Label>
+                  <Textarea
+                    rows={4}
+                    value={d.aiSystemPrompt || ""}
+                    onChange={(e) => onChange({ aiSystemPrompt: e.target.value })}
+                    placeholder="Instructions for the AI. You can reference variables like {{contactName}} or {{last_message}}."
+                    className="text-xs rounded-lg bg-white"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save AI Response to Variable</Label>
+                  <Input
+                    value={d.aiOutputVariable || "ai_response"}
+                    onChange={(e) => onChange({ aiOutputVariable: e.target.value })}
+                    placeholder="e.g., ai_response"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400 mt-1 leading-relaxed">
+                    The resulting AI text will be saved to this flow variable. You can then output it to the user in a Send Message node using: <code className="bg-gray-100 px-1 rounded font-mono">{"{{ai_response}}"}</code>.
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-[10px] font-bold text-gray-400">Available Variables:</div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {[
+                      { key: "contactName", label: "Contact Name" },
+                      { key: "contactPhone", label: "Contact Phone" },
+                      { key: "last_message", label: "Last Message" },
+                    ].map((v) => (
+                      <button
+                        key={v.key}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          const current = d.aiSystemPrompt || "";
+                          onChange({ aiSystemPrompt: current + `{{${v.key}}}` });
+                        }}
+                        className="px-2 py-1 text-[10px] font-mono bg-purple-50 border border-purple-200 rounded-md text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer"
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            </>
+          )}
+
           {d.kind === "end" && (
             <>
               <SectionHeader>End Settings</SectionHeader>
@@ -1321,6 +1461,119 @@ export function ConfigPanel({
                     />
                   </div>
                 )}
+              </div>
+            </>
+          )}
+
+          {d.kind === "send_contact_message" && (
+            <>
+              <SectionHeader>Channel Settings</SectionHeader>
+              <div className="space-y-3 bg-indigo-50/50 rounded-xl p-4 border border-indigo-100 mb-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-indigo-500" /> Send From Channel
+                  </Label>
+                  <Select
+                    value={d.sendContactChannelId || "default"}
+                    onValueChange={(v) => onChange({ sendContactChannelId: v === "default" ? "" : v })}
+                  >
+                    <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
+                      <SelectValue placeholder="Select a channel" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Default (Automation Channel)</SelectItem>
+                      {(userChannels as any[]).map((ch: any) => (
+                        <SelectItem key={ch.id} value={ch.id}>
+                          {ch.name} ({ch.phoneNumber || ch.connectionMethod})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <SectionHeader>Recipient Contacts</SectionHeader>
+              <div className="space-y-4 bg-indigo-50/50 rounded-xl p-4 border border-indigo-100">
+                {/* Search input for contacts */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Search Contacts</Label>
+                  <Input
+                    placeholder="Search by name or phone..."
+                    value={searchContactQuery}
+                    onChange={(e) => setSearchContactQuery(e.target.value)}
+                    className="h-9 text-sm bg-white rounded-lg"
+                  />
+                </div>
+
+                {/* Scrollable list of checkboxes */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700 flex justify-between">
+                    <span>Select Contacts</span>
+                    <span className="text-[10px] text-gray-400">
+                      {d.targetContactIds?.length || 0} selected
+                    </span>
+                  </Label>
+                  <ScrollArea className="h-40 border border-gray-200 rounded-lg p-2 bg-white">
+                    {contacts.length === 0 ? (
+                      <div className="text-[10px] text-gray-400 italic p-2">No contacts found.</div>
+                    ) : (
+                      (() => {
+                        const filtered = (contacts as any[]).filter(
+                          (c: any) =>
+                            c.name?.toLowerCase().includes(searchContactQuery.toLowerCase()) ||
+                            c.phone?.includes(searchContactQuery)
+                        );
+                        if (filtered.length === 0) {
+                          return <div className="text-[10px] text-gray-400 italic p-2">No matching contacts.</div>;
+                        }
+                        return filtered.map((c: any) => {
+                          const isChecked = d.targetContactIds?.includes(c.id) || false;
+                          return (
+                            <div key={c.id} className="flex items-center space-x-2 py-1 px-1 hover:bg-gray-50 rounded">
+                              <Checkbox
+                                id={`contact-${c.id}`}
+                                checked={isChecked}
+                                onCheckedChange={(checked) => {
+                                  const currentIds = d.targetContactIds || [];
+                                  let newIds;
+                                  if (checked) {
+                                    newIds = [...currentIds, c.id];
+                                  } else {
+                                    newIds = currentIds.filter((id) => id !== c.id);
+                                  }
+                                  onChange({ targetContactIds: newIds });
+                                }}
+                              />
+                              <label
+                                htmlFor={`contact-${c.id}`}
+                                className="text-xs text-gray-700 cursor-pointer select-none truncate flex-1"
+                                title={`${c.name} (${c.phone})`}
+                              >
+                                {c.name} <span className="text-[10px] text-gray-400">({c.phone})</span>
+                              </label>
+                            </div>
+                          );
+                        });
+                      })()
+                    )}
+                  </ScrollArea>
+                </div>
+              </div>
+
+              <SectionHeader>Message Content</SectionHeader>
+              <div className="space-y-4 bg-indigo-50/50 rounded-xl p-4 border border-indigo-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Message Text</Label>
+                  <Textarea
+                    placeholder="Enter your message..."
+                    value={d.message || ""}
+                    onChange={(e) => onChange({ message: e.target.value })}
+                    className="min-h-[100px] text-sm bg-white rounded-lg"
+                  />
+                  <p className="text-[10px] text-gray-400 leading-normal">
+                    You can use variables in the flow execution (e.g. <code className="bg-gray-100 px-1 rounded">{"{{name}}"}</code>, <code className="bg-gray-100 px-1 rounded">{"{{phone}}"}</code>, or custom variables set via Set Variable node).
+                  </p>
+                </div>
               </div>
             </>
           )}

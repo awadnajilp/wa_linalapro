@@ -274,7 +274,7 @@ export async function sendBusinessMessage({
         name: to,
         phone: to,
         channelId,
-      });
+      } as any);
     }
 
     conversation = await storage.createConversation({

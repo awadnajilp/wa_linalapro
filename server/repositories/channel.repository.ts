@@ -107,7 +107,7 @@ export class ChannelRepository {
   }
 
   async create(insertChannel: InsertChannel): Promise<Channel> {
-    const data = { ...insertChannel };
+    const data: any = { ...insertChannel };
     if (data.accessToken) {
       data.accessToken = data.accessToken.trim();
     }

@@ -32,7 +32,7 @@ import { eq, and, desc } from "drizzle-orm";
 export class AutomationRepository {
   // Automations CRUD
   async create(data: InsertAutomation): Promise<Automation> {
-    const [automation] = await db.insert(automations).values(data).returning();
+    const [automation] = await db.insert(automations).values(data as any).returning();
     return automation;
   }
 
@@ -75,13 +75,13 @@ export class AutomationRepository {
 
   // Automation Nodes CRUD
   async createNode(data: InsertAutomationNode): Promise<AutomationNode> {
-    const [node] = await db.insert(automationNodes).values(data).returning();
+    const [node] = await db.insert(automationNodes).values(data as any).returning();
     return node;
   }
 
   async createNodes(data: InsertAutomationNode[]): Promise<AutomationNode[]> {
     if (data.length === 0) return [];
-    return await db.insert(automationNodes).values(data).returning();
+    return await db.insert(automationNodes).values(data as any).returning();
   }
 
   async findNodesByAutomation(automationId: string): Promise<AutomationNode[]> {
@@ -106,7 +106,7 @@ export class AutomationRepository {
 
   // Automation Executions
   async createExecution(data: InsertAutomationExecution): Promise<AutomationExecution> {
-    const [execution] = await db.insert(automationExecutions).values(data).returning();
+    const [execution] = await db.insert(automationExecutions).values(data as any).returning();
     return execution;
   }
 
@@ -138,7 +138,7 @@ export class AutomationRepository {
 
   // Execution Logs
   async createExecutionLog(data: InsertAutomationExecutionLog): Promise<AutomationExecutionLog> {
-    const [log] = await db.insert(automationExecutionLogs).values(data).returning();
+    const [log] = await db.insert(automationExecutionLogs).values(data as any).returning();
     return log;
   }
 

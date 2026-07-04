@@ -62,6 +62,7 @@ export const users = pgTable("users", {
   paypalCustomerId: varchar("paypal_customer_id"),
   paystackCustomerCode: varchar("paystack_customer_code"),
   mercadopagoCustomerId: varchar("mercadopago_customer_id"),
+  sarvamApiKey: text("sarvam_api_key"),
 });
 
 // Conversation assignments to users
@@ -1776,3 +1777,24 @@ export type WarmerConfig = typeof warmerConfigs.$inferSelect;
 export type InsertWarmerConfig = typeof warmerConfigs.$inferInsert;
 export type WarmerMessage = typeof warmerMessages.$inferSelect;
 export type InsertWarmerMessage = typeof warmerMessages.$inferInsert;
+
+// ─── Voice Profiles ───────────────────────────
+export const voiceProfiles = pgTable("voice_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  provider: text("provider").notNull().default("sarvam"), // 'sarvam' | 'elevenlabs' | 'cartesian'
+  voiceId: text("voice_id").notNull(),
+  languageCode: text("language_code").default("en-IN"),
+  status: text("status").default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertVoiceProfileSchema = createInsertSchema(voiceProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type VoiceProfile = typeof voiceProfiles.$inferSelect;
+export type InsertVoiceProfile = typeof voiceProfiles.$inferInsert;

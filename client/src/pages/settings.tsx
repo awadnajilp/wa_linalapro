@@ -34,7 +34,9 @@ import {
   Users,
   Key,
   Flame,
+  Mic,
 } from "lucide-react";
+import AIVoicesSettings from "@/components/settings/AIVoicesSettings";
 import { ChannelSettings } from "@/components/settings/ChannelSettings";
 import { WebhookSettings } from "@/components/settings/WebhookSettings";
 import { ApiKeySettings } from "@/components/settings/ApiKeySettings";
@@ -201,6 +203,11 @@ export default function Settings() {
                     <span>{t("settings.ai_setting.tabName")}</span>
                   </TabsTrigger>
 
+                  <TabsTrigger value="ai_voices" className={tabTriggerClass}>
+                    <Mic className="w-4 h-4 shrink-0" />
+                    <span>AI Voices</span>
+                  </TabsTrigger>
+
                   <TabsTrigger value="message_logs" className={tabTriggerClass}>
                     <ScrollText className="w-4 h-4 shrink-0" />
                     <span>Message Logs</span>
@@ -268,6 +275,10 @@ export default function Settings() {
             <>
               <TabsContent value="ai_setting">
                 <AISettings />
+              </TabsContent>
+
+              <TabsContent value="ai_voices">
+                <AIVoicesSettings />
               </TabsContent>
 
               <TabsContent value="whatsapp">

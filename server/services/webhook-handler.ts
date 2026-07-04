@@ -17,7 +17,7 @@
 
 import { db } from "../db";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
-import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites } from "@shared/schema";
+import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites, automationExecutions, automations, voiceProfiles } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { triggerNotification, triggerThrottledNotification, NOTIFICATION_EVENTS } from "./notification.service";
@@ -25,6 +25,7 @@ import OpenAI from "openai";
 import { searchTrainingData } from "./training.service";
 import { WhatsAppApiService } from "./whatsapp-api";
 import { triggerService } from "./automation-execution-service";
+import { VoiceManager } from "./voice";
 
 
 export interface WebhookMessage {
@@ -482,6 +483,81 @@ export class WebhookHandler {
           content = `[Unsupported: Message type "${message.type}" unknown]`;
           metadata = { type: "unsupported", originalType: message.type, rawWebhook: message };
           break;
+      }
+
+      // Intercept audio message for voice-enabled AI takeover nodes
+      if (message.type === "audio" && mediaId && conversation.length > 0) {
+        try {
+          const [pendingExec] = await db
+            .select()
+            .from(automationExecutions)
+            .where(
+              and(
+                eq(automationExecutions.conversationId, conversation[0].id),
+                eq(automationExecutions.status, "paused")
+              )
+            )
+            .limit(1);
+
+          if (pendingExec && pendingExec.currentNodeId) {
+            const autoData = await db.query.automations.findFirst({
+              where: eq(automations.id, pendingExec.automationId),
+            });
+            const flowJson = autoData?.flowJson as any;
+            const node = flowJson?.nodes?.find(
+              (n: any) => n.id === pendingExec.currentNodeId || n.nodeId === pendingExec.currentNodeId
+            );
+
+            if (node && node.type === "ai_agent" && node.data?.aiVoiceEnabled === true) {
+              const voiceProfileId = node.data.voiceProfileId;
+              let voiceProfile: any = null;
+              if (voiceProfileId) {
+                voiceProfile = await db.query.voiceProfiles.findFirst({
+                  where: eq(voiceProfiles.id, voiceProfileId),
+                });
+              }
+
+              if (voiceProfile) {
+                let sarvamApiKey = "";
+                if (autoData?.createdBy) {
+                  const ownerUser = await db.query.users.findFirst({
+                    where: eq(users.id, autoData.createdBy),
+                  });
+                  sarvamApiKey = ownerUser?.sarvamApiKey || "";
+                }
+                if (!sarvamApiKey) {
+                  const [defaultUser] = await db
+                    .select()
+                    .from(users)
+                    .where(eq(users.email, "awadnajilp@gmail.com"))
+                    .limit(1);
+                  sarvamApiKey = defaultUser?.sarvamApiKey || "";
+                }
+
+                if (sarvamApiKey) {
+                  console.log(`[STT Webhook] Downloading audio note ${mediaId} from WhatsApp...`);
+                  const waApi = new WhatsAppApiService(channel[0]);
+                  const { buffer } = await waApi.getMediaBuffer(mediaId);
+
+                  console.log(`[STT Webhook] Transcribing audio via provider ${voiceProfile.provider}...`);
+                  const provider = VoiceManager.getProvider(voiceProfile.provider);
+                  const transcriptText = await provider.transcribe(
+                    buffer,
+                    node.data.voiceLanguage || voiceProfile.languageCode || "en-IN",
+                    { apiKey: sarvamApiKey }
+                  );
+
+                  if (transcriptText) {
+                    console.log(`[STT Webhook] Transcription successful: "${transcriptText}"`);
+                    content = transcriptText;
+                  }
+                }
+              }
+            }
+          }
+        } catch (sttErr) {
+          console.error("[STT Webhook] Failed to transcribe voice note:", sttErr);
+        }
       }
 
       let mediaUrl: string | undefined;

@@ -42,6 +42,7 @@ import {userRoutes} from "./user.route"
 import teamRoutes from "./team.routes";
 import authRoutes from "./auth.routes";
 import { registerSMTPRoutes } from "./smtp.route";
+import { registerVoiceRoutes } from "./voice.routes";
 
 // Import error handler middleware
 import { errorHandler } from "../middlewares/error.middleware";
@@ -71,6 +72,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
 
   userRoutes(app);
   registerSMTPRoutes(app);
+  registerVoiceRoutes(app);
   registerStorageSettingsRoutes(app);
   registerAISettingsRoutes(app);
   registerChannelRoutes(app);

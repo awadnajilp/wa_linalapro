@@ -32,9 +32,12 @@ import {
   groups,
   aiSettings,
   sites,
+  users,
+  voiceProfiles,
 } from "@shared/schema";
 import OpenAI from "openai";
 import { searchTrainingData } from "./training.service";
+import { VoiceManager } from "./voice";
 import { eq, and } from "drizzle-orm";
 import { sendBusinessMessage } from "../services/messageService";
 import { WhatsAppApiService } from "./whatsapp-api";
@@ -3056,11 +3059,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
 
       // If text response was included, send it
       if (responseText) {
-        await sendBusinessMessage({
-          to: getContact.phone,
-          message: responseText,
-          channelId: effectiveChannelId,
-        });
+        await this.sendOutgoingResponse(responseText, nodeData, getContact, effectiveChannelId, context, automation);
       }
 
       // Transition execution out of takeover and down the matched connection path!
@@ -3071,11 +3070,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
 
     // No tool called. Send the response message text to the user and pause to stay in takeover state.
     if (responseText) {
-      await sendBusinessMessage({
-        to: getContact.phone,
-        message: responseText,
-        channelId: effectiveChannelId,
-      });
+      await this.sendOutgoingResponse(responseText, nodeData, getContact, effectiveChannelId, context, automation);
     }
 
     const pendingId = `${context.executionId}_${node.nodeId}_${Date.now()}`;
@@ -3112,6 +3107,122 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
 
     console.log(`[AI Agent] Paused execution ${context.executionId} on node ${node.nodeId} (takeover)`);
     return { action: 'execution_paused', response: responseText };
+  }
+
+  private async sendOutgoingResponse(
+    responseText: string,
+    nodeData: any,
+    getContact: any,
+    effectiveChannelId: string | null,
+    context: ExecutionContext,
+    automation: any
+  ) {
+    if (!responseText) return;
+
+    const aiVoiceEnabled = nodeData.aiVoiceEnabled === true;
+    const voiceProfileId = nodeData.voiceProfileId;
+
+    let voiceProfile: any = null;
+    if (aiVoiceEnabled && voiceProfileId) {
+      voiceProfile = await db.query.voiceProfiles.findFirst({
+        where: eq(voiceProfiles.id, voiceProfileId),
+      });
+    }
+
+    if (aiVoiceEnabled && voiceProfile) {
+      try {
+        const freshAutomation = automation || await this.getAutomationWithFlow(context.automationId);
+        let sarvamApiKey = "";
+        if (freshAutomation?.createdBy) {
+          const ownerUser = await db.query.users.findFirst({
+            where: eq(users.id, freshAutomation.createdBy),
+          });
+          sarvamApiKey = ownerUser?.sarvamApiKey || "";
+        }
+        if (!sarvamApiKey) {
+          const [defaultUser] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, "awadnajilp@gmail.com"))
+            .limit(1);
+          sarvamApiKey = defaultUser?.sarvamApiKey || "";
+        }
+
+        if (sarvamApiKey) {
+          console.log(`[AI Agent Voice] Synthesizing speech via ${voiceProfile.provider} for voice ${voiceProfile.name}...`);
+          const provider = VoiceManager.getProvider(voiceProfile.provider);
+          const audioBuffer = await provider.synthesize(
+            responseText,
+            voiceProfile.voiceId,
+            nodeData.voiceLanguage || voiceProfile.languageCode || "en-IN",
+            { apiKey: sarvamApiKey }
+          );
+
+          // Save buffer to a local temporary file to upload
+          const tempFilename = `tts_${Date.now()}_${randomUUID().substring(0, 8)}.mp3`;
+          const tempPath = path.join("uploads", "media", tempFilename);
+          const dir = path.dirname(tempPath);
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+          }
+          fs.writeFileSync(tempPath, audioBuffer);
+
+          const getChannel = await db.query.channels.findFirst({
+            where: eq(channels.id, effectiveChannelId || ""),
+          });
+
+          let messageId = "";
+          if (getChannel) {
+            const waApi = new WhatsAppApiService(getChannel);
+            if (getChannel.connectionMethod === "qr_code") {
+              const res = await BaileysManager.sendMediaMessage(
+                getChannel.id,
+                getContact.phone,
+                { buffer: audioBuffer, mimeType: "audio/mp4" },
+                ""
+              );
+              messageId = res?.messages?.[0]?.id || `voice_${randomUUID()}`;
+            } else {
+              const mediaId = await waApi.uploadMedia(tempPath, "audio/mpeg");
+              const res = await waApi.sendMediaMessagee(getContact.phone, mediaId, "audio");
+              messageId = res?.messages?.[0]?.id || mediaId;
+            }
+          }
+
+          // Write text message to inbox/database so agents can read it
+          const createdMessage = await storage.createMessage({
+            conversationId: context.conversationId,
+            content: responseText,
+            status: "sent",
+            fromUser: false,
+            whatsappMessageId: messageId || `voice_${randomUUID()}`,
+          });
+
+          await storage.updateConversation(context.conversationId, {
+            lastMessageAt: new Date(),
+            lastMessageText: responseText,
+          });
+
+          if ((global as any).broadcastToConversation) {
+            (global as any).broadcastToConversation(context.conversationId, {
+              type: "new-message",
+              message: createdMessage,
+            });
+          }
+          return;
+        }
+      } catch (voiceErr) {
+        console.error("[AI Agent Voice] TTS synthesis or transmission failed, falling back to text:", voiceErr);
+      }
+    }
+
+    // Fallback: normal text message send
+    await sendBusinessMessage({
+      to: getContact.phone,
+      message: responseText,
+      channelId: effectiveChannelId || undefined,
+      conversationId: context.conversationId,
+    });
   }
 
   private replaceVariables(text: string, variables: Record<string, any>): string {

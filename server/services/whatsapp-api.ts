@@ -1465,6 +1465,40 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
     return localPath;
   }
 
+  async getMediaBuffer(mediaId: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    const mediaUrl = await this.getMediaUrl(mediaId);
+    if (!mediaUrl) {
+      throw new Error(`Failed to resolve media URL for ID: ${mediaId}`);
+    }
+
+    const isMetaMedia = mediaUrl.includes("fbsbx.com") || 
+                        mediaUrl.includes("facebook.com") || 
+                        mediaUrl.includes("whatsapp.com");
+
+    if (!isMetaMedia) {
+      const buffer = await this.resolveMediaBuffer(mediaUrl);
+      return { buffer, mimeType: "audio/ogg" };
+    }
+
+    const response = await fetch(mediaUrl, {
+      headers: {
+        Authorization: `Bearer ${this.channel.accessToken}`,
+        "User-Agent": "WhatsAppBusinessAPI/1.0",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to download media from Meta (${response.status})`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const mimeType = response.headers.get("content-type") || "audio/ogg";
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      mimeType,
+    };
+  }
+
   async sendMediaMessageOLDDDAA(
     to: string,
     mediaId: string,

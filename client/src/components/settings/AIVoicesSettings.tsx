@@ -76,7 +76,8 @@ const PREDEFINED_VOICES = [
   { id: "kavya", name: "Kavya (Female - Hindi/English)" },
   { id: "rahul", name: "Rahul (Male - Hindi/English)" },
   { id: "amit", name: "Amit (Male - Hindi/English)" },
-  { id: "anushka", name: "Anushka (Female - Hindi/English)" }
+  { id: "anushka", name: "Anushka (Female - Hindi/English)" },
+  { id: "custom_speaker", name: "Custom Speaker ID (Manually Input)" }
 ];
 
 export default function AIVoicesSettings(): JSX.Element {
@@ -89,7 +90,8 @@ export default function AIVoicesSettings(): JSX.Element {
 
   // Predefined voice creation states
   const [stdName, setStdName] = useState("");
-  const [stdVoiceId, setStdVoiceId] = useState("meera");
+  const [stdVoiceId, setStdVoiceId] = useState("anushka");
+  const [customSpeakerId, setCustomSpeakerId] = useState("");
   const [stdLanguage, setStdLanguage] = useState("en-IN");
   const [isCreatingStd, setIsCreatingStd] = useState(false);
 
@@ -169,12 +171,21 @@ export default function AIVoicesSettings(): JSX.Element {
       return;
     }
 
+    if (stdVoiceId === "custom_speaker" && !customSpeakerId.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Required",
+        description: "Please enter your custom Speaker ID.",
+      });
+      return;
+    }
+
     setIsCreatingStd(true);
     try {
       const res = await apiRequest("POST", "/api/voice-profiles", {
         name: stdName,
         provider: "sarvam",
-        voiceId: stdVoiceId,
+        voiceId: stdVoiceId === "custom_speaker" ? customSpeakerId.trim() : stdVoiceId,
         languageCode: stdLanguage,
       });
 
@@ -504,6 +515,16 @@ export default function AIVoicesSettings(): JSX.Element {
                       onChange={(e) => setStdName(e.target.value)}
                     />
                   </div>
+                  {stdVoiceId === "custom_speaker" && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-gray-500 font-medium">Custom Speaker ID</label>
+                      <Input
+                        placeholder="Paste your custom cloned Speaker ID from Sarvam.ai"
+                        value={customSpeakerId}
+                        onChange={(e) => setCustomSpeakerId(e.target.value)}
+                      />
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-gray-500 font-medium">Speaker Voice</label>

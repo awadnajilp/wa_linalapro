@@ -2949,6 +2949,40 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     // 1. Interpolate variables in System Prompt
     let systemPrompt = this.replaceVariables(resolvedSystemPrompt, context.variables);
 
+    const aiVoiceEnabled = nodeData.aiVoiceEnabled === true;
+    if (aiVoiceEnabled) {
+      const voiceProfileId = nodeData.voiceProfileId;
+      let voiceProfile: any = null;
+      if (voiceProfileId) {
+        voiceProfile = await db.query.voiceProfiles.findFirst({
+          where: eq(voiceProfiles.id, voiceProfileId),
+        });
+      }
+
+      const langNames: Record<string, string> = {
+        "hi-IN": "Hindi",
+        "bn-IN": "Bengali",
+        "pa-IN": "Punjabi",
+        "or-IN": "Odia",
+        "gu-IN": "Gujarati",
+        "mr-IN": "Marathi",
+        "kn-IN": "Kannada",
+        "ta-IN": "Tamil",
+        "te-IN": "Telugu",
+        "ml-IN": "Malayalam",
+        "en-IN": "English"
+      };
+
+      const targetLangCode = nodeData.voiceLanguage || voiceProfile?.languageCode || "en-IN";
+      const targetLang = langNames[targetLangCode] || "English";
+
+      systemPrompt += `\n\n[VOICE CONVERSATION MODE ACTIVE]`;
+      systemPrompt += `\n- You MUST respond ONLY in the ${targetLang} language. If the user speaks in another language, translate your response to ${targetLang}.`;
+      systemPrompt += `\n- Keep your responses extremely short, concise, and colloquial (maximum 1-2 sentences, under 50 words).`;
+      systemPrompt += `\n- Respond in plain text ONLY. Do NOT use any Markdown formatting (no asterisks '*', no hashes '#', no bullet points, no bold/italic).`;
+      systemPrompt += `\n- Write numbers as words or clear digits so they read naturally.`;
+    }
+
     // 2. Fetch Knowledge Base / Training data if requested
     if (aiUseTrainingData && site) {
       try {

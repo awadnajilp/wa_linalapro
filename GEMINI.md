@@ -90,3 +90,11 @@ A comprehensive security audit was performed with the following results:
 - **Campaign Report Delivery Counter Fix:** Corrected webhook status processor in `webhooks.controller.ts` to update message queue milestones and increment campaign delivery statistics (`deliveredCount`, `readCount`, `failedCount`) even when the campaign message has already been logged in the primary inbox messages database table.
 - **Retrospective Database Backfill:** Executed a database migration script (`server/backfill-campaign-stats.ts`) directly on the production database, backfilling all past webhook statuses and updating delivery/read stats for all existing campaigns retrospectively.
 - **Brand Name Update:** Updated test message channel configuration confirmation text from `WhatsWay` to `LINALA` in both frontend and backend configurations.
+
+### 5. Multi-Provider Voice & Custom Cloning Support (July 2026)
+- **Modular Voice Manager:** Developed a unified provider architecture (`VoiceProvider` interface) supporting speech-to-text (STT), text-to-speech (TTS), and voice cloning across third-party models.
+- **Sarvam.ai Integration:** Built the native Sarvam provider driver, decoding base64 audio responses from TTS payloads and transmitting raw binary buffers for STT and voice cloning.
+- **Flow Builder Integration:** Configured the `ai_agent` takeover node settings panel to allow selecting active voice profiles and target speech languages.
+- **Real-time Webhook Interception:** Updated the webhook engine to intercept inbound audio voice notes, run speech-to-text, parse the transcription as user input, execute the AI agent, synthesize the text response into a voice note using the target voice profile, and send it as a spoken audio note.
+- **AI Voices Dashboard:** Designed a dedicated "AI Voices" tab in Settings to manage keys, register pre-built voices, record custom voice cloning samples directly from the web browser, and delete unused profiles.
+

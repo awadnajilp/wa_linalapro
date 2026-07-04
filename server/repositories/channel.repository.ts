@@ -16,7 +16,7 @@
  */
 
 import { db } from "../db";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql, and, or, ne, isNotNull } from "drizzle-orm";
 import { 
   channels, 
   templates,
@@ -37,51 +37,88 @@ import { inArray } from "drizzle-orm";
 
 export class ChannelRepository {
   async getAll(): Promise<Channel[]> {
-    return await db.select().from(channels).orderBy(desc(channels.createdAt));
+    return await db
+      .select()
+      .from(channels)
+      .where(
+        or(
+          ne(channels.connectionMethod, "qr_code"),
+          eq(channels.isActive, true),
+          isNotNull(channels.phoneNumber)
+        )
+      )
+      .orderBy(desc(channels.createdAt));
   }
 
   async getAllByUserId(userId: string): Promise<Channel[]> {
     return await db
       .select()
       .from(channels)
-      .where(eq(channels.createdBy, userId))
+      .where(
+        and(
+          eq(channels.createdBy, userId),
+          or(
+            ne(channels.connectionMethod, "qr_code"),
+            eq(channels.isActive, true),
+            isNotNull(channels.phoneNumber)
+          )
+        )
+      )
       .orderBy(desc(channels.createdAt));
   }
 
   async getByUser(
-  userId: string,
-  page: number = 1,
-  limit: number = 10
-) {
-  const offset = (page - 1) * limit;
+    userId: string,
+    page: number = 1,
+    limit: number = 10
+  ) {
+    const offset = (page - 1) * limit;
 
-  // Fetch paginated channels
-  const channelsList = await db
-    .select()
-    .from(channels)
-    .where(eq(channels.createdBy, userId))
-    .orderBy(desc(channels.createdAt))
-    .limit(limit)
-    .offset(offset);
+    // Fetch paginated channels
+    const channelsList = await db
+      .select()
+      .from(channels)
+      .where(
+        and(
+          eq(channels.createdBy, userId),
+          or(
+            ne(channels.connectionMethod, "qr_code"),
+            eq(channels.isActive, true),
+            isNotNull(channels.phoneNumber)
+          )
+        )
+      )
+      .orderBy(desc(channels.createdAt))
+      .limit(limit)
+      .offset(offset);
 
-  // Fetch total count
-  const totalResult = await db
-    .select({ total: sql<number>`COUNT(*)` })
-    .from(channels)
-    .where(eq(channels.createdBy, userId));
+    // Fetch total count
+    const totalResult = await db
+      .select({ total: sql<number>`COUNT(*)` })
+      .from(channels)
+      .where(
+        and(
+          eq(channels.createdBy, userId),
+          or(
+            ne(channels.connectionMethod, "qr_code"),
+            eq(channels.isActive, true),
+            isNotNull(channels.phoneNumber)
+          )
+        )
+      );
 
-  const total = totalResult[0]?.total ?? 0;
+    const total = totalResult[0]?.total ?? 0;
 
-  return {
-    data: channelsList,
-    pagination: {
-      total: Number(total),
-      page,
-      limit,
-      totalPages: Math.ceil(Number(total) / limit),
-    },
-  };
-}
+    return {
+      data: channelsList,
+      pagination: {
+        total: Number(total),
+        page,
+        limit,
+        totalPages: Math.ceil(Number(total) / limit),
+      },
+    };
+  }
 
 
 
@@ -188,12 +225,21 @@ export class ChannelRepository {
   }
 
   async getTotalChannelsByUser(createdBy: string): Promise<number> {
-  const result = await db
-    .select({ id: channels.id })
-    .from(channels)
-    .where(eq(channels.createdBy, createdBy));
+    const result = await db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(
+        and(
+          eq(channels.createdBy, createdBy),
+          or(
+            ne(channels.connectionMethod, "qr_code"),
+            eq(channels.isActive, true),
+            isNotNull(channels.phoneNumber)
+          )
+        )
+      );
 
-  return result.length;
-}
+    return result.length;
+  }
 
 }

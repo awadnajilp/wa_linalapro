@@ -27,7 +27,7 @@ import { insertWhatsappChannelSchema } from "@shared/schema";
 import fs from "fs";
 import { db } from "../db";
 import { subscriptions, plans, channels, warmerConfigs, warmerMessages } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { BaileysManager } from "../services/baileys-manager";
 
@@ -65,6 +65,34 @@ export function registerWhatsAppRoutes(app: Express) {
       }
 
       const { name = "QR Channel", phoneNumber = "" } = req.body;
+
+      // Clean up any previously initiated but uncompleted/inactive QR channels for this user
+      try {
+        const uncompleted = await db
+          .select({ id: channels.id })
+          .from(channels)
+          .where(
+            and(
+              eq(channels.connectionMethod, "qr_code"),
+              eq(channels.isActive, false),
+              eq(channels.createdBy, userId),
+              isNull(channels.phoneNumber)
+            )
+          );
+
+        for (const un of uncompleted) {
+          // Delete active Baileys session folder if any
+          try {
+            await BaileysManager.deleteSession(un.id);
+          } catch (sessErr) {
+            console.warn(`Failed to delete Baileys session ${un.id}:`, sessErr);
+          }
+          // Delete from database
+          await db.delete(channels).where(eq(channels.id, un.id));
+        }
+      } catch (cleanErr) {
+        console.warn("Failed to clean up pending QR channels:", cleanErr);
+      }
 
       // 1. Insert channel into DB (starts inactive, will scan to activate)
       const [newChannel] = await db.insert(channels).values({

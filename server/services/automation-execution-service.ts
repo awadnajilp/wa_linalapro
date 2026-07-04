@@ -776,7 +776,11 @@ private stemWord(word: string = ""): string {
 
       const currentNode = automation.nodes.find((n: any) => n.nodeId === pendingExecution.nodeId);
       if (currentNode) {
-        await this.continueToNextNode(currentNode, automation, context, selectedButtonId);
+        if (pendingExecution.nodeType === 'ai_agent') {
+          await this.executeNode(currentNode, automation, context);
+        } else {
+          await this.continueToNextNode(currentNode, automation, context, selectedButtonId);
+        }
       } else {
         throw new Error(`Node ${pendingExecution.nodeId} not found during resume`);
       }
@@ -2912,37 +2916,50 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       throw new Error('No API key configured for AI Agent takeover');
     }
 
-    // 1. Interpolate variables in System Prompt
-    let systemPrompt = this.replaceVariables(aiSystemPrompt, context.variables);
-
-    // 2. Fetch Knowledge Base / Training data if requested
-    if (aiUseTrainingData && effectiveChannelId) {
+    // Fetch site for training data & fallback system prompt
+    let site: any = null;
+    if (effectiveChannelId) {
       try {
         const channelSites = await db
           .select()
           .from(sites)
           .where(eq(sites.channelId, effectiveChannelId))
           .limit(1);
+        site = channelSites[0];
+      } catch (err) {
+        console.warn("[AI Agent] Failed to fetch channel site:", err);
+      }
+    }
 
-        const site = channelSites[0];
-        if (site) {
-          const queryText = context.lastUserMessage || "Hi";
-          const trainingResults = await searchTrainingData(site.id, effectiveChannelId, queryText);
-          
-          let trainingContext = "";
-          if (trainingResults.chunks.length > 0) {
-            trainingContext += "\n\n--- RELEVANT KNOWLEDGE BASE & TRAINING DATA ---\n";
-            trainingContext += trainingResults.chunks.join("\n\n");
+    // Resolve system prompt: if it's the default or empty, try to fallback to main AI agent system prompt
+    let resolvedSystemPrompt = aiSystemPrompt;
+    if ((!resolvedSystemPrompt || resolvedSystemPrompt.trim() === "" || resolvedSystemPrompt === "You are a conversational AI Agent taking over this chat. Answer user questions and call custom functions/tools when needed.") && site?.widgetConfig?.systemPrompt) {
+      resolvedSystemPrompt = site.widgetConfig.systemPrompt;
+      console.log(`[AI Agent] Referencing main AI chatbot system prompt: "${resolvedSystemPrompt.substring(0, 100)}..."`);
+    }
+
+    // 1. Interpolate variables in System Prompt
+    let systemPrompt = this.replaceVariables(resolvedSystemPrompt, context.variables);
+
+    // 2. Fetch Knowledge Base / Training data if requested
+    if (aiUseTrainingData && site) {
+      try {
+        const queryText = context.lastUserMessage || "Hi";
+        const trainingResults = await searchTrainingData(site.id, effectiveChannelId, queryText);
+        
+        let trainingContext = "";
+        if (trainingResults.chunks.length > 0) {
+          trainingContext += "\n\n--- RELEVANT KNOWLEDGE BASE & TRAINING DATA ---\n";
+          trainingContext += trainingResults.chunks.join("\n\n");
+        }
+        if (trainingResults.qaPairs.length > 0) {
+          trainingContext += "\n\n--- RELEVANT FAQ PAIRS ---\n";
+          for (const qa of trainingResults.qaPairs) {
+            trainingContext += `Q: ${qa.question}\nA: ${qa.answer}\n\n`;
           }
-          if (trainingResults.qaPairs.length > 0) {
-            trainingContext += "\n\n--- RELEVANT FAQ PAIRS ---\n";
-            for (const qa of trainingResults.qaPairs) {
-              trainingContext += `Q: ${qa.question}\nA: ${qa.answer}\n\n`;
-            }
-          }
-          if (trainingContext) {
-            systemPrompt += trainingContext;
-          }
+        }
+        if (trainingContext) {
+          systemPrompt += trainingContext;
         }
       } catch (err) {
         console.warn("[AI Agent] Training data search failed:", err);
@@ -2962,10 +2979,13 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       content: msg.content || ""
     }));
 
-    if (openAiMessages.length === 0) {
+    // Ensure the triggering message is appended exactly once (if not already at the end of chatHistory)
+    const cleanLastMsg = (context.lastUserMessage || "").trim();
+    const lastMsgInHistory = openAiMessages[openAiMessages.length - 1];
+    if (cleanLastMsg && (!lastMsgInHistory || lastMsgInHistory.role !== "user" || lastMsgInHistory.content.trim() !== cleanLastMsg)) {
       openAiMessages.push({
         role: "user",
-        content: context.lastUserMessage || "Hi"
+        content: cleanLastMsg
       });
     }
 
@@ -3046,7 +3066,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       // Transition execution out of takeover and down the matched connection path!
       const freshAutomation = automation || await this.getAutomationWithFlow(context.automationId);
       await this.continueToNextNode(node, freshAutomation, context, functionName);
-      return { success: true, toolCall: functionName };
+      return { action: 'execution_paused', toolCall: functionName };
     }
 
     // No tool called. Send the response message text to the user and pause to stay in takeover state.
@@ -3091,7 +3111,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       .where(eq(automationExecutions.id, context.executionId));
 
     console.log(`[AI Agent] Paused execution ${context.executionId} on node ${node.nodeId} (takeover)`);
-    return { success: true, response: responseText };
+    return { action: 'execution_paused', response: responseText };
   }
 
   private replaceVariables(text: string, variables: Record<string, any>): string {

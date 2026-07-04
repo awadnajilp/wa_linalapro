@@ -110,12 +110,12 @@ export class SarvamVoiceProvider implements VoiceProvider {
         inputs: [chunk],
         target_language_code: targetLanguage,
         speaker: speaker,
-        pitch: 0,
+        model: "bulbul:v3",
+
         pace: 1.0,
-        loudness: 1.0,
-        speech_config: {
-          audio_format: "mp3",
-        },
+
+        output_audio_codec: "opus",
+        speech_sample_rate: 24000,
       };
 
       try {

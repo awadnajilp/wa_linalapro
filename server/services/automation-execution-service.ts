@@ -2976,11 +2976,55 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       const targetLangCode = nodeData.voiceLanguage || voiceProfile?.languageCode || "en-IN";
       const targetLang = langNames[targetLangCode] || "English";
 
+      const selectedLength = nodeData.aiResponseLength || "short";
+      const lengthMapping = {
+        ultra_short: "Keep your response extremely short (maximum 1 sentence, under 30 words).",
+        short: "Keep your response short and conversational (1-2 sentences, under 60 words).",
+        detailed: "Keep your response detailed and comprehensive (3-4 sentences, under 120 words)."
+      };
+      const lengthInstruction = lengthMapping[selectedLength] || lengthMapping.short;
+
       systemPrompt += `\n\n[VOICE CONVERSATION MODE ACTIVE]`;
       systemPrompt += `\n- You MUST respond ONLY in the ${targetLang} language. If the user speaks in another language, translate your response to ${targetLang}.`;
-      systemPrompt += `\n- Keep your responses extremely short, concise, and colloquial (maximum 1-2 sentences, under 50 words).`;
+      systemPrompt += `\n- ${lengthInstruction}`;
       systemPrompt += `\n- Respond in plain text ONLY. Do NOT use any Markdown formatting (no asterisks '*', no hashes '#', no bullet points, no bold/italic).`;
       systemPrompt += `\n- Write numbers as words or clear digits so they read naturally.`;
+    }
+
+    // Inject Tone, Goal, and Length guidelines
+    const selectedTone = nodeData.aiTone || "friendly";
+    const toneMapping = {
+      friendly: "friendly, warm, encouraging, and helpful. Use a polite and enthusiastic tone.",
+      professional: "professional, courteous, formal, and clear. Avoid overly casual language.",
+      casual: "casual, relaxed, conversational, and direct.",
+      assertive: "assertive, direct, concise, and focused. Get straight to the point."
+    };
+    systemPrompt += `\n\n[AGENT PERSONA & TONE]\n- Speak in a tone that is: ${toneMapping[selectedTone] || toneMapping.friendly}`;
+
+    const selectedGoal = nodeData.aiConversationGoal || "info_support";
+    const goalMapping = {
+      info_support: "provide precise answers to the user's questions, guide them, and help solve their support queries.",
+      lead_generation: "qualify the lead, ask for relevant info, and capture their contact details.",
+      sales_conversion: "optimize for sales conversion. Address objections, pitch key benefits of Sky ERP, and guide them towards closing a deal or making a purchase decision.",
+      appointment_booking: "guide the user towards booking a demo or scheduling a callback with our team."
+    };
+    systemPrompt += `\n\n[CONVERSATION GOAL]\n- Optimize your conversation to: ${goalMapping[selectedGoal] || goalMapping.info_support}`;
+    const selectedStyle = nodeData.aiLocalStyle || "code_mixed";
+    const styleMapping = {
+      code_mixed: "Speak in a natural, colloquial code-mixed style (e.g., mixing English words like 'pricing', 'support', 'booking', 'lead' into the local language script/pronunciation). This represents the natural local spoken format.",
+      colloquial: "Speak in a colloquial, everyday spoken dialect (local slang) rather than a formal, textbook-like literary translation.",
+      standard: "Speak in grammatically formal, standard textbook translation without slang or mixing."
+    };
+    systemPrompt += `\n\n[LOCALIZATION & TRANSLATION STYLE]\n- You MUST: ${styleMapping[selectedStyle] || styleMapping.code_mixed}`;
+
+    if (!aiVoiceEnabled) {
+      const selectedTextLength = nodeData.aiResponseLength || "detailed";
+      const textLengthMapping = {
+        ultra_short: "extremely short and direct (maximum 1 sentence, under 30 words).",
+        short: "short and conversational (1-2 sentences, under 60 words).",
+        detailed: "detailed, comprehensive, and helpful (3-4 sentences, under 120 words)."
+      };
+      systemPrompt += `\n\n[RESPONSE LENGTH REQUIREMENT]\n- Make your response: ${textLengthMapping[selectedTextLength] || textLengthMapping.detailed}`;
     }
 
     // 2. Fetch Knowledge Base / Training data if requested
@@ -3065,7 +3109,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     const completion = await aiClient.chat.completions.create({
       model: finalModel,
       messages: messagesToSend,
-      temperature: 0.7,
+      temperature: nodeData.aiTemperature !== undefined ? Number(nodeData.aiTemperature) : 0.7,
       max_tokens: 800,
       tools: toolsList.length > 0 ? toolsList : undefined,
     });
@@ -3224,7 +3268,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
           );
 
           // Save buffer to a local temporary file to upload
-          const tempFilename = `tts_${Date.now()}_${randomUUID().substring(0, 8)}.mp3`;
+          const tempFilename = `tts_${Date.now()}_${randomUUID().substring(0, 8)}.ogg`;
           const tempPath = path.join("uploads", "media", tempFilename);
           const dir = path.dirname(tempPath);
           if (!fs.existsSync(dir)) {
@@ -3243,12 +3287,12 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
               const res = await BaileysManager.sendMediaMessage(
                 getChannel.id,
                 getContact.phone,
-                { buffer: audioBuffer, mimeType: "audio/mp4" },
+                { buffer: audioBuffer, mimeType: "audio/ogg; codecs=opus" },
                 ""
               );
               messageId = res?.messages?.[0]?.id || `voice_${randomUUID()}`;
             } else {
-              const mediaId = await waApi.uploadMedia(tempPath, "audio/mpeg");
+              const mediaId = await waApi.uploadMedia(tempPath, "audio/ogg");
               const res = await waApi.sendMediaMessagee(getContact.phone, mediaId, "audio");
               messageId = res?.messages?.[0]?.id || mediaId;
             }

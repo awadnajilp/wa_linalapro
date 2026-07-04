@@ -1139,6 +1139,78 @@ export function ConfigPanel({
                   </Select>
                 </div>
 
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Agent Persona / Tone</Label>
+                  <Select
+                    value={d.aiTone || "friendly"}
+                    onValueChange={(v) => onChange({ aiTone: v })}
+                  >
+                    <SelectTrigger className="h-9 rounded-lg bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="friendly">Friendly & Warm</SelectItem>
+                      <SelectItem value="professional">Professional & Courteous</SelectItem>
+                      <SelectItem value="casual">Casual & Relaxed</SelectItem>
+                      <SelectItem value="assertive">Assertive & Direct</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Conversation Goal</Label>
+                  <Select
+                    value={d.aiConversationGoal || "info_support"}
+                    onValueChange={(v) => onChange({ aiConversationGoal: v })}
+                  >
+                    <SelectTrigger className="h-9 rounded-lg bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="info_support">Information & Support</SelectItem>
+                      <SelectItem value="lead_generation">Lead Qualification & Capture</SelectItem>
+                      <SelectItem value="sales_conversion">Sales Conversion / Close Deal</SelectItem>
+                      <SelectItem value="appointment_booking">Schedule Demo / Call</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">Temperature</Label>
+                    <Select
+                      value={String(d.aiTemperature !== undefined ? d.aiTemperature : "0.5")}
+                      onValueChange={(v) => onChange({ aiTemperature: parseFloat(v) })}
+                    >
+                      <SelectTrigger className="h-9 rounded-lg bg-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0.2">Precise (0.2)</SelectItem>
+                        <SelectItem value="0.5">Balanced (0.5)</SelectItem>
+                        <SelectItem value="0.8">Creative (0.8)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">Response Length</Label>
+                    <Select
+                      value={d.aiResponseLength || "short"}
+                      onValueChange={(v) => onChange({ aiResponseLength: v })}
+                    >
+                      <SelectTrigger className="h-9 rounded-lg bg-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ultra_short">One-liner (Ultra Short)</SelectItem>
+                        <SelectItem value="short">Conversational (Short)</SelectItem>
+                        <SelectItem value="detailed">Detailed (Medium)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-gray-100">
                   <div className="space-y-0.5">
                     <Label className="text-xs font-semibold text-gray-700">Use Training Data</Label>
@@ -1212,6 +1284,22 @@ export function ConfigPanel({
                             <SelectItem value="mr-IN">Marathi</SelectItem>
                             <SelectItem value="gu-IN">Gujarati</SelectItem>
                             <SelectItem value="bn-IN">Bengali</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>\n
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold text-gray-500">Local Dialect & Slang Style</Label>
+                        <Select
+                          value={d.aiLocalStyle || "code_mixed"}
+                          onValueChange={(v) => onChange({ aiLocalStyle: v })}
+                        >
+                          <SelectTrigger className="h-8 text-xs rounded bg-gray-50 border border-gray-200">
+                            <SelectValue placeholder="Select dialect style..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="code_mixed">Code-Mixed (Script + English Terms - Natural)</SelectItem>
+                            <SelectItem value="colloquial">Colloquial (Everyday Spoken Slang)</SelectItem>
+                            <SelectItem value="standard">Standard (Formal Textbook Translation)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

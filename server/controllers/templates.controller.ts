@@ -188,6 +188,21 @@ export const createTemplate = asyncHandler(
     const channel = await storage.getChannel(channelId);
     if (!channel) throw new AppError(404, "Channel not found");
 
+    if (channel.connectionMethod === "qr_code") {
+      const template = await storage.createTemplate({
+        ...validatedTemplate,
+        category,
+        channelId,
+        createdBy,
+        status: "APPROVED",
+        whatsappTemplateId: `local_${Date.now()}`,
+        mediaType,
+        mediaUrl: validatedTemplate.mediaUrl || undefined,
+        variables: samples,
+      });
+      return res.json(template);
+    }
+
     try {
       const whatsappApi = new WhatsAppApiService(channel);
       const components: any[] = [];

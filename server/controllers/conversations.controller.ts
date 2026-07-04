@@ -203,3 +203,49 @@ export const markAsRead = asyncHandler(async (req: Request, res: Response) => {
   }
   res.json(conversation);
 });
+
+export const quickStartConversation = asyncHandler(async (req: Request, res: Response) => {
+  const { phone, name, channelId } = req.body;
+
+  if (!phone) {
+    throw new AppError(400, "Phone number is required");
+  }
+  if (!channelId) {
+    throw new AppError(400, "Channel ID is required");
+  }
+
+  // 1. Normalise phone number
+  const cleanPhone = phone.replace(/\D/g, "");
+
+  // 2. Find or create contact
+  let contact = await storage.getContactByPhoneAndChannel(cleanPhone, channelId);
+  if (!contact) {
+    contact = await storage.createContact({
+      name: name || cleanPhone,
+      phone: cleanPhone,
+      channelId,
+      status: "active",
+      source: "manual",
+    });
+  }
+
+  // 3. Find or create conversation
+  let conversation = await storage.getConversationByPhoneAndChannel(cleanPhone, channelId);
+  if (!conversation) {
+    conversation = await storage.createConversation({
+      contactId: contact.id,
+      contactPhone: cleanPhone,
+      contactName: contact.name || cleanPhone,
+      channelId,
+      unreadCount: 0,
+      status: "open",
+    });
+  }
+
+  const conversationWithContact = {
+    ...conversation,
+    contact,
+  };
+
+  res.json(conversationWithContact);
+});

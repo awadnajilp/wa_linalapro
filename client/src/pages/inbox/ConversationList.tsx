@@ -15,12 +15,23 @@
  * ============================================================
  */
 
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loading } from "@/components/ui/loading";
-import { Search } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import ConversationListItem from "./ConversationListItem";
 import type { ConversationWithContact } from "./types";
 import type { Conversation } from "@shared/schema";
@@ -35,6 +46,7 @@ interface ConversationListProps {
   selectedConversation: Conversation | null;
   onSelectConversation: (conversation: ConversationWithContact) => void;
   user?: any;
+  onStartNewChat: (phone: string, name?: string) => Promise<void>;
 }
 
 const ConversationList = ({
@@ -47,7 +59,30 @@ const ConversationList = ({
   selectedConversation,
   onSelectConversation,
   user,
+  onStartNewChat,
 }: ConversationListProps) => {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [nameInput, setNameInput] = useState("");
+  const [isStartingChat, setIsStartingChat] = useState(false);
+
+  const handleStartChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phoneInput.trim()) return;
+
+    setIsStartingChat(true);
+    try {
+      await onStartNewChat(phoneInput, nameInput);
+      setPhoneInput("");
+      setNameInput("");
+      setIsDialogOpen(false);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsStartingChat(false);
+    }
+  };
+
   return (
     <div
       className={cn(
@@ -58,14 +93,25 @@ const ConversationList = ({
       )}
     >
       <div className="p-2 sm:p-3 md:p-4 border-b border-gray-200 bg-white">
-        <div className="relative mb-2 sm:mb-3">
-          <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 pointer-events-none" />
-          <Input
-            placeholder="Search..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-7 sm:pl-9 pr-2 sm:pr-3 bg-gray-50 text-xs sm:text-sm w-full h-8 sm:h-10 rounded-lg"
-          />
+        <div className="flex gap-2 mb-2 sm:mb-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400 pointer-events-none" />
+            <Input
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="pl-7 sm:pl-9 pr-2 sm:pr-3 bg-gray-50 text-xs sm:text-sm w-full h-8 sm:h-10 rounded-lg"
+            />
+          </div>
+          <Button
+            type="button"
+            size="icon"
+            onClick={() => setIsDialogOpen(true)}
+            className="h-8 w-8 sm:h-10 sm:w-10 bg-emerald-500 hover:bg-emerald-600 rounded-lg shrink-0"
+            title="Start New Chat"
+          >
+            <Plus className="h-4.5 w-4.5 text-white" />
+          </Button>
         </div>
 
         <Tabs value={filterTab} onValueChange={onFilterTabChange}>
@@ -140,7 +186,55 @@ const ConversationList = ({
             )
           )
         )}
-      </ScrollArea>                                                 
+      </ScrollArea>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleStartChatSubmit}>
+            <DialogHeader>
+              <DialogTitle>Start New Conversation</DialogTitle>
+              <DialogDescription>
+                Enter the recipient's phone number to start a new chat session.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="newChatPhone" className="text-right text-xs sm:text-sm">
+                  Phone Number
+                </Label>
+                <Input
+                  id="newChatPhone"
+                  placeholder="e.g. +919633348491"
+                  value={phoneInput}
+                  onChange={(e) => setPhoneInput(e.target.value)}
+                  className="col-span-3 text-xs sm:text-sm h-9"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="newChatName" className="text-right text-xs sm:text-sm">
+                  Name (Optional)
+                </Label>
+                <Input
+                  id="newChatName"
+                  placeholder="Recipient name"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  className="col-span-3 text-xs sm:text-sm h-9"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" className="text-xs sm:text-sm" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-emerald-500 hover:bg-emerald-600 text-xs sm:text-sm" disabled={isStartingChat}>
+                {isStartingChat ? "Starting..." : "Start Chat"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

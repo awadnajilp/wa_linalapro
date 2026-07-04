@@ -155,6 +155,7 @@ interface MessageThreadProps {
   replyToMessage?: Message | null;
   onReply?: (msg: Message) => void;
   onCancelReply?: () => void;
+  onSelectLocalTemplate?: (text: string) => void;
   }
 
   const MessageThread = ({
@@ -188,6 +189,7 @@ interface MessageThreadProps {
   replyToMessage,
   onReply,
   onCancelReply,
+  onSelectLocalTemplate,
   }: MessageThreadProps) => {
   const demo = isDemoUser(user?.username);
   const { toast } = useToast();
@@ -494,6 +496,7 @@ interface MessageThreadProps {
         fileInputRef={fileInputRef}
         replyToMessage={replyToMessage}
         onCancelReply={onCancelReply}
+        onSelectLocalTemplate={onSelectLocalTemplate}
       />
     </div>
   );

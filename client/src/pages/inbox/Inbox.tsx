@@ -552,6 +552,53 @@ export default function Inbox() {
   });
 
 
+  const handleStartNewChat = async (phoneNumber: string, name?: string) => {
+    if (!activeChannel) {
+      toast({
+        title: "No Active Channel",
+        description: "Please configure an active channel first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/conversations/quick-start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: phoneNumber,
+          name: name || phoneNumber,
+          channelId: activeChannel.id,
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || "Failed to start conversation");
+      }
+
+      const data = await response.json();
+      
+      // Invalidate query to refresh conversations list
+      await queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+
+      // Select the conversation
+      setSelectedConversation(data);
+
+      toast({
+        title: "Success",
+        description: `Started conversation with ${phoneNumber}`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to start conversation",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSendMessage = () => {
     if (!messageText.trim() || !selectedConversation) return;
 
@@ -839,6 +886,7 @@ export default function Inbox() {
           selectedConversation={selectedConversation}
           onSelectConversation={setSelectedConversation}
           user={user}
+          onStartNewChat={handleStartNewChat}
         />
 
         {selectedConversation ? (
@@ -873,6 +921,7 @@ export default function Inbox() {
             replyToMessage={replyToMessage}
             onReply={setReplyToMessage}
             onCancelReply={() => setReplyToMessage(null)}
+            onSelectLocalTemplate={(text) => setMessageText(text)}
           />
         ) : (
           <div className="hidden md:flex flex-1 items-center justify-center bg-gray-50">

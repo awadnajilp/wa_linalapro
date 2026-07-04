@@ -59,6 +59,12 @@ export function registerConversationRoutes(app: Express) {
     conversationsController.createConversation
   );
 
+  // Quick start a conversation by phone number
+  app.post("/api/conversations/quick-start",
+    requireAuth,
+    conversationsController.quickStartConversation
+  );
+
   // Update conversation
   app.put("/api/conversations/:id",    requireAuth,
   requirePermission(PERMISSIONS.INBOX_ASSIGN), conversationsController.updateConversation);

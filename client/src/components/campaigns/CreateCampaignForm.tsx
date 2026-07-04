@@ -4,13 +4,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
 import { Info, FileText, Clock, Eye, Check, Upload, Loader2, Smile } from "lucide-react";
 import { TemplatePickerDialog, getTemplateButtons } from "@/components/shared/TemplatePickerDialog";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const POPULAR_EMOJIS = [
   "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", 
@@ -84,6 +92,8 @@ export function CreateCampaignForm({
   } | null>(null);
 
   const isQr = connectionMethod === "qr_code";
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // QR Custom fields states
   const [customMessage, setCustomMessage] = useState("");
@@ -110,6 +120,21 @@ export function CreateCampaignForm({
   const [warmerEnabled, setWarmerEnabled] = useState(false);
   const [selectedWarmerMsgs, setSelectedWarmerMsgs] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState("");
+
+  // Fetch local QR templates
+  const { data: localTemplates } = useQuery({
+    queryKey: ["/api/templates", { channelId }],
+    queryFn: async () => {
+      if (!channelId) return [];
+      const res = await fetch(`/api/templates?channelId=${channelId}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.data || [];
+    },
+    enabled: !!channelId && isQr,
+  });
 
   // Fetch warmer messages for channel
   const { data: warmerData } = useQuery({
@@ -250,7 +275,7 @@ export function CreateCampaignForm({
     return mapping;
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const campaignData = {
@@ -269,6 +294,40 @@ export function CreateCampaignForm({
         selectedWarmerMessages: selectedWarmerMsgs,
       } : {})
     };
+
+    if (isQr && saveAsTemplate && newTemplateName.trim()) {
+      try {
+        const response = await fetch("/api/templates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: newTemplateName.trim(),
+            category: "MARKETING",
+            body: customMessage,
+            channelId: channelId,
+            mediaType: mediaUrl ? "IMAGE" : "TEXT",
+            mediaUrl: mediaUrl || undefined,
+          })
+        });
+        if (response.ok) {
+          toast({
+            title: "Template Saved",
+            description: `Template "${newTemplateName.trim()}" successfully saved.`,
+          });
+          queryClient.invalidateQueries({ queryKey: ["/api/templates", { channelId }] });
+        } else {
+          const errData = await response.json();
+          toast({
+            title: "Error saving template",
+            description: errData.message || "Failed to save template.",
+            variant: "destructive",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to save template:", err);
+      }
+    }
+
     onSubmit(campaignData);
   };
 
@@ -479,6 +538,39 @@ export function CreateCampaignForm({
 
               {/* Text composer */}
               <div className="space-y-2 mt-2">
+                {isQr && localTemplates && localTemplates.length > 0 && (
+                  <div className="mb-3">
+                    <Label className="text-xs font-semibold text-gray-700 block mb-1">Apply Saved QR Template</Label>
+                    <Select
+                      onValueChange={(val) => {
+                        const selected = localTemplates.find((t: any) => t.id === val);
+                        if (selected) {
+                          setCustomMessage(selected.body);
+                          if (selected.mediaUrl) {
+                            setMediaUrl(selected.mediaUrl);
+                            setMediaName("Template Attachment");
+                            setMediaMimeType("image/png");
+                          } else {
+                            setMediaUrl("");
+                            setMediaName("");
+                            setMediaMimeType("");
+                          }
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Select a template to auto-fill..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {localTemplates.map((t: any) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <Label htmlFor="customMessageTextarea" className="text-xs font-semibold text-gray-700">Message Body</Label>
                   <div className="flex gap-1">
@@ -558,6 +650,34 @@ export function CreateCampaignForm({
                 <p className="text-[10px] text-gray-500 mt-1 leading-normal">
                   💡 <strong>Tip:</strong> Use contact variables by writing their column/field names inside double brackets (e.g. <code>{"{{name}}"}</code>, <code>{"{{phone}}"}</code>, <code>{"{{company}}"}</code>, or <code>{"{{city}}"}</code>).
                 </p>
+
+                {isQr && (
+                  <>
+                    <div className="flex items-center space-x-2 mt-3 p-2 bg-gray-50 border border-gray-100 rounded-md">
+                      <Checkbox
+                        id="saveAsTemplateCheckbox"
+                        checked={saveAsTemplate}
+                        onCheckedChange={(checked) => setSaveAsTemplate(!!checked)}
+                      />
+                      <Label htmlFor="saveAsTemplateCheckbox" className="text-xs font-medium text-gray-600 cursor-pointer">
+                        Save this message as a QR template
+                      </Label>
+                    </div>
+
+                    {saveAsTemplate && (
+                      <div className="mt-2 space-y-1">
+                        <Label htmlFor="newTemplateNameInput" className="text-xs font-semibold text-gray-700">Template Name</Label>
+                        <Input
+                          id="newTemplateNameInput"
+                          placeholder="e.g. welcome_message"
+                          value={newTemplateName}
+                          onChange={(e) => setNewTemplateName(e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
 
                 <div className="flex gap-2 justify-end">
                   <Button

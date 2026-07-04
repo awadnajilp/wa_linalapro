@@ -26,9 +26,16 @@ import {
   Send,
   Paperclip,
   AlertCircle,
-  X
+  X,
+  BookOpen
 } from "lucide-react";
 import { TemplatePickerDialog } from "@/components/shared/TemplatePickerDialog";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import type { Conversation } from "@shared/schema";
 import type { Message } from "./types";
 import { maskContent } from "@/utils/maskUtils";
@@ -47,6 +54,7 @@ interface MessageComposerProps {
   fileInputRef: React.RefObject<HTMLInputElement>;
   replyToMessage?: Message | null;
   onCancelReply?: () => void;
+  onSelectLocalTemplate?: (text: string) => void;
 }
 
 const MessageComposer = ({
@@ -63,7 +71,19 @@ const MessageComposer = ({
   fileInputRef,
   replyToMessage,
   onCancelReply,
+  onSelectLocalTemplate,
 }: MessageComposerProps) => {
+  const { data: localTemplates } = useQuery({
+    queryKey: ["/api/templates", activeChannelId],
+    queryFn: async () => {
+      if (!activeChannelId) return [];
+      const res = await fetch(`/api/templates?channelId=${activeChannelId}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.data || [];
+    },
+    enabled: !!activeChannelId,
+  });
   return (
     <div className="bg-white border-t border-gray-200 p-3 md:p-4">
       {is24HourWindowExpired &&
@@ -132,6 +152,44 @@ const MessageComposer = ({
                   channelId={activeChannelId}
                   onSelectTemplate={onSelectTemplate}
                 />
+
+                {localTemplates && localTemplates.length > 0 && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 md:h-9 md:w-9"
+                        title="Quick Templates"
+                      >
+                        <BookOpen className="h-4 w-4 text-emerald-600" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-2" align="start">
+                      <div className="text-xs font-semibold text-gray-500 px-2 py-1 border-b border-gray-100 mb-1">
+                        Quick Templates
+                      </div>
+                      <div className="max-h-48 overflow-y-auto space-y-1">
+                        {localTemplates.map((tpl: any) => (
+                          <button
+                            key={tpl.id}
+                            type="button"
+                            onClick={() => {
+                              if (onSelectLocalTemplate) {
+                                onSelectLocalTemplate(tpl.body);
+                              }
+                            }}
+                            className="w-full text-left text-xs p-2 hover:bg-gray-100 rounded transition-colors truncate block font-medium text-gray-700"
+                            title={tpl.body}
+                          >
+                            <span className="font-semibold text-gray-900 block truncate">{tpl.name}</span>
+                            <span className="text-[10px] text-gray-500 truncate block">{tpl.body}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
             </>
           )}
 

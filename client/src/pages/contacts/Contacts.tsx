@@ -483,6 +483,7 @@ export default function Contacts() {
     }
 
     let totalCreated = 0;
+    let totalUpdated = 0;
     let totalDuplicates = 0;
     let totalFailed = 0;
 
@@ -517,6 +518,7 @@ export default function Contacts() {
 
         const data = await response.json();
         totalCreated += data.imported ?? 0;
+        totalUpdated += data.updated ?? 0;
         totalDuplicates += data.duplicates ?? 0;
         totalFailed += data.invalid ?? 0;
       }
@@ -525,9 +527,10 @@ export default function Contacts() {
 
       const wasCanceled = importAbortRef.current;
       const description = [
-        `${totalCreated.toLocaleString()} contact${totalCreated !== 1 ? "s" : ""} imported`,
-        `${totalDuplicates.toLocaleString()} duplicate${totalDuplicates !== 1 ? "s" : ""} skipped`,
-        `${totalFailed.toLocaleString()} row${totalFailed !== 1 ? "s" : ""} invalid`,
+        `${totalCreated.toLocaleString()} created`,
+        `${totalUpdated.toLocaleString()} updated`,
+        `${totalDuplicates.toLocaleString()} duplicates`,
+        `${totalFailed.toLocaleString()} invalid`,
       ].join(", ");
 
       toast({

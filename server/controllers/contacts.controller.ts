@@ -566,26 +566,81 @@ export const importContacts = asyncHandler(
       }
     }
 
-    // Fetch only phone numbers for duplicate detection — avoids loading full
-    // contact objects for potentially large existing datasets.
-    const existingPhoneRows = channelId
+    const normalizePhone = (phone: any): string => {
+      if (typeof phone !== "string") return "";
+      // Strip leading + and all spaces
+      return phone.replace(/\+/g, "").replace(/\s+/g, "").trim();
+    };
+
+    // Fetch existing contacts for duplicate detection and update matching
+    const existingContactsList = channelId
       ? await db
-          .select({ phone: contacts.phone })
+          .select({ id: contacts.id, phone: contacts.phone, variables: contacts.variables })
           .from(contacts)
           .where(eq(contacts.channelId, channelId))
-      : await db.select({ phone: contacts.phone }).from(contacts);
+      : await db.select({ id: contacts.id, phone: contacts.phone, variables: contacts.variables }).from(contacts);
 
-    const existingPhones = new Set(existingPhoneRows.map((r) => r.phone));
+    const existingContactsMap = new Map<string, { id: string; variables: any }>();
+    for (const r of existingContactsList) {
+      const norm = normalizePhone(r.phone);
+      if (norm) {
+        existingContactsMap.set(norm, { id: r.id, variables: r.variables || {} });
+      }
+    }
 
     const userId = (req.session as any).user.id;
     const duplicates: { contact: any; reason: string }[] = [];
     const errors: { contact: any; error: string }[] = [];
     const toInsert: (typeof contacts.$inferInsert)[] = [];
+    let updatedCount = 0;
+
+    const seenIncomingPhones = new Set<string>();
 
     // Validate every contact and split into duplicates / to-insert / errors.
     for (const contact of incomingContacts) {
-      if (existingPhones.has(contact.phone)) {
-        duplicates.push({ contact, reason: "Phone number already exists" });
+      const normalizedPhoneVal = normalizePhone(contact.phone);
+      if (!normalizedPhoneVal) {
+        errors.push({ contact, error: "Phone number is empty or invalid" });
+        continue;
+      }
+
+      if (seenIncomingPhones.has(normalizedPhoneVal)) {
+        duplicates.push({ contact, reason: "Phone number is duplicated in import file" });
+        continue;
+      }
+      seenIncomingPhones.add(normalizedPhoneVal);
+
+      // Normalise the phone number
+      contact.phone = normalizedPhoneVal;
+
+      const existingInfo = existingContactsMap.get(normalizedPhoneVal);
+      if (existingInfo) {
+        // Update existing contact instead of throwing duplicate error
+        try {
+          const mergedVariables = {
+            ...(typeof existingInfo.variables === "object" ? existingInfo.variables : {}),
+            ...(typeof contact.variables === "object" ? contact.variables : {}),
+          };
+
+          await db
+            .update(contacts)
+            .set({
+              name: contact.name || "Unnamed Contact",
+              email: contact.email || null,
+              groups: Array.isArray(contact.groups) ? contact.groups : [],
+              tags: Array.isArray(contact.tags) ? contact.tags : [],
+              variables: mergedVariables,
+              updatedAt: new Date(),
+            })
+            .where(eq(contacts.id, existingInfo.id));
+
+          updatedCount++;
+        } catch (error) {
+          errors.push({
+            contact,
+            error: error instanceof Error ? error.message : "Failed to update existing contact",
+          });
+        }
         continue;
       }
 
@@ -596,20 +651,15 @@ export const importContacts = asyncHandler(
           createdBy: userId,
         });
         toInsert.push(validated);
-        // Only mark phone as seen after successful validation so that a later
-        // valid row with the same phone as a previously-failed row is not
-        // incorrectly counted as a duplicate.
-        existingPhones.add(contact.phone);
       } catch (error) {
         errors.push({
           contact,
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: error instanceof Error ? error.message : "Validation failed",
         });
       }
     }
 
     // Batch-insert in chunks of 500 to stay within PostgreSQL's parameter limit.
-    // ON CONFLICT DO NOTHING provides a safety net for any race-condition duplicates.
     const BATCH_SIZE = 500;
     let created = 0;
     for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
@@ -624,11 +674,13 @@ export const importContacts = asyncHandler(
 
     res.json({
       imported: created,
+      updated: updatedCount,
       duplicates: duplicates.length,
       invalid: errors.length,
       total: incomingContacts.length,
       details: {
         imported: created,
+        updated: updatedCount,
         duplicates: duplicates.slice(0, 10),
         errors: errors.slice(0, 10),
       },

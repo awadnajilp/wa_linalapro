@@ -308,6 +308,7 @@ export const getContactsWithPagination = asyncHandler(
         tags: contacts.tags,
         status: contacts.status,
         source: contacts.source,
+        variables: contacts.variables,
         lastContact: contacts.lastContact,
         createdAt: contacts.createdAt,
         updatedAt: contacts.updatedAt,

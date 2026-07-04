@@ -17,7 +17,7 @@
 
 import { db } from "../db";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
-import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites, automationExecutions, automations, voiceProfiles } from "@shared/schema";
+import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites, automationExecutions, automations, voiceProfiles, automationNodes } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { triggerNotification, triggerThrottledNotification, NOTIFICATION_EVENTS } from "./notification.service";
@@ -500,16 +500,20 @@ export class WebhookHandler {
             .limit(1);
 
           if (pendingExec && pendingExec.currentNodeId) {
-            const autoData = await db.query.automations.findFirst({
-              where: eq(automations.id, pendingExec.automationId),
-            });
-            const flowJson = autoData?.flowJson as any;
-            const node = flowJson?.nodes?.find(
-              (n: any) => n.id === pendingExec.currentNodeId || n.nodeId === pendingExec.currentNodeId
-            );
+            const [node] = await db
+              .select()
+              .from(automationNodes)
+              .where(
+                and(
+                  eq(automationNodes.automationId, pendingExec.automationId),
+                  eq(automationNodes.nodeId, pendingExec.currentNodeId)
+                )
+              )
+              .limit(1);
 
-            if (node && node.type === "ai_agent" && node.data?.aiVoiceEnabled === true) {
-              const voiceProfileId = node.data.voiceProfileId;
+            if (node && node.type === "ai_agent" && (node.data as any)?.aiVoiceEnabled === true) {
+              const nodeData = node.data as any;
+              const voiceProfileId = nodeData.voiceProfileId;
               let voiceProfile: any = null;
               if (voiceProfileId) {
                 voiceProfile = await db.query.voiceProfiles.findFirst({
@@ -519,6 +523,9 @@ export class WebhookHandler {
 
               if (voiceProfile) {
                 let sarvamApiKey = "";
+                const autoData = await db.query.automations.findFirst({
+                  where: eq(automations.id, pendingExec.automationId),
+                });
                 if (autoData?.createdBy) {
                   const ownerUser = await db.query.users.findFirst({
                     where: eq(users.id, autoData.createdBy),
@@ -543,7 +550,7 @@ export class WebhookHandler {
                   const provider = VoiceManager.getProvider(voiceProfile.provider);
                   const transcriptText = await provider.transcribe(
                     buffer,
-                    node.data.voiceLanguage || voiceProfile.languageCode || "en-IN",
+                    nodeData.voiceLanguage || voiceProfile.languageCode || "en-IN",
                     { apiKey: sarvamApiKey }
                   );
 

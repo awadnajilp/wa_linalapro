@@ -10,10 +10,11 @@ import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
 import { db } from "../db";
-import { channels, conversations, contacts, messages, warmerConfigs, warmerMessages } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { channels, conversations, contacts, messages, warmerConfigs, warmerMessages, messageQueue, campaigns, campaignRecipients } from "@shared/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { WebhookHandler } from "./webhook-handler";
 import { randomUUID } from "crypto";
+import { storage } from "../storage";
 import { WhatsAppApiService } from "./whatsapp-api";
 
 export class BaileysManager {
@@ -194,6 +195,43 @@ export class BaileysManager {
               fs.rmSync(sessionPath, { recursive: true, force: true });
             } catch (rmErr) {
               console.error(`[BaileysManager] Error removing session directory:`, rmErr);
+            }
+          }
+        }
+      });
+
+      // Listen for message receipts/delivery/read updates!
+      sock.ev.on("message-receipt.update", async (updates: any) => {
+        for (const update of updates) {
+          if (update.key && update.key.id) {
+            const msgId = update.key.id;
+            const type = update.receipt?.type;
+            let status: "delivered" | "read" | null = null;
+            if (type === "read" || type === "read-self") {
+              status = "read";
+            } else if (type === "delivered") {
+              status = "delivered";
+            }
+            if (status) {
+              await this.updateQrMessageStatus(msgId, status);
+            }
+          }
+        }
+      });
+
+      // Also listen to messages.update for status updates
+      sock.ev.on("messages.update", async (updates: any) => {
+        for (const update of updates) {
+          if (update.key && update.key.id && update.status) {
+            const msgId = update.key.id;
+            let status: "delivered" | "read" | null = null;
+            if (update.status === 3) {
+              status = "delivered";
+            } else if (update.status === 4 || update.status === 5) {
+              status = "read";
+            }
+            if (status) {
+              await this.updateQrMessageStatus(msgId, status);
             }
           }
         }
@@ -809,6 +847,84 @@ export class BaileysManager {
       }
     } catch (err) {
       console.error(`[BaileysManager] Failed to query active QR channels on startup:`, err);
+    }
+  }
+
+  static async updateQrMessageStatus(whatsappMessageId: string, status: "delivered" | "read") {
+    try {
+      console.log(`[BaileysManager] Updating QR message status: ${whatsappMessageId} -> ${status}`);
+      const [queueEntry] = await db
+        .select()
+        .from(messageQueue)
+        .where(eq(messageQueue.whatsappMessageId, whatsappMessageId))
+        .limit(1);
+
+      if (!queueEntry) {
+        console.log(`[BaileysManager] Queue entry not found for WhatsApp ID: ${whatsappMessageId}`);
+        return;
+      }
+
+      const alreadyDelivered = !!queueEntry.deliveredAt;
+      const alreadyRead = !!queueEntry.readAt;
+
+      const updateFields: Record<string, any> = {};
+      let shouldIncrementDelivered = false;
+      let shouldIncrementRead = false;
+      const now = new Date();
+
+      if (status === "delivered" && !alreadyDelivered && !alreadyRead) {
+        updateFields.status = "delivered";
+        updateFields.deliveredAt = now;
+        shouldIncrementDelivered = true;
+      } else if (status === "read" && !alreadyRead) {
+        updateFields.status = "read";
+        updateFields.readAt = now;
+        shouldIncrementRead = true;
+        if (!alreadyDelivered) {
+          updateFields.deliveredAt = now;
+          shouldIncrementDelivered = true;
+        }
+      }
+
+      const campaignId = queueEntry.campaignId;
+
+      if (Object.keys(updateFields).length > 0) {
+        await db
+          .update(messageQueue)
+          .set(updateFields)
+          .where(eq(messageQueue.id, queueEntry.id));
+
+        if (campaignId) {
+          await db
+            .update(campaignRecipients)
+            .set(updateFields)
+            .where(
+              and(
+                eq(campaignRecipients.campaignId, campaignId),
+                eq(campaignRecipients.phone, queueEntry.recipientPhone)
+              )
+            );
+
+          const counterUpdate: Record<string, any> = {};
+          if (shouldIncrementDelivered) {
+            counterUpdate.deliveredCount = sql`COALESCE(${campaigns.deliveredCount}, 0) + 1`;
+          }
+          if (shouldIncrementRead) {
+            counterUpdate.readCount = sql`COALESCE(${campaigns.readCount}, 0) + 1`;
+          }
+          if (Object.keys(counterUpdate).length > 0) {
+            await db.update(campaigns).set(counterUpdate).where(eq(campaigns.id, campaignId));
+          }
+        }
+
+        // Update messages table if it exists
+        const message = await storage.getMessageByWhatsAppId(whatsappMessageId);
+        if (message) {
+          await storage.updateMessageStatus(message.id, status);
+        }
+      }
+    } catch (err) {
+      console.error(`[BaileysManager] Failed to update message status for ${whatsappMessageId}:`, err);
     }
   }
 }

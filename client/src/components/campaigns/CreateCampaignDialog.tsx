@@ -46,7 +46,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Users, FileSpreadsheet, Code } from "lucide-react";
+import { Users, FileSpreadsheet, Code, Search } from "lucide-react";
 import { CreateCampaignForm } from "./CreateCampaignForm";
 import { useTranslation } from "@/lib/i18n";
 import { useAuth } from "@/contexts/auth-context";
@@ -86,6 +86,7 @@ export function CreateCampaignDialog({
   >({});
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
+  const [contactsSearchQuery, setContactsSearchQuery] = useState("");
   const [csvData, setCsvData] = useState<any[]>([]);
   const [scheduledTime, setScheduledTime] = useState("");
   const [autoRetry, setAutoRetry] = useState(false);
@@ -100,6 +101,7 @@ export function CreateCampaignDialog({
     setVariableMapping({});
     setSelectedContacts([]);
     setSelectedGroup("all");
+    setContactsSearchQuery("");
     setCsvData([]);
     setScheduledTime("");
     setAutoRetry(false);
@@ -183,13 +185,17 @@ export function CreateCampaignDialog({
     });
   };
 
-  // Filter contacts based on selected group (contacts store group membership as array of group names)
-  const filteredContacts =
-    selectedGroup === "all"
-      ? contacts
-      : contacts.filter((contact: any) =>
-          Array.isArray(contact.groups) && contact.groups.includes(selectedGroup)
-        );
+  // Filter contacts based on selected group and search query
+  const filteredContacts = (contacts || []).filter((contact: any) => {
+    const matchesGroup = selectedGroup === "all" ||
+      (Array.isArray(contact.groups) && contact.groups.includes(selectedGroup));
+
+    const matchesSearch = !contactsSearchQuery ||
+      contact.name?.toLowerCase().includes(contactsSearchQuery.toLowerCase()) ||
+      contact.phone?.toLowerCase().includes(contactsSearchQuery.toLowerCase());
+
+    return matchesGroup && matchesSearch;
+  });
 
   return (
     <Dialog
@@ -246,25 +252,41 @@ export function CreateCampaignDialog({
             messagingTier={messagingTier}
           >
             <TabsContent value="contacts" className="space-y-4">
-              <div>
-                <Label className="mb-2 block">
-                  {t("campaigns.campaignfilterlabel")}
-                </Label>
-                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("campaigns.selectGroup")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">
-                      {t("campaigns.allGroup")}
-                    </SelectItem>
-                    {groups.map((group: any) => (
-                      <SelectItem key={group.id} value={group.name}>
-                        {group.name} ({group.contact_count || 0})
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <Label className="mb-2 block">
+                    {t("campaigns.campaignfilterlabel")}
+                  </Label>
+                  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("campaigns.selectGroup")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">
+                        {t("campaigns.allGroup")}
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      {groups.map((group: any) => (
+                        <SelectItem key={group.id} value={group.name}>
+                          {group.name} ({group.contact_count || 0})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <Label className="mb-2 block">
+                    Search Contacts
+                  </Label>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search name or number..."
+                      value={contactsSearchQuery}
+                      onChange={(e) => setContactsSearchQuery(e.target.value)}
+                      className="pl-9 h-10 text-sm"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div>

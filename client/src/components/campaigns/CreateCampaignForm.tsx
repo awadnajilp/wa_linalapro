@@ -555,6 +555,9 @@ export function CreateCampaignForm({
                   onChange={(e) => setCustomMessage(e.target.value)}
                   className="font-sans text-xs resize-none"
                 />
+                <p className="text-[10px] text-gray-500 mt-1 leading-normal">
+                  💡 <strong>Tip:</strong> Use contact variables by writing their column/field names inside double brackets (e.g. <code>{"{{name}}"}</code>, <code>{"{{phone}}"}</code>, <code>{"{{company}}"}</code>, or <code>{"{{city}}"}</code>).
+                </p>
 
                 <div className="flex gap-2 justify-end">
                   <Button

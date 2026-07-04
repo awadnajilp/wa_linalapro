@@ -494,20 +494,16 @@ export class MessageQueueService {
           await db
             .update(campaigns)
             .set({
-              sentCount: sql`${campaigns.sentCount} + 1`,
-              deliveredCount: sql`${campaigns.deliveredCount} + 1`,
-              readCount: sql`${campaigns.readCount} + 1`,
+              sentCount: sql`${campaigns.sentCount} + 1`
             })
             .where(eq(campaigns.id, message.campaignId));
 
           await db
             .update(campaignRecipients)
             .set({
-              status: "read",
+              status: "sent",
               whatsappMessageId: waMessageId,
-              sentAt: new Date(),
-              deliveredAt: new Date(),
-              readAt: new Date()
+              sentAt: new Date()
             })
             .where(and(
               eq(campaignRecipients.campaignId, message.campaignId),

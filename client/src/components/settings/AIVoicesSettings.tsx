@@ -80,6 +80,11 @@ const PREDEFINED_VOICES = [
   { id: "custom_speaker", name: "Custom Speaker ID (Manually Input)" }
 ];
 
+const GROQ_PREDEFINED_VOICES = [
+  { id: "canopylabs/orpheus-v1-english", name: "Orpheus English (Female - English)" },
+  { id: "canopylabs/orpheus-arabic-saudi", name: "Orpheus Saudi Arabic (Male - Arabic)" }
+];
+
 export default function AIVoicesSettings(): JSX.Element {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -88,7 +93,11 @@ export default function AIVoicesSettings(): JSX.Element {
   const [sarvamKey, setSarvamKey] = useState("");
   const [isSavingKey, setIsSavingKey] = useState(false);
 
+  const [groqKey, setGroqKey] = useState("");
+  const [isSavingGroqKey, setIsSavingGroqKey] = useState(false);
+
   // Predefined voice creation states
+  const [stdProvider, setStdProvider] = useState("sarvam");
   const [stdName, setStdName] = useState("");
   const [stdVoiceId, setStdVoiceId] = useState("anushka");
   const [customSpeakerId, setCustomSpeakerId] = useState("");
@@ -127,6 +136,9 @@ export default function AIVoicesSettings(): JSX.Element {
     if (user && (user as any).sarvamApiKey) {
       setSarvamKey("••••••••••••••••••••••••••••••••");
     }
+    if (user && (user as any).groqApiKey) {
+      setGroqKey("••••••••••••••••••••••••••••••••");
+    }
   }, [user]);
 
   // Update API key
@@ -160,6 +172,37 @@ export default function AIVoicesSettings(): JSX.Element {
     }
   };
 
+  // Update Groq API key
+  const handleSaveGroqKey = async () => {
+    if (!groqKey) return;
+    setIsSavingGroqKey(true);
+    try {
+      const res = await apiRequest("PUT", "/api/users/voice-settings", {
+        groqApiKey: groqKey === "••••••••••••••••••••••••••••••••" ? undefined : groqKey,
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to save Groq API key");
+      }
+
+      toast({
+        title: "Success",
+        description: "Groq API key saved successfully.",
+      });
+
+      // Refetch user profile
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.message || "Failed to save Groq API key",
+      });
+    } finally {
+      setIsSavingGroqKey(false);
+    }
+  };
+
   // Add standard voice profile
   const handleCreateStandardVoice = async () => {
     if (!stdName.trim()) {
@@ -184,7 +227,7 @@ export default function AIVoicesSettings(): JSX.Element {
     try {
       const res = await apiRequest("POST", "/api/voice-profiles", {
         name: stdName,
-        provider: "sarvam",
+        provider: stdProvider,
         voiceId: stdVoiceId === "custom_speaker" ? customSpeakerId.trim() : stdVoiceId,
         languageCode: stdLanguage,
       });
@@ -399,6 +442,33 @@ export default function AIVoicesSettings(): JSX.Element {
         </CardContent>
       </Card>
 
+      {/* 🚀 Groq Credentials Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center text-lg">
+            <Key className="w-5 h-5 mr-2 text-indigo-600" />
+            Groq API Credentials
+          </CardTitle>
+          <CardDescription>
+            Configure your Groq API key to support high-speed Whisper STT transcription and fast LLM completions.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4 max-w-xl">
+            <Input
+              type="password"
+              placeholder="Enter Groq API Key (e.g. gsk_...)"
+              value={groqKey}
+              onChange={(e) => setGroqKey(e.target.value)}
+              className="flex-1"
+            />
+            <Button onClick={handleSaveGroqKey} disabled={isSavingGroqKey}>
+              {isSavingGroqKey ? "Saving..." : "Save Key"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* 📋 Voice Profiles List & Creation Card */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
@@ -503,7 +573,7 @@ export default function AIVoicesSettings(): JSX.Element {
                 <DialogHeader>
                   <DialogTitle>Add Predefined Speaker Voice</DialogTitle>
                   <DialogDescription>
-                    Add a standard, pre-built speaker voice provided by Sarvam.ai. No recording required.
+                    Add a standard, pre-built speaker voice. No recording required.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-2">
@@ -515,7 +585,26 @@ export default function AIVoicesSettings(): JSX.Element {
                       onChange={(e) => setStdName(e.target.value)}
                     />
                   </div>
-                  {stdVoiceId === "custom_speaker" && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-500 font-medium">Voice Provider</label>
+                    <Select value={stdProvider} onValueChange={(val) => {
+                      setStdProvider(val);
+                      if (val === "groq") {
+                        setStdVoiceId("canopylabs/orpheus-v1-english");
+                      } else {
+                        setStdVoiceId("anushka");
+                      }
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sarvam">Sarvam.ai</SelectItem>
+                        <SelectItem value="groq">Groq API</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {stdProvider === "sarvam" && stdVoiceId === "custom_speaker" && (
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-gray-500 font-medium">Custom Speaker ID</label>
                       <Input
@@ -533,9 +622,14 @@ export default function AIVoicesSettings(): JSX.Element {
                           <SelectValue placeholder="Select speaker" />
                         </SelectTrigger>
                         <SelectContent>
-                          {PREDEFINED_VOICES.map((v) => (
-                            <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
-                          ))}
+                          {stdProvider === "groq"
+                            ? GROQ_PREDEFINED_VOICES.map((v) => (
+                                <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                              ))
+                            : PREDEFINED_VOICES.map((v) => (
+                                <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                              ))
+                          }
                         </SelectContent>
                       </Select>
                     </div>

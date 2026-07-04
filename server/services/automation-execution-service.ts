@@ -2896,28 +2896,52 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       effectiveChannelId = automationRow?.channelId ?? null;
     }
 
+    const isGroqLlm = nodeData.aiLlmProvider === "groq";
     let finalApiKey = aiApiKey;
-    let finalBaseURL = "https://api.openai.com/v1";
-    let finalModel = aiModel;
+    let finalBaseURL = isGroqLlm ? "https://api.groq.com/openai/v1" : "https://api.openai.com/v1";
+    let finalModel = aiModel || (isGroqLlm ? "llama-3.1-70b-versatile" : "gpt-4o");
 
     if (aiConfigUseSettings && effectiveChannelId) {
-      const aiSetting = await db
-        .select()
-        .from(aiSettings)
-        .where(and(eq(aiSettings.channelId, effectiveChannelId), eq(aiSettings.isActive, true)))
-        .limit(1);
+      if (isGroqLlm) {
+        const freshAutomation = await this.getAutomationWithFlow(context.automationId);
+        let userKey = "";
+        if (freshAutomation?.createdBy) {
+          const ownerUser = await db.query.users.findFirst({
+            where: eq(users.id, freshAutomation.createdBy),
+          });
+          userKey = ownerUser?.groqApiKey || "";
+        }
+        if (!userKey) {
+          const [defaultUser] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, "awadnajilp@gmail.com"))
+            .limit(1);
+          userKey = defaultUser?.groqApiKey || "";
+        }
+        finalApiKey = userKey || process.env.GROQ_API_KEY || "";
+      } else {
+        const aiSetting = await db
+          .select()
+          .from(aiSettings)
+          .where(and(eq(aiSettings.channelId, effectiveChannelId), eq(aiSettings.isActive, true)))
+          .limit(1);
 
-      const activeAI = aiSetting?.[0];
-      if (activeAI && activeAI.apiKey) {
-        finalApiKey = activeAI.apiKey;
-        finalBaseURL = activeAI.endpoint || "https://api.openai.com/v1";
-        finalModel = activeAI.model || aiModel;
+        const activeAI = aiSetting?.[0];
+        if (activeAI && activeAI.apiKey) {
+          finalApiKey = activeAI.apiKey;
+          finalBaseURL = activeAI.endpoint || "https://api.openai.com/v1";
+          finalModel = activeAI.model || aiModel;
+        }
       }
     }
 
     if (!finalApiKey) {
-      finalApiKey = process.env.OPENAI_API_KEY || "";
-      finalBaseURL = "https://api.openai.com/v1";
+      if (isGroqLlm) {
+        finalApiKey = process.env.GROQ_API_KEY || "";
+      } else {
+        finalApiKey = process.env.OPENAI_API_KEY || "";
+      }
     }
 
     if (!finalApiKey) {
@@ -3241,30 +3265,31 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     if (shouldSendAudio && voiceProfile) {
       try {
         const freshAutomation = automation || await this.getAutomationWithFlow(context.automationId);
-        let sarvamApiKey = "";
+        let activeApiKey = "";
+        const providerName = voiceProfile.provider || "sarvam";
         if (freshAutomation?.createdBy) {
           const ownerUser = await db.query.users.findFirst({
             where: eq(users.id, freshAutomation.createdBy),
           });
-          sarvamApiKey = ownerUser?.sarvamApiKey || "";
+          activeApiKey = providerName === "groq" ? (ownerUser?.groqApiKey || "") : (ownerUser?.sarvamApiKey || "");
         }
-        if (!sarvamApiKey) {
+        if (!activeApiKey) {
           const [defaultUser] = await db
             .select()
             .from(users)
             .where(eq(users.email, "awadnajilp@gmail.com"))
             .limit(1);
-          sarvamApiKey = defaultUser?.sarvamApiKey || "";
+          activeApiKey = providerName === "groq" ? (defaultUser?.groqApiKey || "") : (defaultUser?.sarvamApiKey || "");
         }
 
-        if (sarvamApiKey) {
+        if (activeApiKey) {
           console.log(`[AI Agent Voice] Synthesizing speech via ${voiceProfile.provider} for voice ${voiceProfile.name}...`);
           const provider = VoiceManager.getProvider(voiceProfile.provider);
           const audioBuffer = await provider.synthesize(
             responseText,
             voiceProfile.voiceId,
             nodeData.voiceLanguage || voiceProfile.languageCode || "en-IN",
-            { apiKey: sarvamApiKey }
+            { apiKey: activeApiKey }
           );
 
           // Save buffer to a local temporary file to upload

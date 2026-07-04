@@ -1111,30 +1111,63 @@ export function ConfigPanel({
 
                 {d.aiConfigUseSettings === false && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-gray-700">OpenAI API Key</Label>
+                    <Label className="text-xs font-semibold text-gray-700">
+                      {d.aiLlmProvider === "groq" ? "Groq API Key" : "OpenAI API Key"}
+                    </Label>
                     <Input
                       type="password"
                       value={d.aiApiKey || ""}
                       onChange={(e) => onChange({ aiApiKey: e.target.value })}
-                      placeholder="sk-proj-..."
+                      placeholder={d.aiLlmProvider === "groq" ? "gsk_..." : "sk-proj-..."}
                       className="h-9 text-sm rounded-lg bg-white"
                     />
                   </div>
                 )}
 
                 <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Completions Provider</Label>
+                  <Select
+                    value={d.aiLlmProvider || "openai"}
+                    onValueChange={(v) => {
+                      onChange({
+                        aiLlmProvider: v,
+                        aiModel: v === "groq" ? "llama-3.1-70b-versatile" : "gpt-4o"
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="h-9 rounded-lg bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="openai">OpenAI</SelectItem>
+                      <SelectItem value="groq">Groq API</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-gray-700">Model</Label>
                   <Select
-                    value={d.aiModel || "gpt-4o"}
+                    value={d.aiModel || (d.aiLlmProvider === "groq" ? "llama-3.1-70b-versatile" : "gpt-4o")}
                     onValueChange={(v) => onChange({ aiModel: v })}
                   >
                     <SelectTrigger className="h-9 rounded-lg bg-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="gpt-4o">gpt-4o (Recommended)</SelectItem>
-                      <SelectItem value="gpt-4-turbo">gpt-4-turbo</SelectItem>
-                      <SelectItem value="gpt-3.5-turbo">gpt-3.5-turbo</SelectItem>
+                      {d.aiLlmProvider === "groq" ? (
+                        <>
+                          <SelectItem value="llama-3.1-70b-versatile">Llama 3.1 70B (Versatile)</SelectItem>
+                          <SelectItem value="llama-3.1-8b-instant">Llama 3.1 8B (Instant)</SelectItem>
+                          <SelectItem value="mixtral-8x7b-32768">Mixtral 8x7B</SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="gpt-4o">gpt-4o (Recommended)</SelectItem>
+                          <SelectItem value="gpt-4-turbo">gpt-4-turbo</SelectItem>
+                          <SelectItem value="gpt-3.5-turbo">gpt-3.5-turbo</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

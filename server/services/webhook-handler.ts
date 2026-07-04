@@ -522,7 +522,8 @@ export class WebhookHandler {
               }
 
               if (voiceProfile) {
-                let sarvamApiKey = "";
+                let activeApiKey = "";
+                const providerName = voiceProfile.provider || "sarvam";
                 const autoData = await db.query.automations.findFirst({
                   where: eq(automations.id, pendingExec.automationId),
                 });
@@ -530,18 +531,18 @@ export class WebhookHandler {
                   const ownerUser = await db.query.users.findFirst({
                     where: eq(users.id, autoData.createdBy),
                   });
-                  sarvamApiKey = ownerUser?.sarvamApiKey || "";
+                  activeApiKey = providerName === "groq" ? (ownerUser?.groqApiKey || "") : (ownerUser?.sarvamApiKey || "");
                 }
-                if (!sarvamApiKey) {
+                if (!activeApiKey) {
                   const [defaultUser] = await db
                     .select()
                     .from(users)
                     .where(eq(users.email, "awadnajilp@gmail.com"))
                     .limit(1);
-                  sarvamApiKey = defaultUser?.sarvamApiKey || "";
+                  activeApiKey = providerName === "groq" ? (defaultUser?.groqApiKey || "") : (defaultUser?.sarvamApiKey || "");
                 }
 
-                if (sarvamApiKey) {
+                if (activeApiKey) {
                   console.log(`[STT Webhook] Downloading audio note ${mediaId} from WhatsApp...`);
                   const waApi = new WhatsAppApiService(channel[0]);
                   const { buffer } = await waApi.getMediaBuffer(mediaId);
@@ -551,7 +552,7 @@ export class WebhookHandler {
                   const transcriptText = await provider.transcribe(
                     buffer,
                     nodeData.voiceLanguage || voiceProfile.languageCode || "en-IN",
-                    { apiKey: sarvamApiKey }
+                    { apiKey: activeApiKey }
                   );
 
                   if (transcriptText) {

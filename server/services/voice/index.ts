@@ -1,14 +1,14 @@
 import { VoiceProvider } from "./types";
 import { SarvamVoiceProvider } from "./providers/sarvam";
+import { GroqVoiceProvider } from "./providers/groq";
 
 export class VoiceManager {
   private static providers = new Map<string, VoiceProvider>();
 
   static {
-    // Register the active Sarvam.ai provider
+    // Register the active providers
     this.register(new SarvamVoiceProvider());
-    
-    // Skeletons for future engines (ElevenLabs, Cartesian) can be added here
+    this.register(new GroqVoiceProvider());
   }
 
   static register(provider: VoiceProvider) {

@@ -2,6 +2,51 @@ import FormData from "form-data";
 import axios from "axios";
 import { VoiceProvider } from "../types";
 
+function splitTextIntoChunks(text: string, maxLength: number = 450): string[] {
+  const chunks: string[] = [];
+  let currentChunk = "";
+
+  // Split by sentences (end of sentence punctuation)
+  const sentences = text.match(/[^.!?]+[.!?]*|.+/g) || [text];
+
+  for (const sentence of sentences) {
+    const trimmedSentence = sentence.trim();
+    if (!trimmedSentence) continue;
+
+    if (currentChunk.length + trimmedSentence.length + 1 <= maxLength) {
+      currentChunk += (currentChunk ? " " : "") + trimmedSentence;
+    } else {
+      if (currentChunk) {
+        chunks.push(currentChunk);
+      }
+      // If a single sentence exceeds the maxLength, break it down by words
+      if (trimmedSentence.length > maxLength) {
+        const words = trimmedSentence.split(/\s+/);
+        let wordChunk = "";
+        for (const word of words) {
+          if (wordChunk.length + word.length + 1 <= maxLength) {
+            wordChunk += (wordChunk ? " " : "") + word;
+          } else {
+            if (wordChunk) {
+              chunks.push(wordChunk);
+            }
+            wordChunk = word;
+          }
+        }
+        currentChunk = wordChunk;
+      } else {
+        currentChunk = trimmedSentence;
+      }
+    }
+  }
+
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks;
+}
+
 export class SarvamVoiceProvider implements VoiceProvider {
   id = "sarvam";
   name = "Sarvam.ai";
@@ -56,35 +101,43 @@ export class SarvamVoiceProvider implements VoiceProvider {
     const speaker = voiceId && !voiceId.startsWith("cloned_") ? voiceId : "anushka";
     const targetLanguage = languageCode || "en-IN";
 
-    const payload = {
-      inputs: [text],
-      target_language_code: targetLanguage,
-      speaker: speaker,
-      pitch: 0,
-      pace: 1.0,
-      loudness: 1.0,
-      speech_config: {
-        audio_format: "mp3",
-      },
-    };
+    // Split text into chunks of at most 450 characters to stay within Sarvam's 500-char limits
+    const chunks = splitTextIntoChunks(text, 450);
+    const audioBuffers: Buffer[] = [];
 
-    try {
-      const response = await axios.post("https://api.sarvam.ai/text-to-speech", payload, {
-        headers: {
-          "Content-Type": "application/json",
-          "api-subscription-key": apiKey,
+    for (const chunk of chunks) {
+      const payload = {
+        inputs: [chunk],
+        target_language_code: targetLanguage,
+        speaker: speaker,
+        pitch: 0,
+        pace: 1.0,
+        loudness: 1.0,
+        speech_config: {
+          audio_format: "mp3",
         },
-      });
+      };
 
-      if (!response.data || !response.data.audios || !Array.isArray(response.data.audios) || response.data.audios.length === 0) {
-        throw new Error("Sarvam.ai TTS response did not contain any audio strings in 'audios' field");
+      try {
+        const response = await axios.post("https://api.sarvam.ai/text-to-speech", payload, {
+          headers: {
+            "Content-Type": "application/json",
+            "api-subscription-key": apiKey,
+          },
+        });
+
+        if (!response.data || !response.data.audios || !Array.isArray(response.data.audios) || response.data.audios.length === 0) {
+          throw new Error("Sarvam.ai TTS response did not contain any audio strings in 'audios' field");
+        }
+
+        audioBuffers.push(Buffer.from(response.data.audios[0], "base64"));
+      } catch (err: any) {
+        const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+        throw new Error(`Sarvam.ai TTS failed for chunk "${chunk.substring(0, 20)}...": ${errorMsg}`);
       }
-
-      return Buffer.from(response.data.audios[0], "base64");
-    } catch (err: any) {
-      const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-      throw new Error(`Sarvam.ai TTS failed: ${errorMsg}`);
     }
+
+    return Buffer.concat(audioBuffers);
   }
 
   async cloneVoice(

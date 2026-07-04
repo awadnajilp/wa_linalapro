@@ -697,9 +697,14 @@ private stemWord(word: string = ""): string {
     console.log(`📨 Received user response for conversation ${conversationId}: "${userResponse}"`);
     
     // Find pending execution for this conversation
-    const pendingExecution = this.findPendingExecutionByConversation(conversationId);
+    let pendingExecution = this.findPendingExecutionByConversation(conversationId);
     if (!pendingExecution) {
-      console.warn(`No pending execution found for conversation ${conversationId}`);
+      console.log(`No pending execution found in memory for conversation ${conversationId}. Trying DB recovery...`);
+      pendingExecution = await this.findPendingExecutionByConversationFromDb(conversationId);
+    }
+    
+    if (!pendingExecution) {
+      console.warn(`No pending execution found for conversation ${conversationId} in memory or DB`);
       return null;
     }
 

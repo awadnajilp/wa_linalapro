@@ -143,7 +143,7 @@ export function TemplatePickerDialog({
   const [open, setOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [variables, setVariables] = useState<
-    { type?: "fullName" | "phone" | "custom"; value?: string }[]
+    { type?: string; value?: string }[]
   >([]);
   const [buttonParams, setButtonParams] = useState<Record<number, string>>({});
   const { toast } = useToast();
@@ -168,6 +168,16 @@ export function TemplatePickerDialog({
       return Array.isArray(data.data) ? data.data : [];
     },
     enabled: !!channelId && open,
+  });
+
+  const { data: customVariables = [] } = useQuery<string[]>({
+    queryKey: ["/api/contacts/custom-variables"],
+    queryFn: async () => {
+      const response = await fetch("/api/contacts/custom-variables");
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: open,
   });
 
   const approvedTemplates = Array.isArray(templates)
@@ -668,7 +678,7 @@ export function TemplatePickerDialog({
                       onChange={(e) => {
                         const updated = [...variables];
                         updated[index] = {
-                          type: e.target.value as "fullName" | "phone" | "custom",
+                          type: e.target.value,
                           value: "",
                         };
                         setVariables(updated);
@@ -677,7 +687,16 @@ export function TemplatePickerDialog({
                       <option value="" disabled>Select value type</option>
                       <option value="fullName">Full Name</option>
                       <option value="phone">Phone</option>
-                      <option value="custom">Custom</option>
+                      <option value="custom">Custom Text Input</option>
+                      {customVariables.length > 0 && (
+                        <optgroup label="Custom Contact Fields">
+                          {customVariables.map((cVar) => (
+                            <option key={cVar} value={cVar}>
+                              {cVar}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                     {v.type === "custom" && (
                       <Input

@@ -635,3 +635,31 @@ export const importContacts = asyncHandler(
     });
   }
 );
+
+export const getCustomVariables = asyncHandler(
+  async (req: Request, res: Response) => {
+    const user = (req.session as any)?.user;
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const ownerId = user.role === 'team' ? user.createdBy : user.id;
+    const channelsList = await storage.getChannelsByUserId(ownerId);
+    const channelIds = channelsList.map((ch: any) => ch.id);
+
+    const keys = new Set<string>();
+
+    if (channelIds.length > 0) {
+      for (const chId of channelIds) {
+        const chContacts = await storage.getContactsByChannel(chId);
+        for (const contact of chContacts) {
+          if (contact.variables && typeof contact.variables === 'object') {
+            Object.keys(contact.variables).forEach(k => keys.add(k));
+          }
+        }
+      }
+    }
+
+    res.json(Array.from(keys));
+  }
+);

@@ -87,4 +87,12 @@ export function registerContactRoutes(app: Express) {
     extractChannelId,requireSubscription('contacts'),
     contactsController.importContacts
   );
+
+  // Get all unique custom variable keys from contacts variables JSONB column
+  app.get(
+    "/api/contacts/custom-variables",
+    requireAuth,
+    requirePermission(PERMISSIONS.CONTACTS_VIEW),
+    contactsController.getCustomVariables
+  );
 }

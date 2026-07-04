@@ -123,6 +123,15 @@ export function CreateCampaignForm({
     enabled: !!channelId && isQr,
   });
 
+  const { data: customVariables = [] } = useQuery<string[]>({
+    queryKey: ["/api/contacts/custom-variables"],
+    queryFn: async () => {
+      const response = await fetch("/api/contacts/custom-variables");
+      if (!response.ok) return [];
+      return response.json();
+    },
+  });
+
   const handleFileChange = async (file: File) => {
     setIsUploading(true);
     try {
@@ -188,6 +197,13 @@ export function CreateCampaignForm({
 
     text = text.replace(/\{\{\s*name\s*\}\}/gi, "<span class='bg-green-100 text-green-800 px-1 rounded text-[11px] font-semibold'>Contact Name</span>");
     text = text.replace(/\{\{\s*phone\s*\}\}/gi, "<span class='bg-green-100 text-green-800 px-1 rounded text-[11px] font-semibold'>Phone Number</span>");
+
+    if (Array.isArray(customVariables)) {
+      customVariables.forEach((cVar) => {
+        const regex = new RegExp(`\\{\\{\\s*${cVar.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\s*\\}\\}`, "gi");
+        text = text.replace(regex, `<span class='bg-blue-100 text-blue-800 px-1 rounded text-[11px] font-semibold'>${cVar}</span>`);
+      });
+    }
 
     return <div dangerouslySetInnerHTML={{ __html: text }} className="break-words text-[13.5px] leading-relaxed text-gray-800" />;
   };
@@ -585,6 +601,31 @@ export function CreateCampaignForm({
                   >
                     + Phone
                   </Button>
+                  {customVariables.map((cVar) => (
+                    <Button
+                      key={cVar}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-[10px] px-1.5 hover:bg-green-50 hover:text-green-700"
+                      onClick={() => {
+                        const textarea = document.getElementById("customMessageTextarea") as HTMLTextAreaElement;
+                        if (!textarea) return;
+                        const start = textarea.selectionStart;
+                        const end = textarea.selectionEnd;
+                        const text = textarea.value;
+                        const replacement = `{{${cVar}}}`;
+                        const newValue = text.substring(0, start) + replacement + text.substring(end);
+                        setCustomMessage(newValue);
+                        setTimeout(() => {
+                          textarea.focus();
+                          textarea.setSelectionRange(start + replacement.length, start + replacement.length);
+                        }, 0);
+                      }}
+                    >
+                      + {cVar.charAt(0).toUpperCase() + cVar.slice(1)}
+                    </Button>
+                  ))}
                 </div>
               </div>
             </CardContent>

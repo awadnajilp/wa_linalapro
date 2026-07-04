@@ -73,10 +73,10 @@ const INDIC_LANGUAGES = [
 ];
 
 const PREDEFINED_VOICES = [
-  { id: "meera", name: "Meera (Female - Hindi/English)" },
   { id: "kavya", name: "Kavya (Female - Hindi/English)" },
-  { id: "pawan", name: "Pawan (Male - Hindi/English)" },
-  { id: "arvind", name: "Arvind (Male - Hindi/English)" }
+  { id: "rahul", name: "Rahul (Male - Hindi/English)" },
+  { id: "amit", name: "Amit (Male - Hindi/English)" },
+  { id: "anushka", name: "Anushka (Female - Hindi/English)" }
 ];
 
 export default function AIVoicesSettings(): JSX.Element {

@@ -1,4 +1,5 @@
 import FormData from "form-data";
+import axios from "axios";
 import { VoiceProvider } from "../types";
 
 export class SarvamVoiceProvider implements VoiceProvider {
@@ -25,22 +26,19 @@ export class SarvamVoiceProvider implements VoiceProvider {
       form.append("language_code", languageCode);
     }
 
-    const response = await fetch("https://api.sarvam.ai/speech-to-text", {
-      method: "POST",
-      headers: {
-        "api-subscription-key": apiKey,
-        ...form.getHeaders(),
-      },
-      body: form as any,
-    });
+    try {
+      const response = await axios.post("https://api.sarvam.ai/speech-to-text", form, {
+        headers: {
+          "api-subscription-key": apiKey,
+          ...form.getHeaders(),
+        },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Sarvam.ai STT failed (${response.status}): ${errorText}`);
+      return response.data.transcript || "";
+    } catch (err: any) {
+      const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      throw new Error(`Sarvam.ai STT failed: ${errorMsg}`);
     }
-
-    const result = (await response.json()) as { transcript: string };
-    return result.transcript || "";
   }
 
   async synthesize(
@@ -54,8 +52,8 @@ export class SarvamVoiceProvider implements VoiceProvider {
       throw new Error("Sarvam.ai API key is missing");
     }
 
-    // If it is a mock cloned voice, fall back to a standard voice
-    const speaker = voiceId && !voiceId.startsWith("cloned_") ? voiceId : "meera";
+    // Default to 'kavya' as 'meera' is not a recognized speaker
+    const speaker = voiceId && !voiceId.startsWith("cloned_") ? voiceId : "kavya";
     const targetLanguage = languageCode || "en-IN";
 
     const payload = {
@@ -70,26 +68,23 @@ export class SarvamVoiceProvider implements VoiceProvider {
       },
     };
 
-    const response = await fetch("https://api.sarvam.ai/text-to-speech", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "api-subscription-key": apiKey,
-      },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const response = await axios.post("https://api.sarvam.ai/text-to-speech", payload, {
+        headers: {
+          "Content-Type": "application/json",
+          "api-subscription-key": apiKey,
+        },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Sarvam.ai TTS failed (${response.status}): ${errorText}`);
+      if (!response.data || !response.data.audio_response) {
+        throw new Error("Sarvam.ai TTS response did not contain audio_response field");
+      }
+
+      return Buffer.from(response.data.audio_response, "base64");
+    } catch (err: any) {
+      const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      throw new Error(`Sarvam.ai TTS failed: ${errorMsg}`);
     }
-
-    const result = (await response.json()) as { audio_response: string };
-    if (!result.audio_response) {
-      throw new Error("Sarvam.ai TTS response did not contain audio_response field");
-    }
-
-    return Buffer.from(result.audio_response, "base64");
   }
 
   async cloneVoice(
@@ -110,22 +105,14 @@ export class SarvamVoiceProvider implements VoiceProvider {
     form.append("name", name);
 
     try {
-      const response = await fetch("https://api.sarvam.ai/voice-clone", {
-        method: "POST",
+      const response = await axios.post("https://api.sarvam.ai/voice-clone", form, {
         headers: {
           "api-subscription-key": apiKey,
           ...form.getHeaders(),
         },
-        body: form as any,
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Sarvam.ai Voice Clone failed (${response.status}): ${errorText}`);
-      }
-
-      const result = (await response.json()) as { voice_id: string };
-      return result.voice_id || "";
+      return response.data.voice_id || "";
     } catch (err: any) {
       console.warn("[Sarvam.ai] Voice cloning API call failed or is enterprise gated. Falling back to mock voice ID:", err.message);
       // Return a simulated voice ID so the user can test the flow builder and settings UI

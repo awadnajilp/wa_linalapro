@@ -3465,7 +3465,8 @@ export class AutomationTriggerService {
     console.log(`📝 Message: "${message.content || message.text || message}"`);
     
     // First, check if this is a response to a pending user_reply node
-    if (this.executionService.hasPendingExecution(conversationId)) {
+    const hasPending = await this.executionService.hasPendingExecutionAsync(conversationId);
+    if (hasPending) {
       console.log(`📨 Processing as user response to pending execution`);
       try {
         await this.executionService.handleUserResponse(conversationId, message.content || message.text || message, message.interactive);

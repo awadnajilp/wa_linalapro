@@ -98,7 +98,7 @@ export class SarvamVoiceProvider implements VoiceProvider {
     }
 
     // Default to 'anushka' as fallback speaker compatible with bulbul:v2
-    const speaker = voiceId && !voiceId.startsWith("cloned_") ? voiceId : "anushka";
+    const speaker = voiceId && !voiceId.startsWith("cloned_sarvam_") ? voiceId : "anushka";
     const targetLanguage = languageCode || "en-IN";
 
     // Split text into chunks of at most 450 characters to stay within Sarvam's 500-char limits

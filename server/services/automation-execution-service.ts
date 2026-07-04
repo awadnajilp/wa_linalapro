@@ -105,6 +105,31 @@ export class AutomationExecutionService {
       // Create execution context
       const triggerData = execution.triggerData ?? {};
 
+      let contactVars: Record<string, any> = {};
+      if (execution.contactId) {
+        try {
+          const contactRow = await db.query.contacts.findFirst({
+            where: eq(contacts.id, execution.contactId),
+          });
+          if (contactRow) {
+            contactVars = {
+              name: contactRow.name,
+              phone: contactRow.phone,
+              email: contactRow.email || "",
+              incoming_name: contactRow.name,
+              incoming_phone: contactRow.phone,
+              incoming_email: contactRow.email || "",
+              contact_name: contactRow.name,
+              contact_phone: contactRow.phone,
+              contact_email: contactRow.email || "",
+              ...(contactRow.variables && typeof contactRow.variables === "object" ? contactRow.variables : {})
+            };
+          }
+        } catch (cErr) {
+          console.warn(`[Automation ${execution.automationId}] Failed to fetch trigger contact for variables:`, cErr);
+        }
+      }
+
       const context: ExecutionContext = {
         executionId: execution.id,
         automationId: execution.automationId,
@@ -113,6 +138,7 @@ export class AutomationExecutionService {
         variables: {
           contactId: execution.contactId ?? undefined,
           conversationId: execution.conversationId ?? undefined,
+          ...contactVars,
           ...(triggerData as any)
         },
         triggerData,
@@ -310,7 +336,7 @@ export class AutomationExecutionService {
 private normalizeText(text: string = ""): string {
   return text
     .toLowerCase()
-    .replace(/[^\w\s]/gi, "")   // remove emoji & symbols
+    .replace(/[^\p{L}\p{N}\s]/gu, "")   // Unicode-safe: remove punctuation, symbols & emojis but keep letters/numbers from any language
     .replace(/\s+/g, " ")
     .trim();
 }

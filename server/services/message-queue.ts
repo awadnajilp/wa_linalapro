@@ -412,18 +412,24 @@ export class MessageQueueService {
         }
 
         // Interpolate variables in customMessage (e.g. {{name}}, {{phone}}, etc.)
-        let contactName = message.recipientPhone;
-        const [contact] = await db
-          .select()
-          .from(contacts)
-          .where(and(eq(contacts.channelId, channel.id), eq(contacts.phone, message.recipientPhone)))
-          .limit(1);
-        if (contact) {
-          contactName = contact.name || contactName;
+        let contact = await storage.getContactByPhoneAndChannel(message.recipientPhone, channel.id);
+        if (!contact) {
+          contact = await storage.getContactByPhone(message.recipientPhone);
         }
+        let contactName = contact ? contact.name : message.recipientPhone;
 
         text = text.replace(/\{\{\s*name\s*\}\}/gi, contactName);
         text = text.replace(/\{\{\s*phone\s*\}\}/gi, message.recipientPhone);
+        text = text.replace(/\{\{\s*email\s*\}\}/gi, contact?.email || "");
+
+        // Replace other custom variables from contact.variables
+        if (contact && contact.variables && typeof contact.variables === "object") {
+          Object.entries(contact.variables as Record<string, string>).forEach(([key, val]) => {
+            const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            const regex = new RegExp(`\\{\\{\\s*${escapedKey}\\s*\\}\\}`, "gi");
+            text = text.replace(regex, val || "");
+          });
+        }
 
         // Strip HTML tags from WYSIWYG editor if needed, or send as is.
         text = text

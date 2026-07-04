@@ -120,6 +120,7 @@ export const contacts = pgTable(
     tags: jsonb("tags").default([]),
     status: text("status").default("active"), // active, blocked, unsubscribed
     source: varchar("source", { length: 100 }), // manual, import, api, chatbot
+    variables: jsonb("variables").$type<Record<string, string>>().default({}),
     lastContact: timestamp("last_contact"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),

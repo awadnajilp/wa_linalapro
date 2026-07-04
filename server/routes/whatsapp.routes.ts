@@ -104,10 +104,19 @@ export function registerWhatsAppRoutes(app: Express) {
     const { sessionId } = req.params;
     const qrState = BaileysManager.getSessionStatus(sessionId);
 
+    // Fetch the channel from DB to check if it has the phone number populated
+    const [channel] = await db
+      .select()
+      .from(channels)
+      .where(eq(channels.id, sessionId))
+      .limit(1);
+
     res.json({
       success: true,
-      status: qrState.status,
-      qrCodeUrl: qrState.qrCodeUrl || null
+      status: qrState.status || (channel?.isActive ? "authenticated" : "pending"),
+      qrCodeUrl: qrState.qrCodeUrl || null,
+      phoneNumber: channel?.phoneNumber || null,
+      name: channel?.name || null
     });
   });
 

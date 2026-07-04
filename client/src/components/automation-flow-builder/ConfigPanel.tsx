@@ -1583,7 +1583,9 @@ export function ConfigPanel({
                     className="min-h-[100px] text-sm bg-white rounded-lg"
                   />
                   <p className="text-[10px] text-gray-400 leading-normal">
-                    You can use variables in the flow execution (e.g. <code className="bg-gray-100 px-1 rounded">{"{{name}}"}</code>, <code className="bg-gray-100 px-1 rounded">{"{{phone}}"}</code>, or custom variables set via Set Variable node).
+                    To reference the <strong>receiving agent/contact</strong>, use: <code className="bg-gray-100 px-1 rounded">{"{{name}}"}</code>, <code className="bg-gray-100 px-1 rounded">{"{{phone}}"}</code>.
+                    <br />
+                    To reference the <strong>incoming contact (customer who triggered this flow)</strong>, use: <code className="bg-gray-100 px-1 rounded">{"{{incoming_name}}"}</code>, <code className="bg-gray-100 px-1 rounded">{"{{incoming_phone}}"}</code>, <code className="bg-gray-100 px-1 rounded">{"{{incoming_email}}"}</code>, or any of their custom flow variables (e.g. <code className="bg-gray-100 px-1 rounded">{"{{company}}"}</code>).
                   </p>
                 </div>
               </div>

@@ -1248,6 +1248,28 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
       if (cached?.url) {
         return cached.url;
       }
+      
+      // Fallback: Query the database messages table to find a matching message and return its mediaUrl
+      try {
+        const { db } = await import("../db");
+        const { messages } = await import("@shared/schema");
+        const { eq } = await import("drizzle-orm");
+
+        const [msgRow] = await db
+          .select({ mediaUrl: messages.mediaUrl })
+          .from(messages)
+          .where(eq(messages.mediaId, mediaId))
+          .limit(1);
+        
+        if (msgRow && msgRow.mediaUrl) {
+          // Cache it for subsequent requests
+          WhatsAppApiService.mediaCache.set(mediaId, { url: msgRow.mediaUrl });
+          return msgRow.mediaUrl;
+        }
+      } catch (dbErr) {
+        console.error("[WhatsAppApi] Failed to query mediaUrl from DB fallback:", dbErr);
+      }
+      
       return null;
     }
 

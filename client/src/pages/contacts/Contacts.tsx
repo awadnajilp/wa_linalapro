@@ -60,6 +60,7 @@ type LocalInsertContact = {
   email: string;
   groups: string[];
   tags: string[];
+  variables?: Record<string, string>;
 };
 
 const CHUNK_SIZE = 1000;
@@ -681,17 +682,34 @@ export default function Contacts() {
 
       const parsedContacts: LocalInsertContact[] = (results.data as any[])
         .filter((row) => row && Object.keys(row).length > 0)
-        .map((row: any) => ({
-          name: row?.name?.toString().trim() || "",
-          phone: row?.phone ? String(row.phone).trim() : "",
-          email: row?.email?.toString().trim() || "",
-          groups: row?.groups
+        .map((row: any) => {
+          const name = row?.name?.toString().trim() || "";
+          const phone = row?.phone ? String(row.phone).trim() : "";
+          const email = row?.email?.toString().trim() || "";
+          const groups = row?.groups
             ? row.groups.split(",").map((g: string) => g.trim())
-            : [],
-          tags: row?.tags
+            : [];
+          const tags = row?.tags
             ? row.tags.split(",").map((t: string) => t.trim())
-            : [],
-        }))
+            : [];
+
+          const variables: Record<string, string> = {};
+          Object.entries(row).forEach(([key, val]) => {
+            const cleanKey = key.trim().toLowerCase();
+            if (!["name", "phone", "email", "groups", "tags"].includes(cleanKey)) {
+              variables[cleanKey] = val ? String(val).trim() : "";
+            }
+          });
+
+          return {
+            name,
+            phone,
+            email,
+            groups,
+            tags,
+            variables,
+          };
+        })
         .filter((c) => c.name || c.phone);
 
       if (parsedContacts.length === 0) {
@@ -776,15 +794,32 @@ export default function Contacts() {
         rows.push(rowData);
       });
 
-      const parsedContacts: LocalInsertContact[] = rows.map((row) => ({
-        name: row["name"] || "",
-        phone: row["phone"] || "",
-        email: row["email"] || "",
-        groups: row["groups"]
+      const parsedContacts: LocalInsertContact[] = rows.map((row) => {
+        const name = row["name"] || "";
+        const phone = row["phone"] || "";
+        const email = row["email"] || "";
+        const groups = row["groups"]
           ? row["groups"].split(",").map((g) => g.trim())
-          : [],
-        tags: row["tags"] ? row["tags"].split(",").map((t) => t.trim()) : [],
-      }));
+          : [];
+        const tags = row["tags"] ? row["tags"].split(",").map((t) => t.trim()) : [];
+
+        const variables: Record<string, string> = {};
+        Object.entries(row).forEach(([key, val]) => {
+          const cleanKey = key.trim().toLowerCase();
+          if (!["name", "phone", "email", "groups", "tags"].includes(cleanKey)) {
+            variables[cleanKey] = val ? String(val).trim() : "";
+          }
+        });
+
+        return {
+          name,
+          phone,
+          email,
+          groups,
+          tags,
+          variables,
+        };
+      });
 
       const noPhone = parsedContacts.filter((c) => !c.phone).length;
       const invalidFormat = parsedContacts.filter((c) => c.phone && !isValidPhone(c.phone)).length;

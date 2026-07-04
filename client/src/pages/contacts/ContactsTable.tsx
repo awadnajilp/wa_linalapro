@@ -234,6 +234,15 @@ export function ContactsTable({
                                   : contact.email}
                               </div>
                             )}
+                            {contact.variables && typeof contact.variables === "object" && Object.keys(contact.variables).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1.5 max-w-[280px]">
+                                {Object.entries(contact.variables).map(([key, val]) => (
+                                  <Badge key={key} variant="outline" className="text-[10px] px-1.5 py-0 bg-gray-50 text-gray-600 border-gray-200 truncate">
+                                    {key}: {val}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -445,6 +454,15 @@ export function ContactsTable({
                                   contact.email.indexOf("@") - 2
                                 )
                               : contact.email}
+                          </div>
+                        )}
+                        {contact.variables && typeof contact.variables === "object" && Object.keys(contact.variables).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5 max-w-[200px]">
+                            {Object.entries(contact.variables).map(([key, val]) => (
+                              <Badge key={key} variant="outline" className="text-[10px] px-1 px-0.5 bg-gray-50 text-gray-600 border-gray-200 truncate">
+                                {key}: {val}
+                              </Badge>
+                            ))}
                           </div>
                         )}
                       </div>

@@ -145,13 +145,18 @@ export function ChannelSettings() {
           }
           if (data.status === "authenticated") {
             setQrStatus("authenticated");
+            if (data.phoneNumber) {
+              setQrPhoneNumber(data.phoneNumber);
+            }
+            if (data.name) {
+              setQrChannelName(data.name);
+            }
             toast({
               title: "Connected!",
-              description: "WhatsApp QR Channel connected successfully."
+              description: "WhatsApp connected successfully. Please verify details and click Save."
             });
             queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
             queryClient.invalidateQueries({ queryKey: ["/api/channels/active"] });
-            setShowQrConnectDialog(false);
           } else if (data.status === "expired") {
             setQrStatus("expired");
           }
@@ -1588,6 +1593,16 @@ export function ChannelSettings() {
           </DialogHeader>
 
           <div className="space-y-4 my-2">
+            {qrStatus === "authenticated" && (
+              <div className="p-3 bg-green-50 border border-green-200 text-green-800 text-xs rounded-lg flex items-start gap-2 animate-in fade-in zoom-in-95 duration-200">
+                <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold">WhatsApp Connected Successfully!</p>
+                  <p className="text-[11px] text-green-700 mt-0.5">Please review the Connection Name and Phone Number, then click <strong>Save Connection</strong> below.</p>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-xs font-semibold text-gray-700">Connection Name</label>
               <Input
@@ -1608,59 +1623,61 @@ export function ChannelSettings() {
               />
             </div>
 
-            <div className="flex flex-col items-center justify-center p-6 bg-gray-50 border border-gray-100 rounded-xl">
-              {qrCodeUrl ? (
-                <div className="relative p-3 bg-white rounded-xl shadow-sm border border-gray-200">
-                  <img src={qrCodeUrl} alt="WhatsApp QR Code" className="w-60 h-60 object-contain" />
-                  {qrStatus === "expired" && (
-                    <div className="absolute inset-0 bg-white/95 flex flex-col items-center justify-center p-4 text-center rounded-xl">
-                      <AlertTriangle className="w-10 h-10 text-amber-500 mb-2" />
-                      <p className="text-sm font-semibold text-gray-900">QR Code Expired</p>
-                      <p className="text-xs text-gray-500 mb-3">QR codes expire quickly for security reasons.</p>
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            setQrConnectLoading(true);
-                            const res = await apiRequest("POST", "/api/whatsapp/channels/qr/initiate", {
-                              name: qrChannelName,
-                              phoneNumber: qrPhoneNumber
-                            });
-                            const data = await res.json();
-                            if (data.success) {
-                              setQrSessionId(data.sessionId);
-                              setQrCodeUrl(data.qrCodeUrl);
-                              setQrStatus("pending");
+            {qrStatus !== "authenticated" && (
+              <div className="flex flex-col items-center justify-center p-6 bg-gray-50 border border-gray-100 rounded-xl">
+                {qrCodeUrl ? (
+                  <div className="relative p-3 bg-white rounded-xl shadow-sm border border-gray-200">
+                    <img src={qrCodeUrl} alt="WhatsApp QR Code" className="w-60 h-60 object-contain" />
+                    {qrStatus === "expired" && (
+                      <div className="absolute inset-0 bg-white/95 flex flex-col items-center justify-center p-4 text-center rounded-xl">
+                        <AlertTriangle className="w-10 h-10 text-amber-500 mb-2" />
+                        <p className="text-sm font-semibold text-gray-900">QR Code Expired</p>
+                        <p className="text-xs text-gray-500 mb-3">QR codes expire quickly for security reasons.</p>
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              setQrConnectLoading(true);
+                              const res = await apiRequest("POST", "/api/whatsapp/channels/qr/initiate", {
+                                name: qrChannelName,
+                                phoneNumber: qrPhoneNumber
+                              });
+                              const data = await res.json();
+                              if (data.success) {
+                                setQrSessionId(data.sessionId);
+                                setQrCodeUrl(data.qrCodeUrl);
+                                setQrStatus("pending");
+                              }
+                            } catch (err: any) {
+                              toast({
+                                variant: "destructive",
+                                title: "Failed to refresh QR",
+                                description: err.message || "Failed to refresh session"
+                              });
+                            } finally {
+                              setQrConnectLoading(false);
                             }
-                          } catch (err: any) {
-                            toast({
-                              variant: "destructive",
-                              title: "Failed to refresh QR",
-                              description: err.message || "Failed to refresh session"
-                            });
-                          } finally {
-                            setQrConnectLoading(false);
-                          }
-                        }}
-                        className="rounded-lg h-8 text-xs bg-purple-600 hover:bg-purple-700"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh Code
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="w-60 h-60 flex items-center justify-center bg-white border border-dashed border-gray-200 rounded-xl">
-                  <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
-                </div>
-              )}
+                          }}
+                          className="rounded-lg h-8 text-xs bg-purple-600 hover:bg-purple-700"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh Code
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-60 h-60 flex items-center justify-center bg-white border border-dashed border-gray-200 rounded-xl">
+                    <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+                  </div>
+                )}
 
-              <div className="text-center mt-4 max-w-xs">
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  Open WhatsApp on your mobile device, tap Settings &gt; Linked Devices, and scan this code.
-                </p>
+                <div className="text-center mt-4 max-w-xs">
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    Open WhatsApp on your mobile device, tap Settings &gt; Linked Devices, and scan this code.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <DialogFooter className="flex sm:justify-between items-center gap-2">
@@ -1676,39 +1693,44 @@ export function ChannelSettings() {
                 if (!qrSessionId) return;
                 try {
                   setQrConnectLoading(true);
-                  const res = await apiRequest("POST", `/api/whatsapp/channels/qr/simulate-scan/${qrSessionId}`, {
+                  const res = await apiRequest("PUT", `/api/channels/${qrSessionId}`, {
                     name: qrChannelName,
-                    phoneNumber: qrPhoneNumber
+                    phoneNumber: qrPhoneNumber,
+                    isActive: true
                   });
-                  const data = await res.json();
-                  if (data.success) {
+                  if (res.ok) {
                     toast({
-                      title: "Authenticated!",
-                      description: "WhatsApp QR Channel connected successfully via simulated scan."
+                      title: "Saved!",
+                      description: "WhatsApp QR Channel saved successfully."
                     });
                     queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
                     queryClient.invalidateQueries({ queryKey: ["/api/channels/active"] });
                     setShowQrConnectDialog(false);
+                  } else {
+                    const data = await res.json();
+                    throw new Error(data.error || "Failed to save channel details.");
                   }
                 } catch (err: any) {
                   toast({
                     variant: "destructive",
-                    title: "Scan Simulation Failed",
-                    description: err.message || "Could not simulate scan"
+                    title: "Failed to Save Connection",
+                    description: err.message || "Could not save channel"
                   });
                 } finally {
                   setQrConnectLoading(false);
                 }
               }}
-              disabled={qrConnectLoading || qrStatus === "expired"}
-              className="rounded-lg h-9 text-sm bg-purple-600 hover:bg-purple-700 text-white font-medium"
+              disabled={qrConnectLoading || qrStatus !== "authenticated"}
+              className="rounded-lg h-9 text-sm bg-purple-600 hover:bg-purple-700 text-white font-medium disabled:opacity-50"
             >
               {qrConnectLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Connecting...
+                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Saving...
                 </>
+              ) : qrStatus === "authenticated" ? (
+                "Save Connection"
               ) : (
-                "Simulate Scan (Auto Connect)"
+                "Waiting for Scan..."
               )}
             </Button>
           </DialogFooter>

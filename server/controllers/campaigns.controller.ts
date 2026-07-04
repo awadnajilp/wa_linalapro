@@ -679,6 +679,35 @@ export const campaignsController = {
 
 const cleanMediaId = (id: any) => (id && /^\d+$/.test(String(id)) ? parseInt(String(id), 10) : id);
 
+function resolveVariableValue(mapObj: any, contact: Contact): string {
+  if (!mapObj) return "";
+  const typeKey = mapObj.type;
+  const valKey = mapObj.value;
+
+  if (typeKey === "firstName") {
+    return contact.firstName || contact.name || "";
+  } else if (typeKey === "lastName") {
+    return contact.lastName || "";
+  } else if (typeKey === "fullName") {
+    return (contact.firstName || contact.name || "") + (contact.lastName ? " " + contact.lastName : "");
+  } else if (typeKey === "phone") {
+    return contact.phone;
+  } else if (contact.variables && typeof contact.variables === "object" && typeKey && (contact.variables as Record<string, any>)[typeKey] !== undefined) {
+    return (contact.variables as Record<string, any>)[typeKey] || "";
+  } else if (typeKey === "custom") {
+    if (contact.variables && typeof contact.variables === "object" && valKey && (contact.variables as Record<string, any>)[valKey] !== undefined) {
+      return (contact.variables as Record<string, any>)[valKey] || "";
+    }
+    return valKey || "";
+  } else if (valKey) {
+    if (contact.variables && typeof contact.variables === "object" && (contact.variables as Record<string, any>)[valKey] !== undefined) {
+      return (contact.variables as Record<string, any>)[valKey] || "";
+    }
+    return valKey;
+  }
+  return "";
+}
+
 function buildContactComponents(contact: Contact, campaign: any, template: any, hasLimitedTimeOffer: boolean): any[] {
   const components: any[] = [];
 
@@ -705,14 +734,7 @@ function buildContactComponents(contact: Contact, campaign: any, template: any, 
     for (const varText of headerVars) {
       const index = varText.replace(/\D/g, "");
       const mapObj = campaign.variableMapping?.headerVars?.[index];
-      let textValue = "";
-      if (mapObj) {
-        if (mapObj.type === "custom") textValue = mapObj.value || "";
-        else if (mapObj.type === "firstName") textValue = contact.firstName || contact.name || "";
-        else if (mapObj.type === "lastName") textValue = contact.lastName || "";
-        else if (mapObj.type === "fullName") textValue = (contact.firstName || contact.name || "") + (contact.lastName ? " " + contact.lastName : "");
-        else if (mapObj.type === "phone") textValue = contact.phone;
-      }
+      const textValue = resolveVariableValue(mapObj, contact);
       headerComponent.parameters.push({ type: "text", text: textValue });
     }
     components.push(headerComponent);
@@ -733,14 +755,7 @@ function buildContactComponents(contact: Contact, campaign: any, template: any, 
     for (const varText of bodyVars) {
       const index = varText.replace(/\D/g, "");
       const mapObj = campaign.variableMapping?.[index];
-      let textValue = "";
-      if (mapObj) {
-        if (mapObj.type === "custom") textValue = mapObj.value || "";
-        else if (mapObj.type === "firstName") textValue = contact.firstName || contact.name || "";
-        else if (mapObj.type === "lastName") textValue = contact.lastName || "";
-        else if (mapObj.type === "fullName") textValue = (contact.firstName || contact.name || "") + (contact.lastName ? " " + contact.lastName : "");
-        else if (mapObj.type === "phone") textValue = contact.phone;
-      }
+      const textValue = resolveVariableValue(mapObj, contact);
       bodyComponent.parameters.push({ type: "text", text: textValue });
     }
     components.push(bodyComponent);
@@ -750,18 +765,11 @@ function buildContactComponents(contact: Contact, campaign: any, template: any, 
     template.buttons.forEach((button: any, index: number) => {
       if (button.type === "URL" && button.url?.includes("{{")) {
         const mapObj = campaign.variableMapping?.buttons?.[index.toString()];
-        let textValue = "";
-        if (mapObj) {
-          if (mapObj.type === "custom") textValue = mapObj.value || "";
-          else if (mapObj.type === "firstName") textValue = contact.firstName || "";
-          else if (mapObj.type === "lastName") textValue = contact.lastName || "";
-          else if (mapObj.type === "fullName") textValue = `${contact.firstName || ""} ${contact.lastName || ""}`.trim();
-          else if (mapObj.type === "phone") textValue = contact.phone;
-        }
+        const textValue = resolveVariableValue(mapObj, contact);
         components.push({ type: "button", sub_type: "url", index: index.toString(), parameters: [{ type: "text", text: textValue }] });
       } else if (button.type === "COPY_CODE") {
         const mapObj = campaign.variableMapping?.buttons?.[index.toString()];
-        const couponCode = mapObj?.value || button.example?.[0] || "";
+        const couponCode = resolveVariableValue(mapObj, contact) || button.example?.[0] || "";
         components.push({ type: "button", sub_type: "copy_code", index: index.toString(), parameters: [{ type: "coupon_code", coupon_code: couponCode }] });
       }
     });

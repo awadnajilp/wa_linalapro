@@ -7,9 +7,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
-import { Info, FileText, Clock, Eye, Check, Upload, Loader2 } from "lucide-react";
+import { Info, FileText, Clock, Eye, Check, Upload, Loader2, Smile } from "lucide-react";
 import { TemplatePickerDialog, getTemplateButtons } from "@/components/shared/TemplatePickerDialog";
 import { useQuery } from "@tanstack/react-query";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+
+const POPULAR_EMOJIS = [
+  "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", 
+  "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🤩", "🥳", "😏", 
+  "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠", 
+  "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥", "😓", "🤗", "🤔", "🤭", "🤫", "🤥", 
+  "😶", "😐", "😑", "😬", "🙄", "😯", "😦", "😧", "😮", "😲", "🥱", "😴", "🤤", "😪", "😵", "🤐", 
+  "🥴", "🤢", "🤮", "🤧", "😷", "🤒", "🤕", "🤑", "🤠", "😈", "👿", "👹", "👺", "🤡", "💩", "👻", 
+  "💀", "☠️", "👽", "👾", "🤖", "🎃", "👋", "👌", "✌️", "👍", "👎", "👏", "🙌", "🙏", "✍️", "💪", 
+  "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "💔", "❣️", "💕", "💞", "💓", "💗", "💖", "💘", 
+  "🚀", "🚨", "🔥", "✨", "🎉", "📢", "💬", "📩", "📅", "✅", "❌", "⚠️", "💡", "💰", "📞", "⭐", 
+  "🌟", "📌", "📍", "🎯", "📈", "📉", "🏆", "🎁", "🛍️", "🛒", "💻", "📱", "💼", "✉️", "🔑"
+];
 
 interface CreateCampaignFormProps {
   onSubmit: (formData: any) => void;
@@ -73,6 +87,20 @@ export function CreateCampaignForm({
 
   // QR Custom fields states
   const [customMessage, setCustomMessage] = useState("");
+
+  const insertEmoji = (emoji: string) => {
+    const textarea = document.getElementById("customMessageTextarea") as HTMLTextAreaElement;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const newValue = text.substring(0, start) + emoji + text.substring(end);
+    setCustomMessage(newValue);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + emoji.length, start + emoji.length);
+    }, 0);
+  };
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaMimeType, setMediaMimeType] = useState("");
   const [mediaName, setMediaName] = useState("");
@@ -474,6 +502,32 @@ export function CreateCampaignForm({
                     >
                       Mono
                     </Button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 text-[10px] px-1.5 flex items-center gap-1"
+                        >
+                          <Smile className="w-3 h-3 text-purple-600" /> Emojis
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-2" align="end">
+                        <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
+                          {POPULAR_EMOJIS.map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => insertEmoji(emoji)}
+                              className="text-lg p-1 hover:bg-purple-100 rounded transition-colors text-center"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
 

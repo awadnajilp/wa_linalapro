@@ -41,6 +41,7 @@ import {
   Database,
   Brain,
   Copy,
+  Bot,
 } from "lucide-react";
 import { BuilderNodeData } from "./types";
 
@@ -685,13 +686,13 @@ export function WaitReplyNode({ data, selected }: { data: BuilderNodeData; selec
   );
 }
 
-export function AIAgentNode({ data, selected }: { data: BuilderNodeData; selected?: boolean }) {
+export function AIAnswerNode({ data, selected }: { data: BuilderNodeData; selected?: boolean }) {
   return (
     <div className="relative">
       <Handle type="target" position={Position.Top} className="!bg-purple-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
       <NodeShell
         icon={<Brain className="w-4 h-4" />}
-        title="AI Agent"
+        title="AI Answer"
         color="text-purple-700"
         bgColor="bg-purple-50"
         borderColor="border-purple-100"
@@ -719,6 +720,66 @@ export function AIAgentNode({ data, selected }: { data: BuilderNodeData; selecte
         </div>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-purple-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+    </div>
+  );
+}
+
+export function AIAgentNode({ data, selected }: { data: BuilderNodeData; selected?: boolean }) {
+  const tools = Array.isArray(data.aiTools) ? data.aiTools : [];
+  const hasTools = tools.length > 0;
+
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-fuchsia-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<Bot className="w-4 h-4" />}
+        title="AI Agent (Takeover)"
+        color="text-fuchsia-700"
+        bgColor="bg-fuchsia-50"
+        borderColor="border-fuchsia-100"
+        selected={selected}
+      >
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+            <span className="font-semibold text-gray-700">Model:</span>
+            <span>{data.aiModel || "gpt-4o"}</span>
+          </div>
+          <div className="text-[10px] text-gray-500 line-clamp-2">
+            <span className="font-semibold text-gray-700">Prompt:</span>{" "}
+            {data.aiSystemPrompt || "Conversational Takeover"}
+          </div>
+          
+          {hasTools && (
+            <div className="pt-2 border-t border-gray-100 space-y-2">
+              <div className="text-[9px] font-semibold text-fuchsia-700 uppercase tracking-wider">
+                Function Tools / Routing:
+              </div>
+              <div className="flex flex-col gap-2 relative">
+                {tools.map((tool: any, idx: number) => (
+                  <div key={tool.id || idx} className="flex items-center justify-between bg-fuchsia-50/50 border border-fuchsia-100 rounded px-1.5 py-1 relative">
+                    <span className="text-[9px] font-mono font-semibold text-fuchsia-700 truncate max-w-[120px]">
+                      {tool.name}
+                    </span>
+                    <Handle
+                      type="source"
+                      position={Position.Right}
+                      id={tool.name}
+                      className="!bg-fuchsia-500 !w-2.5 !h-2.5 !border-2 !border-white !shadow-sm"
+                      style={{ right: '-11px' }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </NodeShell>
+      <div className="absolute left-1/2 transform -translate-x-1/2 -bottom-3.5 flex flex-col items-center">
+        <span className="text-[8px] bg-slate-100 text-slate-600 px-1 rounded border border-slate-200 leading-none">
+          Default exit
+        </span>
+        <Handle type="source" position={Position.Bottom} id="default" className="!bg-fuchsia-500 !w-2.5 !h-2.5 !border-2 !border-white !shadow-sm mt-0.5" />
+      </div>
     </div>
   );
 }
@@ -765,6 +826,7 @@ export const nodeTypes = {
   send_media: withNodeActions(SendMediaNode),
   mark_as_read: withNodeActions(MarkAsReadNode),
   wait_reply: withNodeActions(WaitReplyNode),
+  ai_answer: withNodeActions(AIAnswerNode),
   ai_agent: withNodeActions(AIAgentNode),
   send_contact_message: withNodeActions(SendContactMessageNode),
 };

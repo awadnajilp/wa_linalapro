@@ -34,6 +34,7 @@ export type NodeKind =
   | "send_media"
   | "mark_as_read"
   | "wait_reply"
+  | "ai_answer"
   | "ai_agent"
   | "send_contact_message";
 

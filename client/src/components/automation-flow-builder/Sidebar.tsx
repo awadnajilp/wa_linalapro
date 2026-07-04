@@ -35,6 +35,8 @@ import {
   MessageSquare,
   Database,
   Brain,
+  Bot,
+  Sparkles
 } from "lucide-react";
 import { NodeKind } from "./types";
 import {
@@ -159,13 +161,22 @@ const nodeCategories = [
         tip: "Pause the flow until the customer sends a new message. You can optionally save their reply into a custom variable.",
       },
       {
-        kind: "ai_agent" as NodeKind,
-        name: "AI Agent",
-        icon: Brain,
+        kind: "ai_answer" as NodeKind,
+        name: "AI Answer",
+        icon: Sparkles,
         color: "text-purple-600",
         bg: "bg-purple-50",
         border: "border-purple-200",
-        tip: "Connect to AI (GPT/Gemini) to generate a response. Optionally query your knowledge base (training data), customize the system prompt, and save the AI's output in a variable.",
+        tip: "Connect to AI (GPT/Gemini) to generate a one-off response and save it in a variable.",
+      },
+      {
+        kind: "ai_agent" as NodeKind,
+        name: "AI Agent",
+        icon: Bot,
+        color: "text-fuchsia-600",
+        bg: "bg-fuchsia-50",
+        border: "border-fuchsia-200",
+        tip: "Activate continuous 2-way AI conversation with custom tools (function calling) and flow routing.",
       },
     ],
   },

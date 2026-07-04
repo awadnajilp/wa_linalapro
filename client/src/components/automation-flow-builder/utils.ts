@@ -131,14 +131,23 @@ export const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
     label: "Wait Reply",
     saveAs: "",
   },
-  ai_agent: {
-    kind: "ai_agent",
-    label: "AI Agent",
+  ai_answer: {
+    kind: "ai_answer",
+    label: "AI Answer",
     aiConfigUseSettings: true,
     aiModel: "gpt-4o",
     aiSystemPrompt: "You are a helpful AI assistant. Answer the user's questions based on the context provided.",
     aiUseTrainingData: true,
     aiOutputVariable: "ai_response",
+  },
+  ai_agent: {
+    kind: "ai_agent",
+    label: "AI Agent",
+    aiConfigUseSettings: true,
+    aiModel: "gpt-4o",
+    aiSystemPrompt: "You are a conversational AI Agent taking over this chat. Answer user questions and call custom functions/tools when needed.",
+    aiUseTrainingData: true,
+    aiTools: [],
   },
 };
 

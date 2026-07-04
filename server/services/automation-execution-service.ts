@@ -268,6 +268,10 @@ export class AutomationExecutionService {
           result = await this.executeMySQL(node, context);
           break;
 
+        case 'ai_answer':
+          result = await this.executeAIAnswer(node, context);
+          break;
+
         case 'ai_agent':
           result = await this.executeAIAgent(node, context);
           break;
@@ -611,6 +615,7 @@ private stemWord(word: string = ""): string {
     }
 
     const hasButtons = currentNode.data?.buttons && currentNode.data.buttons.length > 0;
+    const hasTools = currentNode.data?.aiTools && currentNode.data.aiTools.length > 0;
     let edgesToFollow = outgoingEdges;
 
     if (hasButtons) {
@@ -626,6 +631,20 @@ private stemWord(word: string = ""): string {
         }
       } else {
         // If no selectedButtonId, try to find default or unlabeled fallback edges
+        const fallbackEdges = outgoingEdges.filter((e: any) => e.sourceHandle === 'default' || !e.sourceHandle);
+        edgesToFollow = fallbackEdges.length > 0 ? fallbackEdges : outgoingEdges;
+      }
+    } else if (hasTools) {
+      if (selectedButtonId) {
+        // Find edge matching the triggered function/tool name
+        const matchedEdge = outgoingEdges.find((e: any) => e.sourceHandle === selectedButtonId);
+        if (matchedEdge) {
+          edgesToFollow = [matchedEdge];
+        } else {
+          const fallbackEdges = outgoingEdges.filter((e: any) => e.sourceHandle === 'default' || !e.sourceHandle);
+          edgesToFollow = fallbackEdges;
+        }
+      } else {
         const fallbackEdges = outgoingEdges.filter((e: any) => e.sourceHandle === 'default' || !e.sourceHandle);
         edgesToFollow = fallbackEdges.length > 0 ? fallbackEdges : outgoingEdges;
       }
@@ -1983,6 +2002,7 @@ private async sendInteractiveMessage(
           executionId: exec.id,
           automationId: exec.automationId,
           nodeId,
+          nodeType: vars._userReply_nodeType || 'user_reply',
           conversationId: exec.conversationId,
           contactId: exec.contactId ?? undefined,
           context,
@@ -2706,7 +2726,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     }
   }
 
-  private async executeAIAgent(node: any, context: ExecutionContext) {
+  private async executeAIAnswer(node: any, context: ExecutionContext) {
     const nodeData = node.data || {};
     const aiConfigUseSettings = nodeData.aiConfigUseSettings !== false;
     const aiApiKey = nodeData.aiApiKey || "";
@@ -2719,7 +2739,6 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       throw new Error('contactId is required for automation execution');
     }
 
-    // Get contact details for variable interpolation
     const getContact = await db.query.contacts.findFirst({
       where: eq(contacts.id, context.contactId),
     });
@@ -2728,7 +2747,6 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       throw new Error('Contact not found');
     }
 
-    // Populate default variables in context variables
     context.variables.contactName = getContact.name;
     context.variables.contactPhone = getContact.phone;
     context.variables.last_message = context.lastUserMessage || "";
@@ -2743,7 +2761,6 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       effectiveChannelId = automationRow?.channelId ?? null;
     }
 
-    // Resolve API Key, endpoint and model
     let finalApiKey = aiApiKey;
     let finalBaseURL = "https://api.openai.com/v1";
     let finalModel = aiModel;
@@ -2763,7 +2780,6 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       }
     }
 
-    // Fallback to env variable if none configured/manual key is empty
     if (!finalApiKey) {
       finalApiKey = process.env.OPENAI_API_KEY || "";
       finalBaseURL = "https://api.openai.com/v1";
@@ -2771,6 +2787,129 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
 
     if (!finalApiKey) {
       throw new Error('No API key configured for AI agent node');
+    }
+
+    let systemPrompt = this.replaceVariables(aiSystemPrompt, context.variables);
+
+    if (aiUseTrainingData && effectiveChannelId) {
+      try {
+        const channelSites = await db
+          .select()
+          .from(sites)
+          .where(eq(sites.channelId, effectiveChannelId))
+          .limit(1);
+
+        const site = channelSites[0];
+        if (site) {
+          const queryText = context.lastUserMessage || "Hi";
+          const trainingResults = await searchTrainingData(site.id, effectiveChannelId, queryText);
+          
+          let trainingContext = "";
+          if (trainingResults.chunks.length > 0) {
+            trainingContext += "\n\n--- RELEVANT KNOWLEDGE BASE & TRAINING DATA ---\n";
+            trainingContext += trainingResults.chunks.join("\n\n");
+          }
+          if (trainingResults.qaPairs.length > 0) {
+            trainingContext += "\n\n--- RELEVANT FAQ PAIRS ---\n";
+            for (const qa of trainingResults.qaPairs) {
+              trainingContext += `Q: ${qa.question}\nA: ${qa.answer}\n\n`;
+            }
+          }
+          if (trainingContext) {
+            systemPrompt += trainingContext;
+          }
+        }
+      } catch (err) {
+        console.warn("[AI Node] Training data search failed:", err);
+      }
+    }
+
+    const aiClient = new OpenAI({
+      apiKey: finalApiKey,
+      baseURL: finalBaseURL,
+    });
+
+    const messageContent = context.lastUserMessage || "Hi";
+
+    console.log(`[AI Node] Sending completion request using model ${finalModel}...`);
+    const completion = await aiClient.chat.completions.create({
+      model: finalModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: messageContent },
+      ],
+      temperature: 0.7,
+      max_tokens: 800,
+    });
+
+    const responseText = completion.choices[0]?.message?.content || "";
+    console.log(`[AI Node] Received response from AI: "${responseText.substring(0, 100)}..."`);
+
+    context.variables[aiOutputVariable] = responseText;
+
+    return { success: true, response: responseText };
+  }
+
+  private async executeAIAgent(node: any, context: ExecutionContext, automation?: any) {
+    const nodeData = node.data || {};
+    const aiConfigUseSettings = nodeData.aiConfigUseSettings !== false;
+    const aiApiKey = nodeData.aiApiKey || "";
+    const aiModel = nodeData.aiModel || "gpt-4o";
+    const aiSystemPrompt = nodeData.aiSystemPrompt || "You are a conversational AI Agent taking over this chat. Answer user questions and call custom functions/tools when needed.";
+    const aiUseTrainingData = nodeData.aiUseTrainingData !== false;
+
+    if (!context.contactId || !context.conversationId) {
+      throw new Error('contactId and conversationId are required for conversational takeover');
+    }
+
+    const getContact = await db.query.contacts.findFirst({
+      where: eq(contacts.id, context.contactId),
+    });
+
+    if (!getContact) {
+      throw new Error('Contact not found');
+    }
+
+    context.variables.contactName = getContact.name;
+    context.variables.contactPhone = getContact.phone;
+    context.variables.last_message = context.lastUserMessage || "";
+
+    let effectiveChannelId = getContact.channelId;
+    if (!effectiveChannelId) {
+      const [automationRow] = await db
+        .select({ channelId: automations.channelId })
+        .from(automations)
+        .where(eq(automations.id, context.automationId))
+        .limit(1);
+      effectiveChannelId = automationRow?.channelId ?? null;
+    }
+
+    let finalApiKey = aiApiKey;
+    let finalBaseURL = "https://api.openai.com/v1";
+    let finalModel = aiModel;
+
+    if (aiConfigUseSettings && effectiveChannelId) {
+      const aiSetting = await db
+        .select()
+        .from(aiSettings)
+        .where(and(eq(aiSettings.channelId, effectiveChannelId), eq(aiSettings.isActive, true)))
+        .limit(1);
+
+      const activeAI = aiSetting?.[0];
+      if (activeAI && activeAI.apiKey) {
+        finalApiKey = activeAI.apiKey;
+        finalBaseURL = activeAI.endpoint || "https://api.openai.com/v1";
+        finalModel = activeAI.model || aiModel;
+      }
+    }
+
+    if (!finalApiKey) {
+      finalApiKey = process.env.OPENAI_API_KEY || "";
+      finalBaseURL = "https://api.openai.com/v1";
+    }
+
+    if (!finalApiKey) {
+      throw new Error('No API key configured for AI Agent takeover');
     }
 
     // 1. Interpolate variables in System Prompt
@@ -2806,35 +2945,152 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
           }
         }
       } catch (err) {
-        console.warn("[AI Node] Training data search failed:", err);
+        console.warn("[AI Agent] Training data search failed:", err);
       }
     }
 
-    // 3. Execute OpenAI Chat Completion
+    // 3. Load conversation history
+    const chatHistory = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, context.conversationId))
+      .orderBy(sql`${messages.timestamp} asc`)
+      .limit(30);
+
+    const openAiMessages = chatHistory.map(msg => ({
+      role: msg.fromUser ? "user" as const : "assistant" as const,
+      content: msg.content || ""
+    }));
+
+    if (openAiMessages.length === 0) {
+      openAiMessages.push({
+        role: "user",
+        content: context.lastUserMessage || "Hi"
+      });
+    }
+
+    const messagesToSend = [
+      { role: "system" as const, content: systemPrompt },
+      ...openAiMessages
+    ];
+
+    // 4. Construct tools (custom functions) list
+    const toolsList = (nodeData.aiTools || []).map((t: any) => {
+      let parameters = { type: "object", properties: {} };
+      try {
+        if (t.parametersJson) {
+          parameters = JSON.parse(t.parametersJson);
+        }
+      } catch (err) {
+        console.warn(`[AI Agent] Failed to parse parameters JSON for tool ${t.name}:`, err);
+      }
+      return {
+        type: "function" as const,
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters,
+        }
+      };
+    });
+
     const aiClient = new OpenAI({
       apiKey: finalApiKey,
       baseURL: finalBaseURL,
     });
 
-    const messageContent = context.lastUserMessage || "Hi";
-
-    console.log(`[AI Node] Sending completion request using model ${finalModel}...`);
+    console.log(`[AI Agent] Running conversational takeover completion using model ${finalModel}...`);
     const completion = await aiClient.chat.completions.create({
       model: finalModel,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: messageContent },
-      ],
+      messages: messagesToSend,
       temperature: 0.7,
       max_tokens: 800,
+      tools: toolsList.length > 0 ? toolsList : undefined,
     });
 
-    const responseText = completion.choices[0]?.message?.content || "";
-    console.log(`[AI Node] Received response from AI: "${responseText.substring(0, 100)}..."`);
+    const responseMessage = completion.choices[0]?.message;
+    const responseText = responseMessage?.content || "";
+    const toolCalls = responseMessage?.tool_calls;
 
-    // 4. Save response to context variables
-    context.variables[aiOutputVariable] = responseText;
+    // Check if tool/function is called by LLM
+    if (toolCalls && toolCalls.length > 0) {
+      const toolCall = toolCalls[0];
+      const functionName = toolCall.function.name;
+      let functionArgs = {};
+      try {
+        functionArgs = JSON.parse(toolCall.function.arguments || "{}");
+      } catch (err) {
+        console.warn(`[AI Agent] Failed to parse arguments for tool ${functionName}:`, err);
+      }
 
+      console.log(`[AI Agent] Function call matched: ${functionName}`, functionArgs);
+
+      // Save arguments to context variables
+      context.variables._lastFunctionName = functionName;
+      context.variables._lastFunctionArgs = functionArgs;
+      if (typeof functionArgs === 'object') {
+        for (const [k, v] of Object.entries(functionArgs)) {
+          context.variables[`${functionName}_${k}`] = v;
+        }
+      }
+
+      // If text response was included, send it
+      if (responseText) {
+        await sendBusinessMessage({
+          to: getContact.phone,
+          message: responseText,
+          channelId: effectiveChannelId,
+        });
+      }
+
+      // Transition execution out of takeover and down the matched connection path!
+      const freshAutomation = automation || await this.getAutomationWithFlow(context.automationId);
+      await this.continueToNextNode(node, freshAutomation, context, functionName);
+      return { success: true, toolCall: functionName };
+    }
+
+    // No tool called. Send the response message text to the user and pause to stay in takeover state.
+    if (responseText) {
+      await sendBusinessMessage({
+        to: getContact.phone,
+        message: responseText,
+        channelId: effectiveChannelId,
+      });
+    }
+
+    const pendingId = `${context.executionId}_${node.nodeId}_${Date.now()}`;
+    const pendingExecution: PendingExecution = {
+      executionId: context.executionId,
+      automationId: context.automationId,
+      nodeId: node.nodeId,
+      nodeType: 'ai_agent',
+      conversationId: context.conversationId,
+      contactId: context.contactId,
+      context: { ...context },
+      timestamp: new Date(),
+      status: 'waiting_for_response',
+      expectedButtons: []
+    };
+
+    this.pendingExecutions.set(pendingId, pendingExecution);
+
+    await db.update(automationExecutions)
+      .set({
+        status: 'paused',
+        currentNodeId: node.nodeId,
+        variables: {
+          ...context.variables,
+          _userReply_waiting: true,
+          _userReply_nodeId: node.nodeId,
+          _userReply_nodeType: 'ai_agent',
+          _userReply_saveAs: null,
+          _userReply_expectedButtons: [],
+        },
+        result: `AI Agent Takeover active. Waiting for user response.`
+      })
+      .where(eq(automationExecutions.id, context.executionId));
+
+    console.log(`[AI Agent] Paused execution ${context.executionId} on node ${node.nodeId} (takeover)`);
     return { success: true, response: responseText };
   }
 

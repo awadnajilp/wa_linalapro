@@ -55,6 +55,7 @@ import {
   CheckCheck,
   MessageSquare,
   Brain,
+  Bot,
 } from "lucide-react";
 import { BuilderNodeData, NodeKind, Template, Member, ListSection } from "./types";
 import { FileUploadButton } from "./FileUploadButton";
@@ -95,7 +96,8 @@ const kindMeta: Record<NodeKind, { icon: any; label: string; color: string; bgTi
   send_media: { icon: Paperclip, label: "Send Media", color: "text-pink-600", bgTint: "bg-pink-50" },
   mark_as_read: { icon: CheckCheck, label: "Mark as Read", color: "text-lime-600", bgTint: "bg-lime-50" },
   wait_reply: { icon: MessageSquare, label: "Wait for Reply", color: "text-amber-600", bgTint: "bg-amber-50" },
-  ai_agent: { icon: Brain, label: "AI Agent", color: "text-purple-600", bgTint: "bg-purple-50" },
+  ai_answer: { icon: Brain, label: "AI Answer", color: "text-purple-600", bgTint: "bg-purple-50" },
+  ai_agent: { icon: Bot, label: "AI Agent", color: "text-fuchsia-600", bgTint: "bg-fuchsia-50" },
   send_contact_message: { icon: Users, label: "Send to Contacts", color: "text-indigo-600", bgTint: "bg-indigo-50" },
 };
 
@@ -962,9 +964,9 @@ export function ConfigPanel({
             </>
           )}
 
-          {d.kind === "ai_agent" && (
+          {d.kind === "ai_answer" && (
             <>
-              <SectionHeader>AI Agent Configuration</SectionHeader>
+              <SectionHeader>AI Answer Configuration</SectionHeader>
               <div className="space-y-4 bg-purple-50/50 rounded-xl p-4 border border-purple-100">
                 
                 <div className="space-y-1.5">
@@ -1069,6 +1071,182 @@ export function ConfigPanel({
                       >
                         {v.label}
                       </button>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            </>
+          )}
+
+          {d.kind === "ai_agent" && (
+            <>
+              <SectionHeader>AI Agent (Takeover) Configuration</SectionHeader>
+              <div className="space-y-4 bg-fuchsia-50/50 rounded-xl p-4 border border-fuchsia-100">
+                
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">API Key Source</Label>
+                  <Select
+                    value={d.aiConfigUseSettings !== false ? "settings" : "manual"}
+                    onValueChange={(v) => onChange({ aiConfigUseSettings: v === "settings" })}
+                  >
+                    <SelectTrigger className="h-9 rounded-lg bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="settings">Use Settings Configuration</SelectItem>
+                      <SelectItem value="manual">Manual API Key</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {d.aiConfigUseSettings === false && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">OpenAI API Key</Label>
+                    <Input
+                      type="password"
+                      value={d.aiApiKey || ""}
+                      onChange={(e) => onChange({ aiApiKey: e.target.value })}
+                      placeholder="sk-proj-..."
+                      className="h-9 text-sm rounded-lg bg-white"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Model</Label>
+                  <Select
+                    value={d.aiModel || "gpt-4o"}
+                    onValueChange={(v) => onChange({ aiModel: v })}
+                  >
+                    <SelectTrigger className="h-9 rounded-lg bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gpt-4o">gpt-4o (Recommended)</SelectItem>
+                      <SelectItem value="gpt-4-turbo">gpt-4-turbo</SelectItem>
+                      <SelectItem value="gpt-3.5-turbo">gpt-3.5-turbo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-gray-100">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs font-semibold text-gray-700">Use Training Data</Label>
+                    <div className="text-[10px] text-gray-400">Search PDFs, DOCX, URLs, and articles</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={d.aiUseTrainingData !== false}
+                    onChange={(e) => onChange({ aiUseTrainingData: e.target.checked })}
+                    className="w-4 h-4 text-fuchsia-600 border-gray-300 rounded focus:ring-fuchsia-500 cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">System Instructions / Prompt</Label>
+                  <Textarea
+                    rows={4}
+                    value={d.aiSystemPrompt || ""}
+                    onChange={(e) => onChange({ aiSystemPrompt: e.target.value })}
+                    placeholder="Instructions for the conversational takeover. You can reference variables like {{contactName}} or {{last_message}}."
+                    className="text-xs rounded-lg bg-white"
+                  />
+                </div>
+
+                {/* Custom Tools (Function Calling) Section */}
+                <div className="space-y-3 pt-3 border-t border-fuchsia-100">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                      Custom Functions (Tools)
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const currentTools = Array.isArray(d.aiTools) ? d.aiTools : [];
+                        const newTool = {
+                          id: uid(),
+                          name: "custom_function_" + (currentTools.length + 1),
+                          description: "Trigger this function when the user asks...",
+                          parametersJson: `{
+  "type": "object",
+  "properties": {}
+}`
+                        };
+                        onChange({ aiTools: [...currentTools, newTool] });
+                      }}
+                      className="h-7 text-[10px] px-2 border-fuchsia-200 text-fuchsia-700 hover:bg-fuchsia-50 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" /> Add Function
+                    </Button>
+                  </div>
+
+                  <div className="text-[10px] text-gray-400 leading-relaxed">
+                    Define functions the AI Agent can call. Each function creates a routing handle on the right of the node to branch the flow execution.
+                  </div>
+
+                  <div className="space-y-3">
+                    {(Array.isArray(d.aiTools) ? d.aiTools : []).map((tool: any, index: number) => (
+                      <div key={tool.id || index} className="p-3 bg-white rounded-lg border border-fuchsia-100 space-y-2 relative shadow-sm">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentTools = [...(d.aiTools || [])];
+                            currentTools.splice(index, 1);
+                            onChange({ aiTools: currentTools });
+                          }}
+                          className="absolute top-2 right-2 text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-semibold text-gray-600">Function Name</Label>
+                          <Input
+                            value={tool.name || ""}
+                            onChange={(e) => {
+                              const currentTools = [...(d.aiTools || [])];
+                              const cleanName = e.target.value.replace(/[^a-zA-Z0-9_]/g, "");
+                              currentTools[index] = { ...tool, name: cleanName };
+                              onChange({ aiTools: currentTools });
+                            }}
+                            placeholder="e.g. handoff_to_human"
+                            className="h-8 text-xs font-mono"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-semibold text-gray-600">Description</Label>
+                          <Textarea
+                            rows={2}
+                            value={tool.description || ""}
+                            onChange={(e) => {
+                              const currentTools = [...(d.aiTools || [])];
+                              currentTools[index] = { ...tool, description: e.target.value };
+                              onChange({ aiTools: currentTools });
+                            }}
+                            placeholder="e.g. Call this when the user requests a human operator"
+                            className="text-xs"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-semibold text-gray-600">Parameters Schema (JSON)</Label>
+                          <Textarea
+                            rows={3}
+                            value={tool.parametersJson || ""}
+                            onChange={(e) => {
+                              const currentTools = [...(d.aiTools || [])];
+                              currentTools[index] = { ...tool, parametersJson: e.target.value };
+                              onChange({ aiTools: currentTools });
+                            }}
+                            placeholder='e.g. {"type": "object", "properties": {}}'
+                            className="text-[10px] font-mono"
+                          />
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>

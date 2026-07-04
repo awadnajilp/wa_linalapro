@@ -3168,7 +3168,33 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       });
     }
 
+    let shouldSendAudio = false;
     if (aiVoiceEnabled && voiceProfile) {
+      try {
+        const [latestCustomerMsg] = await db
+          .select({ type: messages.type, metadata: messages.metadata })
+          .from(messages)
+          .where(
+            and(
+              eq(messages.conversationId, context.conversationId),
+              eq(messages.direction, "inbound")
+            )
+          )
+          .orderBy(sql`${messages.timestamp} desc`)
+          .limit(1);
+
+        if (latestCustomerMsg && (latestCustomerMsg.type === "audio" || (latestCustomerMsg.metadata as any)?.voice === true)) {
+          shouldSendAudio = true;
+          console.log(`[AI Agent Voice] Detected voice incoming query. Synthesizing audio response...`);
+        } else {
+          console.log(`[AI Agent Voice] Detected text incoming query. Responding with text only.`);
+        }
+      } catch (err) {
+        console.warn("[AI Agent Voice] Failed to check if latest customer message was voice:", err);
+      }
+    }
+
+    if (shouldSendAudio && voiceProfile) {
       try {
         const freshAutomation = automation || await this.getAutomationWithFlow(context.automationId);
         let sarvamApiKey = "";

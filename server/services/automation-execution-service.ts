@@ -2978,7 +2978,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       .limit(30);
 
     const openAiMessages = chatHistory.map(msg => ({
-      role: msg.fromUser ? "user" as const : "assistant" as const,
+      role: msg.direction === "inbound" ? "user" as const : "assistant" as const,
       content: msg.content || ""
     }));
 

@@ -21,7 +21,7 @@ export class SarvamVoiceProvider implements VoiceProvider {
       filename: "input.wav",
       contentType: "audio/wav",
     });
-    form.append("model", "saaras:v1");
+    form.append("model", "saaras:v3");
     if (languageCode) {
       form.append("language_code", languageCode);
     }
@@ -52,8 +52,8 @@ export class SarvamVoiceProvider implements VoiceProvider {
       throw new Error("Sarvam.ai API key is missing");
     }
 
-    // Default to 'kavya' as 'meera' is not a recognized speaker
-    const speaker = voiceId && !voiceId.startsWith("cloned_") ? voiceId : "kavya";
+    // Default to 'anushka' as fallback speaker compatible with bulbul:v2
+    const speaker = voiceId && !voiceId.startsWith("cloned_") ? voiceId : "anushka";
     const targetLanguage = languageCode || "en-IN";
 
     const payload = {

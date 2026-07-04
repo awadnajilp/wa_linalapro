@@ -76,11 +76,11 @@ export class SarvamVoiceProvider implements VoiceProvider {
         },
       });
 
-      if (!response.data || !response.data.audio_response) {
-        throw new Error("Sarvam.ai TTS response did not contain audio_response field");
+      if (!response.data || !response.data.audios || !Array.isArray(response.data.audios) || response.data.audios.length === 0) {
+        throw new Error("Sarvam.ai TTS response did not contain any audio strings in 'audios' field");
       }
 
-      return Buffer.from(response.data.audio_response, "base64");
+      return Buffer.from(response.data.audios[0], "base64");
     } catch (err: any) {
       const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
       throw new Error(`Sarvam.ai TTS failed: ${errorMsg}`);

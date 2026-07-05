@@ -70,7 +70,7 @@ export function registerVoiceRoutes(app: Express) {
   });
 
   // Update user's voice API keys
-  app.put("/api/users/voice-settings", requireAuth, async (req: Request, res: Response) => {
+  app.put("/api/users-voice-settings", requireAuth, async (req: Request, res: Response) => {
     try {
       const { sarvamApiKey, groqApiKey } = req.body;
       const userId = (req.user as any)?.id;

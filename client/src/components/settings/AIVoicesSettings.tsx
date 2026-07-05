@@ -148,7 +148,7 @@ export default function AIVoicesSettings(): JSX.Element {
     if (!sarvamKey) return;
     setIsSavingKey(true);
     try {
-      const res = await apiRequest("PUT", "/api/users/voice-settings", {
+      const res = await apiRequest("PUT", "/api/users-voice-settings", {
         sarvamApiKey: sarvamKey === "••••••••••••••••••••••••••••••••" ? undefined : sarvamKey,
       });
 
@@ -179,7 +179,7 @@ export default function AIVoicesSettings(): JSX.Element {
     if (!groqKey) return;
     setIsSavingGroqKey(true);
     try {
-      const res = await apiRequest("PUT", "/api/users/voice-settings", {
+      const res = await apiRequest("PUT", "/api/users-voice-settings", {
         groqApiKey: groqKey === "••••••••••••••••••••••••••••••••" ? undefined : groqKey,
       });
 

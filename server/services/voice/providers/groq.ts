@@ -58,15 +58,30 @@ export class GroqVoiceProvider implements VoiceProvider {
 
     // Default to Canopy Labs Orpheus English model or Saudi Arabic based on language
     let defaultModel = "canopylabs/orpheus-v1-english";
+    let selectedVoice = "diana"; // default English female voice
+
     if (languageCode && languageCode.startsWith("ar")) {
       defaultModel = "canopylabs/orpheus-arabic-saudi";
+      selectedVoice = "daniel"; // default Arabic male voice
     }
-    const model = voiceId && voiceId !== "default" ? voiceId : defaultModel;
+
+    // Determine model and voice
+    let model = defaultModel;
+    if (voiceId && voiceId.includes("/")) {
+      model = voiceId;
+      if (voiceId.includes("arabic") || voiceId.includes("saudi")) {
+        selectedVoice = "daniel";
+      } else {
+        selectedVoice = "diana";
+      }
+    } else if (voiceId && voiceId !== "default" && voiceId !== "") {
+      selectedVoice = voiceId;
+    }
 
     const payload = {
       model: model,
       input: text,
-      voice: "alloy", // Required OpenAI speech param
+      voice: selectedVoice,
       response_format: "mp3",
     };
 

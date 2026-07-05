@@ -541,6 +541,9 @@ export class WebhookHandler {
                     .limit(1);
                   activeApiKey = providerName === "groq" ? (defaultUser?.groqApiKey || "") : (defaultUser?.sarvamApiKey || "");
                 }
+                if (!activeApiKey) {
+                  activeApiKey = providerName === "groq" ? (process.env.GROQ_API_KEY || "") : (process.env.SARVAM_API_KEY || "");
+                }
 
                 if (activeApiKey) {
                   console.log(`[STT Webhook] Downloading audio note ${mediaId} from WhatsApp...`);

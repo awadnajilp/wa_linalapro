@@ -3281,6 +3281,9 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
             .limit(1);
           activeApiKey = providerName === "groq" ? (defaultUser?.groqApiKey || "") : (defaultUser?.sarvamApiKey || "");
         }
+        if (!activeApiKey) {
+          activeApiKey = providerName === "groq" ? (process.env.GROQ_API_KEY || "") : (process.env.SARVAM_API_KEY || "");
+        }
 
         if (activeApiKey) {
           console.log(`[AI Agent Voice] Synthesizing speech via ${voiceProfile.provider} for voice ${voiceProfile.name}...`);

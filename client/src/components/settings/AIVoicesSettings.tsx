@@ -83,8 +83,12 @@ const PREDEFINED_VOICES = [
 ];
 
 const GROQ_PREDEFINED_VOICES = [
-  { id: "canopylabs/orpheus-v1-english", name: "Orpheus English (Female - English)" },
-  { id: "canopylabs/orpheus-arabic-saudi", name: "Orpheus Saudi Arabic (Male - Arabic)" }
+  { id: "autumn", name: "Autumn (Female)" },
+  { id: "diana", name: "Diana (Female)" },
+  { id: "hannah", name: "Hannah (Female)" },
+  { id: "austin", name: "Austin (Male)" },
+  { id: "daniel", name: "Daniel (Male)" },
+  { id: "troy", name: "Troy (Male)" }
 ];
 
 export default function AIVoicesSettings(): JSX.Element {
@@ -592,7 +596,7 @@ export default function AIVoicesSettings(): JSX.Element {
                     <Select value={stdProvider} onValueChange={(val) => {
                       setStdProvider(val);
                       if (val === "groq") {
-                        setStdVoiceId("canopylabs/orpheus-v1-english");
+                        setStdVoiceId("diana");
                       } else {
                         setStdVoiceId("anushka");
                       }

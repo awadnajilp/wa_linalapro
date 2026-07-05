@@ -792,9 +792,41 @@ export function TemplateDialog({
         form.setError("carouselCards" as any, { message: "Carousel requires at least 2 cards" });
         return;
       }
+      
+      const firstCard = cards[0];
+      const hasBody = !!firstCard.body?.trim();
+      const mediaType = firstCard.mediaType || "image";
+      const buttonCount = firstCard.buttons?.length || 0;
+      const buttonTypes = (firstCard.buttons || []).map((b: any) => b.type).join(",");
+
       for (let i = 0; i < cards.length; i++) {
-        if (!(cards[i] as any).mediaFile) {
+        if (!(cards[i] as any).mediaFile && !cards[i].mediaUrl) {
           form.setError(`carouselCards.${i}.body` as any, { message: `Card ${i + 1} requires a sample image/video for Meta review` });
+          return;
+        }
+
+        const cardHasBody = !!cards[i].body?.trim();
+        if (cardHasBody !== hasBody) {
+          form.setError(`carouselCards.${i}.body` as any, {
+            message: `Consistency Error: All cards must either have body text or not. Card 1 has ${hasBody ? "body text" : "no body text"}, but Card ${i + 1} has ${cardHasBody ? "body text" : "no body text"}.`
+          });
+          return;
+        }
+
+        const cardMediaType = cards[i].mediaType || "image";
+        if (cardMediaType !== mediaType) {
+          form.setError(`carouselCards.${i}.mediaType` as any, {
+            message: `Consistency Error: All cards must use the same media type. Card 1 is ${mediaType}, but Card ${i + 1} is ${cardMediaType}.`
+          });
+          return;
+        }
+
+        const cardButtonCount = cards[i].buttons?.length || 0;
+        const cardButtonTypes = (cards[i].buttons || []).map((b: any) => b.type).join(",");
+        if (cardButtonCount !== buttonCount || cardButtonTypes !== buttonTypes) {
+          form.setError(`carouselCards.${i}.body` as any, {
+            message: `Consistency Error: All cards must have the exact same number and types of buttons. Card 1 has ${buttonCount} button(s) of type [${buttonTypes || "none"}], but Card ${i + 1} has ${cardButtonCount} button(s) of type [${cardButtonTypes || "none"}].`
+          });
           return;
         }
       }

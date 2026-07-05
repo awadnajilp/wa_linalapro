@@ -34,6 +34,8 @@ interface AISettings {
   responseLength?: string;
   useDefaults?: boolean;
   takeoverTimeoutMinutes?: number;
+  sendWelcome?: boolean;
+  welcomeMessage?: string;
 }
 
 interface AISettingsDialogProps {
@@ -62,6 +64,10 @@ export function AISettingsDialog({
   const [systemPrompt, setSystemPrompt] = React.useState("");
   const [temperature, setTemperature] = React.useState(0.7);
   const [takeoverTimeoutMinutes, setTakeoverTimeoutMinutes] = React.useState(5);
+  const [sendWelcome, setSendWelcome] = React.useState(false);
+  const [welcomeMessage, setWelcomeMessage] = React.useState(
+    "Hello! We saw your query regarding our product. Do you need more information about this or pricing details?"
+  );
   const [voiceEnabled, setVoiceEnabled] = React.useState(false);
   const [voiceProfileId, setVoiceProfileId] = React.useState("");
   const [voiceLanguage, setVoiceLanguage] = React.useState("en-US");
@@ -94,6 +100,11 @@ export function AISettingsDialog({
       setTakeoverTimeoutMinutes(
         initialSettings.takeoverTimeoutMinutes !== undefined ? initialSettings.takeoverTimeoutMinutes : 5
       );
+      setSendWelcome(initialSettings.sendWelcome || false);
+      setWelcomeMessage(
+        initialSettings.welcomeMessage ||
+          "Hello! We saw your query regarding our product. Do you need more information about this or pricing details?"
+      );
       setVoiceEnabled(initialSettings.voiceEnabled || false);
       setVoiceProfileId(initialSettings.voiceProfileId || "");
       setVoiceLanguage(initialSettings.voiceLanguage || "en-US");
@@ -121,6 +132,8 @@ export function AISettingsDialog({
           systemPrompt,
           temperature,
           takeoverTimeoutMinutes,
+          sendWelcome,
+          welcomeMessage,
           voiceEnabled,
           voiceProfileId,
           voiceLanguage,
@@ -229,6 +242,33 @@ export function AISettingsDialog({
                 onChange={(e) => setSystemPrompt(e.target.value)}
                 className="min-h-[110px] bg-gray-50/50 border-gray-200 focus:bg-white text-sm"
               />
+            </div>
+
+            {/* Welcome / Intro Message */}
+            <div className="bg-indigo-50/20 border border-indigo-100/50 rounded-xl p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                    Send Intro Message on Activation
+                  </Label>
+                  <p className="text-xs text-gray-400">
+                    Automatically send a welcome or introductory message when the AI agent takeover is enabled.
+                  </p>
+                </div>
+                <Switch checked={sendWelcome} onCheckedChange={setSendWelcome} />
+              </div>
+
+              {sendWelcome && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Intro Message Content</Label>
+                  <Textarea
+                    placeholder="Enter welcome message content..."
+                    value={welcomeMessage}
+                    onChange={(e) => setWelcomeMessage(e.target.value)}
+                    className="min-h-[70px] bg-white border-gray-200 focus:bg-white text-sm"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

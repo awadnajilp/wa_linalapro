@@ -3682,7 +3682,11 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
             .where(and(eq(aiSettings.channelId, channelId), eq(aiSettings.isActive, true)))
             .limit(1);
           if (aiSetting.length === 0) {
-            aiSetting = await db.select().from(aiSettings).limit(1);
+            aiSetting = await db
+              .select()
+              .from(aiSettings)
+              .where(eq(aiSettings.isActive, true))
+              .limit(1);
           }
           const activeAI = aiSetting?.[0];
           if (activeAI && activeAI.apiKey) {

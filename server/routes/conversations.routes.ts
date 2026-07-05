@@ -124,6 +124,8 @@ export function registerConversationRoutes(app: Express) {
     try {
       const { id } = req.params;
       const { aiEnabled, aiSettings } = req.body;
+      
+      const oldConv = await storage.getConversation(id);
       const updated = await storage.updateConversation(id, {
         aiEnabled,
         aiSettings,
@@ -131,6 +133,47 @@ export function registerConversationRoutes(app: Express) {
       if (!updated) {
         return res.status(404).json({ message: "Conversation not found" });
       }
+
+      // If AI is newly enabled and sendWelcome is active, send it!
+      if (aiEnabled && (!oldConv || !oldConv.aiEnabled)) {
+        const welcomeText = aiSettings?.welcomeMessage || "";
+        const sendWelcome = aiSettings?.sendWelcome === true;
+        if (sendWelcome && welcomeText.trim()) {
+          try {
+            const channel = await storage.getChannel(updated.channelId);
+            if (channel) {
+              const { WhatsAppApiService } = await import("../services/whatsapp-api");
+              const whatsappApi = new WhatsAppApiService(channel);
+              const result = await whatsappApi.sendTextMessage(updated.contactPhone, welcomeText);
+              
+              // Store as an outbound message in database
+              const createdMessage = await storage.createMessage({
+                conversationId: updated.id,
+                content: welcomeText,
+                fromUser: true,
+                direction: "outbound",
+                status: "sent",
+                whatsappMessageId: result.messages?.[0]?.id,
+                messageType: "text",
+                timestamp: new Date(),
+              });
+
+              // Notify the frontend via socket
+              if ((global as any).broadcastToConversation) {
+                (global as any).broadcastToConversation(updated.id, {
+                  type: "new-message",
+                  message: createdMessage,
+                });
+              }
+
+              console.log(`[Inbox AI Welcome] Sent welcome message to ${updated.contactPhone} for conversation ${updated.id}`);
+            }
+          } catch (err: any) {
+            console.error("[Inbox AI Welcome] Error sending welcome message:", err);
+          }
+        }
+      }
+
       res.json({ success: true, aiEnabled: updated.aiEnabled, aiSettings: updated.aiSettings });
     } catch (error: any) {
       console.error("Error updating conversation AI settings:", error);

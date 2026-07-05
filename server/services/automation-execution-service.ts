@@ -2778,11 +2778,26 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     let finalModel = aiModel;
 
     if (aiConfigUseSettings && effectiveChannelId) {
-      const aiSetting = await db
+      let aiSetting = await db
         .select()
         .from(aiSettings)
         .where(and(eq(aiSettings.channelId, effectiveChannelId), eq(aiSettings.isActive, true)))
         .limit(1);
+
+      if (aiSetting.length === 0) {
+        aiSetting = await db
+          .select()
+          .from(aiSettings)
+          .where(eq(aiSettings.channelId, effectiveChannelId))
+          .limit(1);
+      }
+
+      if (aiSetting.length === 0) {
+        aiSetting = await db
+          .select()
+          .from(aiSettings)
+          .limit(1);
+      }
 
       const activeAI = aiSetting?.[0];
       if (activeAI && activeAI.apiKey) {
@@ -2921,11 +2936,26 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         }
         finalApiKey = userKey || process.env.GROQ_API_KEY || "";
       } else {
-        const aiSetting = await db
+        let aiSetting = await db
           .select()
           .from(aiSettings)
           .where(and(eq(aiSettings.channelId, effectiveChannelId), eq(aiSettings.isActive, true)))
           .limit(1);
+
+        if (aiSetting.length === 0) {
+          aiSetting = await db
+            .select()
+            .from(aiSettings)
+            .where(eq(aiSettings.channelId, effectiveChannelId))
+            .limit(1);
+        }
+
+        if (aiSetting.length === 0) {
+          aiSetting = await db
+            .select()
+            .from(aiSettings)
+            .limit(1);
+        }
 
         const activeAI = aiSetting?.[0];
         if (activeAI && activeAI.apiKey) {
@@ -3295,8 +3325,13 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
             { apiKey: activeApiKey }
           );
 
+          const isGroq = providerName === "groq";
+          const fileExt = isGroq ? "wav" : "ogg";
+          const mimeType = isGroq ? "audio/wav" : "audio/ogg; codecs=opus";
+          const uploadMime = isGroq ? "audio/wav" : "audio/ogg";
+
           // Save buffer to a local temporary file to upload
-          const tempFilename = `tts_${Date.now()}_${randomUUID().substring(0, 8)}.ogg`;
+          const tempFilename = `tts_${Date.now()}_${randomUUID().substring(0, 8)}.${fileExt}`;
           const tempPath = path.join("uploads", "media", tempFilename);
           const dir = path.dirname(tempPath);
           if (!fs.existsSync(dir)) {
@@ -3315,12 +3350,12 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
               const res = await BaileysManager.sendMediaMessage(
                 getChannel.id,
                 getContact.phone,
-                { buffer: audioBuffer, mimeType: "audio/ogg; codecs=opus" },
+                { buffer: audioBuffer, mimeType: mimeType },
                 ""
               );
               messageId = res?.messages?.[0]?.id || `voice_${randomUUID()}`;
             } else {
-              const mediaId = await waApi.uploadMedia(tempPath, "audio/ogg");
+              const mediaId = await waApi.uploadMedia(tempPath, uploadMime);
               const res = await waApi.sendMediaMessagee(getContact.phone, mediaId, "audio");
               messageId = res?.messages?.[0]?.id || mediaId;
             }

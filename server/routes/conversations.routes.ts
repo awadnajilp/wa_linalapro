@@ -98,6 +98,42 @@ export function registerConversationRoutes(app: Express) {
 
 
   app.get('/api/conversations/:conversationId/automation-status', getConversationAutomationStatus);
-app.post('/api/conversations/:conversationId/cancel-automation', cancelConversationAutomation);
+  app.post('/api/conversations/:conversationId/cancel-automation', cancelConversationAutomation);
 
+  // Get conversation-specific AI settings
+  app.get('/api/conversations/:id/ai-settings', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const conv = await storage.getConversation(id);
+      if (!conv) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      res.json({
+        aiEnabled: conv.aiEnabled ?? false,
+        aiSettings: conv.aiSettings ?? {},
+      });
+    } catch (error: any) {
+      console.error("Error getting conversation AI settings:", error);
+      res.status(500).json({ message: error.message || "Internal server error" });
+    }
+  });
+
+  // Update conversation-specific AI settings
+  app.post('/api/conversations/:id/ai-settings', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { aiEnabled, aiSettings } = req.body;
+      const updated = await storage.updateConversation(id, {
+        aiEnabled,
+        aiSettings,
+      });
+      if (!updated) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      res.json({ success: true, aiEnabled: updated.aiEnabled, aiSettings: updated.aiSettings });
+    } catch (error: any) {
+      console.error("Error updating conversation AI settings:", error);
+      res.status(500).json({ message: error.message || "Internal server error" });
+    }
+  });
 }

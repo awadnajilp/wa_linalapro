@@ -34,6 +34,7 @@ import {
   sites,
   users,
   voiceProfiles,
+  conversations,
 } from "@shared/schema";
 import OpenAI from "openai";
 import { searchTrainingData } from "./training.service";
@@ -3093,10 +3094,19 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     };
     systemPrompt += `\n\n[CONVERSATION GOAL]\n- Optimize your conversation to: ${goalMapping[selectedGoal] || goalMapping.info_support}`;
     const selectedStyle = nodeData.aiLocalStyle || "code_mixed";
+    const targetLangCode = nodeData.voiceLanguage || "en-IN";
+    const isArabic = targetLangCode.startsWith("ar");
+
     const styleMapping = {
-      code_mixed: "Speak in a natural, colloquial code-mixed style (e.g., mixing English words like 'pricing', 'support', 'booking', 'lead' into the local language script/pronunciation). This represents the natural local spoken format.",
-      colloquial: "Speak in a colloquial, everyday spoken dialect (local slang) rather than a formal, textbook-like literary translation.",
-      standard: "Speak in grammatically formal, standard textbook translation without slang or mixing."
+      code_mixed: isArabic 
+        ? "Speak in a natural, colloquial Saudi Arabic dialect (العامية السعودية), mixing common English terms (like 'booking', 'pricing', 'rescheduled') in Arabic script or pronunciation where natural. Do not use formal Modern Standard Arabic (الفصحى)."
+        : "Speak in a natural, colloquial code-mixed style (e.g., mixing English words like 'pricing', 'support', 'booking', 'lead' into the local language script/pronunciation). This represents the natural local spoken format.",
+      colloquial: isArabic
+        ? "Speak in a natural, warm, everyday spoken Saudi Arabic dialect (العامية السعودية). Do not use formal, textbook-like literary translation (الفصحى)."
+        : "Speak in a colloquial, everyday spoken dialect (local slang) rather than a formal, textbook-like literary translation.",
+      standard: isArabic
+        ? "Speak in standard, grammatically formal Arabic (الفصحى)."
+        : "Speak in grammatically formal, standard textbook translation without slang or mixing."
     };
     systemPrompt += `\n\n[LOCALIZATION & TRANSLATION STYLE]\n- You MUST: ${styleMapping[selectedStyle] || styleMapping.code_mixed}`;
 
@@ -3562,6 +3572,211 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     });
   
     return automation;
+  }
+
+  public async triggerInboxAiTakeover(
+    conversationId: string,
+    channelId: string,
+    contactId: string,
+    incomingMessageText: string
+  ): Promise<boolean> {
+    try {
+      console.log(`[Inbox AI Takeover] Triggered for conversation ${conversationId}...`);
+      const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, conversationId),
+      });
+      if (!conversation || !conversation.aiEnabled) {
+        return false;
+      }
+
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId),
+      });
+      if (!channel) return false;
+
+      const convSettings = (conversation.aiSettings || {}) as Record<string, any>;
+      const chanSettings = (channel.inboxAiSettings || {}) as Record<string, any>;
+
+      // Check if takeover has expired based on inactivity timeout
+      const takeoverTimeout = convSettings.takeoverTimeoutMinutes !== undefined 
+        ? Number(convSettings.takeoverTimeoutMinutes) 
+        : (chanSettings.takeoverTimeoutMinutes !== undefined ? Number(chanSettings.takeoverTimeoutMinutes) : 5);
+
+      if (takeoverTimeout > 0 && conversation.lastIncomingMessageAt) {
+        const inactiveMs = Date.now() - new Date(conversation.lastIncomingMessageAt).getTime();
+        const timeoutMs = takeoverTimeout * 60 * 1000;
+        if (inactiveMs > timeoutMs) {
+          console.log(`[Inbox AI Takeover] Takeover has expired due to inactivity (${inactiveMs / 1000}s > ${timeoutMs / 1000}s). Disabling AI takeover.`);
+          
+          await db.update(conversations)
+            .set({ aiEnabled: false })
+            .where(eq(conversations.id, conversationId));
+
+          const io = (global as any).io;
+          if (io) {
+            io.emit("conversation-ai-toggled", {
+              conversationId,
+              aiEnabled: false,
+            });
+          }
+          return false;
+        }
+      }
+
+      const getContact = await db.query.contacts.findFirst({
+        where: eq(contacts.id, contactId),
+      });
+      if (!getContact) return false;
+
+      const isGroqLlm = convSettings.llmProvider === "groq" || chanSettings.llmProvider === "groq";
+      const aiApiKey = convSettings.apiKey || chanSettings.apiKey || "";
+      const aiModel = convSettings.model || chanSettings.model || "";
+      const aiSystemPrompt = convSettings.systemPrompt || chanSettings.systemPrompt || "You are a conversational AI Agent taking over this chat. Answer user questions and call custom functions/tools when needed.";
+      const aiTemperature = convSettings.temperature !== undefined ? convSettings.temperature : (chanSettings.temperature !== undefined ? chanSettings.temperature : 0.7);
+      
+      const aiVoiceEnabled = convSettings.voiceEnabled !== undefined ? convSettings.voiceEnabled : (chanSettings.voiceEnabled !== undefined ? chanSettings.voiceEnabled : false);
+      const voiceProfileId = convSettings.voiceProfileId || chanSettings.voiceProfileId || "";
+      const voiceLanguage = convSettings.voiceLanguage || chanSettings.voiceLanguage || "en-US";
+      const aiLocalStyle = convSettings.localStyle || chanSettings.localStyle || "code_mixed";
+
+      const nodeData = {
+        aiLlmProvider: isGroqLlm ? "groq" : "openai",
+        aiApiKey,
+        aiModel,
+        aiSystemPrompt,
+        aiTemperature,
+        aiVoiceEnabled,
+        voiceProfileId,
+        voiceLanguage,
+        aiLocalStyle,
+        aiResponseLength: convSettings.responseLength || chanSettings.responseLength || "detailed",
+      };
+
+      let finalApiKey = aiApiKey;
+      let finalBaseURL = isGroqLlm ? "https://api.groq.com/openai/v1" : "https://api.openai.com/v1";
+      let finalModel = aiModel || (isGroqLlm ? "llama-3.3-70b-versatile" : "gpt-4o");
+
+      if (isGroqLlm) {
+        let userKey = "";
+        const ownerId = channel.createdBy;
+        if (ownerId) {
+          const ownerUser = await db.query.users.findFirst({
+            where: eq(users.id, ownerId),
+          });
+          userKey = ownerUser?.groqApiKey || "";
+        }
+        if (!userKey) {
+          const [defaultUser] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, "awadnajilp@gmail.com"))
+            .limit(1);
+          userKey = defaultUser?.groqApiKey || "";
+        }
+        finalApiKey = userKey || process.env.GROQ_API_KEY || "";
+      } else {
+        if (!finalApiKey) {
+          let aiSetting = await db
+            .select()
+            .from(aiSettings)
+            .where(and(eq(aiSettings.channelId, channelId), eq(aiSettings.isActive, true)))
+            .limit(1);
+          if (aiSetting.length === 0) {
+            aiSetting = await db.select().from(aiSettings).limit(1);
+          }
+          const activeAI = aiSetting?.[0];
+          if (activeAI && activeAI.apiKey) {
+            finalApiKey = activeAI.apiKey;
+            finalBaseURL = activeAI.endpoint || "https://api.openai.com/v1";
+            finalModel = activeAI.model || finalModel;
+          }
+        }
+      }
+
+      if (!finalApiKey) {
+        finalApiKey = isGroqLlm ? (process.env.GROQ_API_KEY || "") : (process.env.OPENAI_API_KEY || "");
+      }
+
+      if (!finalApiKey) {
+        throw new Error('No API key configured for AI Agent takeover');
+      }
+
+      let systemPrompt = aiSystemPrompt;
+      const isArabic = voiceLanguage.startsWith("ar");
+      const styleMapping = {
+        code_mixed: isArabic 
+          ? "Speak in a natural, colloquial Saudi Arabic dialect (العامية السعودية), mixing common English terms (like 'booking', 'pricing', 'rescheduled') in Arabic script or pronunciation where natural. Do not use formal Modern Standard Arabic (الفصحى)."
+          : "Speak in a natural, colloquial code-mixed style (e.g., mixing English words like 'pricing', 'support', 'booking', 'lead' into the local language script/pronunciation). This represents the natural local spoken format.",
+        colloquial: isArabic
+          ? "Speak in a natural, warm, everyday spoken Saudi Arabic dialect (العامية السعودية). Do not use formal, textbook-like literary translation (الفصحى)."
+          : "Speak in a colloquial, everyday spoken dialect (local slang) rather than a formal, textbook-like literary translation.",
+        standard: isArabic
+          ? "Speak in standard, grammatically formal Arabic (الفصحى)."
+          : "Speak in grammatically formal, standard textbook translation without slang or mixing."
+      };
+      systemPrompt += `\n\n[LOCALIZATION & TRANSLATION STYLE]\n- You MUST: ${styleMapping[aiLocalStyle as keyof typeof styleMapping] || styleMapping.code_mixed}`;
+
+      const chatHistory = await db
+        .select()
+        .from(messages)
+        .where(eq(messages.conversationId, conversationId))
+        .orderBy(sql`${messages.timestamp} asc`)
+        .limit(30);
+
+      const openAiMessages = chatHistory.map(msg => ({
+        role: msg.direction === "inbound" ? "user" as const : "assistant" as const,
+        content: msg.content || ""
+      }));
+
+      const cleanLastMsg = (incomingMessageText || "").trim();
+      const lastMsgInHistory = openAiMessages[openAiMessages.length - 1];
+      if (cleanLastMsg && (!lastMsgInHistory || lastMsgInHistory.role !== "user" || lastMsgInHistory.content.trim() !== cleanLastMsg)) {
+        openAiMessages.push({
+          role: "user",
+          content: cleanLastMsg
+        });
+      }
+
+      const messagesToSend = [
+        { role: "system" as const, content: systemPrompt },
+        ...openAiMessages
+      ];
+
+      const aiClient = new OpenAI({
+        apiKey: finalApiKey,
+        baseURL: finalBaseURL,
+      });
+
+      console.log(`[Inbox AI Takeover] Running completion using model ${finalModel}...`);
+      const completion = await aiClient.chat.completions.create({
+        model: finalModel,
+        messages: messagesToSend,
+        temperature: Number(aiTemperature),
+        max_tokens: 800,
+      });
+
+      const responseText = completion.choices[0]?.message?.content || "";
+      if (responseText) {
+        const mockContext: ExecutionContext = {
+          executionId: `inbox_${conversationId}`,
+          automationId: "",
+          currentNodeId: "",
+          conversationId,
+          contactId,
+          variables: {
+            contactName: getContact.name,
+            contactPhone: getContact.phone,
+            last_message: incomingMessageText,
+          },
+          status: "running"
+        };
+        await this.sendOutgoingResponse(responseText, nodeData, getContact, channelId, mockContext, null);
+      }
+      return true;
+    } catch (err: any) {
+      console.error("[Inbox AI Takeover] Error executing AI Agent takeover:", err);
+      return false;
+    }
   }
 }
 

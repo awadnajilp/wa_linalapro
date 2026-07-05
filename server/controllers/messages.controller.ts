@@ -1226,7 +1226,16 @@ export const sendMessage = asyncHandler(async (req: RequestWithChannel, res: Res
       await storage.updateConversation(conversation.id, {
         lastMessageAt: new Date(),
         lastMessageText: msgBody,
+        aiEnabled: false,
       });
+
+      const io = (global as any).io;
+      if (io) {
+        io.emit("conversation-ai-toggled", {
+          conversationId: conversation.id,
+          aiEnabled: false,
+        });
+      }
 
       if ((global as any).broadcastToConversation) {
         (global as any).broadcastToConversation(conversation.id, {
@@ -1304,7 +1313,16 @@ export const sendMessage = asyncHandler(async (req: RequestWithChannel, res: Res
   await storage.updateConversation(conversation.id, {
     lastMessageAt: new Date(),
     lastMessageText: msgBody,
+    aiEnabled: false,
   });
+
+  const io = (global as any).io;
+  if (io) {
+    io.emit("conversation-ai-toggled", {
+      conversationId: conversation.id,
+      aiEnabled: false,
+    });
+  }
 
   // ================= SOCKET =================
   if ((global as any).broadcastToConversation) {

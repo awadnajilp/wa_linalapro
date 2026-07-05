@@ -45,6 +45,8 @@ import {
   User as UserIcon,
   ArrowLeft,
   Zap,
+  Brain,
+  Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { normalizeDate } from "./utils";
@@ -156,6 +158,9 @@ interface MessageThreadProps {
   onReply?: (msg: Message) => void;
   onCancelReply?: () => void;
   onSelectLocalTemplate?: (text: string) => void;
+  onOpenContactAiSettings: () => void;
+  aiEnabled: boolean;
+  onToggleAi: (enabled: boolean) => void;
   }
 
   const MessageThread = ({
@@ -190,6 +195,9 @@ interface MessageThreadProps {
   onReply,
   onCancelReply,
   onSelectLocalTemplate,
+  onOpenContactAiSettings,
+  aiEnabled,
+  onToggleAi,
   }: MessageThreadProps) => {
   const demo = isDemoUser(user?.username);
   const { toast } = useToast();
@@ -321,6 +329,34 @@ interface MessageThreadProps {
                 }
                 onAssign={onAssignConversation}
               /> )}
+
+            <Button
+              variant={aiEnabled ? "default" : "outline"}
+              size="sm"
+              onClick={() => onToggleAi(!aiEnabled)}
+              className={cn(
+                "gap-1.5 px-2.5 rounded-lg transition-all h-9",
+                aiEnabled 
+                  ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-100" 
+                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-50 border-gray-200"
+              )}
+              title={aiEnabled ? "Disable AI Agent Takeover" : "Enable AI Agent Takeover"}
+            >
+              <Brain className={cn("w-4 h-4", aiEnabled && "animate-pulse")} />
+              <span className="hidden sm:inline">
+                {aiEnabled ? "AI Active" : "AI Agent"}
+              </span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={onOpenContactAiSettings}
+              className="h-9 w-9 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg border-gray-200"
+              title="Configure Contact AI Settings"
+            >
+              <Settings2 className="w-4 h-4" />
+            </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

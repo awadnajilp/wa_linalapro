@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loading } from "@/components/ui/loading";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -47,6 +47,7 @@ interface ConversationListProps {
   onSelectConversation: (conversation: ConversationWithContact) => void;
   user?: any;
   onStartNewChat: (phone: string, name?: string) => Promise<void>;
+  onOpenAiSettings: () => void;
 }
 
 const ConversationList = ({
@@ -60,6 +61,7 @@ const ConversationList = ({
   onSelectConversation,
   user,
   onStartNewChat,
+  onOpenAiSettings,
 }: ConversationListProps) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [phoneInput, setPhoneInput] = useState("");
@@ -103,6 +105,15 @@ const ConversationList = ({
               className="pl-7 sm:pl-9 pr-2 sm:pr-3 bg-gray-50 text-xs sm:text-sm w-full h-8 sm:h-10 rounded-lg"
             />
           </div>
+          <Button
+            type="button"
+            size="icon"
+            onClick={onOpenAiSettings}
+            className="h-8 w-8 sm:h-10 sm:w-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shrink-0"
+            title="Inbox AI Agent Settings"
+          >
+            <Brain className="h-4.5 w-4.5 text-white" />
+          </Button>
           <Button
             type="button"
             size="icon"

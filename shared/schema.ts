@@ -251,6 +251,7 @@ export const channels = pgTable("channels", {
   lastHealthCheck: timestamp("last_health_check"),
   healthDetails: jsonb("health_details").default({}), // Detailed health information
   connectionMethod: varchar("connection_method", { length: 20 }).default("embedded"),
+  inboxAiSettings: jsonb("inbox_ai_settings").default({}),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   createdBy: varchar("created_by").default(""),
@@ -347,6 +348,8 @@ export const conversations = pgTable(
     lastMessageAt: timestamp("last_message_at"),
     lastIncomingMessageAt: timestamp("last_incoming_message_at"),
     lastMessageText: text("last_message_text"), // Cache last message for display
+    aiEnabled: boolean("ai_enabled").default(false),
+    aiSettings: jsonb("ai_settings").default({}),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },

@@ -499,8 +499,9 @@ export class WebhookHandler {
             )
             .limit(1);
 
+          let node: any = null;
           if (pendingExec && pendingExec.currentNodeId) {
-            const [node] = await db
+            const [foundNode] = await db
               .select()
               .from(automationNodes)
               .where(
@@ -510,58 +511,70 @@ export class WebhookHandler {
                 )
               )
               .limit(1);
+            node = foundNode;
+          }
 
-            if (node && node.type === "ai_agent" && (node.data as any)?.aiVoiceEnabled === true) {
-              const nodeData = node.data as any;
-              const voiceProfileId = nodeData.voiceProfileId;
-              let voiceProfile: any = null;
-              if (voiceProfileId) {
-                voiceProfile = await db.query.voiceProfiles.findFirst({
-                  where: eq(voiceProfiles.id, voiceProfileId),
+          let voiceProfileId = null;
+          let voiceLanguage = "en-IN";
+
+          if (node && node.type === "ai_agent" && (node.data as any)?.aiVoiceEnabled === true) {
+            const nodeData = node.data as any;
+            voiceProfileId = nodeData.voiceProfileId;
+            voiceLanguage = nodeData.voiceLanguage || "en-IN";
+          } else if (conversation[0].aiEnabled) {
+            const settings = (conversation[0].aiSettings || {}) as any;
+            const chanSettings = (channel[0]?.inboxAiSettings || {}) as any;
+            const voiceEnabled = settings.voiceEnabled !== undefined ? settings.voiceEnabled : chanSettings.voiceEnabled;
+            if (voiceEnabled) {
+              voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
+              voiceLanguage = settings.voiceLanguage || chanSettings.voiceLanguage || "en-IN";
+            }
+          }
+
+          if (voiceProfileId) {
+            const voiceProfile = await db.query.voiceProfiles.findFirst({
+              where: eq(voiceProfiles.id, voiceProfileId),
+            });
+
+            if (voiceProfile) {
+              let activeApiKey = "";
+              const providerName = voiceProfile.provider || "sarvam";
+              
+              const creatorId = channel[0]?.createdBy;
+              if (creatorId) {
+                const ownerUser = await db.query.users.findFirst({
+                  where: eq(users.id, creatorId),
                 });
+                activeApiKey = providerName === "groq" ? (ownerUser?.groqApiKey || "") : (ownerUser?.sarvamApiKey || "");
+              }
+              if (!activeApiKey) {
+                const [defaultUser] = await db
+                  .select()
+                  .from(users)
+                  .where(eq(users.email, "awadnajilp@gmail.com"))
+                  .limit(1);
+                activeApiKey = providerName === "groq" ? (defaultUser?.groqApiKey || "") : (defaultUser?.sarvamApiKey || "");
+              }
+              if (!activeApiKey) {
+                activeApiKey = providerName === "groq" ? (process.env.GROQ_API_KEY || "") : (process.env.SARVAM_API_KEY || "");
               }
 
-              if (voiceProfile) {
-                let activeApiKey = "";
-                const providerName = voiceProfile.provider || "sarvam";
-                const autoData = await db.query.automations.findFirst({
-                  where: eq(automations.id, pendingExec.automationId),
-                });
-                if (autoData?.createdBy) {
-                  const ownerUser = await db.query.users.findFirst({
-                    where: eq(users.id, autoData.createdBy),
-                  });
-                  activeApiKey = providerName === "groq" ? (ownerUser?.groqApiKey || "") : (ownerUser?.sarvamApiKey || "");
-                }
-                if (!activeApiKey) {
-                  const [defaultUser] = await db
-                    .select()
-                    .from(users)
-                    .where(eq(users.email, "awadnajilp@gmail.com"))
-                    .limit(1);
-                  activeApiKey = providerName === "groq" ? (defaultUser?.groqApiKey || "") : (defaultUser?.sarvamApiKey || "");
-                }
-                if (!activeApiKey) {
-                  activeApiKey = providerName === "groq" ? (process.env.GROQ_API_KEY || "") : (process.env.SARVAM_API_KEY || "");
-                }
+              if (activeApiKey) {
+                console.log(`[STT Webhook] Downloading audio note ${mediaId} from WhatsApp...`);
+                const waApi = new WhatsAppApiService(channel[0]);
+                const { buffer } = await waApi.getMediaBuffer(mediaId);
 
-                if (activeApiKey) {
-                  console.log(`[STT Webhook] Downloading audio note ${mediaId} from WhatsApp...`);
-                  const waApi = new WhatsAppApiService(channel[0]);
-                  const { buffer } = await waApi.getMediaBuffer(mediaId);
+                console.log(`[STT Webhook] Transcribing audio via provider ${voiceProfile.provider}...`);
+                const provider = VoiceManager.getProvider(voiceProfile.provider);
+                const transcriptText = await provider.transcribe(
+                  buffer,
+                  voiceLanguage || voiceProfile.languageCode || "en-IN",
+                  { apiKey: activeApiKey }
+                );
 
-                  console.log(`[STT Webhook] Transcribing audio via provider ${voiceProfile.provider}...`);
-                  const provider = VoiceManager.getProvider(voiceProfile.provider);
-                  const transcriptText = await provider.transcribe(
-                    buffer,
-                    nodeData.voiceLanguage || voiceProfile.languageCode || "en-IN",
-                    { apiKey: activeApiKey }
-                  );
-
-                  if (transcriptText) {
-                    console.log(`[STT Webhook] Transcription successful: "${transcriptText}"`);
-                    content = transcriptText;
-                  }
+                if (transcriptText) {
+                  console.log(`[STT Webhook] Transcription successful: "${transcriptText}"`);
+                  content = transcriptText;
                 }
               }
             }
@@ -796,6 +809,25 @@ export class WebhookHandler {
             type: "automation-error",
             error: autoErr instanceof Error ? autoErr.message : String(autoErr),
           });
+        }
+      }
+
+      // 8.6 Manual Inbox AI Agent Takeover (if active)
+      if (!automationHandled && conversation[0].aiEnabled) {
+        try {
+          const executionService = triggerService.getExecutionService();
+          const aiHandled = await executionService.triggerInboxAiTakeover(
+            conversation[0].id,
+            channelId || "",
+            contact[0].id,
+            content
+          );
+          if (aiHandled) {
+            console.log(`[Webhook] Inbox AI Takeover handled reply for conversation: ${conversation[0].id}`);
+            automationHandled = true;
+          }
+        } catch (aiErr) {
+          console.error("[Webhook] Error running Inbox AI Takeover:", aiErr);
         }
       }
 

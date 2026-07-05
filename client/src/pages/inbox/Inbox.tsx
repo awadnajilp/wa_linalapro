@@ -30,6 +30,7 @@ import { useTranslation } from "@/lib/i18n";
 import { normalizeTime } from "./utils";
 import ConversationList from "./ConversationList";
 import MessageThread from "./MessageThread";
+import { AISettingsDialog } from "./AISettingsDialog";
 import type { Message, ConversationWithContact } from "./types";
 import type { Conversation, Contact } from "@shared/schema";
 
@@ -43,6 +44,13 @@ export default function Inbox() {
   const [olderMessages, setOlderMessages] = useState<Message[]>([]);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+
+  // AI Settings Dialog State
+  const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
+  const [aiSettingsTarget, setAiSettingsTarget] = useState<"inbox" | "contact">("inbox");
+  const [aiSettingsData, setAiSettingsData] = useState<any>({});
+  const [currentConversationAiEnabled, setCurrentConversationAiEnabled] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -124,6 +132,9 @@ export default function Inbox() {
   useEffect(() => {
     selectedConversationRef.current = selectedConversation;
     (window as any).activeConversationId = selectedConversation?.id || null;
+    if (selectedConversation) {
+      setCurrentConversationAiEnabled((selectedConversation as any).aiEnabled || false);
+    }
     return () => {
       (window as any).activeConversationId = null;
     };
@@ -132,6 +143,114 @@ export default function Inbox() {
   useEffect(() => {
     activeChannelRef.current = activeChannel;
   }, [activeChannel]);
+
+  const handleOpenInboxAiSettings = async () => {
+    if (!activeChannel) return;
+    try {
+      const res = await apiRequest("GET", `/api/channels/${activeChannel.id}/inbox-ai-settings`);
+      const data = await res.json();
+      setAiSettingsTarget("inbox");
+      setAiSettingsData(data.inboxAiSettings || {});
+      setIsAiSettingsOpen(true);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch default inbox AI settings",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleOpenContactAiSettings = async () => {
+    if (!selectedConversation) return;
+    try {
+      const res = await apiRequest("GET", `/api/conversations/${selectedConversation.id}/ai-settings`);
+      const data = await res.json();
+      setAiSettingsTarget("contact");
+      setAiSettingsData(data.aiSettings || {});
+      setCurrentConversationAiEnabled(data.aiEnabled || false);
+      setIsAiSettingsOpen(true);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch contact AI settings",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSaveAiSettings = async (settings: any, enabled?: boolean) => {
+    try {
+      if (aiSettingsTarget === "inbox") {
+        if (!activeChannel) return;
+        await apiRequest("POST", `/api/channels/${activeChannel.id}/inbox-ai-settings`, {
+          inboxAiSettings: settings,
+        });
+        toast({
+          title: "Success",
+          description: "Default inbox AI settings updated",
+        });
+      } else {
+        if (!selectedConversation) return;
+        await apiRequest("POST", `/api/conversations/${selectedConversation.id}/ai-settings`, {
+          aiEnabled: enabled !== undefined ? enabled : currentConversationAiEnabled,
+          aiSettings: settings,
+        });
+        
+        setSelectedConversation(prev => prev ? { 
+          ...prev, 
+          aiEnabled: enabled !== undefined ? enabled : currentConversationAiEnabled,
+          aiSettings: settings
+        } as any : null);
+        
+        if (enabled !== undefined) {
+          setCurrentConversationAiEnabled(enabled);
+        }
+
+        toast({
+          title: "Success",
+          description: "Contact-wise AI settings updated",
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save AI settings",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleToggleAi = async (enabled: boolean) => {
+    if (!selectedConversation) return;
+    try {
+      const currentSettings = (selectedConversation as any).aiSettings || {};
+      await apiRequest("POST", `/api/conversations/${selectedConversation.id}/ai-settings`, {
+        aiEnabled: enabled,
+        aiSettings: currentSettings,
+      });
+
+      setSelectedConversation(prev => prev ? { 
+        ...prev, 
+        aiEnabled: enabled 
+      } as any : null);
+      
+      setCurrentConversationAiEnabled(enabled);
+
+      toast({
+        title: "Success",
+        description: enabled ? "AI Agent takeover enabled" : "AI Agent takeover disabled",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to toggle AI status",
+        variant: "destructive",
+      });
+    }
+  };
 
   useEffect(() => {
     setOlderMessages([]);
@@ -359,6 +478,17 @@ export default function Inbox() {
       }
     };
 
+    const handleConversationAiToggled = (data: any) => {
+      const { conversationId, aiEnabled } = data;
+      console.log(`🤖 [Inbox] conversation-ai-toggled event received for ${conversationId}:`, aiEnabled);
+
+      if (selectedConversationRef.current?.id === conversationId) {
+        setCurrentConversationAiEnabled(aiEnabled);
+        setSelectedConversation((prev) => prev ? { ...prev, aiEnabled } : null);
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    };
+
     socket.on("new-message", handleNewMessage);
     socket.on("new_message", handleNewMessage);
     socket.on("conversation_created", handleConversationCreated);
@@ -366,6 +496,7 @@ export default function Inbox() {
     socket.on("user_typing", handleUserTyping);
     socket.on("user_stopped_typing", handleUserStoppedTyping);
     socket.on("message_status_update", handleMessageStatusUpdate);
+    socket.on("conversation-ai-toggled", handleConversationAiToggled);
 
     return () => {
       socket.off("new-message", handleNewMessage);
@@ -375,6 +506,7 @@ export default function Inbox() {
       socket.off("user_typing", handleUserTyping);
       socket.off("user_stopped_typing", handleUserStoppedTyping);
       socket.off("message_status_update", handleMessageStatusUpdate);
+      socket.off("conversation-ai-toggled", handleConversationAiToggled);
     };
   }, [socket, queryClient]);
 
@@ -887,6 +1019,7 @@ export default function Inbox() {
           onSelectConversation={setSelectedConversation}
           user={user}
           onStartNewChat={handleStartNewChat}
+          onOpenAiSettings={handleOpenInboxAiSettings}
         />
 
         {selectedConversation ? (
@@ -922,6 +1055,9 @@ export default function Inbox() {
             onReply={setReplyToMessage}
             onCancelReply={() => setReplyToMessage(null)}
             onSelectLocalTemplate={(text) => setMessageText(text)}
+            onOpenContactAiSettings={handleOpenContactAiSettings}
+            aiEnabled={currentConversationAiEnabled}
+            onToggleAi={handleToggleAi}
           />
         ) : (
           <div className="hidden md:flex flex-1 items-center justify-center bg-gray-50">
@@ -937,6 +1073,16 @@ export default function Inbox() {
           </div>
         )}
       </div>
+
+      <AISettingsDialog
+        open={isAiSettingsOpen}
+        onOpenChange={setIsAiSettingsOpen}
+        title={aiSettingsTarget === "inbox" ? "Default Inbox AI settings" : `AI settings for ${selectedConversation?.contactName || "Contact"}`}
+        initialSettings={aiSettingsData}
+        isContactOverride={aiSettingsTarget === "contact"}
+        aiEnabled={currentConversationAiEnabled}
+        onSave={handleSaveAiSettings}
+      />
     </div>
   );
 }

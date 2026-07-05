@@ -25,6 +25,7 @@ import { requireSubscription } from "server/middlewares/requireSubscription";
 import multer from "multer";
 import { db } from "../db";
 import { whatsappChannels } from "@shared/schema";
+import { storage } from "../storage";
 
 const profileUpload = multer({ dest: "uploads/profile-photos/", limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -95,4 +96,39 @@ export function registerChannelRoutes(app: Express) {
   app.get("/api/channels/:id/webhook-subscription", requireAuth, channelsController.getWebhookSubscription);
   app.post("/api/channels/:id/webhook-resubscribe", requireAuth, channelsController.resubscribeWebhook);
   app.post("/api/channels/webhook-resubscribe-all", requireAuth, channelsController.resubscribeAllWebhooks);
+
+  // Get channel-wide AI settings
+  app.get('/api/channels/:id/inbox-ai-settings', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const channel = await storage.getChannel(id);
+      if (!channel) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+      res.json({
+        inboxAiSettings: channel.inboxAiSettings ?? {},
+      });
+    } catch (error: any) {
+      console.error("Error getting channel AI settings:", error);
+      res.status(500).json({ message: error.message || "Internal server error" });
+    }
+  });
+
+  // Update channel-wide AI settings
+  app.post('/api/channels/:id/inbox-ai-settings', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { inboxAiSettings } = req.body;
+      const updated = await storage.updateChannel(id, {
+        inboxAiSettings,
+      });
+      if (!updated) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+      res.json({ success: true, inboxAiSettings: updated.inboxAiSettings });
+    } catch (error: any) {
+      console.error("Error updating channel AI settings:", error);
+      res.status(500).json({ message: error.message || "Internal server error" });
+    }
+  });
 }

@@ -1308,17 +1308,32 @@ export function ConfigPanel({
                             <SelectValue placeholder="Select language..." />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="en-IN">Indian English</SelectItem>
-                            <SelectItem value="en-US">English (US)</SelectItem>
-                            <SelectItem value="ar-SA">Saudi Arabic</SelectItem>
-                            <SelectItem value="hi-IN">Hindi</SelectItem>
-                            <SelectItem value="ta-IN">Tamil</SelectItem>
-                            <SelectItem value="te-IN">Telugu</SelectItem>
-                            <SelectItem value="ml-IN">Malayalam</SelectItem>
-                            <SelectItem value="kn-IN">Kannada</SelectItem>
-                            <SelectItem value="mr-IN">Marathi</SelectItem>
-                            <SelectItem value="gu-IN">Gujarati</SelectItem>
-                            <SelectItem value="bn-IN">Bengali</SelectItem>
+                            {(() => {
+                              const selectedVoice = voiceProfiles.find((vp: any) => vp.id === d.voiceProfileId);
+                              const provider = selectedVoice?.provider || "sarvam";
+                              if (provider === "groq") {
+                                return (
+                                  <>
+                                    <SelectItem value="en-US">English (US)</SelectItem>
+                                    <SelectItem value="ar-SA">Saudi Arabic</SelectItem>
+                                  </>
+                                );
+                              } else {
+                                return (
+                                  <>
+                                    <SelectItem value="en-IN">Indian English</SelectItem>
+                                    <SelectItem value="hi-IN">Hindi</SelectItem>
+                                    <SelectItem value="ta-IN">Tamil</SelectItem>
+                                    <SelectItem value="te-IN">Telugu</SelectItem>
+                                    <SelectItem value="ml-IN">Malayalam</SelectItem>
+                                    <SelectItem value="kn-IN">Kannada</SelectItem>
+                                    <SelectItem value="mr-IN">Marathi</SelectItem>
+                                    <SelectItem value="gu-IN">Gujarati</SelectItem>
+                                    <SelectItem value="bn-IN">Bengali</SelectItem>
+                                  </>
+                                );
+                              }
+                            })()}
                           </SelectContent>
                         </Select>
                       </div>

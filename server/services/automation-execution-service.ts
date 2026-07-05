@@ -3720,6 +3720,26 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       };
       systemPrompt += `\n\n[LOCALIZATION & TRANSLATION STYLE]\n- You MUST: ${styleMapping[aiLocalStyle as keyof typeof styleMapping] || styleMapping.code_mixed}`;
 
+      // Explicit Target Language Instruction
+      const languageNames: Record<string, string> = {
+        "en-US": "English",
+        "ar-SA": "Arabic",
+        "hi-IN": "Hindi",
+        "ml-IN": "Malayalam",
+        "bn-IN": "Bengali",
+        "ta-IN": "Tamil",
+        "te-IN": "Telugu",
+        "mr-IN": "Marathi",
+        "kn-IN": "Kannada",
+        "gu-IN": "Gujarati",
+        "pa-IN": "Punjabi",
+      };
+      
+      const targetLanguageName = languageNames[voiceLanguage] || "English";
+      if (targetLanguageName !== "English") {
+        systemPrompt += `\n- IMPORTANT: You MUST write your entire response in the ${targetLanguageName} language (using its native script/characters). Do NOT write the response in English.`;
+      }
+
       const chatHistory = await db
         .select()
         .from(messages)

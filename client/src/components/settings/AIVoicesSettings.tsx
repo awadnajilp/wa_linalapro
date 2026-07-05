@@ -60,6 +60,8 @@ interface VoiceProfile {
 
 const INDIC_LANGUAGES = [
   { code: "en-IN", name: "Indian English" },
+  { code: "en-US", name: "English (US)" },
+  { code: "ar-SA", name: "Saudi Arabic" },
   { code: "hi-IN", name: "Hindi" },
   { code: "ta-IN", name: "Tamil" },
   { code: "te-IN", name: "Telugu" },
@@ -160,7 +162,7 @@ export default function AIVoicesSettings(): JSX.Element {
       });
 
       // Refetch user profile
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     } catch (err: any) {
       toast({
         variant: "destructive",
@@ -191,7 +193,7 @@ export default function AIVoicesSettings(): JSX.Element {
       });
 
       // Refetch user profile
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     } catch (err: any) {
       toast({
         variant: "destructive",

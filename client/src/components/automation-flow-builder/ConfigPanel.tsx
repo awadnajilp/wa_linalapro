@@ -1309,6 +1309,8 @@ export function ConfigPanel({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="en-IN">Indian English</SelectItem>
+                            <SelectItem value="en-US">English (US)</SelectItem>
+                            <SelectItem value="ar-SA">Saudi Arabic</SelectItem>
                             <SelectItem value="hi-IN">Hindi</SelectItem>
                             <SelectItem value="ta-IN">Tamil</SelectItem>
                             <SelectItem value="te-IN">Telugu</SelectItem>

@@ -103,6 +103,7 @@ export function registerConversationRoutes(app: Express) {
   // Get conversation-specific AI settings
   app.get('/api/conversations/:id/ai-settings', requireAuth, async (req, res) => {
     try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       const { id } = req.params;
       const conv = await storage.getConversation(id);
       if (!conv) {

@@ -100,6 +100,7 @@ export function registerChannelRoutes(app: Express) {
   // Get channel-wide AI settings
   app.get('/api/channels/:id/inbox-ai-settings', requireAuth, async (req, res) => {
     try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       const { id } = req.params;
       const channel = await storage.getChannel(id);
       if (!channel) {

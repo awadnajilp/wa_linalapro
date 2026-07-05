@@ -5,6 +5,8 @@ import { messageQueue, channels, campaigns } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { WhatsAppApiService } from "./whatsapp-api";
 import { cacheGet, CACHE_KEYS, CACHE_TTL } from "./cache";
+import { BaileysManager } from "./baileys-manager";
+import { storage } from "../storage";
 
 const QUEUE_NAME = "whatsapp-messages";
 
@@ -168,6 +170,14 @@ async function processMessageJob(job: Job) {
       throw new Error("Rate limited — will retry");
     }
 
+    const isQrCode = channel.connectionMethod === "qr_code";
+
+    if (isQrCode) {
+      // Jitter delay between 5 to 15 seconds to prevent bans
+      const jitter = Math.floor(Math.random() * 10000) + 5000;
+      await new Promise(r => setTimeout(r, jitter));
+    }
+
     const isMarketing = messageType === "marketing";
 
     let response;
@@ -180,16 +190,97 @@ async function processMessageJob(job: Job) {
         "en_US",
         isMarketing
       );
+    } else if (isQrCode && campaignId) {
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign) {
+        throw new Error(`Campaign not found: ${campaignId}`);
+      }
+
+      const isWarmer = templateParams && (templateParams as any).isWarmer;
+      let text = "";
+      let mediaUrl = campaign.mediaUrl;
+      let mediaMimeType = campaign.mediaMimeType;
+      let mediaName = campaign.mediaName;
+
+      if (isWarmer) {
+        text = (templateParams as any).customMessage || "";
+        mediaUrl = null;
+      } else {
+        text = campaign.customMessage || "";
+      }
+
+      // Interpolate variables in customMessage (e.g. {{name}}, {{phone}}, etc.)
+      let contact = await storage.getContactByPhoneAndChannel(recipientPhone, channel.id);
+      if (!contact) {
+        contact = await storage.getContactByPhone(recipientPhone);
+      }
+      let contactName = contact ? contact.name : recipientPhone;
+
+      text = text.replace(/\{\{\s*name\s*\}\}/gi, contactName);
+      text = text.replace(/\{\{\s*phone\s*\}\}/gi, recipientPhone);
+      text = text.replace(/\{\{\s*email\s*\}\}/gi, contact?.email || "");
+
+      // Replace other custom variables from contact.variables
+      if (contact && contact.variables && typeof contact.variables === "object") {
+        Object.entries(contact.variables as Record<string, string>).forEach(([key, val]) => {
+          const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          const regex = new RegExp(`\\{\\{\\s*${escapedKey}\\s*\\}\\}`, "gi");
+          text = text.replace(regex, val || "");
+        });
+      }
+
+      // Strip HTML tags from WYSIWYG editor if needed, or send as is.
+      text = text
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/p>/gi, "\n")
+        .replace(/<p>/gi, "")
+        .replace(/<b>(.*?)<\/b>/gi, "*$1*")
+        .replace(/<strong>(.*?)<\/strong>/gi, "*$1*")
+        .replace(/<i>(.*?)<\/i>/gi, "_$1_")
+        .replace(/<em>(.*?)<\/em>/gi, "_$1_")
+        .replace(/<del>(.*?)<\/del>/gi, "~$1~")
+        .replace(/<code[^>]*>(.*?)<\/code>/gi, "```$1```")
+        .replace(/<[^>]*>/g, ""); // Strip remaining HTML tags
+
+      // Decoded HTML entities
+      text = text
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&quot;/gi, '"');
+
+      if (mediaUrl) {
+        const mediaData = {
+          url: mediaUrl,
+          mimeType: mediaMimeType || "application/octet-stream",
+          filename: mediaName || "file"
+        };
+        response = await BaileysManager.sendMediaMessage(
+          channel.id,
+          recipientPhone,
+          mediaData,
+          text || undefined
+        );
+      } else {
+        response = await BaileysManager.sendMessage(
+          channel.id,
+          recipientPhone,
+          text
+        );
+      }
     } else {
       throw new Error("Non-template messages not yet implemented");
     }
+
+    const waMessageId = response.messages?.[0]?.id;
 
     await db
       .update(messageQueue)
       .set({
         status: "sent",
-        whatsappMessageId: response.messages?.[0]?.id,
-        sentVia: isMarketing ? "marketing_messages" : "cloud_api",
+        whatsappMessageId: waMessageId,
+        sentVia: isMarketing ? "marketing_messages" : (isQrCode ? "qr_code" : "cloud_api"),
         attempts: (attempts || 0) + 1,
       })
       .where(eq(messageQueue.id, messageId));

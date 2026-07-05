@@ -677,7 +677,7 @@ export const campaignsController = {
 };
 
 
-const cleanMediaId = (id: any) => (id && /^\d+$/.test(String(id)) ? parseInt(String(id), 10) : id);
+const cleanMediaId = (id: any) => (id ? String(id).trim() : id);
 
 function resolveVariableValue(mapObj: any, contact: Contact): string {
   if (!mapObj) return "";

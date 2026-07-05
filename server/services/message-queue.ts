@@ -172,7 +172,8 @@ export class MessageQueueService {
         for (const [chId, chMessages] of messagesByChannel) {
           const channel = channelCache.get(chId);
           const tier = (channel?.healthDetails as any)?.messaging_limit as string | undefined;
-          const concurrency = WhatsAppApiService.getConcurrencyForTier(tier);
+          const isQr = channel?.connectionMethod === "qr_code";
+          const concurrency = isQr ? 1 : WhatsAppApiService.getConcurrencyForTier(tier);
 
           channelPromises.push(
             this.processChannelBatch(chMessages, channelCache, concurrency)
@@ -218,7 +219,11 @@ export class MessageQueueService {
               active--;
               completed++;
 
-              if (SEND_DELAY_MS > 0) {
+              const isQr = channelCache.get(msg.channelId)?.connectionMethod === "qr_code";
+              if (isQr) {
+                const jitter = Math.floor(Math.random() * 10000) + 5000;
+                await sleep(jitter);
+              } else if (SEND_DELAY_MS > 0) {
                 await sleep(SEND_DELAY_MS);
               }
 

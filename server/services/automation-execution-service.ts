@@ -47,6 +47,33 @@ import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
 import * as mysql from "mysql2/promise";
+import { exec } from "child_process";
+import { promisify } from "util";
+import os from "os";
+
+const execPromise = promisify(exec);
+
+async function convertWavToOggOpus(wavBuffer: Buffer): Promise<Buffer> {
+  const tempWav = path.join(os.tmpdir(), `temp_${Date.now()}_${randomUUID().substring(0, 6)}.wav`);
+  const tempOgg = path.join(os.tmpdir(), `temp_${Date.now()}_${randomUUID().substring(0, 6)}.ogg`);
+
+  try {
+    fs.writeFileSync(tempWav, wavBuffer);
+    await execPromise(`ffmpeg -y -i "${tempWav}" -c:a libopus -b:a 24k -ac 1 "${tempOgg}"`);
+    const oggBuffer = fs.readFileSync(tempOgg);
+    return oggBuffer;
+  } catch (err) {
+    console.error("[Voice Converter] Ffmpeg conversion failed:", err);
+    throw err;
+  } finally {
+    if (fs.existsSync(tempWav)) {
+      try { fs.unlinkSync(tempWav); } catch {}
+    }
+    if (fs.existsSync(tempOgg)) {
+      try { fs.unlinkSync(tempOgg); } catch {}
+    }
+  }
+}
 
 interface ExecutionContext {
   executionId: string;
@@ -3024,7 +3051,9 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         "ta-IN": "Tamil",
         "te-IN": "Telugu",
         "ml-IN": "Malayalam",
-        "en-IN": "English"
+        "en-IN": "English",
+        "en-US": "English",
+        "ar-SA": "Arabic"
       };
 
       const targetLangCode = nodeData.voiceLanguage || voiceProfile?.languageCode || "en-IN";
@@ -3326,9 +3355,22 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
           );
 
           const isGroq = providerName === "groq";
-          const fileExt = isGroq ? "wav" : "ogg";
-          const mimeType = isGroq ? "audio/wav" : "audio/ogg; codecs=opus";
-          const uploadMime = isGroq ? "audio/wav" : "audio/ogg";
+          let finalAudioBuffer = audioBuffer;
+          let fileExt = "ogg";
+          let mimeType = "audio/ogg; codecs=opus";
+          let uploadMime = "audio/ogg";
+
+          if (isGroq) {
+            try {
+              console.log("[AI Agent Voice] Converting Groq WAV to OGG/Opus using ffmpeg...");
+              finalAudioBuffer = await convertWavToOggOpus(audioBuffer);
+            } catch (convErr) {
+              console.error("[AI Agent Voice] Ffmpeg conversion failed. Falling back to sending raw WAV:", convErr);
+              fileExt = "wav";
+              mimeType = "audio/wav";
+              uploadMime = "audio/wav";
+            }
+          }
 
           // Save buffer to a local temporary file to upload
           const tempFilename = `tts_${Date.now()}_${randomUUID().substring(0, 8)}.${fileExt}`;
@@ -3337,7 +3379,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
           if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
           }
-          fs.writeFileSync(tempPath, audioBuffer);
+          fs.writeFileSync(tempPath, finalAudioBuffer);
 
           const getChannel = await db.query.channels.findFirst({
             where: eq(channels.id, effectiveChannelId || ""),
@@ -3350,7 +3392,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
               const res = await BaileysManager.sendMediaMessage(
                 getChannel.id,
                 getContact.phone,
-                { buffer: audioBuffer, mimeType: mimeType },
+                { buffer: finalAudioBuffer, mimeType: mimeType },
                 ""
               );
               messageId = res?.messages?.[0]?.id || `voice_${randomUUID()}`;

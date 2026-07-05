@@ -2899,7 +2899,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     const isGroqLlm = nodeData.aiLlmProvider === "groq";
     let finalApiKey = aiApiKey;
     let finalBaseURL = isGroqLlm ? "https://api.groq.com/openai/v1" : "https://api.openai.com/v1";
-    let finalModel = aiModel || (isGroqLlm ? "llama-3.1-70b-versatile" : "gpt-4o");
+    let finalModel = aiModel || (isGroqLlm ? "llama-3.3-70b-versatile" : "gpt-4o");
 
     if (aiConfigUseSettings && effectiveChannelId) {
       if (isGroqLlm) {

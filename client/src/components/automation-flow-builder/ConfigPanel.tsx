@@ -1131,7 +1131,7 @@ export function ConfigPanel({
                     onValueChange={(v) => {
                       onChange({
                         aiLlmProvider: v,
-                        aiModel: v === "groq" ? "llama-3.1-70b-versatile" : "gpt-4o"
+                        aiModel: v === "groq" ? "llama-3.3-70b-versatile" : "gpt-4o"
                       });
                     }}
                   >
@@ -1148,7 +1148,7 @@ export function ConfigPanel({
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-gray-700">Model</Label>
                   <Select
-                    value={d.aiModel || (d.aiLlmProvider === "groq" ? "llama-3.1-70b-versatile" : "gpt-4o")}
+                    value={d.aiModel || (d.aiLlmProvider === "groq" ? "llama-3.3-70b-versatile" : "gpt-4o")}
                     onValueChange={(v) => onChange({ aiModel: v })}
                   >
                     <SelectTrigger className="h-9 rounded-lg bg-white">
@@ -1157,7 +1157,7 @@ export function ConfigPanel({
                     <SelectContent>
                       {d.aiLlmProvider === "groq" ? (
                         <>
-                          <SelectItem value="llama-3.1-70b-versatile">Llama 3.1 70B (Versatile)</SelectItem>
+                          <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 70B (Versatile)</SelectItem>
                           <SelectItem value="llama-3.1-8b-instant">Llama 3.1 8B (Instant)</SelectItem>
                           <SelectItem value="mixtral-8x7b-32768">Mixtral 8x7B</SelectItem>
                         </>
@@ -1321,7 +1321,7 @@ export function ConfigPanel({
                             <SelectItem value="bn-IN">Bengali</SelectItem>
                           </SelectContent>
                         </Select>
-                      </div>\n
+                      </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-semibold text-gray-500">Local Dialect & Slang Style</Label>
                         <Select

@@ -151,6 +151,40 @@ export const deleteGroup = async (req: Request, res: Response) => {
   }
 };
 
+export const deleteGroupContacts = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const [groupRecord] = await db
+      .select()
+      .from(groups)
+      .where(eq(groups.id, id))
+      .limit(1);
+
+    if (!groupRecord) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+
+    // Select all contacts tagged with this group name
+    const allContacts = await db
+      .select()
+      .from(contacts)
+      .where(sql`${contacts.groups}::jsonb @> ${JSON.stringify([groupRecord.name])}::jsonb`);
+
+    let deletedCount = 0;
+    for (const contact of allContacts) {
+      await db.delete(contacts).where(eq(contacts.id, contact.id));
+      deletedCount++;
+    }
+
+    res.json({ success: true, message: `Successfully deleted ${deletedCount} contacts in group "${groupRecord.name}".`, deletedCount });
+  } catch (e: unknown) {
+    const errorMsg = e instanceof Error ? e.message : "Something went wrong";
+    res.status(500).json({ error: errorMsg });
+  }
+};
+
+
 export const addContactsToGroup = async (req: Request, res: Response) => {
   try {
     const { contactIds, groupName, channelId } = req.body;

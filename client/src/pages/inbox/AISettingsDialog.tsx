@@ -83,6 +83,23 @@ export function AISettingsDialog({
   const [contactSpecificTraining, setContactSpecificTraining] = React.useState(false);
   const [customSiteId, setCustomSiteId] = React.useState<string | null>(null);
   const [loadingSite, setLoadingSite] = React.useState(false);
+  const [kbConfig, setKbConfig] = React.useState({
+    aiTone: "professional",
+    aiMaxResponseLength: 500,
+    aiFallbackMessage: "I am connecting you to an agent.",
+    systemPrompt: "",
+    trainFromKB: true,
+    escalationRules: {
+      enabled: false,
+      maxAttempts: 3,
+      triggerPhrases: [],
+      escalationMessage: "Connecting to agent."
+    }
+  });
+
+  const handleUpdateKbConfig = (key: string, value: any) => {
+    setKbConfig(prev => ({ ...prev, [key]: value }));
+  };
 
   useEffect(() => {
     if (open && contactSpecificTraining && contactId && channelId) {
@@ -479,6 +496,8 @@ export function AISettingsDialog({
                       </div>
                     ) : customSiteId ? (
                       <AITrainingPanel
+                        config={kbConfig}
+                        updateConfig={handleUpdateKbConfig}
                         siteId={customSiteId}
                         channelId={channelId}
                       />

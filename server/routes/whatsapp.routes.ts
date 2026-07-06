@@ -1436,7 +1436,7 @@ app.post(
             isGroup: true,
             status: "active",
             source: "chatbot",
-            groups: [name, "Groups WA"]
+            groups: ["Groups WA"]
           }).returning();
           syncedGroups.push(newContact);
           newCount++;
@@ -1446,7 +1446,7 @@ app.post(
             .set({
               name,
               isGroup: true,
-              groups: Array.from(new Set([...(existingContact.groups || []), name, "Groups WA"]))
+              groups: Array.from(new Set([...(existingContact.groups || []), "Groups WA"]))
             })
             .where(eq(contacts.id, existingContact.id))
             .returning();
@@ -1522,14 +1522,14 @@ app.post(
           isGroup: true,
           status: "active",
           source: "chatbot",
-          groups: [subject, "Groups WA"]
+          groups: ["Groups WA"]
         });
       } else {
         await db.update(contacts)
           .set({
             name: subject,
             isGroup: true,
-            groups: Array.from(new Set([...(existingGroupContact.groups || []), subject, "Groups WA"]))
+            groups: Array.from(new Set([...(existingGroupContact.groups || []), "Groups WA"]))
           })
           .where(eq(contacts.id, existingGroupContact.id));
       }

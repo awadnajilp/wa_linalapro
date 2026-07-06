@@ -26,6 +26,7 @@ import {
   addContactsToGroup,
   removeContactsFromGroup,
   getGroupContactCount,
+  deleteGroupContacts,
 } from "../controllers/group.controller";
 import { requireAuth } from "server/middlewares/auth.middleware";
 
@@ -36,6 +37,7 @@ export function registerGroupRoutes(app: Express) {
   app.get("/api/groups/:id", requireAuth, getGroupById);
   app.put("/api/groups/:id", requireAuth, updateGroup);
   app.delete("/api/groups/:id", requireAuth, deleteGroup);
+  app.delete("/api/groups/:id/contacts", requireAuth, deleteGroupContacts);
   app.post("/api/groups/add-contacts", requireAuth, addContactsToGroup);
   app.post("/api/groups/remove-contacts", requireAuth, removeContactsFromGroup);
 }

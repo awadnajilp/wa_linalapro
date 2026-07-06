@@ -148,7 +148,7 @@ export class BaileysManager {
                   isGroup: true,
                   status: "active",
                   source: "chatbot",
-                  groups: [name, "Groups WA"]
+                  groups: ["Groups WA"]
                 });
                 syncCount++;
               } else {
@@ -157,7 +157,7 @@ export class BaileysManager {
                   .set({
                     name,
                     isGroup: true,
-                    groups: Array.from(new Set([...(existingContact.groups || []), name, "Groups WA"]))
+                    groups: Array.from(new Set([...(existingContact.groups || []), "Groups WA"]))
                   })
                   .where(eq(contacts.id, existingContact.id));
               }

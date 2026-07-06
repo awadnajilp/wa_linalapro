@@ -328,6 +328,38 @@ export default function GroupsUI() {
     }
   };
 
+  const handleDeleteGroupContacts = async (id: string, groupName: string) => {
+    if (!confirm(`Are you sure you want to delete all contacts inside the group "${groupName}"? This will delete the contacts from the CRM.`)) return;
+
+    try {
+      const res = await fetch(`/api/groups/${id}/contacts`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        toast({
+          title: "Contacts deleted!",
+          description: data.message || "Contacts deleted successfully",
+        });
+        fetchContactCounts();
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to delete contacts",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Open create dialog
   const openCreateDialog = () => {
     setEditMode(false);
@@ -448,6 +480,16 @@ export default function GroupsUI() {
                             >
                               <Edit size={14} />
                               <span className="hidden sm:inline">Edit</span>
+                            </Button>
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteGroupContacts(group.id, group.name)}
+                              className="flex items-center gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                            >
+                              <Trash size={14} />
+                              <span className="hidden sm:inline">Delete Contacts</span>
                             </Button>
 
                             <Button

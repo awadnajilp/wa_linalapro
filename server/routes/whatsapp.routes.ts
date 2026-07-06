@@ -1544,6 +1544,13 @@ app.post(
         const phone = isStandard ? p.id.split("@")[0] : p.id;
         if (!phone) continue;
 
+        // Try to get contact name from Baileys contacts store
+        let contactName = phone.split("@")[0];
+        if ((sock as any).contacts && (sock as any).contacts[p.id]) {
+          const cached = (sock as any).contacts[p.id];
+          contactName = cached.notify || cached.name || cached.verifiedName || contactName;
+        }
+
         const [existingContact] = await db
           .select()
           .from(contacts)
@@ -1553,7 +1560,7 @@ app.post(
         if (!existingContact) {
           await db.insert(contacts).values({
             channelId,
-            name: phone.split("@")[0],
+            name: contactName,
             phone,
             isGroup: false,
             status: "active",
@@ -1562,10 +1569,15 @@ app.post(
           });
           importedCount++;
         } else {
+          const updates: any = {
+            groups: Array.from(new Set([...(existingContact.groups || []), subject]))
+          };
+          // If the contact previously had no name or only had the number/LID, update to notify name
+          if ((!existingContact.name || existingContact.name === existingContact.phone) && contactName !== existingContact.phone) {
+            updates.name = contactName;
+          }
           await db.update(contacts)
-            .set({
-              groups: Array.from(new Set([...(existingContact.groups || []), subject]))
-            })
+            .set(updates)
             .where(eq(contacts.id, existingContact.id));
         }
       }

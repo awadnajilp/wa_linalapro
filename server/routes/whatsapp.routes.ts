@@ -1543,6 +1543,11 @@ app.post(
         const phone = p.id.split("@")[0];
         if (!phone) continue;
 
+        // Skip internal WhatsApp privacy LIDs (usually 15+ digits)
+        if (phone.length > 14) {
+          continue;
+        }
+
         const [existingContact] = await db
           .select()
           .from(contacts)

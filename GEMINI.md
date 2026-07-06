@@ -103,3 +103,55 @@ A comprehensive security audit was performed with the following results:
 - **ElevenLabs Conversational AI Agent (LLM):** Enabled selecting ElevenLabs as the LLM provider in the flow builder and inbox settings. When selected, the backend uses a WebSocket client to connect to the ElevenLabs Conversational AI Agent, injects the user message, and returns the response.
 - **Indian Languages & Hindi Support:** Added Hindi and 12 Indian languages to both the inbox AI takeover dialog and flow builder config panels.
 - **AI Takeover Expiration & Never-Expire Options:** Fixed the expiration bug in triggerInboxAiTakeover by checking inactivity timeout against the pre-update `lastIncomingMessageAt` timestamp. Added support for `takeoverTimeoutMinutes: 0` to allow the AI takeover to never expire (manual mode).
+
+### 7. WhatsApp Group Campaigns & CRM Sync Updates (July 2026)
+- **WhatsApp Groups Campaigns:** Added a dedicated "WhatsApp Groups" campaign tab to allow sending campaigns directly to synced group chats (JIDs). Restricted groups campaigns and tab UI elements to channels with the `"qr_code"` connection method.
+- **CRM Sync & Ownership Fix:** Configured synced group contacts and imported CRM Label groups to be owned by their respective channel's user (populates `createdBy` column correctly) so they are retrieved by the active user's filters. Successfully backfilled all existing orphaned contacts in the production database.
+- **Bypassed Member CRM Import:** Modified the `/import-group` endpoint to skip importing group participants as individual contacts, keeping the CRM directory clean as group campaigns target the group JID itself. Disabled the "Import CRM" button in the Groups WA tab UI.
+- **Group JID Database Support:** Altered the `recipient_phone` column in the `message_queue` table to use `text` instead of `varchar(20)`, allowing long WhatsApp Group JIDs (e.g. `120363400431715046@g.us`) to be queued for campaigns without constraint errors.
+
+---
+
+## 🔌 API Integration Guide: WhatsApp Groups & QR Channels
+
+### 1. Sending Messages to WhatsApp Groups
+When sending messages directly to a WhatsApp Group via the REST API (`POST /api/v1/messages/send` or `POST /api/whatsapp/channels/:id/send`), specify the group's JID in the `to` field. 
+To prevent the API from cleaning the group JID into raw digits, the phone parser leaves target parameters containing `@` unchanged.
+
+#### Example API Payload (Send Text to Group):
+```json
+{
+  "to": "120363420552187637@g.us",
+  "message": "Hello Group! This is an API notification.",
+  "channelId": "e81ed082-4218-41b4-977b-41886a782b27"
+}
+```
+
+#### Example API Payload (Send Template to Group):
+```json
+{
+  "to": "120363420552187637@g.us",
+  "type": "template",
+  "templateName": "welcome_alert",
+  "templateLanguage": "en_US",
+  "templateVariables": [
+    { "type": "custom", "value": "SkyErp support team" }
+  ],
+  "channelId": "e81ed082-4218-41b4-977b-41886a782b27"
+}
+```
+
+---
+
+### 💡 Special Considerations for using QR Channels for API
+If you are using a **QR Code (Baileys/Session-based) Channel** instead of the official **Meta Cloud API**, keep the following key differences in mind:
+
+1. **No 24-Hour Messaging Window:**
+   * Unlike Meta Cloud API (which blocks sending outbound session text messages if there has been no inbound message in the last 24 hours), **QR Code channels bypass this limit entirely**. You can send text or template messages to any number or group at any time.
+2. **Dynamic Template Send Fallback:**
+   * Pre-approval of templates in Meta Business Manager is not required. When you send a template via a QR Channel, the backend parses your saved CRM template model, replaces variables (`{{1}}`, `{{2}}`), and delivers it as a normal formatted WhatsApp text message.
+3. **Target Formatting Rules:**
+   * **Individual Contacts:** Use standard digit formats (e.g. `918086563491` or `+918086563491`).
+   * **WhatsApp Groups:** You must pass the full JID ending in `@g.us` (e.g. `120363400431715046@g.us`).
+   * **Masked Privacy Contacts (LIDs):** You must pass the full JID ending in `@lid` (e.g. `124012952854591@lid`).
+

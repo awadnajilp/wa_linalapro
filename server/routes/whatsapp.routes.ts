@@ -1537,10 +1537,11 @@ app.post(
       // 3. Import participants as contacts and assign to the local group
       let importedCount = 0;
       for (const p of participants) {
-        if (!p.id.endsWith("@s.whatsapp.net") && !p.id.endsWith("@c.us")) {
-          continue; // Skip LIDs and other non-phone JIDs
+        if (!p.id.endsWith("@s.whatsapp.net") && !p.id.endsWith("@c.us") && !p.id.endsWith("@lid")) {
+          continue; // Skip broadcasts and other non-user JIDs
         }
-        const phone = p.id.split("@")[0];
+        const isStandard = p.id.endsWith("@s.whatsapp.net") || p.id.endsWith("@c.us");
+        const phone = isStandard ? p.id.split("@")[0] : p.id;
         if (!phone) continue;
 
         const [existingContact] = await db
@@ -1552,7 +1553,7 @@ app.post(
         if (!existingContact) {
           await db.insert(contacts).values({
             channelId,
-            name: phone,
+            name: phone.split("@")[0],
             phone,
             isGroup: false,
             status: "active",

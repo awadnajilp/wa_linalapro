@@ -104,6 +104,7 @@ export default function GroupsUI() {
 
   const [contactCounts, setContactCounts] = useState<Record<string, number>>({});
   const [syncing, setSyncing] = useState(false);
+  const [importingJid, setImportingJid] = useState<string | null>(null);
 
   const { data: whatsappGroups, refetch: refetchWaGroups, isLoading: loadingWaGroups } = useQuery({
     queryKey: [`/api/contacts?isGroup=true`, activeChannel?.id],
@@ -144,6 +145,37 @@ export default function GroupsUI() {
       });
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleImportWhatsAppGroup = async (jid: string) => {
+    if (!activeChannel?.id) return;
+    setImportingJid(jid);
+    try {
+      const res = await apiRequest("POST", `/api/whatsapp/channels/${activeChannel.id}/import-group`, { jid });
+      const data = await res.json();
+      if (res.ok) {
+        toast({
+          title: "Group Imported",
+          description: data.message || "WhatsApp group successfully imported.",
+        });
+        fetchGroups();
+        fetchContactCounts();
+      } else {
+        toast({
+          title: "Import Failed",
+          description: data.message || "Failed to import group.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to connect to the server.",
+        variant: "destructive",
+      });
+    } finally {
+      setImportingJid(null);
     }
   };
 
@@ -497,6 +529,17 @@ export default function GroupsUI() {
                                 )}
                               </span>
                             </div>
+                          </div>
+                          <div className="flex gap-2 self-end sm:self-start">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                              onClick={() => handleImportWhatsAppGroup(group.phone)}
+                              disabled={importingJid === group.phone}
+                            >
+                              {importingJid === group.phone ? "Importing..." : "Import CRM"}
+                            </Button>
                           </div>
                         </div>
                       </CardContent>

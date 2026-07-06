@@ -354,7 +354,7 @@ export const createTemplate = asyncHandler(
           if (Array.isArray(carouselCards) && carouselCards.length >= 2) {
             const allFiles = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
             for (let idx = 0; idx < carouselCards.length; idx++) {
-              if (!allFiles?.[`carouselCardMedia_${idx}`]?.[0]) {
+              if (!allFiles?.[`carouselCardMedia_${idx}`]?.[0] && !carouselCards[idx].mediaUrl) {
                 throw new AppError(400, `Card ${idx + 1} is missing sample media. Each carousel card requires an image or video for Meta template review.`);
               }
             }
@@ -383,6 +383,8 @@ export const createTemplate = asyncHandler(
                 } finally {
                   try { fs.unlinkSync(cardMediaFile.path); } catch {}
                 }
+              } else if (card.mediaUrl) {
+                headerComp.example = { header_handle: [card.mediaUrl] };
               }
 
               cardComponents.push(headerComp);

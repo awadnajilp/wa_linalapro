@@ -26,7 +26,7 @@ import { requireSubscription } from "../middlewares/requireSubscription";
 import { insertWhatsappChannelSchema } from "@shared/schema";
 import fs from "fs";
 import { db } from "../db";
-import { subscriptions, plans, channels, warmerConfigs, warmerMessages, contacts } from "@shared/schema";
+import { subscriptions, plans, channels, warmerConfigs, warmerMessages, contacts, groups } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { BaileysManager } from "../services/baileys-manager";
@@ -1405,6 +1405,23 @@ app.post(
         const groupMetadata = groupsMap[jid];
         const name = groupMetadata.subject || "WhatsApp Group";
 
+        // 1. Create local CRM group if not existing
+        const [existingGroup] = await db
+          .select()
+          .from(groups)
+          .where(and(eq(groups.channelId, channelId), eq(groups.name, name)))
+          .limit(1);
+
+        if (!existingGroup) {
+          await db.insert(groups).values({
+            channelId,
+            name,
+            description: `Imported from WhatsApp Group JID: ${jid}`,
+            createdBy: (req as any).user?.id || ""
+          });
+        }
+
+        // 2. Sync group contact in contacts table
         const [existingContact] = await db
           .select()
           .from(contacts)
@@ -1419,7 +1436,7 @@ app.post(
             isGroup: true,
             status: "active",
             source: "chatbot",
-            groups: ["Groups WA"]
+            groups: [name, "Groups WA"]
           }).returning();
           syncedGroups.push(newContact);
           newCount++;
@@ -1429,9 +1446,7 @@ app.post(
             .set({
               name,
               isGroup: true,
-              groups: existingContact.groups?.includes("Groups WA") 
-                ? existingContact.groups 
-                : [...(existingContact.groups || []), "Groups WA"]
+              groups: Array.from(new Set([...(existingContact.groups || []), name, "Groups WA"]))
             })
             .where(eq(contacts.id, existingContact.id))
             .returning();
@@ -1446,6 +1461,122 @@ app.post(
       });
     } catch (error: any) {
       console.error("[Manual Group Sync] Error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  // Import group and participants from WhatsApp into system CRM
+  app.post("/api/whatsapp/channels/:channelId/import-group", requireAuth, async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const { jid } = req.body;
+
+      if (!jid) {
+        return res.status(400).json({ success: false, message: "Missing required parameter: jid" });
+      }
+
+      const sock = BaileysManager.activeSockets.get(channelId);
+      if (!sock) {
+        return res.status(400).json({ success: false, message: "WhatsApp QR session is disconnected or not initialized for this channel." });
+      }
+
+      console.log(`[Group Import] Fetching metadata for group ${jid} on channel ${channelId}...`);
+      const groupMetadata = await sock.groupMetadata(jid);
+      if (!groupMetadata) {
+        return res.status(404).json({ success: false, message: "Failed to retrieve WhatsApp group metadata." });
+      }
+
+      const subject = groupMetadata.subject || "WhatsApp Group";
+      const participants = groupMetadata.participants || [];
+
+      // 1. Create local CRM group if not existing
+      const [existingGroup] = await db
+        .select()
+        .from(groups)
+        .where(and(eq(groups.channelId, channelId), eq(groups.name, subject)))
+        .limit(1);
+
+      let groupRecord = existingGroup;
+      if (!groupRecord) {
+        const [newGroup] = await db.insert(groups).values({
+          channelId,
+          name: subject,
+          description: `Imported from WhatsApp Group JID: ${jid}`,
+          createdBy: (req as any).user?.id || ""
+        }).returning();
+        groupRecord = newGroup;
+      }
+
+      // 2. Save/Update group contact in contacts table
+      const [existingGroupContact] = await db
+        .select()
+        .from(contacts)
+        .where(and(eq(contacts.channelId, channelId), eq(contacts.phone, jid)))
+        .limit(1);
+
+      if (!existingGroupContact) {
+        await db.insert(contacts).values({
+          channelId,
+          name: subject,
+          phone: jid,
+          isGroup: true,
+          status: "active",
+          source: "chatbot",
+          groups: [subject, "Groups WA"]
+        });
+      } else {
+        await db.update(contacts)
+          .set({
+            name: subject,
+            isGroup: true,
+            groups: Array.from(new Set([...(existingGroupContact.groups || []), subject, "Groups WA"]))
+          })
+          .where(eq(contacts.id, existingGroupContact.id));
+      }
+
+      // 3. Import participants as contacts and assign to the local group
+      let importedCount = 0;
+      for (const p of participants) {
+        const phone = p.id.split("@")[0];
+        if (!phone) continue;
+
+        const [existingContact] = await db
+          .select()
+          .from(contacts)
+          .where(and(eq(contacts.channelId, channelId), eq(contacts.phone, phone)))
+          .limit(1);
+
+        if (!existingContact) {
+          await db.insert(contacts).values({
+            channelId,
+            name: phone,
+            phone,
+            isGroup: false,
+            status: "active",
+            source: "whatsapp",
+            groups: [subject]
+          });
+          importedCount++;
+        } else {
+          await db.update(contacts)
+            .set({
+              groups: Array.from(new Set([...(existingContact.groups || []), subject]))
+            })
+            .where(eq(contacts.id, existingContact.id));
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Successfully imported WhatsApp group "${subject}" with ${participants.length} participants into CRM.`,
+        data: {
+          groupName: subject,
+          totalParticipants: participants.length,
+          newContactsCreated: importedCount
+        }
+      });
+    } catch (error: any) {
+      console.error("[Group Import] Error:", error);
       res.status(500).json({ success: false, message: error.message });
     }
   });

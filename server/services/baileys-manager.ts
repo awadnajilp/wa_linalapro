@@ -10,7 +10,7 @@ import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
 import { db } from "../db";
-import { channels, conversations, contacts, messages, warmerConfigs, warmerMessages, messageQueue, campaigns, campaignRecipients } from "@shared/schema";
+import { channels, conversations, contacts, messages, warmerConfigs, warmerMessages, messageQueue, campaigns, campaignRecipients, groups } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { WebhookHandler } from "./webhook-handler";
 import { randomUUID } from "crypto";
@@ -117,6 +117,23 @@ export class BaileysManager {
               const groupMetadata = groupsMap[jid];
               const name = groupMetadata.subject || "WhatsApp Group";
               
+              // 1. Create local CRM group if not existing
+              const [existingGroup] = await db
+                .select()
+                .from(groups)
+                .where(and(eq(groups.channelId, channelId), eq(groups.name, name)))
+                .limit(1);
+
+              if (!existingGroup) {
+                await db.insert(groups).values({
+                  channelId,
+                  name,
+                  description: `Imported from WhatsApp Group JID: ${jid}`,
+                  createdBy: "" // system automatic sync
+                });
+              }
+
+              // 2. Sync group contact in contacts table
               const [existingContact] = await db
                 .select()
                 .from(contacts)
@@ -131,7 +148,7 @@ export class BaileysManager {
                   isGroup: true,
                   status: "active",
                   source: "chatbot",
-                  groups: ["Groups WA"]
+                  groups: [name, "Groups WA"]
                 });
                 syncCount++;
               } else {
@@ -140,9 +157,7 @@ export class BaileysManager {
                   .set({
                     name,
                     isGroup: true,
-                    groups: existingContact.groups?.includes("Groups WA") 
-                      ? existingContact.groups 
-                      : [...(existingContact.groups || []), "Groups WA"]
+                    groups: Array.from(new Set([...(existingContact.groups || []), name, "Groups WA"]))
                   })
                   .where(eq(contacts.id, existingContact.id));
               }

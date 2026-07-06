@@ -52,7 +52,7 @@ export function registerRestApiV1Routes(app: Express) {
         language || "en_US"
       );
 
-      const phone = to.replace(/\D/g, "");
+      const phone = to.includes("@") ? to : to.replace(/\D/g, "");
 
       let [contact] = await db
         .select()
@@ -159,7 +159,7 @@ export function registerRestApiV1Routes(app: Express) {
         return res.status(404).json({ success: false, error: "Channel not found" });
       }
 
-      const phone = to.replace(/\D/g, "");
+      const phone = to.includes("@") ? to : to.replace(/\D/g, "");
 
       let [contact] = await db
         .select()

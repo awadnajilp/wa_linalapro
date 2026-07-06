@@ -1536,54 +1536,8 @@ app.post(
           .where(eq(contacts.id, existingGroupContact.id));
       }
 
-      // 3. Import participants as contacts and assign to the local group
+      // 3. Skip importing individual participants as contacts
       let importedCount = 0;
-      for (const p of participants) {
-        if (!p.id.endsWith("@s.whatsapp.net") && !p.id.endsWith("@c.us") && !p.id.endsWith("@lid")) {
-          continue; // Skip broadcasts and other non-user JIDs
-        }
-        const isStandard = p.id.endsWith("@s.whatsapp.net") || p.id.endsWith("@c.us");
-        const phone = isStandard ? p.id.split("@")[0] : p.id;
-        if (!phone) continue;
-
-        // Try to get contact name from Baileys contacts store
-        let contactName = phone.split("@")[0];
-        if ((sock as any).contacts && (sock as any).contacts[p.id]) {
-          const cached = (sock as any).contacts[p.id];
-          contactName = cached.notify || cached.name || cached.verifiedName || contactName;
-        }
-
-        const [existingContact] = await db
-          .select()
-          .from(contacts)
-          .where(and(eq(contacts.channelId, channelId), eq(contacts.phone, phone)))
-          .limit(1);
-
-        if (!existingContact) {
-          await db.insert(contacts).values({
-            channelId,
-            name: contactName,
-            phone,
-            isGroup: false,
-            status: "active",
-            source: "whatsapp",
-            groups: [subject],
-            createdBy: (req as any).user?.id || ""
-          });
-          importedCount++;
-        } else {
-          const updates: any = {
-            groups: Array.from(new Set([...(existingContact.groups || []), subject]))
-          };
-          // If the contact previously had no name or only had the number/LID, update to notify name
-          if ((!existingContact.name || existingContact.name === existingContact.phone) && contactName !== existingContact.phone) {
-            updates.name = contactName;
-          }
-          await db.update(contacts)
-            .set(updates)
-            .where(eq(contacts.id, existingContact.id));
-        }
-      }
 
       res.json({
         success: true,

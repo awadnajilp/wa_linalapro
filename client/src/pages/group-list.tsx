@@ -576,11 +576,11 @@ export default function GroupsUI() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
-                              onClick={() => handleImportWhatsAppGroup(group.phone)}
-                              disabled={importingJid === group.phone}
+                              className="opacity-50 cursor-not-allowed"
+                              disabled={true}
+                              title="Importing individual participants is disabled because groups are targeted directly."
                             >
-                              {importingJid === group.phone ? "Importing..." : "Import CRM"}
+                              Import Disabled
                             </Button>
                           </div>
                         </div>

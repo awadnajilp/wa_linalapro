@@ -1028,7 +1028,7 @@ export const messageQueue = pgTable("message_queue", {
     .default(sql`gen_random_uuid()`),
   campaignId: varchar("campaign_id").references(() => campaigns.id),
   channelId: varchar("channel_id").references(() => channels.id),
-  recipientPhone: varchar("recipient_phone", { length: 20 }).notNull(),
+  recipientPhone: text("recipient_phone").notNull(),
   templateName: varchar("template_name", { length: 100 }),
   templateLanguage: varchar("template_language", { length: 20 }).default("en_US"),
   templateParams: jsonb("template_params").default([]),

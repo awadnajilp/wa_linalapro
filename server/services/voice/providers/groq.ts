@@ -82,7 +82,7 @@ export class GroqVoiceProvider implements VoiceProvider {
       model: model,
       input: text,
       voice: selectedVoice,
-      response_format: "mp3",
+      response_format: "wav",
     };
 
     try {

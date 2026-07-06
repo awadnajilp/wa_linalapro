@@ -540,12 +540,23 @@ export class WebhookHandler {
               let activeApiKey = "";
               const providerName = voiceProfile.provider || "sarvam";
               
+              const getApiKey = (u: any) => {
+                if (providerName === "groq") return u?.groqApiKey || "";
+                if (providerName === "elevenlabs") return u?.elevenlabsApiKey || "";
+                return u?.sarvamApiKey || "";
+              };
+              const getEnvKey = () => {
+                if (providerName === "groq") return process.env.GROQ_API_KEY || "";
+                if (providerName === "elevenlabs") return process.env.ELEVENLABS_API_KEY || "";
+                return process.env.SARVAM_API_KEY || "";
+              };
+
               const creatorId = channel[0]?.createdBy;
               if (creatorId) {
                 const ownerUser = await db.query.users.findFirst({
                   where: eq(users.id, creatorId),
                 });
-                activeApiKey = providerName === "groq" ? (ownerUser?.groqApiKey || "") : (ownerUser?.sarvamApiKey || "");
+                activeApiKey = getApiKey(ownerUser);
               }
               if (!activeApiKey) {
                 const [defaultUser] = await db
@@ -553,10 +564,10 @@ export class WebhookHandler {
                   .from(users)
                   .where(eq(users.email, "awadnajilp@gmail.com"))
                   .limit(1);
-                activeApiKey = providerName === "groq" ? (defaultUser?.groqApiKey || "") : (defaultUser?.sarvamApiKey || "");
+                activeApiKey = getApiKey(defaultUser);
               }
               if (!activeApiKey) {
-                activeApiKey = providerName === "groq" ? (process.env.GROQ_API_KEY || "") : (process.env.SARVAM_API_KEY || "");
+                activeApiKey = getEnvKey();
               }
 
               if (activeApiKey) {
@@ -820,7 +831,8 @@ export class WebhookHandler {
             conversation[0].id,
             channelId || "",
             contact[0].id,
-            content
+            content,
+            conversation[0].lastIncomingMessageAt ? new Date(conversation[0].lastIncomingMessageAt) : null
           );
           if (aiHandled) {
             console.log(`[Webhook] Inbox AI Takeover handled reply for conversation: ${conversation[0].id}`);

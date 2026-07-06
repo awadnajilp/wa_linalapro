@@ -1,6 +1,7 @@
 import { VoiceProvider } from "./types";
 import { SarvamVoiceProvider } from "./providers/sarvam";
 import { GroqVoiceProvider } from "./providers/groq";
+import { ElevenLabsVoiceProvider } from "./providers/elevenlabs";
 
 export class VoiceManager {
   private static providers = new Map<string, VoiceProvider>();
@@ -9,6 +10,7 @@ export class VoiceManager {
     // Register the active providers
     this.register(new SarvamVoiceProvider());
     this.register(new GroqVoiceProvider());
+    this.register(new ElevenLabsVoiceProvider());
   }
 
   static register(provider: VoiceProvider) {
@@ -30,3 +32,4 @@ export class VoiceManager {
 
 export * from "./types";
 export * from "./providers/sarvam";
+export * from "./providers/elevenlabs";

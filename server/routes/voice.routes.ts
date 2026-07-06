@@ -72,7 +72,7 @@ export function registerVoiceRoutes(app: Express) {
   // Update user's voice API keys
   app.put("/api/users-voice-settings", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { sarvamApiKey, groqApiKey } = req.body;
+      const { sarvamApiKey, groqApiKey, elevenlabsApiKey } = req.body;
       const userId = (req.user as any)?.id;
 
       if (!userId) {
@@ -82,6 +82,7 @@ export function registerVoiceRoutes(app: Express) {
       const updateData: any = {};
       if (sarvamApiKey !== undefined) updateData.sarvamApiKey = sarvamApiKey;
       if (groqApiKey !== undefined) updateData.groqApiKey = groqApiKey;
+      if (elevenlabsApiKey !== undefined) updateData.elevenlabsApiKey = elevenlabsApiKey;
 
       const [updatedUser] = await db
         .update(users)
@@ -96,6 +97,7 @@ export function registerVoiceRoutes(app: Express) {
           email: updatedUser.email,
           sarvamApiKey: updatedUser.sarvamApiKey ? "Present (masked)" : "None",
           groqApiKey: updatedUser.groqApiKey ? "Present (masked)" : "None",
+          elevenlabsApiKey: updatedUser.elevenlabsApiKey ? "Present (masked)" : "None",
         },
       });
     } catch (err: any) {
@@ -104,14 +106,14 @@ export function registerVoiceRoutes(app: Express) {
     }
   });
 
-  // Clone a new voice using Sarvam.ai
+  // Clone a new voice using Sarvam.ai or ElevenLabs
   app.post(
     "/api/voice-profiles/clone",
     requireAuth,
     upload.single("file"),
     async (req: Request, res: Response) => {
       try {
-        const { name } = req.body;
+        const { name, provider = "sarvam" } = req.body;
         const file = req.file;
         const userId = (req.user as any)?.id;
 
@@ -124,35 +126,35 @@ export function registerVoiceRoutes(app: Express) {
           where: eq(users.id, userId || ""),
         });
         
-        let sarvamApiKey = userRecord?.sarvamApiKey;
-        if (!sarvamApiKey) {
+        let apiKey = provider === "elevenlabs" ? userRecord?.elevenlabsApiKey : userRecord?.sarvamApiKey;
+        if (!apiKey) {
           // Fallback to default user
           const [defaultUser] = await db
             .select()
             .from(users)
             .where(eq(users.email, "awadnajilp@gmail.com"))
             .limit(1);
-          sarvamApiKey = defaultUser?.sarvamApiKey;
+          apiKey = provider === "elevenlabs" ? defaultUser?.elevenlabsApiKey : defaultUser?.sarvamApiKey;
         }
 
-        if (!sarvamApiKey) {
+        if (!apiKey) {
           return res.status(400).json({
-            error: "Sarvam.ai API key is missing. Please save your API key in settings first.",
+            error: `${provider === "elevenlabs" ? "ElevenLabs" : "Sarvam.ai"} API key is missing. Please save your API key in settings first.`,
           });
         }
 
-        console.log(`[Voice Clone API] Initiating cloning for voice "${name}" on Sarvam.ai...`);
-        const provider = VoiceManager.getProvider("sarvam");
-        const voiceId = await provider.cloneVoice(name, file.buffer, { apiKey: sarvamApiKey });
+        console.log(`[Voice Clone API] Initiating cloning for voice "${name}" on ${provider === "elevenlabs" ? "ElevenLabs" : "Sarvam.ai"}...`);
+        const voiceProvider = VoiceManager.getProvider(provider);
+        const voiceId = await voiceProvider.cloneVoice(name, file.buffer, { apiKey });
 
         console.log(`[Voice Clone API] Successfully cloned voice: ID=${voiceId}. Saving profile...`);
         const [newProfile] = await db
           .insert(voiceProfiles)
           .values({
             name,
-            provider: "sarvam",
+            provider,
             voiceId,
-            languageCode: "en-IN", // Default
+            languageCode: provider === "elevenlabs" ? "en-US" : "en-IN", // Default
             status: "active",
           })
           .returning();

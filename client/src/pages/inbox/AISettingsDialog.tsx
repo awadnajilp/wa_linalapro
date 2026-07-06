@@ -64,6 +64,7 @@ export function AISettingsDialog({
   const [systemPrompt, setSystemPrompt] = React.useState("");
   const [temperature, setTemperature] = React.useState(0.7);
   const [takeoverTimeoutMinutes, setTakeoverTimeoutMinutes] = React.useState(5);
+  const [autoExpire, setAutoExpire] = React.useState(true);
   const [sendWelcome, setSendWelcome] = React.useState(false);
   const [welcomeMessage, setWelcomeMessage] = React.useState(
     "Hello! We saw your query regarding our product. Do you need more information about this or pricing details?"
@@ -97,9 +98,11 @@ export function AISettingsDialog({
       setTemperature(
         initialSettings.temperature !== undefined ? initialSettings.temperature : 0.7
       );
-      setTakeoverTimeoutMinutes(
-        initialSettings.takeoverTimeoutMinutes !== undefined ? initialSettings.takeoverTimeoutMinutes : 5
-      );
+      
+      const timeoutVal = initialSettings.takeoverTimeoutMinutes !== undefined ? initialSettings.takeoverTimeoutMinutes : 5;
+      setTakeoverTimeoutMinutes(timeoutVal === 0 ? 5 : timeoutVal);
+      setAutoExpire(timeoutVal !== 0);
+
       setSendWelcome(initialSettings.sendWelcome || false);
       setWelcomeMessage(
         initialSettings.welcomeMessage ||
@@ -119,6 +122,8 @@ export function AISettingsDialog({
       setModel("llama-3.3-70b-versatile");
     } else if (llmProvider === "openai" && model === "llama-3.3-70b-versatile") {
       setModel("gpt-4o");
+    } else if (llmProvider === "elevenlabs") {
+      setModel("conversational-ai");
     }
   }, [llmProvider]);
 
@@ -131,7 +136,7 @@ export function AISettingsDialog({
           model,
           systemPrompt,
           temperature,
-          takeoverTimeoutMinutes,
+          takeoverTimeoutMinutes: autoExpire ? takeoverTimeoutMinutes : 0,
           sendWelcome,
           welcomeMessage,
           voiceEnabled,
@@ -203,6 +208,7 @@ export function AISettingsDialog({
                   <SelectContent>
                     <SelectItem value="openai">OpenAI</SelectItem>
                     <SelectItem value="groq">Groq</SelectItem>
+                    <SelectItem value="elevenlabs">ElevenLabs Agent</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -217,6 +223,15 @@ export function AISettingsDialog({
                     <SelectContent>
                       <SelectItem value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</SelectItem>
                       <SelectItem value="llama-3.1-8b-instant">llama-3.1-8b-instant</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : llmProvider === "elevenlabs" ? (
+                  <Select value={model} onValueChange={setModel}>
+                    <SelectTrigger className="bg-gray-50/50 border-gray-200">
+                      <SelectValue placeholder="Select ElevenLabs Agent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="conversational-ai">Conversational AI Agent</SelectItem>
                     </SelectContent>
                   </Select>
                 ) : (
@@ -289,21 +304,29 @@ export function AISettingsDialog({
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider flex items-center gap-1">
-                  <Globe className="w-3.5 h-3.5" /> Timeout (Min)
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min="1"
-                    max="1440"
-                    step="1"
-                    value={takeoverTimeoutMinutes}
-                    onChange={(e) => setTakeoverTimeoutMinutes(parseInt(e.target.value) || 5)}
-                    className="bg-gray-50/50 border-gray-200 h-9"
-                  />
+              <div className="space-y-2 flex flex-col justify-between">
+                <div className="flex items-center justify-between mt-1">
+                  <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Auto-Expire
+                  </Label>
+                  <Switch checked={autoExpire} onCheckedChange={setAutoExpire} />
                 </div>
+                {autoExpire ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Input
+                      type="number"
+                      min="1"
+                      max="1440"
+                      step="1"
+                      value={takeoverTimeoutMinutes}
+                      onChange={(e) => setTakeoverTimeoutMinutes(parseInt(e.target.value) || 5)}
+                      className="bg-gray-50/50 border-gray-200 h-9"
+                    />
+                    <span className="text-[10px] text-gray-400 whitespace-nowrap">Min</span>
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-indigo-600 font-semibold mt-1">Never Expire</span>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -386,6 +409,7 @@ export function AISettingsDialog({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="en-US">English (US)</SelectItem>
+                        <SelectItem value="en-IN">Indian English</SelectItem>
                         <SelectItem value="ar-SA">Arabic (Saudi Arabia)</SelectItem>
                         <SelectItem value="hi-IN">Hindi (India)</SelectItem>
                         <SelectItem value="ml-IN">Malayalam (India)</SelectItem>
@@ -396,6 +420,7 @@ export function AISettingsDialog({
                         <SelectItem value="kn-IN">Kannada (India)</SelectItem>
                         <SelectItem value="gu-IN">Gujarati (India)</SelectItem>
                         <SelectItem value="pa-IN">Punjabi (India)</SelectItem>
+                        <SelectItem value="or-IN">Odia (India)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

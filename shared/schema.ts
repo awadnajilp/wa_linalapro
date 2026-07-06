@@ -64,6 +64,7 @@ export const users = pgTable("users", {
   mercadopagoCustomerId: varchar("mercadopago_customer_id"),
   sarvamApiKey: text("sarvam_api_key"),
   groqApiKey: text("groq_api_key"),
+  elevenlabsApiKey: text("eleven_labs_api_key"),
 });
 
 // Conversation assignments to users

@@ -1131,7 +1131,7 @@ export function ConfigPanel({
                     onValueChange={(v) => {
                       onChange({
                         aiLlmProvider: v,
-                        aiModel: v === "groq" ? "llama-3.3-70b-versatile" : "gpt-4o"
+                        aiModel: v === "groq" ? "llama-3.3-70b-versatile" : v === "elevenlabs" ? "conversational-ai" : "gpt-4o"
                       });
                     }}
                   >
@@ -1141,6 +1141,7 @@ export function ConfigPanel({
                     <SelectContent>
                       <SelectItem value="openai">OpenAI</SelectItem>
                       <SelectItem value="groq">Groq API</SelectItem>
+                      <SelectItem value="elevenlabs">ElevenLabs Agent</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1148,7 +1149,7 @@ export function ConfigPanel({
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-gray-700">Model</Label>
                   <Select
-                    value={d.aiModel || (d.aiLlmProvider === "groq" ? "llama-3.3-70b-versatile" : "gpt-4o")}
+                    value={d.aiModel || (d.aiLlmProvider === "groq" ? "llama-3.3-70b-versatile" : d.aiLlmProvider === "elevenlabs" ? "conversational-ai" : "gpt-4o")}
                     onValueChange={(v) => onChange({ aiModel: v })}
                   >
                     <SelectTrigger className="h-9 rounded-lg bg-white">
@@ -1160,6 +1161,10 @@ export function ConfigPanel({
                           <SelectItem value="llama-3.3-70b-versatile">Llama 3.3 70B (Versatile)</SelectItem>
                           <SelectItem value="llama-3.1-8b-instant">Llama 3.1 8B (Instant)</SelectItem>
                           <SelectItem value="mixtral-8x7b-32768">Mixtral 8x7B</SelectItem>
+                        </>
+                      ) : d.aiLlmProvider === "elevenlabs" ? (
+                        <>
+                          <SelectItem value="conversational-ai">Conversational AI Agent</SelectItem>
                         </>
                       ) : (
                         <>
@@ -1312,26 +1317,30 @@ export function ConfigPanel({
                               const selectedVoice = voiceProfiles.find((vp: any) => vp.id === d.voiceProfileId);
                               const provider = selectedVoice?.provider || "sarvam";
                               if (provider === "groq") {
-                                return (
-                                  <>
-                                    <SelectItem value="en-US">English (US)</SelectItem>
-                                    <SelectItem value="ar-SA">Saudi Arabic</SelectItem>
-                                  </>
-                                );
+                                  return (
+                                    <>
+                                      <SelectItem value="en-US">English (US)</SelectItem>
+                                      <SelectItem value="ar-SA">Saudi Arabic</SelectItem>
+                                    </>
+                                  );
                               } else {
-                                return (
-                                  <>
-                                    <SelectItem value="en-IN">Indian English</SelectItem>
-                                    <SelectItem value="hi-IN">Hindi</SelectItem>
-                                    <SelectItem value="ta-IN">Tamil</SelectItem>
-                                    <SelectItem value="te-IN">Telugu</SelectItem>
-                                    <SelectItem value="ml-IN">Malayalam</SelectItem>
-                                    <SelectItem value="kn-IN">Kannada</SelectItem>
-                                    <SelectItem value="mr-IN">Marathi</SelectItem>
-                                    <SelectItem value="gu-IN">Gujarati</SelectItem>
-                                    <SelectItem value="bn-IN">Bengali</SelectItem>
-                                  </>
-                                );
+                                  return (
+                                    <>
+                                      <SelectItem value="en-IN">Indian English</SelectItem>
+                                      <SelectItem value="hi-IN">Hindi</SelectItem>
+                                      <SelectItem value="ta-IN">Tamil</SelectItem>
+                                      <SelectItem value="te-IN">Telugu</SelectItem>
+                                      <SelectItem value="ml-IN">Malayalam</SelectItem>
+                                      <SelectItem value="kn-IN">Kannada</SelectItem>
+                                      <SelectItem value="mr-IN">Marathi</SelectItem>
+                                      <SelectItem value="gu-IN">Gujarati</SelectItem>
+                                      <SelectItem value="bn-IN">Bengali</SelectItem>
+                                      <SelectItem value="pa-IN">Punjabi</SelectItem>
+                                      <SelectItem value="or-IN">Odia</SelectItem>
+                                      <SelectItem value="ar-SA">Saudi Arabic</SelectItem>
+                                      <SelectItem value="en-US">English (US)</SelectItem>
+                                    </>
+                                  );
                               }
                             })()}
                           </SelectContent>

@@ -91,6 +91,15 @@ const GROQ_PREDEFINED_VOICES = [
   { id: "troy", name: "Troy (Male)" }
 ];
 
+const ELEVENLABS_PREDEFINED_VOICES = [
+  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel (Female)" },
+  { id: "AZnzlk1XvdvUeBnXmlld", name: "Dom (Male)" },
+  { id: "EXAVITQu4vr4xnSDxMaL", name: "Bella (Female)" },
+  { id: "ErXwobaYiN019PkySvjV", name: "Antoni (Male)" },
+  { id: "VR6A4UBqFnCFJeDrlHPf", name: "Arnold (Male)" },
+  { id: "custom_speaker", name: "Custom Speaker ID (Manually Input)" }
+];
+
 export default function AIVoicesSettings(): JSX.Element {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -102,6 +111,9 @@ export default function AIVoicesSettings(): JSX.Element {
   const [groqKey, setGroqKey] = useState("");
   const [isSavingGroqKey, setIsSavingGroqKey] = useState(false);
 
+  const [elevenlabsKey, setElevenlabsKey] = useState("");
+  const [isSavingElevenlabsKey, setIsSavingElevenlabsKey] = useState(false);
+
   // Predefined voice creation states
   const [stdProvider, setStdProvider] = useState("sarvam");
   const [stdName, setStdName] = useState("");
@@ -112,6 +124,7 @@ export default function AIVoicesSettings(): JSX.Element {
 
   // Voice cloning states
   const [cloneName, setCloneName] = useState("");
+  const [cloneProvider, setCloneProvider] = useState("sarvam");
   const [isCloning, setIsCloning] = useState(false);
   const [isRecordOpen, setIsRecordOpen] = useState(false);
 
@@ -144,6 +157,9 @@ export default function AIVoicesSettings(): JSX.Element {
     }
     if (user && (user as any).groqApiKey) {
       setGroqKey("••••••••••••••••••••••••••••••••");
+    }
+    if (user && (user as any).elevenlabsApiKey) {
+      setElevenlabsKey("••••••••••••••••••••••••••••••••");
     }
   }, [user]);
 
@@ -206,6 +222,37 @@ export default function AIVoicesSettings(): JSX.Element {
       });
     } finally {
       setIsSavingGroqKey(false);
+    }
+  };
+
+  // Update ElevenLabs API key
+  const handleSaveElevenlabsKey = async () => {
+    if (!elevenlabsKey) return;
+    setIsSavingElevenlabsKey(true);
+    try {
+      const res = await apiRequest("PUT", "/api/users-voice-settings", {
+        elevenlabsApiKey: elevenlabsKey === "••••••••••••••••••••••••••••••••" ? undefined : elevenlabsKey,
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to save ElevenLabs API key");
+      }
+
+      toast({
+        title: "Success",
+        description: "ElevenLabs API key saved successfully.",
+      });
+
+      // Refetch user profile
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.message || "Failed to save ElevenLabs API key",
+      });
+    } finally {
+      setIsSavingElevenlabsKey(false);
     }
   };
 
@@ -379,6 +426,7 @@ export default function AIVoicesSettings(): JSX.Element {
     try {
       const formData = new FormData();
       formData.append("name", cloneName);
+      formData.append("provider", cloneProvider);
       formData.append("file", audioBlob, "recording.wav");
 
       const response = await fetch("/api/voice-profiles/clone", {
@@ -406,7 +454,7 @@ export default function AIVoicesSettings(): JSX.Element {
       toast({
         variant: "destructive",
         title: "Voice Cloning Failed",
-        description: err.message || "Failed to clone voice on Sarvam.ai",
+        description: err.message || `Failed to clone voice on ${cloneProvider === "elevenlabs" ? "ElevenLabs" : "Sarvam.ai"}`,
       });
     } finally {
       setIsCloning(false);
@@ -475,6 +523,33 @@ export default function AIVoicesSettings(): JSX.Element {
         </CardContent>
       </Card>
 
+      {/* 🚀 ElevenLabs Credentials Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center text-lg">
+            <Key className="w-5 h-5 mr-2 text-indigo-600" />
+            ElevenLabs API Credentials
+          </CardTitle>
+          <CardDescription>
+            Configure your ElevenLabs API key to support high-quality voice synthesis, Scribe STT, and custom voice cloning.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4 max-w-xl">
+            <Input
+              type="password"
+              placeholder="Enter ElevenLabs API Key"
+              value={elevenlabsKey}
+              onChange={(e) => setElevenlabsKey(e.target.value)}
+              className="flex-1"
+            />
+            <Button onClick={handleSaveElevenlabsKey} disabled={isSavingElevenlabsKey}>
+              {isSavingElevenlabsKey ? "Saving..." : "Save Key"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* 📋 Voice Profiles List & Creation Card */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
@@ -498,12 +573,24 @@ export default function AIVoicesSettings(): JSX.Element {
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Clone Custom Voice (Sarvam.ai)</DialogTitle>
+                  <DialogTitle>Clone Custom Voice</DialogTitle>
                   <DialogDescription>
                     Record a clean, noise-free 15-60 second sample of your voice. The AI will learn and speak exactly like this sample.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-500 font-medium">Cloning Provider</label>
+                    <Select value={cloneProvider} onValueChange={setCloneProvider}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sarvam">Sarvam.ai</SelectItem>
+                        <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-gray-500">Voice Profile Name</label>
                     <Input
@@ -597,6 +684,8 @@ export default function AIVoicesSettings(): JSX.Element {
                       setStdProvider(val);
                       if (val === "groq") {
                         setStdVoiceId("diana");
+                      } else if (val === "elevenlabs") {
+                        setStdVoiceId("21m00Tcm4TlvDq8ikWAM");
                       } else {
                         setStdVoiceId("anushka");
                       }
@@ -607,14 +696,15 @@ export default function AIVoicesSettings(): JSX.Element {
                       <SelectContent>
                         <SelectItem value="sarvam">Sarvam.ai</SelectItem>
                         <SelectItem value="groq">Groq API</SelectItem>
+                        <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  {stdProvider === "sarvam" && stdVoiceId === "custom_speaker" && (
+                  {(stdProvider === "sarvam" || stdProvider === "elevenlabs") && stdVoiceId === "custom_speaker" && (
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-gray-500 font-medium">Custom Speaker ID</label>
                       <Input
-                        placeholder="Paste your custom cloned Speaker ID from Sarvam.ai"
+                        placeholder={`Paste your custom cloned Speaker ID from ${stdProvider === "elevenlabs" ? "ElevenLabs" : "Sarvam.ai"}`}
                         value={customSpeakerId}
                         onChange={(e) => setCustomSpeakerId(e.target.value)}
                       />
@@ -630,6 +720,10 @@ export default function AIVoicesSettings(): JSX.Element {
                         <SelectContent>
                           {stdProvider === "groq"
                             ? GROQ_PREDEFINED_VOICES.map((v) => (
+                                <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                              ))
+                            : stdProvider === "elevenlabs"
+                            ? ELEVENLABS_PREDEFINED_VOICES.map((v) => (
                                 <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
                               ))
                             : PREDEFINED_VOICES.map((v) => (

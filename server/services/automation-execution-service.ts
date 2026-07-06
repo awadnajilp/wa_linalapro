@@ -47,6 +47,8 @@ import { BaileysManager } from "./baileys-manager";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
+import ws from "ws";
+import axios from "axios";
 import * as mysql from "mysql2/promise";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -3336,11 +3338,23 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         const freshAutomation = automation || await this.getAutomationWithFlow(context.automationId);
         let activeApiKey = "";
         const providerName = voiceProfile.provider || "sarvam";
+
+        const getApiKey = (u: any) => {
+          if (providerName === "groq") return u?.groqApiKey || "";
+          if (providerName === "elevenlabs") return u?.elevenlabsApiKey || "";
+          return u?.sarvamApiKey || "";
+        };
+        const getEnvKey = () => {
+          if (providerName === "groq") return process.env.GROQ_API_KEY || "";
+          if (providerName === "elevenlabs") return process.env.ELEVENLABS_API_KEY || "";
+          return process.env.SARVAM_API_KEY || "";
+        };
+
         if (freshAutomation?.createdBy) {
           const ownerUser = await db.query.users.findFirst({
             where: eq(users.id, freshAutomation.createdBy),
           });
-          activeApiKey = providerName === "groq" ? (ownerUser?.groqApiKey || "") : (ownerUser?.sarvamApiKey || "");
+          activeApiKey = getApiKey(ownerUser);
         }
         if (!activeApiKey) {
           const [defaultUser] = await db
@@ -3348,10 +3362,10 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
             .from(users)
             .where(eq(users.email, "awadnajilp@gmail.com"))
             .limit(1);
-          activeApiKey = providerName === "groq" ? (defaultUser?.groqApiKey || "") : (defaultUser?.sarvamApiKey || "");
+          activeApiKey = getApiKey(defaultUser);
         }
         if (!activeApiKey) {
-          activeApiKey = providerName === "groq" ? (process.env.GROQ_API_KEY || "") : (process.env.SARVAM_API_KEY || "");
+          activeApiKey = getEnvKey();
         }
 
         if (activeApiKey) {
@@ -3365,12 +3379,17 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
           );
 
           const isGroq = providerName === "groq";
+          const isElevenLabs = providerName === "elevenlabs";
           let finalAudioBuffer = audioBuffer;
           let fileExt = "ogg";
           let mimeType = "audio/ogg; codecs=opus";
           let uploadMime = "audio/ogg";
 
-          if (isGroq) {
+          if (isElevenLabs) {
+            fileExt = "mp3";
+            mimeType = "audio/mpeg";
+            uploadMime = "audio/mpeg";
+          } else if (isGroq) {
             try {
               console.log("[AI Agent Voice] Converting Groq WAV to OGG/Opus using ffmpeg...");
               finalAudioBuffer = await convertWavToOggOpus(audioBuffer);
@@ -3574,11 +3593,86 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     return automation;
   }
 
+  private async getElevenLabsAgentResponse(agentId: string, apiKey: string, userMessage: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      axios.get(`https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${agentId}`, {
+        headers: {
+          "xi-api-key": apiKey
+        }
+      }).then(res => {
+        const signedUrl = res.data.signed_url;
+        if (!signedUrl) {
+          reject(new Error("Failed to get ElevenLabs signed URL"));
+          return;
+        }
+
+        const client = new ws(signedUrl);
+        let responseText = "";
+        let resolved = false;
+
+        const timeout = setTimeout(() => {
+          if (!resolved) {
+            client.terminate();
+            reject(new Error("ElevenLabs agent response timed out"));
+          }
+        }, 15000);
+
+        client.on("open", () => {
+          client.send(JSON.stringify({
+            type: "user_message",
+            text: userMessage
+          }));
+        });
+
+        client.on("message", (data) => {
+          try {
+            const event = JSON.parse(data.toString());
+            if (event.type === "agent_response") {
+              responseText = event.agent_response_event?.agent_response || "";
+            } else if (event.type === "text_done" || event.type === "agent_response_done" || (event.type === "audio" && responseText)) {
+              if (responseText) {
+                resolved = true;
+                clearTimeout(timeout);
+                client.close();
+                resolve(responseText);
+              }
+            }
+          } catch (err) {
+            // ignore
+          }
+        });
+
+        client.on("close", () => {
+          if (!resolved) {
+            if (responseText) {
+              resolved = true;
+              clearTimeout(timeout);
+              resolve(responseText);
+            } else {
+              reject(new Error("WebSocket closed without agent response"));
+            }
+          }
+        });
+
+        client.on("error", (err) => {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeout);
+            reject(err);
+          }
+        });
+      }).catch(err => {
+        reject(err);
+      });
+    });
+  }
+
   public async triggerInboxAiTakeover(
     conversationId: string,
     channelId: string,
     contactId: string,
-    incomingMessageText: string
+    incomingMessageText: string,
+    previousLastIncomingMessageAt?: Date | null
   ): Promise<boolean> {
     try {
       console.log(`[Inbox AI Takeover] Triggered for conversation ${conversationId}...`);
@@ -3602,8 +3696,12 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         ? Number(convSettings.takeoverTimeoutMinutes) 
         : (chanSettings.takeoverTimeoutMinutes !== undefined ? Number(chanSettings.takeoverTimeoutMinutes) : 5);
 
-      if (takeoverTimeout > 0 && conversation.lastIncomingMessageAt) {
-        const inactiveMs = Date.now() - new Date(conversation.lastIncomingMessageAt).getTime();
+      const checkTime = previousLastIncomingMessageAt !== undefined 
+        ? previousLastIncomingMessageAt 
+        : conversation.lastIncomingMessageAt;
+
+      if (takeoverTimeout > 0 && checkTime) {
+        const inactiveMs = Date.now() - new Date(checkTime).getTime();
         const timeoutMs = takeoverTimeout * 60 * 1000;
         if (inactiveMs > timeoutMs) {
           console.log(`[Inbox AI Takeover] Takeover has expired due to inactivity (${inactiveMs / 1000}s > ${timeoutMs / 1000}s). Disabling AI takeover.`);
@@ -3629,6 +3727,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       if (!getContact) return false;
 
       const isGroqLlm = convSettings.llmProvider === "groq" || chanSettings.llmProvider === "groq";
+      const isElevenLabsLlm = convSettings.llmProvider === "elevenlabs" || chanSettings.llmProvider === "elevenlabs";
       const aiApiKey = convSettings.apiKey || chanSettings.apiKey || "";
       const aiModel = convSettings.model || chanSettings.model || "";
       const aiSystemPrompt = convSettings.systemPrompt || chanSettings.systemPrompt || "You are a conversational AI Agent taking over this chat. Answer user questions and call custom functions/tools when needed.";
@@ -3640,7 +3739,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       const aiLocalStyle = convSettings.localStyle || chanSettings.localStyle || "code_mixed";
 
       const nodeData = {
-        aiLlmProvider: isGroqLlm ? "groq" : "openai",
+        aiLlmProvider: isGroqLlm ? "groq" : isElevenLabsLlm ? "elevenlabs" : "openai",
         aiApiKey,
         aiModel,
         aiSystemPrompt,
@@ -3654,9 +3753,27 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
 
       let finalApiKey = aiApiKey;
       let finalBaseURL = isGroqLlm ? "https://api.groq.com/openai/v1" : "https://api.openai.com/v1";
-      let finalModel = aiModel || (isGroqLlm ? "llama-3.3-70b-versatile" : "gpt-4o");
+      let finalModel = aiModel || (isGroqLlm ? "llama-3.3-70b-versatile" : isElevenLabsLlm ? "conversational-ai" : "gpt-4o");
 
-      if (isGroqLlm) {
+      if (isElevenLabsLlm) {
+        let userKey = "";
+        const ownerId = channel.createdBy;
+        if (ownerId) {
+          const ownerUser = await db.query.users.findFirst({
+            where: eq(users.id, ownerId),
+          });
+          userKey = ownerUser?.elevenlabsApiKey || "";
+        }
+        if (!userKey) {
+          const [defaultUser] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, "awadnajilp@gmail.com"))
+            .limit(1);
+          userKey = defaultUser?.elevenlabsApiKey || "";
+        }
+        finalApiKey = userKey || process.env.ELEVENLABS_API_KEY || "";
+      } else if (isGroqLlm) {
         let userKey = "";
         const ownerId = channel.createdBy;
         if (ownerId) {
@@ -3698,7 +3815,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       }
 
       if (!finalApiKey) {
-        finalApiKey = isGroqLlm ? (process.env.GROQ_API_KEY || "") : (process.env.OPENAI_API_KEY || "");
+        finalApiKey = isElevenLabsLlm ? (process.env.ELEVENLABS_API_KEY || "") : isGroqLlm ? (process.env.GROQ_API_KEY || "") : (process.env.OPENAI_API_KEY || "");
       }
 
       if (!finalApiKey) {
@@ -3819,25 +3936,44 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         systemPrompt += trainingContext;
       }
 
-      const messagesToSend = [
-        { role: "system" as const, content: systemPrompt },
-        ...openAiMessages
-      ];
+      let responseText = "";
 
-      const aiClient = new OpenAI({
-        apiKey: finalApiKey,
-        baseURL: finalBaseURL,
-      });
+      if (isElevenLabsLlm) {
+        if (!voiceProfileId) {
+          throw new Error("No ElevenLabs voice profile configured for Conversational AI agent");
+        }
+        const voiceProfile = await db.query.voiceProfiles.findFirst({
+          where: eq(voiceProfiles.id, voiceProfileId),
+        });
+        if (!voiceProfile || voiceProfile.provider !== "elevenlabs") {
+          throw new Error("The selected voice profile is not an ElevenLabs profile");
+        }
+        if (!finalApiKey) {
+          throw new Error("No ElevenLabs API key configured");
+        }
+        console.log(`[Inbox AI Takeover] Requesting ElevenLabs agent response for agent ${voiceProfile.voiceId}...`);
+        responseText = await this.getElevenLabsAgentResponse(voiceProfile.voiceId, finalApiKey, cleanLastMsg);
+      } else {
+        const messagesToSend = [
+          { role: "system" as const, content: systemPrompt },
+          ...openAiMessages
+        ];
 
-      console.log(`[Inbox AI Takeover] Running completion using model ${finalModel}...`);
-      const completion = await aiClient.chat.completions.create({
-        model: finalModel,
-        messages: messagesToSend,
-        temperature: Number(aiTemperature),
-        max_tokens: 800,
-      });
+        const aiClient = new OpenAI({
+          apiKey: finalApiKey,
+          baseURL: finalBaseURL,
+        });
 
-      const responseText = completion.choices[0]?.message?.content || "";
+        console.log(`[Inbox AI Takeover] Running completion using model ${finalModel}...`);
+        const completion = await aiClient.chat.completions.create({
+          model: finalModel,
+          messages: messagesToSend,
+          temperature: Number(aiTemperature),
+          max_tokens: 800,
+        });
+
+        responseText = completion.choices[0]?.message?.content || "";
+      }
       if (responseText) {
         const mockContext: ExecutionContext = {
           executionId: `inbox_${conversationId}`,

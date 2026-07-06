@@ -111,7 +111,8 @@ export default function GroupsUI() {
       if (!activeChannel?.id) return [];
       const res = await apiRequest("GET", `/api/contacts?isGroup=true&channelId=${activeChannel.id}`);
       if (!res.ok) return [];
-      return await res.json();
+      const result = await res.json();
+      return Array.isArray(result) ? result : (result.data || []);
     },
     enabled: !!activeChannel?.id,
   });

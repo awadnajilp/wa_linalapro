@@ -98,3 +98,8 @@ A comprehensive security audit was performed with the following results:
 - **Real-time Webhook Interception:** Updated the webhook engine to intercept inbound audio voice notes, run speech-to-text, parse the transcription as user input, execute the AI agent, synthesize the text response into a voice note using the target voice profile, and send it as a spoken audio note.
 - **AI Voices Dashboard:** Designed a dedicated "AI Voices" tab in Settings to manage keys, register pre-built voices, record custom voice cloning samples directly from the web browser, and delete unused profiles.
 
+### 6. ElevenLabs Voice & LLM Provider & AI Takeover Expiration (July 2026)
+- **ElevenLabs Voice Integration:** Developed native ElevenLabs provider driver supporting Speech-to-Text (using scribe_v1), Text-to-Speech (using eleven_multilingual_v2), and custom voice cloning (via voices/add endpoint). Registered inside the modular VoiceManager.
+- **ElevenLabs Conversational AI Agent (LLM):** Enabled selecting ElevenLabs as the LLM provider in the flow builder and inbox settings. When selected, the backend uses a WebSocket client to connect to the ElevenLabs Conversational AI Agent, injects the user message, and returns the response.
+- **Indian Languages & Hindi Support:** Added Hindi and 12 Indian languages to both the inbox AI takeover dialog and flow builder config panels.
+- **AI Takeover Expiration & Never-Expire Options:** Fixed the expiration bug in triggerInboxAiTakeover by checking inactivity timeout against the pre-update `lastIncomingMessageAt` timestamp. Added support for `takeoverTimeoutMinutes: 0` to allow the AI takeover to never expire (manual mode).

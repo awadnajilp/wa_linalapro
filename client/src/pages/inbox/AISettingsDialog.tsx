@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import AITrainingPanel from "@/pages/widget-builder/AITrainingPanel";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ interface AISettings {
   takeoverTimeoutMinutes?: number;
   sendWelcome?: boolean;
   welcomeMessage?: string;
+  contactSpecificTraining?: boolean;
 }
 
 interface AISettingsDialogProps {
@@ -45,6 +47,8 @@ interface AISettingsDialogProps {
   initialSettings: AISettings;
   isContactOverride?: boolean;
   aiEnabled?: boolean;
+  contactId?: string;
+  channelId?: string;
   onSave: (settings: AISettings, aiEnabled?: boolean) => void;
 }
 
@@ -55,6 +59,8 @@ export function AISettingsDialog({
   initialSettings,
   isContactOverride = false,
   aiEnabled = false,
+  contactId,
+  channelId,
   onSave,
 }: AISettingsDialogProps) {
   const [useDefaults, setUseDefaults] = React.useState(true);
@@ -74,6 +80,25 @@ export function AISettingsDialog({
   const [voiceLanguage, setVoiceLanguage] = React.useState("en-US");
   const [localStyle, setLocalStyle] = React.useState("code_mixed");
   const [responseLength, setResponseLength] = React.useState("detailed");
+  const [contactSpecificTraining, setContactSpecificTraining] = React.useState(false);
+  const [customSiteId, setCustomSiteId] = React.useState<string | null>(null);
+  const [loadingSite, setLoadingSite] = React.useState(false);
+
+  useEffect(() => {
+    if (open && contactSpecificTraining && contactId && channelId) {
+      setLoadingSite(true);
+      apiRequest("GET", `/api/sites/contact/${contactId}?channelId=${channelId}`)
+        .then(res => res.json())
+        .then(data => {
+          setCustomSiteId(data.id);
+          setLoadingSite(false);
+        })
+        .catch(err => {
+          console.error("Failed to load custom contact site:", err);
+          setLoadingSite(false);
+        });
+    }
+  }, [open, contactSpecificTraining, contactId, channelId]);
 
   // Fetch voice profiles
   const { data: voiceProfiles = [] } = useQuery<any[]>({
@@ -113,6 +138,7 @@ export function AISettingsDialog({
       setVoiceLanguage(initialSettings.voiceLanguage || "en-US");
       setLocalStyle(initialSettings.localStyle || "code_mixed");
       setResponseLength(initialSettings.responseLength || "detailed");
+      setContactSpecificTraining(initialSettings.contactSpecificTraining || false);
     }
   }, [open, initialSettings, aiEnabled]);
 
@@ -144,6 +170,7 @@ export function AISettingsDialog({
           voiceLanguage,
           localStyle,
           responseLength,
+          contactSpecificTraining,
         };
 
     onSave(settings, isContactOverride ? localAiEnabled : undefined);
@@ -428,6 +455,42 @@ export function AISettingsDialog({
               )}
             </div>
 
+            {/* Contact-Specific Training Data */}
+            {isContactOverride && !useDefaults && (
+              <div className="border-t border-gray-50 pt-4 mt-2 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                      <Brain className="w-4 h-4 text-indigo-600" />
+                      Contact-Specific Training Data
+                    </Label>
+                    <p className="text-xs text-gray-400">
+                      Enable and upload custom training data/FAQ specific to this contact (ignores channel-wide global training).
+                    </p>
+                  </div>
+                  <Switch checked={contactSpecificTraining} onCheckedChange={setContactSpecificTraining} />
+                </div>
+
+                {contactSpecificTraining && contactId && channelId && (
+                  <div className="bg-gray-50/30 border border-gray-100 rounded-xl p-4 mt-2 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200 max-h-[400px] overflow-y-auto">
+                    {loadingSite ? (
+                      <div className="text-xs text-gray-400 flex items-center justify-center py-6">
+                        Loading Custom AI Training context...
+                      </div>
+                    ) : customSiteId ? (
+                      <AITrainingPanel
+                        siteId={customSiteId}
+                        channelId={channelId}
+                      />
+                    ) : (
+                      <div className="text-xs text-red-500 py-2 text-center">
+                        Failed to load custom training site.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

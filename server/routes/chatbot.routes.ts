@@ -33,6 +33,7 @@ import { searchTrainingData } from '../services/training.service';
 import multer from 'multer';
 import path from 'path';
 import { io } from '../socket';
+import { randomUUID } from 'crypto';
 
 
 function buildAIClient(aiSetting) {
@@ -878,6 +879,49 @@ ${triggerPhrases.length > 0 ? `- If the user mentions any of these phrases, esca
       res.json(site);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/sites/contact/:contactId", requireAuth, async (req, res) => {
+    try {
+      const { contactId } = req.params;
+      const channelId = req.query.channelId as string;
+      if (!contactId || !channelId) {
+        return res.status(400).json({ error: "contactId and channelId are required" });
+      }
+
+      let site = await db.query.sites.findFirst({
+        where: (table, { eq, and }) => and(eq(table.contactId, contactId), eq(table.channelId, channelId)),
+      });
+
+      if (!site) {
+        const contact = await db.query.contacts.findFirst({
+          where: (table, { eq }) => eq(table.id, contactId),
+        });
+        const name = contact ? contact.name : "Contact";
+
+        const [newSite] = await db
+          .insert(sites)
+          .values({
+            name: `${name} Custom AI Site`,
+            channelId,
+            contactId,
+            domain: `contact-${contactId}.diploy.ai`,
+            widgetCode: randomUUID(),
+            widgetEnabled: false,
+            widgetConfig: {},
+            aiTrainingConfig: {},
+            autoAssignmentConfig: {},
+          })
+          .returning();
+        site = newSite;
+        console.log(`[Contact Training Site] Auto-created site ${site.id} for contact ${contactId}`);
+      }
+
+      res.json(site);
+    } catch (error: any) {
+      console.error("[Contact Training Site] Error:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 

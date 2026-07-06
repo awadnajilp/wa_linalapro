@@ -1081,6 +1081,8 @@ export default function Inbox() {
         initialSettings={aiSettingsData}
         isContactOverride={aiSettingsTarget === "contact"}
         aiEnabled={currentConversationAiEnabled}
+        contactId={selectedConversation?.contactId}
+        channelId={selectedConversation?.channelId}
         onSave={handleSaveAiSettings}
       />
     </div>

@@ -1160,6 +1160,7 @@ export const sites = pgTable("sites", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   channelId: varchar("channel_id"),
+  contactId: varchar("contact_id"),
   name: text("name").notNull(),
   domain: text("domain").notNull(),
   widgetCode: text("widget_code").notNull().unique(),

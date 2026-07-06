@@ -3878,37 +3878,49 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         });
       }
 
-      // Retrieve site matching the channelId (or auto-create if not exists)
-      let site = await db.query.sites.findFirst({
-        where: eq(sites.channelId, channelId),
-      });
+      // Retrieve site matching the channelId (or contactId if contactSpecificTraining is enabled)
+      const contactSpecificTraining = convSettings.contactSpecificTraining === true;
+      let site: any = null;
 
-      if (!site) {
-        const [newSite] = await db
-          .insert(sites)
-          .values({
-            name: channel.name || "Default Site",
-            domain: "localhost",
-            channelId: channelId,
-            widgetCode: `whatsapp-${channelId}`,
-            widgetEnabled: true,
-            widgetConfig: {
-              systemPrompt: `You are a helpful customer support AI assistant for ${channel.name || 'our company'}. Answer questions using the provided knowledge base.`,
-              escalationRules: {
-                enabled: true,
-                maxAttempts: 3,
-                escalationMessage: "I'm transferring you to a human agent who can better assist you.",
+      if (contactSpecificTraining) {
+        site = await db.query.sites.findFirst({
+          where: and(eq(sites.contactId, contactId), eq(sites.channelId, channelId)),
+        });
+        if (!site) {
+          console.log(`[Inbox AI Takeover] Contact-specific training enabled for contact ${contactId}, but no contact custom site exists.`);
+        }
+      } else {
+        site = await db.query.sites.findFirst({
+          where: and(eq(sites.channelId, channelId), sql`${sites.contactId} IS NULL`),
+        });
+
+        if (!site) {
+          const [newSite] = await db
+            .insert(sites)
+            .values({
+              name: channel.name || "Default Site",
+              domain: "localhost",
+              channelId: channelId,
+              widgetCode: `whatsapp-${channelId}`,
+              widgetEnabled: true,
+              widgetConfig: {
+                systemPrompt: `You are a helpful customer support AI assistant for ${channel.name || 'our company'}. Answer questions using the provided knowledge base.`,
+                escalationRules: {
+                  enabled: true,
+                  maxAttempts: 3,
+                  escalationMessage: "I'm transferring you to a human agent who can better assist you.",
+                }
+              },
+              aiTrainingConfig: {
+                model: "gpt-4o-mini",
+                temperature: "0.7",
+                maxTokens: "500",
               }
-            },
-            aiTrainingConfig: {
-              model: "gpt-4o-mini",
-              temperature: "0.7",
-              maxTokens: "500",
-            }
-          })
-          .returning();
-        site = newSite;
-        console.log(`[Inbox AI Takeover] Auto-created site ${site.id} for channel ${channelId}`);
+            })
+            .returning();
+          site = newSite;
+          console.log(`[Inbox AI Takeover] Auto-created site ${site.id} for channel ${channelId}`);
+        }
       }
 
       // Query complete training data for context

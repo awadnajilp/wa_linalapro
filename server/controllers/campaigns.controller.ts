@@ -233,7 +233,7 @@ export const campaignsController = {
         contactIds.push(contact.id);
       }
     }
-  } else if (data.campaignType === "contacts") {
+  } else if (data.campaignType === "contacts" || data.campaignType === "groups") {
     contactIds = data.contactGroups || [];
   }
 

@@ -84,7 +84,7 @@ const createCampaignSchema = z.object({
   channelId: z.string(),
   name: z.string(),
   description: z.string().optional(),
-  campaignType: z.enum(["contacts", "csv", "api"]),
+  campaignType: z.enum(["contacts", "groups", "csv", "api"]),
   type: z.enum(["marketing", "transactional"]),
   apiType: z.enum(["cloud_api", "marketing_messages", "mm_lite", "qr_code"]),
   templateId: z.string().optional().nullable(),
@@ -914,7 +914,7 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
   }
 
   let contacts: Contact[] = [];
-  if ((campaign.campaignType === "contacts" || campaign.campaignType === "csv") && campaign.contactGroups) {
+  if ((campaign.campaignType === "contacts" || campaign.campaignType === "groups" || campaign.campaignType === "csv") && campaign.contactGroups) {
     const contactIds = campaign.contactGroups as string[];
     contacts = await storage.getContactsByIds(contactIds);
   }

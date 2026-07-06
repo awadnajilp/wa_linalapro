@@ -264,7 +264,7 @@ export default function Campaigns() {
       });
 
     let recipientCount = 0;
-    if (campaignType === "contacts") recipientCount = selectedContacts.length;
+    if (campaignType === "contacts" || campaignType === "groups") recipientCount = selectedContacts.length;
     if (campaignType === "csv") recipientCount = csvData.length;
 
     if (recipientCount === 0)
@@ -310,7 +310,7 @@ export default function Campaigns() {
       templateLanguage: isQr ? null : selectedTemplate.language,
       status: scheduledTime ? "scheduled" : "active",
       scheduledAt: scheduledTime ? new Date(scheduledTime).toISOString() : null,
-      contactGroups: campaignType === "contacts" ? selectedContacts : [],
+      contactGroups: (campaignType === "contacts" || campaignType === "groups") ? selectedContacts : [],
       csvData: campaignType === "csv" ? csvData : [],
       recipientCount,
       type: "marketing",

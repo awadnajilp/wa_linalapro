@@ -1436,7 +1436,8 @@ app.post(
             isGroup: true,
             status: "active",
             source: "chatbot",
-            groups: ["Groups WA"]
+            groups: ["Groups WA"],
+            createdBy: (req as any).user?.id || ""
           }).returning();
           syncedGroups.push(newContact);
           newCount++;
@@ -1522,7 +1523,8 @@ app.post(
           isGroup: true,
           status: "active",
           source: "chatbot",
-          groups: ["Groups WA"]
+          groups: ["Groups WA"],
+          createdBy: (req as any).user?.id || ""
         });
       } else {
         await db.update(contacts)
@@ -1565,7 +1567,8 @@ app.post(
             isGroup: false,
             status: "active",
             source: "whatsapp",
-            groups: [subject]
+            groups: [subject],
+            createdBy: (req as any).user?.id || ""
           });
           importedCount++;
         } else {

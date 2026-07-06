@@ -76,7 +76,7 @@ export function CreateCampaignDialog({
   messagingLimit,
   messagingTier,
 }: CreateCampaignDialogProps) {
-  const [campaignType, setCampaignType] = useState<"contacts" | "csv" | "api">(
+  const [campaignType, setCampaignType] = useState<"contacts" | "groups" | "csv" | "api">(
     "contacts"
   );
   const { user } = useAuth();
@@ -187,6 +187,7 @@ export function CreateCampaignDialog({
 
   // Filter contacts based on selected group and search query
   const filteredContacts = (contacts || []).filter((contact: any) => {
+    if (contact.isGroup) return false;
     const matchesGroup = selectedGroup === "all" ||
       (Array.isArray(contact.groups) && contact.groups.includes(selectedGroup));
 
@@ -195,6 +196,15 @@ export function CreateCampaignDialog({
       contact.phone?.toLowerCase().includes(contactsSearchQuery.toLowerCase());
 
     return matchesGroup && matchesSearch;
+  });
+
+  const filteredGroups = (contacts || []).filter((contact: any) => {
+    if (!contact.isGroup) return false;
+    const matchesSearch = !contactsSearchQuery ||
+      contact.name?.toLowerCase().includes(contactsSearchQuery.toLowerCase()) ||
+      contact.phone?.toLowerCase().includes(contactsSearchQuery.toLowerCase());
+
+    return matchesSearch;
   });
 
   return (
@@ -215,12 +225,19 @@ export function CreateCampaignDialog({
 
         <Tabs
           value={campaignType}
-          onValueChange={(v) => setCampaignType(v as any)}
+          onValueChange={(v) => {
+            setCampaignType(v as any);
+            setSelectedContacts([]);
+          }}
         >
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="contacts" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               {t("campaigns.contactsImport")}
+            </TabsTrigger>
+            <TabsTrigger value="groups" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              WhatsApp Groups
             </TabsTrigger>
             <TabsTrigger value="csv" className="flex items-center gap-2">
               <FileSpreadsheet className="h-4 w-4" />
@@ -356,6 +373,84 @@ export function CreateCampaignDialog({
                               {contact.name} ({contact.phone})
                             </>
                           )}
+                        </Label>
+                      </div>
+                    ))
+                  )}
+                </ScrollArea>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="groups" className="space-y-4">
+              <div className="space-y-2">
+                <Label>Search WhatsApp Groups</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search group name..."
+                    value={contactsSearchQuery}
+                    onChange={(e) => setContactsSearchQuery(e.target.value)}
+                    className="pl-9 h-10 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Select WhatsApp Groups to Send To</Label>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      checked={
+                        selectedContacts.length === filteredGroups.length &&
+                        filteredGroups.length > 0
+                      }
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedContacts(
+                            filteredGroups.map((c: any) => c.id)
+                          );
+                        } else {
+                          setSelectedContacts([]);
+                        }
+                      }}
+                    />
+                    <Label className="font-normal text-sm">
+                      Select All ({filteredGroups.length})
+                    </Label>
+                  </div>
+                </div>
+                <ScrollArea className="h-64 border rounded-md p-4">
+                  {filteredGroups.length === 0 ? (
+                    <div className="text-center text-muted-foreground py-8">
+                      No WhatsApp Groups found. Sync them from the Groups WA page.
+                    </div>
+                  ) : (
+                    filteredGroups.map((contact: any) => (
+                      <div
+                        key={contact.id}
+                        className="flex items-center space-x-2 mb-2"
+                      >
+                        <Checkbox
+                          checked={selectedContacts.includes(contact.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedContacts([
+                                ...selectedContacts,
+                                contact.id,
+                              ]);
+                            } else {
+                              setSelectedContacts(
+                                selectedContacts.filter(
+                                  (id) => id !== contact.id
+                                )
+                              );
+                            }
+                          }}
+                        />
+                        <Label className="font-normal flex items-center gap-1.5 cursor-pointer">
+                          <Users className="w-4 h-4 text-green-600" />
+                          <span>{contact.name}</span>
+                          <span className="text-gray-400 text-xs">({contact.phone})</span>
                         </Label>
                       </div>
                     ))

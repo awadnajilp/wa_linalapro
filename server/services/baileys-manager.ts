@@ -113,6 +113,14 @@ export class BaileysManager {
             console.log(`[BaileysManager] Syncing participating groups for channel ${channelId}...`);
             const groupsMap = await sock.groupFetchAllParticipating();
             let syncCount = 0;
+
+            const [channelObj] = await db
+              .select({ createdBy: channels.createdBy })
+              .from(channels)
+              .where(eq(channels.id, channelId))
+              .limit(1);
+            const ownerId = channelObj?.createdBy || "";
+
             for (const jid of Object.keys(groupsMap)) {
               const groupMetadata = groupsMap[jid];
               const name = groupMetadata.subject || "WhatsApp Group";
@@ -129,7 +137,7 @@ export class BaileysManager {
                   channelId,
                   name,
                   description: `Imported from WhatsApp Group JID: ${jid}`,
-                  createdBy: "" // system automatic sync
+                  createdBy: ownerId
                 });
               }
 
@@ -148,7 +156,8 @@ export class BaileysManager {
                   isGroup: true,
                   status: "active",
                   source: "chatbot",
-                  groups: ["Groups WA"]
+                  groups: ["Groups WA"],
+                  createdBy: ownerId
                 });
                 syncCount++;
               } else {

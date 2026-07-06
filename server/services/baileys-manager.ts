@@ -66,6 +66,47 @@ export class BaileysManager {
       this.activeSockets.set(channelId, sock);
       this.qrStates.set(channelId, { status: "pending" });
 
+      // Maintain contacts cache on the socket object
+      (sock as any).contacts = {};
+
+      sock.ev.on("contacts.upsert", (contactsList) => {
+        for (const contact of contactsList) {
+          const id = contact.id;
+          if (id) {
+            (sock as any).contacts[id] = {
+              ...(sock as any).contacts[id],
+              ...contact,
+            };
+          }
+        }
+      });
+
+      sock.ev.on("contacts.update", (updates) => {
+        for (const update of updates) {
+          const id = update.id;
+          if (id) {
+            (sock as any).contacts[id] = {
+              ...(sock as any).contacts[id],
+              ...update,
+            };
+          }
+        }
+      });
+
+      sock.ev.on("messaging-history.set", ({ contacts: contactsList }) => {
+        if (contactsList) {
+          for (const contact of contactsList) {
+            const id = contact.id;
+            if (id) {
+              (sock as any).contacts[id] = {
+                ...(sock as any).contacts[id],
+                ...contact,
+              };
+            }
+          }
+        }
+      });
+
       sock.ev.on("creds.update", saveCreds);
 
       sock.ev.on("connection.update", async (update) => {

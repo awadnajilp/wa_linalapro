@@ -32,7 +32,7 @@ interface User {
   permissions: string[];
   avatar?: string;
   createdAt?: string;
-  
+  originalSuperadmin?: any;
 }
 
 interface BrandSettings {

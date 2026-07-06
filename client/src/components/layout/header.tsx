@@ -23,6 +23,7 @@ import {
   Menu,
   ScrollText,
   Headphones,
+  ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
@@ -32,6 +33,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { useSidebar } from "@/contexts/sidebar-context";
 import { LanguageSelector } from "../language-selector";
 import NotificationBell from "@/components/notification/NotificationBell";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface HeaderProps {
   title: string;
@@ -53,6 +56,34 @@ export default function Header({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuth();
+  const { toast } = useToast();
+
+  const handleBackToAdmin = async () => {
+    try {
+      const res = await apiRequest("POST", "/api/auth/unimpersonate");
+      if (res.ok) {
+        toast({
+          title: "Session Restored",
+          description: "Switched back to superadmin session.",
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+        window.location.href = "/users";
+      } else {
+        const err = await res.json();
+        toast({
+          title: "Error switching back",
+          description: err.error || "Something went wrong",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to contact server",
+        variant: "destructive",
+      });
+    }
+  };
 
   const username = (user?.firstName || "") + " " + (user?.lastName || "");
 
@@ -107,6 +138,15 @@ export default function Header({
                 </Button>
               )}
             </div>
+            {user?.originalSuperadmin && (
+              <Button
+                onClick={handleBackToAdmin}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-sm border border-rose-700 h-9"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Admin</span>
+              </Button>
+            )}
             <div className=" w-fit hidden sm:block ">
               <LanguageSelector />
             </div>

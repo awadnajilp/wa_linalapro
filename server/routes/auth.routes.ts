@@ -418,4 +418,89 @@ setInterval(async () => {
 
 
 
+// Impersonate a user (Superadmin only)
+router.post("/impersonate/:userId", async (req, res) => {
+  try {
+    const session = (req as any).session;
+    if (!session || !session.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // Must be superadmin to impersonate
+    if (session.user.role !== "superadmin" && !session.originalUser) {
+      return res.status(403).json({ error: "Only superadmins can impersonate users" });
+    }
+
+    const { userId } = req.params;
+
+    // Find the target user
+    const [targetUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!targetUser) {
+      return res.status(404).json({ error: "Target user not found" });
+    }
+
+    if (targetUser.role === "superadmin") {
+      return res.status(400).json({ error: "Cannot impersonate another superadmin" });
+    }
+
+    // Save the original user if not already impersonating
+    if (!session.originalUser) {
+      session.originalUser = { ...session.user };
+    }
+
+    // Set target user as active session user
+    session.user = {
+      id: targetUser.id,
+      username: targetUser.username,
+      email: targetUser.email,
+      firstName: targetUser.firstName,
+      lastName: targetUser.lastName,
+      role: targetUser.role,
+      permissions: resolveUserPermissions(targetUser.role, targetUser.permissions as any),
+      avatar: targetUser.avatar,
+      createdBy: targetUser.createdBy || "",
+      originalSuperadmin: session.originalUser
+    };
+
+    // Remove password before sending back
+    const { password: _, ...userData } = targetUser;
+
+    res.json({
+      message: `Impersonating user ${targetUser.username}`,
+      user: userData,
+      originalUser: session.originalUser
+    });
+  } catch (error: any) {
+    console.error("Impersonation error:", error);
+    res.status(500).json({ error: error.message || "Failed to impersonate user" });
+  }
+});
+
+// Stop impersonation and restore superadmin session
+router.post("/unimpersonate", async (req, res) => {
+  try {
+    const session = (req as any).session;
+    if (!session || !session.originalUser) {
+      return res.status(400).json({ error: "Not currently impersonating a user" });
+    }
+
+    // Restore original superadmin user
+    session.user = { ...session.originalUser };
+    delete session.originalUser;
+
+    res.json({
+      message: "Restored superadmin session",
+      user: session.user
+    });
+  } catch (error: any) {
+    console.error("Unimpersonation error:", error);
+    res.status(500).json({ error: error.message || "Failed to restore superadmin session" });
+  }
+});
+
 export default router;

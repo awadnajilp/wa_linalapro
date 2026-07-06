@@ -16,11 +16,11 @@
  */
 
 import React, { useEffect, useState } from "react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { FaEllipsisH, FaEye, FaBan, FaSearch, FaCheck, FaCrown, FaEdit, FaFileExport } from "react-icons/fa";
+import { FaEllipsisH, FaEye, FaBan, FaSearch, FaCheck, FaCrown, FaEdit, FaFileExport, FaUserSecret } from "react-icons/fa";
 import EditUserModal from "@/components/modals/EditUserModal";
 import { PageNumbers } from "@/components/ui/page-numbers";
 import Header from "@/components/layout/header";
@@ -136,10 +136,32 @@ const User: React.FC = () => {
     }
   };
 
-
-  
-  
-  
+  const handleImpersonate = async (userId: string) => {
+    try {
+      const res = await apiRequest("POST", `/api/auth/impersonate/${userId}`);
+      if (res.ok) {
+        toast({
+          title: "Impersonation Started",
+          description: "Logging in to tenant dashboard...",
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+        window.location.href = "/";
+      } else {
+        const err = await res.json();
+        toast({
+          title: "Failed to impersonate",
+          description: err.error || "Impersonation failed",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to contact server",
+        variant: "destructive",
+      });
+    }
+  };
 
   const fetchUsers = async (
     page = 1,
@@ -595,6 +617,13 @@ const handleExportCSV = async () => {
                         <Link href={`/users/${u.id}`}>
                           <FaEye className="cursor-pointer hover:text-green-600" />
                         </Link>
+                        {u.role !== "superadmin" && (
+                          <FaUserSecret
+                            onClick={() => handleImpersonate(u.id)}
+                            className="cursor-pointer text-purple-600 hover:text-purple-700"
+                            title="Secret Login"
+                          />
+                        )}
 
                          {/* PLAN ASSIGN DROPDOWN */}
    <FaCrown
@@ -722,6 +751,13 @@ const handleExportCSV = async () => {
                   <Link href={`/users/${u.id}`}>
                     <FaEye className="cursor-pointer hover:text-green-600" />
                   </Link>
+                  {u.role !== "superadmin" && (
+                    <FaUserSecret
+                      onClick={() => handleImpersonate(u.id)}
+                      className="cursor-pointer text-purple-600 hover:text-purple-700"
+                      title="Secret Login"
+                    />
+                  )}
                   {u.status === "active" ? (
                     <FaBan
                       onClick={() => handleToggleStatus(u)}

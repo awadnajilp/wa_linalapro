@@ -38,7 +38,7 @@ interface RequestWithChannel extends Request {
 
 export const getContacts = asyncHandler(
   async (req: RequestWithChannel, res: Response) => {
-    const { search, channelId } = req.query;
+    const { search, channelId, isGroup } = req.query;
     const user = (req.session as any)?.user;
 
     let contacts;
@@ -82,6 +82,10 @@ export const getContacts = asyncHandler(
           contact.phone?.includes(search) ||
           contact.email?.toLowerCase().includes(searchLower)
       );
+    }
+
+    if (isGroup && typeof isGroup === "string") {
+      contacts = contacts.filter((contact: any) => contact.isGroup === (isGroup === "true"));
     }
 
     res.json(contacts);
@@ -204,7 +208,7 @@ export const getContactsByUser = asyncHandler(async (req: Request, res: Response
 
 export const getContactsWithPagination = asyncHandler(
   async (req: RequestWithChannel, res: Response) => {
-    const { search, channelId, page = "1", limit = "10", group, status, createdBy } = req.query;
+    const { search, channelId, page = "1", limit = "10", group, status, createdBy, isGroup } = req.query;
     const user = (req.session as any)?.user;
 
     const currentPage = parseInt(page, 10);
@@ -262,6 +266,11 @@ export const getContactsWithPagination = asyncHandler(
     // Status filter
     if (status && typeof status === "string") {
       conditions.push(eq(contacts.status, status));
+    }
+
+    // isGroup filter
+    if (isGroup && typeof isGroup === "string") {
+      conditions.push(eq(contacts.isGroup, isGroup === "true"));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

@@ -243,12 +243,17 @@ export class WebhookHandler {
 
       if (contact.length === 0) {
         const displayName = profileName || message.from;
+        const isGroup = message.from.endsWith("@g.us");
         const insertData: any = {
           name: displayName,
           phone: message.from,
           lastContact: new Date(),
           source: "whatsapp",
+          isGroup,
         };
+        if (isGroup) {
+          insertData.groups = ["Groups WA"];
+        }
         if (channelId) insertData.channelId = channelId;
         if (channel.length > 0 && channel[0].createdBy) insertData.createdBy = channel[0].createdBy;
 
@@ -712,65 +717,15 @@ export class WebhookHandler {
 
       // 8.5 Automations (run first — takes priority over AI)
       let automationHandled = false;
-      try {
-        if (channelId) {
-          const hasPendingExecution =
-            await triggerService.getExecutionService().hasPendingExecutionAsync(conversation[0].id);
+      const isGroupMessage = contact[0]?.isGroup === true || message.from.endsWith("@g.us");
 
-          if (hasPendingExecution) {
-            let interactiveData: any = null;
-            if (message.type === "interactive") {
-              const interactive = (message as any).interactive;
-              interactiveData = {
-                type: interactive?.type,
-                buttonReply: metadata?.buttonReplyId ? { id: metadata.buttonReplyId, title: content } : null,
-                listReply: metadata?.listReplyId ? { id: metadata.listReplyId, title: content } : null,
-                flowReply: metadata?.flowResponse ? { response_json: metadata.flowResponse } : null,
-              };
-            } else if (message.type === "button") {
-              interactiveData = {
-                type: "button_reply",
-                buttonReply: {
-                  id: metadata?.buttonPayload || content,
-                  title: content,
-                },
-              };
-            }
+      if (!isGroupMessage) {
+        try {
+          if (channelId) {
+            const hasPendingExecution =
+              await triggerService.getExecutionService().hasPendingExecutionAsync(conversation[0].id);
 
-            const result = await triggerService.getExecutionService().handleUserResponse(
-              conversation[0].id,
-              content,
-              interactiveData
-            );
-
-            if (result && result.success) {
-              const io = (global as any).io;
-              if (io) {
-                io.to(`conversation:${conversation[0].id}`).emit("automation-resumed", {
-                  type: "automation-resumed",
-                  data: result,
-                });
-                io.to(`conversation_${conversation[0].id}`).emit("automation-resumed", {
-                  type: "automation-resumed",
-                  data: result,
-                });
-              }
-              automationHandled = true;
-            }
-          }
-
-          if (!automationHandled) {
-            if (isNewConversation) {
-              automationHandled = await triggerService.handleNewConversation(
-                conversation[0].id,
-                channelId,
-                contact[0]?.id
-              );
-            }
-            
-            // If it was a new conversation but no "new_conversation" flow was triggered,
-            // or if it's an existing conversation, try triggering "message_received" flows!
-            if (!automationHandled) {
+            if (hasPendingExecution) {
               let interactiveData: any = null;
               if (message.type === "interactive") {
                 const interactive = (message as any).interactive;
@@ -790,73 +745,127 @@ export class WebhookHandler {
                 };
               }
 
-              automationHandled = await triggerService.handleMessageReceived(
+              const result = await triggerService.getExecutionService().handleUserResponse(
                 conversation[0].id,
-                {
-                  content,
-                  text: content,
-                  body: content,
-                  type: message.type,
-                  from: message.from,
-                  whatsappMessageId: message.id,
-                  timestamp: message.timestamp,
-                  interactive: interactiveData,
-                },
-                channelId,
-                contact[0]?.id
+                content,
+                interactiveData
               );
+
+              if (result && result.success) {
+                const io = (global as any).io;
+                if (io) {
+                  io.to(`conversation:${conversation[0].id}`).emit("automation-resumed", {
+                    type: "automation-resumed",
+                    data: result,
+                  });
+                  io.to(`conversation_${conversation[0].id}`).emit("automation-resumed", {
+                    type: "automation-resumed",
+                    data: result,
+                  });
+                }
+                automationHandled = true;
+              }
+            }
+
+            if (!automationHandled) {
+              if (isNewConversation) {
+                automationHandled = await triggerService.handleNewConversation(
+                  conversation[0].id,
+                  channelId,
+                  contact[0]?.id
+                );
+              }
+              
+              // If it was a new conversation but no "new_conversation" flow was triggered,
+              // or if it's an existing conversation, try triggering "message_received" flows!
+              if (!automationHandled) {
+                let interactiveData: any = null;
+                if (message.type === "interactive") {
+                  const interactive = (message as any).interactive;
+                  interactiveData = {
+                    type: interactive?.type,
+                    buttonReply: metadata?.buttonReplyId ? { id: metadata.buttonReplyId, title: content } : null,
+                    listReply: metadata?.listReplyId ? { id: metadata.listReplyId, title: content } : null,
+                    flowReply: metadata?.flowResponse ? { response_json: metadata.flowResponse } : null,
+                  };
+                } else if (message.type === "button") {
+                  interactiveData = {
+                    type: "button_reply",
+                    buttonReply: {
+                      id: metadata?.buttonPayload || content,
+                      title: content,
+                    },
+                  };
+                }
+
+                automationHandled = await triggerService.handleMessageReceived(
+                  conversation[0].id,
+                  {
+                    content,
+                    text: content,
+                    body: content,
+                    type: message.type,
+                    from: message.from,
+                    whatsappMessageId: message.id,
+                    timestamp: message.timestamp,
+                    interactive: interactiveData,
+                  },
+                  channelId,
+                  contact[0]?.id
+                );
+              }
             }
           }
-        }
-      } catch (autoErr) {
-        console.error("❌ Automation execution error (non-blocking) in Baileys webhook handler:", autoErr);
-        const io = (global as any).io;
-        if (io) {
-          io.to(`conversation:${conversation[0].id}`).emit("automation-error", {
-            type: "automation-error",
-            error: autoErr instanceof Error ? autoErr.message : String(autoErr),
-          });
-          io.to(`conversation_${conversation[0].id}`).emit("automation-error", {
-            type: "automation-error",
-            error: autoErr instanceof Error ? autoErr.message : String(autoErr),
-          });
-        }
-      }
-
-      // 8.6 Manual Inbox AI Agent Takeover (if active)
-      if (!automationHandled && conversation[0].aiEnabled) {
-        try {
-          const executionService = triggerService.getExecutionService();
-          const aiHandled = await executionService.triggerInboxAiTakeover(
-            conversation[0].id,
-            channelId || "",
-            contact[0].id,
-            content,
-            conversation[0].lastIncomingMessageAt ? new Date(conversation[0].lastIncomingMessageAt) : null
-          );
-          if (aiHandled) {
-            console.log(`[Webhook] Inbox AI Takeover handled reply for conversation: ${conversation[0].id}`);
-            automationHandled = true;
+        } catch (autoErr) {
+          console.error("❌ Automation execution error (non-blocking) in Baileys webhook handler:", autoErr);
+          const io = (global as any).io;
+          if (io) {
+            io.to(`conversation:${conversation[0].id}`).emit("automation-error", {
+              type: "automation-error",
+              error: autoErr instanceof Error ? autoErr.message : String(autoErr),
+            });
+            io.to(`conversation_${conversation[0].id}`).emit("automation-error", {
+              type: "automation-error",
+              error: autoErr instanceof Error ? autoErr.message : String(autoErr),
+            });
           }
-        } catch (aiErr) {
-          console.error("[Webhook] Error running Inbox AI Takeover:", aiErr);
         }
-      }
 
-      // 9. AI Auto-Reply for WhatsApp incoming messages
-      try {
-        if (!automationHandled && channelId && message.type === "text" && content) {
-          await this.handleAIAutoReply(
-            channelId,
-            channel[0],
-            conversation[0],
-            contact[0],
-            content,
-            message.from
-          );
+        // 8.6 Manual Inbox AI Agent Takeover (if active)
+        if (!automationHandled && conversation[0].aiEnabled) {
+          try {
+            const executionService = triggerService.getExecutionService();
+            const aiHandled = await executionService.triggerInboxAiTakeover(
+              conversation[0].id,
+              channelId || "",
+              contact[0].id,
+              content,
+              conversation[0].lastIncomingMessageAt ? new Date(conversation[0].lastIncomingMessageAt) : null
+            );
+            if (aiHandled) {
+              console.log(`[Webhook] Inbox AI Takeover handled reply for conversation: ${conversation[0].id}`);
+              automationHandled = true;
+            }
+          } catch (aiErr) {
+            console.error("[Webhook] Error running Inbox AI Takeover:", aiErr);
+          }
         }
-      } catch (aiError) {
-        console.error("AI auto-reply error (non-blocking):", aiError);
+
+        // 9. AI Auto-Reply for WhatsApp incoming messages
+        try {
+          if (!automationHandled && channelId && message.type === "text" && content) {
+            await this.handleAIAutoReply(
+              channelId,
+              channel[0],
+              conversation[0],
+              contact[0],
+              content,
+              message.from
+            );
+          }
+        } catch (aiError) {
+          console.error("AI auto-reply error (non-blocking):", aiError);
+        }
       }
     } catch (error) {
       console.error("Error handling incoming message:", error);

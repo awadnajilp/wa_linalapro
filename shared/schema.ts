@@ -128,6 +128,7 @@ export const contacts = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
     createdBy: varchar("created_by").default(""),
+    isGroup: boolean("is_group").default(false),
   },
   (table) => ({
     contactChannelIdx: index("contacts_channel_idx").on(table.channelId),

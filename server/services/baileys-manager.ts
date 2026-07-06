@@ -108,6 +108,50 @@ export class BaileysManager {
             })
             .where(eq(channels.id, channelId));
 
+          // Sync groups automatically
+          try {
+            console.log(`[BaileysManager] Syncing participating groups for channel ${channelId}...`);
+            const groupsMap = await sock.groupFetchAllParticipating();
+            let syncCount = 0;
+            for (const jid of Object.keys(groupsMap)) {
+              const groupMetadata = groupsMap[jid];
+              const name = groupMetadata.subject || "WhatsApp Group";
+              
+              const [existingContact] = await db
+                .select()
+                .from(contacts)
+                .where(and(eq(contacts.channelId, channelId), eq(contacts.phone, jid)))
+                .limit(1);
+
+              if (!existingContact) {
+                await db.insert(contacts).values({
+                  channelId,
+                  name,
+                  phone: jid,
+                  isGroup: true,
+                  status: "active",
+                  source: "chatbot",
+                  groups: ["Groups WA"]
+                });
+                syncCount++;
+              } else {
+                await db
+                  .update(contacts)
+                  .set({
+                    name,
+                    isGroup: true,
+                    groups: existingContact.groups?.includes("Groups WA") 
+                      ? existingContact.groups 
+                      : [...(existingContact.groups || []), "Groups WA"]
+                  })
+                  .where(eq(contacts.id, existingContact.id));
+              }
+            }
+            console.log(`[BaileysManager] Group sync completed. Synced ${syncCount} new groups for channel ${channelId}`);
+          } catch (groupErr) {
+            console.error(`[BaileysManager] Error syncing participating groups on connection open:`, groupErr);
+          }
+
           // Auto-seed warmer config & messages if not existing
           try {
             const [existingWarmer] = await db
@@ -247,7 +291,6 @@ export class BaileysManager {
         if (!jid || jid === "status@broadcast") return;
 
         const isGroup = jid.endsWith("@g.us");
-        if (isGroup) return; // We only support individual chats for now
 
         const timestamp = message.messageTimestamp 
           ? new Date(Number(message.messageTimestamp) * 1000)
@@ -292,7 +335,7 @@ export class BaileysManager {
         // Check if message is from myself (outgoing)
         if (message.key.fromMe) {
           // Sync outgoing message sent from physical phone
-          let recipientPhone = jid.split("@")[0];
+          let recipientPhone = jid.endsWith("@g.us") ? jid : jid.split("@")[0];
           if (jid.endsWith("@lid") && (message.key as any).remoteJidAlt) {
             recipientPhone = (message.key as any).remoteJidAlt.split("@")[0];
           }
@@ -312,7 +355,7 @@ export class BaileysManager {
         }
 
         // It is an incoming message!
-        let senderPhone = jid.split("@")[0];
+        let senderPhone = jid.endsWith("@g.us") ? jid : jid.split("@")[0];
         if (jid.endsWith("@lid") && (message.key as any).remoteJidAlt) {
           senderPhone = (message.key as any).remoteJidAlt.split("@")[0];
           console.log(`[BaileysManager] Resolved LID JID mapping: ${jid} -> ${(message.key as any).remoteJidAlt}`);
@@ -441,7 +484,9 @@ export class BaileysManager {
     const key = baileysMsg.key;
     if (!key) return null;
 
-    let from = key.remoteJid?.split("@")[0] || "";
+    let from = key.remoteJid?.endsWith("@g.us")
+      ? key.remoteJid
+      : (key.remoteJid?.split("@")[0] || "");
     if (key.remoteJid?.endsWith("@lid") && (baileysMsg.key as any).remoteJidAlt) {
       from = (baileysMsg.key as any).remoteJidAlt.split("@")[0];
     }
@@ -650,10 +695,11 @@ export class BaileysManager {
       throw new Error(`WhatsApp QR session is disconnected or not initialized for channel ${channelId}`);
     }
 
-    const cleaned = to.replace(/\D/g, "");
-    const jid = (cleaned.startsWith("1") && cleaned.length === 15)
-      ? `${cleaned}@lid`
-      : `${cleaned}@s.whatsapp.net`;
+    const jid = to.endsWith("@g.us")
+      ? to
+      : (to.replace(/\D/g, "").startsWith("1") && to.replace(/\D/g, "").length === 15)
+        ? `${to.replace(/\D/g, "")}@lid`
+        : `${to.replace(/\D/g, "")}@s.whatsapp.net`;
     const options: any = {};
     if (replyToWaId) {
       options.quoted = { key: { id: replyToWaId, remoteJid: jid } };
@@ -689,10 +735,11 @@ export class BaileysManager {
       throw new Error(`WhatsApp QR session is disconnected or not initialized for channel ${channelId}`);
     }
 
-    const cleaned = to.replace(/\D/g, "");
-    const jid = (cleaned.startsWith("1") && cleaned.length === 15)
-      ? `${cleaned}@lid`
-      : `${cleaned}@s.whatsapp.net`;
+    const jid = to.endsWith("@g.us")
+      ? to
+      : (to.replace(/\D/g, "").startsWith("1") && to.replace(/\D/g, "").length === 15)
+        ? `${to.replace(/\D/g, "")}@lid`
+        : `${to.replace(/\D/g, "")}@s.whatsapp.net`;
     const options: any = {};
     if (replyToWaId) {
       options.quoted = { key: { id: replyToWaId, remoteJid: jid } };

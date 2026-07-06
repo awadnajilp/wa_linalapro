@@ -36,6 +36,7 @@ import { apiRequest } from "@/lib/queryClient";
 import Header from "@/components/layout/header";
 import { useTranslation } from "@/lib/i18n";
 import { StateDisplay } from "@/components/StateDisplay";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Loading Skeleton Component
 const GroupSkeleton = () => (
@@ -102,6 +103,48 @@ export default function GroupsUI() {
   });
 
   const [contactCounts, setContactCounts] = useState<Record<string, number>>({});
+  const [syncing, setSyncing] = useState(false);
+
+  const { data: whatsappGroups, refetch: refetchWaGroups, isLoading: loadingWaGroups } = useQuery({
+    queryKey: [`/api/contacts?isGroup=true`, activeChannel?.id],
+    queryFn: async () => {
+      if (!activeChannel?.id) return [];
+      const res = await apiRequest("GET", `/api/contacts?isGroup=true&channelId=${activeChannel.id}`);
+      if (!res.ok) return [];
+      return await res.json();
+    },
+    enabled: !!activeChannel?.id,
+  });
+
+  const handleSyncGroups = async () => {
+    if (!activeChannel?.id) return;
+    setSyncing(true);
+    try {
+      const res = await apiRequest("POST", `/api/whatsapp/channels/${activeChannel.id}/sync-groups`);
+      const data = await res.json();
+      if (res.ok) {
+        toast({
+          title: "Groups synced",
+          description: data.message || "WhatsApp groups synced successfully.",
+        });
+        refetchWaGroups();
+      } else {
+        toast({
+          title: "Failed to sync groups",
+          description: data.message || "Could not sync groups.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to connect to the server.",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const fetchGroups = async () => {
     if (!activeChannel?.id) return;
@@ -291,94 +334,260 @@ export default function GroupsUI() {
       <Header
         title={t("groups.title")}
         subtitle={t("groups.subtitle")}
-        action={{
-          label: t("groups.createButton"),
-          onClick: () => openCreateDialog(),
-        }}
       />
       <div className="p-6 space-y-6">
-        {/* Header */}
+        {activeChannel?.connectionMethod === "qr_code" ? (
+          <Tabs defaultValue="internal" className="w-full">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 mb-4 gap-4">
+              <TabsList>
+                <TabsTrigger value="internal">CRM Label Groups</TabsTrigger>
+                <TabsTrigger value="whatsapp" className="flex items-center gap-2">
+                  <Users size={14} /> Groups WA
+                </TabsTrigger>
+              </TabsList>
 
-        {/* Content Area */}
-        <div className="space-y-4">
-          {loading ? (
-            // Loading State
-            <>
-              {[1, 2, 3].map((i) => (
-                <GroupSkeleton key={i} />
-              ))}
-            </>
-          ) : groups.length === 0 ? (
-            // Empty State
-            <EmptyState onCreateClick={openCreateDialog} />
-          ) : (
-            // Groups Grid - Responsive
-            <div className="grid grid-cols-1 gap-4">
-              {groups.map((group) => (
-                <Card
-                  key={group.id}
-                  className="hover:shadow-md transition-shadow duration-200"
-                >
-                  <CardContent className="p-4 sm:p-6">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-                      {/* Group Info */}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
-                          {group.name}
-                        </h3>
-                        {group.description && (
-                          <p className="text-sm sm:text-base text-gray-600 mt-1 line-clamp-2">
-                            {group.description}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-                            <Users size={12} />
-                            {contactCounts[group.name] || 0} contact{(contactCounts[group.name] || 0) !== 1 ? "s" : ""}
-                          </span>
-                          <span className="text-xs text-gray-400">
-                            Created{" "}
-                            {new Date(group.createdAt).toLocaleDateString(
-                              "en-US",
-                              {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              }
+              <div>
+                <TabsContent value="internal" className="mt-0">
+                  <Button onClick={openCreateDialog} className="bg-green-600 hover:bg-green-700 text-white">
+                    <Plus className="mr-2" size={16} /> Create Group
+                  </Button>
+                </TabsContent>
+                <TabsContent value="whatsapp" className="mt-0">
+                  <Button onClick={handleSyncGroups} disabled={syncing} className="bg-green-600 hover:bg-green-700 text-white">
+                    {syncing ? "Syncing..." : "Sync Groups WA"}
+                  </Button>
+                </TabsContent>
+              </div>
+            </div>
+
+            <TabsContent value="internal" className="space-y-4">
+              {loading ? (
+                <>
+                  {[1, 2, 3].map((i) => (
+                    <GroupSkeleton key={i} />
+                  ))}
+                </>
+              ) : groups.length === 0 ? (
+                <EmptyState onCreateClick={openCreateDialog} />
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {groups.map((group) => (
+                    <Card
+                      key={group.id}
+                      className="hover:shadow-md transition-shadow duration-200"
+                    >
+                      <CardContent className="p-4 sm:p-6">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
+                              {group.name}
+                            </h3>
+                            {group.description && (
+                              <p className="text-sm sm:text-base text-gray-600 mt-1 line-clamp-2">
+                                {group.description}
+                              </p>
                             )}
-                          </span>
+                            <div className="flex items-center gap-3 mt-2">
+                              <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                                <Users size={12} />
+                                {contactCounts[group.name] || 0} contact{(contactCounts[group.name] || 0) !== 1 ? "s" : ""}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                Created{" "}
+                                {new Date(group.createdAt).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  }
+                                )}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 self-end sm:self-start">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center gap-1.5"
+                              onClick={() => openEdit(group)}
+                            >
+                              <Edit size={14} />
+                              <span className="hidden sm:inline">Edit</span>
+                            </Button>
+
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => deleteGroup(group.id)}
+                              className="flex items-center gap-1.5"
+                            >
+                              <Trash size={14} />
+                              <span className="hidden sm:inline">Delete</span>
+                            </Button>
+                          </div>
                         </div>
-                      </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
 
-                      {/* Action Buttons */}
-                      <div className="flex gap-2 self-end sm:self-start">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-1.5"
-                          onClick={() => openEdit(group)}
-                        >
-                          <Edit size={14} />
-                          <span className="hidden sm:inline">Edit</span>
-                        </Button>
-
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => deleteGroup(group.id)}
-                          className="flex items-center gap-1.5"
-                        >
-                          <Trash size={14} />
-                          <span className="hidden sm:inline">Delete</span>
-                        </Button>
-                      </div>
+            <TabsContent value="whatsapp" className="space-y-4">
+              {loadingWaGroups ? (
+                <>
+                  {[1, 2, 3].map((i) => (
+                    <GroupSkeleton key={i} />
+                  ))}
+                </>
+              ) : !whatsappGroups || whatsappGroups.length === 0 ? (
+                <Card className="border-dashed border-2 border-gray-300">
+                  <CardContent className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                    <div className="rounded-full bg-gray-100 p-6 mb-4">
+                      <Users className="h-12 w-12 text-gray-400" />
                     </div>
+                    <h3 className="text-xl font-semibold mb-2 text-gray-900">
+                      No WhatsApp Groups Synced
+                    </h3>
+                    <p className="text-gray-500 mb-6 max-w-sm">
+                      Sync your participating WhatsApp groups to send campaigns and manage group conversations directly.
+                    </p>
+                    <Button
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={handleSyncGroups}
+                      disabled={syncing}
+                    >
+                      {syncing ? "Syncing..." : "Sync Groups Now"}
+                    </Button>
                   </CardContent>
                 </Card>
-              ))}
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {whatsappGroups.map((group: any) => (
+                    <Card
+                      key={group.id}
+                      className="hover:shadow-md transition-shadow duration-200"
+                    >
+                      <CardContent className="p-4 sm:p-6">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
+                              {group.name}
+                            </h3>
+                            <p className="text-sm text-gray-500 mt-1 truncate">
+                              JID: {group.phone}
+                            </p>
+                            <div className="flex items-center gap-3 mt-2">
+                              <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                                <Users size={12} />
+                                WhatsApp Group
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                Synced{" "}
+                                {new Date(group.createdAt).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  }
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center border-b pb-3 mb-4">
+              <h2 className="text-xl font-semibold">CRM Label Groups</h2>
+              <Button onClick={openCreateDialog} className="bg-green-600 hover:bg-green-700 text-white">
+                <Plus className="mr-2" size={16} /> Create Group
+              </Button>
             </div>
-          )}
-        </div>
+
+            {loading ? (
+              <>
+                {[1, 2, 3].map((i) => (
+                  <GroupSkeleton key={i} />
+                ))}
+              </>
+            ) : groups.length === 0 ? (
+              <EmptyState onCreateClick={openCreateDialog} />
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {groups.map((group) => (
+                  <Card
+                    key={group.id}
+                    className="hover:shadow-md transition-shadow duration-200"
+                  >
+                    <CardContent className="p-4 sm:p-6">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
+                            {group.name}
+                          </h3>
+                          {group.description && (
+                            <p className="text-sm sm:text-base text-gray-600 mt-1 line-clamp-2">
+                              {group.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-3 mt-2">
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                              <Users size={12} />
+                              {contactCounts[group.name] || 0} contact{(contactCounts[group.name] || 0) !== 1 ? "s" : ""}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              Created{" "}
+                              {new Date(group.createdAt).toLocaleDateString(
+                                "en-US",
+                                {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                }
+                              )}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 self-end sm:self-start">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-1.5"
+                            onClick={() => openEdit(group)}
+                          >
+                            <Edit size={14} />
+                            <span className="hidden sm:inline">Edit</span>
+                          </Button>
+
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => deleteGroup(group.id)}
+                            className="flex items-center gap-1.5"
+                          >
+                            <Trash size={14} />
+                            <span className="hidden sm:inline">Delete</span>
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Create/Edit Dialog */}

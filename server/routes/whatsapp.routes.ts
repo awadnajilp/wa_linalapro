@@ -26,7 +26,7 @@ import { requireSubscription } from "../middlewares/requireSubscription";
 import { insertWhatsappChannelSchema } from "@shared/schema";
 import fs from "fs";
 import { db } from "../db";
-import { subscriptions, plans, channels, warmerConfigs, warmerMessages } from "@shared/schema";
+import { subscriptions, plans, channels, warmerConfigs, warmerMessages, contacts } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { BaileysManager } from "../services/baileys-manager";
@@ -1386,4 +1386,67 @@ app.post(
       res.status(500).json({ message: "Failed to fetch API logs" });
     }
   });  
+
+  // Sync groups manually
+  app.post("/api/whatsapp/channels/:channelId/sync-groups", requireAuth, async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const sock = BaileysManager.activeSockets.get(channelId);
+      if (!sock) {
+        return res.status(400).json({ success: false, message: "WhatsApp QR session is disconnected or not initialized for this channel." });
+      }
+
+      console.log(`[Manual Group Sync] Syncing groups for channel ${channelId}...`);
+      const groupsMap = await sock.groupFetchAllParticipating();
+      const syncedGroups: any[] = [];
+      let newCount = 0;
+
+      for (const jid of Object.keys(groupsMap)) {
+        const groupMetadata = groupsMap[jid];
+        const name = groupMetadata.subject || "WhatsApp Group";
+
+        const [existingContact] = await db
+          .select()
+          .from(contacts)
+          .where(and(eq(contacts.channelId, channelId), eq(contacts.phone, jid)))
+          .limit(1);
+
+        if (!existingContact) {
+          const [newContact] = await db.insert(contacts).values({
+            channelId,
+            name,
+            phone: jid,
+            isGroup: true,
+            status: "active",
+            source: "chatbot",
+            groups: ["Groups WA"]
+          }).returning();
+          syncedGroups.push(newContact);
+          newCount++;
+        } else {
+          const [updatedContact] = await db
+            .update(contacts)
+            .set({
+              name,
+              isGroup: true,
+              groups: existingContact.groups?.includes("Groups WA") 
+                ? existingContact.groups 
+                : [...(existingContact.groups || []), "Groups WA"]
+            })
+            .where(eq(contacts.id, existingContact.id))
+            .returning();
+          syncedGroups.push(updatedContact);
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Successfully synced ${Object.keys(groupsMap).length} groups. ${newCount} new groups added.`,
+        data: syncedGroups
+      });
+    } catch (error: any) {
+      console.error("[Manual Group Sync] Error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
 }

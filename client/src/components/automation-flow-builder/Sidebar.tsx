@@ -36,7 +36,8 @@ import {
   Database,
   Brain,
   Bot,
-  Sparkles
+  Sparkles,
+  Calendar
 } from "lucide-react";
 import { NodeKind } from "./types";
 import {
@@ -141,6 +142,15 @@ const nodeCategories = [
         bg: "bg-slate-100",
         border: "border-slate-200",
         tip: "Pause the flow for a set duration before continuing to the next step. Use for spacing out messages or waiting before follow-ups (seconds to hours).",
+      },
+      {
+        kind: "scheduler" as NodeKind,
+        name: "Scheduler",
+        icon: Calendar,
+        color: "text-rose-600",
+        bg: "bg-rose-50",
+        border: "border-rose-200",
+        tip: "Schedule the flow to run from this point onwards after a set date and time, or after a relative period (e.g. days/minutes). Can optionally be configured as recurring.",
       },
       {
         kind: "set_variable" as NodeKind,

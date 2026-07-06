@@ -42,6 +42,7 @@ import {
   Brain,
   Copy,
   Bot,
+  Calendar,
 } from "lucide-react";
 import { BuilderNodeData } from "./types";
 
@@ -288,7 +289,47 @@ export function TimeGapNode({ data }: { data: BuilderNodeData }) {
           <span className="text-[10px] text-gray-400 font-medium uppercase">pause</span>
         </div>
       </NodeShell>
-      <Handle type="source" position={Position.Bottom} className="!bg-slate-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+    </div>
+  );
+}
+
+export function SchedulerNode({ data }: { data: BuilderNodeData }) {
+  const type = data.scheduleType || "duration";
+  const days = Number(data.scheduleDays || 0);
+  const minutes = Number(data.scheduleMinutes || 0);
+  const dateStr = data.scheduleDate || "";
+  const recurring = !!data.scheduleRecurring;
+  const interval = data.scheduleInterval || "daily";
+
+  let display = "";
+  if (type === "date") {
+    display = dateStr ? new Date(dateStr).toLocaleString() : "Date not set";
+  } else {
+    display = `${days}d ${minutes}m`;
+  }
+
+  if (recurring) {
+    display += ` (Every ${interval})`;
+  }
+
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-rose-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<Calendar className="w-4 h-4" />}
+        title="Scheduler"
+        color="text-rose-700"
+        bgColor="bg-rose-50"
+        borderColor="border-rose-200"
+      >
+        <div className="flex flex-col gap-1 bg-white rounded-lg p-2 border border-gray-100 min-w-[120px]">
+          <span className="text-xs font-semibold text-rose-700">{display}</span>
+          <span className="text-[9px] text-gray-400 font-medium uppercase">
+            {type === "date" ? "Specific Date" : "Relative Period"}
+          </span>
+        </div>
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} className="!bg-rose-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
     </div>
   );
 }
@@ -829,4 +870,5 @@ export const nodeTypes = {
   ai_answer: withNodeActions(AIAnswerNode),
   ai_agent: withNodeActions(AIAgentNode),
   send_contact_message: withNodeActions(SendContactMessageNode),
+  scheduler: withNodeActions(SchedulerNode),
 };

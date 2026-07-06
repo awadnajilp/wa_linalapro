@@ -36,7 +36,8 @@ export type NodeKind =
   | "wait_reply"
   | "ai_answer"
   | "ai_agent"
-  | "send_contact_message";
+  | "send_contact_message"
+  | "scheduler";
 
 export interface ListSection {
   title: string;

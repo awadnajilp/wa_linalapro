@@ -253,6 +253,10 @@ export class AutomationExecutionService {
           result = await this.executeTimeGap(node, context);
           return; // Time gap handles its own continuation
           
+        case 'scheduler':
+          result = await this.executeScheduler(node, context);
+          return; // Scheduler handles its own continuation
+          
         case 'send_template':
           result = await this.executeSendTemplate(node, context);
           break;
@@ -1920,6 +1924,154 @@ private async sendInteractiveMessage(
     };
   }
 
+  private async executeScheduler(node: any, context: ExecutionContext, automation?: any) {
+    const type = node.data?.scheduleType || 'duration';
+    let resumeAt = new Date();
+    let delaySeconds = 0;
+
+    if (type === 'date') {
+      const dateStr = node.data?.scheduleDate;
+      if (dateStr) {
+        resumeAt = new Date(dateStr);
+        delaySeconds = Math.max(0, Math.round((resumeAt.getTime() - Date.now()) / 1000));
+      } else {
+        delaySeconds = 10;
+        resumeAt = new Date(Date.now() + 10 * 1000);
+      }
+    } else {
+      const days = Number(node.data?.scheduleDays || 0);
+      const minutes = Number(node.data?.scheduleMinutes || 10);
+      delaySeconds = (days * 24 * 60 + minutes) * 60;
+      resumeAt = new Date(Date.now() + delaySeconds * 1000);
+    }
+
+    const recurring = !!node.data?.scheduleRecurring;
+    const interval = node.data?.scheduleInterval || 'daily';
+
+    console.log(`⏰ [Scheduler] Node ${node.nodeId}: Scheduling execution to run in ${delaySeconds}s (until ${resumeAt.toISOString()}). Recurring: ${recurring}`);
+
+    const varsPatch: Record<string, any> = {
+      _timeGap_waitingUntil: resumeAt.toISOString(),
+      _timeGap_waitingNodeId: node.nodeId,
+    };
+
+    await db.update(automationExecutions)
+      .set({
+        status: 'paused',
+        currentNodeId: node.nodeId,
+        variables: {
+          ...context.variables,
+          ...varsPatch,
+        },
+        result: `scheduler: scheduled until ${resumeAt.toISOString()}${recurring ? ` (recurring: ${interval})` : ''}`,
+      })
+      .where(eq(automationExecutions.id, context.executionId));
+
+    const continueAfterSchedule = async () => {
+      try {
+        console.log(`⏰ [Scheduler] Time reached for execution ${context.executionId}`);
+        const freshAutomation = await this.getAutomationWithFlow(context.automationId);
+        await this.resumeScheduler(context.executionId, node, freshAutomation, context);
+      } catch (error) {
+        console.error('Error continuing after schedule:', error);
+        await this.completeExecution(context.executionId, 'failed', `Schedule continuation failed: ${(error as Error).message}`);
+      }
+    };
+
+    setTimeout(continueAfterSchedule, delaySeconds * 1000);
+
+    return {
+      action: 'schedule_started',
+      delaySeconds,
+      scheduledFor: resumeAt,
+    };
+  }
+
+  private async resumeScheduler(executionId: string, node: any, automation: any, context: ExecutionContext) {
+    const recurring = !!node.data?.scheduleRecurring;
+    const interval = node.data?.scheduleInterval || 'daily';
+    const type = node.data?.scheduleType || 'duration';
+
+    if (recurring) {
+      let nextResumeAt = new Date();
+      if (type === 'date') {
+        const baseDate = node.data?.scheduleDate ? new Date(node.data.scheduleDate) : new Date();
+        let occurrence = new Date(baseDate);
+        while (occurrence.getTime() <= Date.now()) {
+          if (interval === 'daily') {
+            occurrence.setDate(occurrence.getDate() + 1);
+          } else if (interval === 'weekly') {
+            occurrence.setDate(occurrence.getDate() + 7);
+          } else if (interval === 'monthly') {
+            occurrence.setMonth(occurrence.getMonth() + 1);
+          } else {
+            occurrence.setDate(occurrence.getDate() + 1);
+          }
+        }
+        nextResumeAt = occurrence;
+      } else {
+        const days = Number(node.data?.scheduleDays || 0);
+        const minutes = Number(node.data?.scheduleMinutes || 10);
+        const delaySeconds = (days * 24 * 60 + minutes) * 60;
+        nextResumeAt = new Date(Date.now() + delaySeconds * 1000);
+      }
+
+      const [clonedExec] = await db.insert(automationExecutions).values({
+        automationId: context.automationId,
+        contactId: context.contactId ?? null,
+        conversationId: context.conversationId ?? null,
+        triggerData: {
+          trigger: 'scheduler',
+          parentExecutionId: executionId,
+          timestamp: new Date()
+        },
+        variables: context.variables,
+        status: 'running'
+      }).returning();
+
+      void (async () => {
+        try {
+          const clonedContext: ExecutionContext = {
+            executionId: clonedExec.id,
+            automationId: context.automationId,
+            contactId: context.contactId,
+            conversationId: context.conversationId,
+            variables: context.variables,
+            triggerData: clonedExec.triggerData,
+            lastUserMessage: context.lastUserMessage
+          };
+          await this.continueToNextNode(node, automation, clonedContext);
+        } catch (err) {
+          console.error(`[Scheduler Cloned Run] Cloned execution ${clonedExec.id} failed:`, err);
+        }
+      })();
+
+      await db.update(automationExecutions)
+        .set({
+          variables: {
+            ...context.variables,
+            _timeGap_waitingUntil: nextResumeAt.toISOString(),
+            _timeGap_waitingNodeId: node.nodeId,
+          },
+          result: `scheduler: next run scheduled for ${nextResumeAt.toISOString()}`,
+        })
+        .where(eq(automationExecutions.id, executionId));
+
+      const remainingMs = Math.max(1000, nextResumeAt.getTime() - Date.now());
+      setTimeout(async () => {
+        const freshAutomation = await this.getAutomationWithFlow(context.automationId);
+        await this.resumeScheduler(executionId, node, freshAutomation, context);
+      }, remainingMs);
+
+    } else {
+      await this.continueToNextNode(node, automation, context);
+
+      await db.update(automationExecutions)
+        .set({ variables: context.variables })
+        .where(eq(automationExecutions.id, executionId));
+    }
+  }
+
   async recoverTimeGapExecutions() {
     try {
       const pausedExecs = await db.query.automationExecutions.findMany({
@@ -1975,14 +2127,18 @@ private async sendInteractiveMessage(
               return;
             }
 
-            // Run continuation first — markers stay in DB until success.
-            // If server crashes here, next boot recovery re-schedules safely.
-            await this.continueToNextNode(currentNode, automation, context);
+            if (currentNode.type === 'scheduler') {
+              await this.resumeScheduler(exec.id, currentNode, automation, context);
+            } else {
+              // Run continuation first — markers stay in DB until success.
+              // If server crashes here, next boot recovery re-schedules safely.
+              await this.continueToNextNode(currentNode, automation, context);
 
-            // Continuation succeeded — remove time_gap markers from DB variables.
-            await db.update(automationExecutions)
-              .set({ variables: cleanVars })
-              .where(eq(automationExecutions.id, exec.id));
+              // Continuation succeeded — remove time_gap markers from DB variables.
+              await db.update(automationExecutions)
+                .set({ variables: cleanVars })
+                .where(eq(automationExecutions.id, exec.id));
+            }
           } catch (err) {
             console.error(`[time_gap recovery] Failed to resume execution ${exec.id}:`, err);
             await this.completeExecution(exec.id, 'failed', `time_gap recovery failed: ${(err as Error).message}`).catch(() => {});

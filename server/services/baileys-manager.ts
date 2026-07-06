@@ -510,6 +510,37 @@ export class BaileysManager {
       ? String(baileysMsg.messageTimestamp) 
       : String(Math.floor(Date.now() / 1000));
 
+    // Handle system group/stub messages
+    if (baileysMsg.messageStubType) {
+      const stubType = baileysMsg.messageStubType;
+      const params = baileysMsg.messageStubParameters || [];
+      let systemText = `System Event: ${stubType}`;
+      
+      if (stubType === 20 || stubType === 'GROUP_CREATE') {
+        systemText = "Group was created";
+      } else if (stubType === 21 || stubType === 'GROUP_CHANGE_SUBJECT') {
+        systemText = `Group subject changed to: "${params[0] || ''}"`;
+      } else if (stubType === 28 || stubType === 'GROUP_PARTICIPANT_ADD') {
+        systemText = `Added participant(s): ${params.map((p: string) => p.split('@')[0]).join(', ')}`;
+      } else if (stubType === 29 || stubType === 'GROUP_PARTICIPANT_REMOVE') {
+        systemText = `Removed participant(s): ${params.map((p: string) => p.split('@')[0]).join(', ')}`;
+      } else if (stubType === 30 || stubType === 'GROUP_PARTICIPANT_PROMOTE') {
+        systemText = `Promoted participant(s) to admin: ${params.map((p: string) => p.split('@')[0]).join(', ')}`;
+      } else if (stubType === 31 || stubType === 'GROUP_PARTICIPANT_DEMOTE') {
+        systemText = `Demoted participant(s) from admin: ${params.map((p: string) => p.split('@')[0]).join(', ')}`;
+      } else if (stubType === 32 || stubType === 'GROUP_CHANGE_ANNOUNCE') {
+        systemText = params[0] === 'on' ? "Group settings changed: Only admins can send messages" : "Group settings changed: All participants can send messages";
+      }
+
+      return {
+        from,
+        id,
+        timestamp,
+        type: "text",
+        text: { body: `📢 ${systemText}` }
+      };
+    }
+
     const msg = baileysMsg.message;
     if (!msg) return null;
 

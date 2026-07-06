@@ -54,6 +54,16 @@ export const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
     ],
   },
   time_gap: { kind: "time_gap", label: "Delay", delay: 60 },
+  scheduler: {
+    kind: "scheduler",
+    label: "Scheduler",
+    scheduleType: "duration",
+    scheduleDays: 0,
+    scheduleMinutes: 10,
+    scheduleRecurring: false,
+    scheduleInterval: "daily",
+    scheduleDate: ""
+  },
   send_template: { kind: "send_template", label: "Template", templateId: "" },
   assign_user: { kind: "assign_user", label: "Assign User", assigneeId: "" },
   webhook: {
@@ -276,6 +286,18 @@ export function validateNodeConfig(node: any): string | null {
     case "time_gap":
       if (data.delay === undefined || data.delay === null || Number(data.delay) <= 0) {
         return `Node "${label}" (Delay) requires a positive delay duration in seconds.`;
+      }
+      break;
+    case "scheduler":
+      if (data.scheduleType === "date" && !data.scheduleDate) {
+        return `Node "${label}" (Scheduler) requires a target date and time.`;
+      }
+      if (data.scheduleType === "duration") {
+        const days = Number(data.scheduleDays || 0);
+        const mins = Number(data.scheduleMinutes || 0);
+        if (days <= 0 && mins <= 0) {
+          return `Node "${label}" (Scheduler) requires a duration greater than 0 minutes.`;
+        }
       }
       break;
     case "send_template":

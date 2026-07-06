@@ -1537,6 +1537,9 @@ app.post(
       // 3. Import participants as contacts and assign to the local group
       let importedCount = 0;
       for (const p of participants) {
+        if (!p.id.endsWith("@s.whatsapp.net") && !p.id.endsWith("@c.us")) {
+          continue; // Skip LIDs and other non-phone JIDs
+        }
         const phone = p.id.split("@")[0];
         if (!phone) continue;
 

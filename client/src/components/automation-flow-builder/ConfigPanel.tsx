@@ -56,6 +56,7 @@ import {
   MessageSquare,
   Brain,
   Bot,
+  Calendar,
 } from "lucide-react";
 import { BuilderNodeData, NodeKind, Template, Member, ListSection } from "./types";
 import { FileUploadButton } from "./FileUploadButton";
@@ -83,6 +84,7 @@ const kindMeta: Record<NodeKind, { icon: any; label: string; color: string; bgTi
   custom_reply: { icon: MessageCircle, label: "Send Message", color: "text-blue-600", bgTint: "bg-blue-50" },
   user_reply: { icon: HelpCircle, label: "Ask Question", color: "text-amber-600", bgTint: "bg-amber-50" },
   time_gap: { icon: Clock, label: "Wait / Delay", color: "text-slate-600", bgTint: "bg-slate-50" },
+  scheduler: { icon: Calendar, label: "Scheduler", color: "text-rose-600", bgTint: "bg-rose-50" },
   send_template: { icon: FileText, label: "Send Template", color: "text-teal-600", bgTint: "bg-teal-50" },
   assign_user: { icon: Users, label: "Assign Agent", color: "text-indigo-600", bgTint: "bg-indigo-50" },
   webhook: { icon: Globe, label: "Webhook", color: "text-orange-600", bgTint: "bg-orange-50" },
@@ -559,6 +561,94 @@ export function ConfigPanel({
                   <Input type="number" min={10} value={d.delay ?? 60} onChange={(e) => onChange({ delay: parseInt(e.target.value, 10) })} className="h-9 text-sm rounded-lg bg-white" />
                   <div className="text-[10px] text-gray-400">Min 10 seconds. Flow pauses before the next step.</div>
                 </div>
+              </div>
+            </>
+          )}
+
+          {d.kind === "scheduler" && (
+            <>
+              <SectionHeader>Scheduler Settings</SectionHeader>
+              <div className="space-y-4 bg-slate-50/80 rounded-xl p-4 border border-slate-200">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Schedule Type</Label>
+                  <Select
+                    value={(d.scheduleType as string) || "duration"}
+                    onValueChange={(val) => onChange({ scheduleType: val })}
+                  >
+                    <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="duration">After Period (Relative)</SelectItem>
+                      <SelectItem value="date">Specific Date & Time</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {d.scheduleType === "date" ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">Target Date & Time</Label>
+                    <Input
+                      type="datetime-local"
+                      value={(d.scheduleDate as string) || ""}
+                      onChange={(e) => onChange({ scheduleDate: e.target.value })}
+                      className="h-9 text-sm rounded-lg bg-white"
+                    />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-gray-700">Days</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={d.scheduleDays !== undefined ? Number(d.scheduleDays) : 0}
+                        onChange={(e) => onChange({ scheduleDays: parseInt(e.target.value, 10) || 0 })}
+                        className="h-9 text-sm rounded-lg bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-gray-700">Minutes</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={d.scheduleMinutes !== undefined ? Number(d.scheduleMinutes) : 10}
+                        onChange={(e) => onChange({ scheduleMinutes: parseInt(e.target.value, 10) || 0 })}
+                        className="h-9 text-sm rounded-lg bg-white"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center space-x-2 pt-2 border-t border-slate-200">
+                  <Checkbox
+                    id="scheduleRecurring"
+                    checked={!!d.scheduleRecurring}
+                    onCheckedChange={(checked) => onChange({ scheduleRecurring: !!checked })}
+                  />
+                  <Label htmlFor="scheduleRecurring" className="text-xs font-medium text-gray-700 cursor-pointer select-none">
+                    Is Recurring
+                  </Label>
+                </div>
+
+                {d.scheduleRecurring && (
+                  <div className="space-y-1.5 pt-1">
+                    <Label className="text-xs font-semibold text-gray-700">Recurring Interval</Label>
+                    <Select
+                      value={(d.scheduleInterval as string) || "daily"}
+                      onValueChange={(val) => onChange({ scheduleInterval: val })}
+                    >
+                      <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
+                        <SelectValue placeholder="Select interval" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </>
           )}

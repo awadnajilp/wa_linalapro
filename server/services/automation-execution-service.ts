@@ -3087,6 +3087,62 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     context.variables.contactPhone = getContact.phone;
     context.variables.last_message = context.lastUserMessage || "";
 
+    // Proactive Intro Message ("Conversation first to customer") support
+    const introSentKey = `_introSent_${node.nodeId}`;
+    if (nodeData.aiIntroEnabled === true && !context.variables[introSentKey]) {
+      context.variables[introSentKey] = true;
+      let introText = nodeData.aiIntroMessage || "Hello!";
+      introText = this.replaceVariables(introText, context.variables);
+
+      let effectiveChannelId = getContact.channelId;
+      if (!effectiveChannelId) {
+        const [automationRow] = await db
+          .select({ channelId: automations.channelId })
+          .from(automations)
+          .where(eq(automations.id, context.automationId))
+          .limit(1);
+        effectiveChannelId = automationRow?.channelId ?? null;
+      }
+
+      const forceAudio = nodeData.aiIntroType === "voice";
+      await this.sendOutgoingResponse(introText, nodeData, getContact, effectiveChannelId, context, automation, forceAudio);
+
+      const pendingId = `${context.executionId}_${node.nodeId}_${Date.now()}`;
+      const pendingExecution: PendingExecution = {
+        executionId: context.executionId,
+        automationId: context.automationId,
+        nodeId: node.nodeId,
+        nodeType: 'ai_agent',
+        conversationId: context.conversationId,
+        contactId: context.contactId,
+        context: { ...context },
+        timestamp: new Date(),
+        status: 'waiting_for_response',
+        expectedButtons: []
+      };
+
+      this.pendingExecutions.set(pendingId, pendingExecution);
+
+      await db.update(automationExecutions)
+        .set({
+          status: 'paused',
+          currentNodeId: node.nodeId,
+          variables: {
+            ...context.variables,
+            _userReply_waiting: true,
+            _userReply_nodeId: node.nodeId,
+            _userReply_nodeType: 'ai_agent',
+            _userReply_saveAs: null,
+            _userReply_expectedButtons: [],
+          },
+          result: `AI Agent Takeover active. Sent proactive intro. Waiting for user response.`
+        })
+        .where(eq(automationExecutions.id, context.executionId));
+
+      console.log(`[AI Agent] Sent proactive intro, paused execution ${context.executionId} on node ${node.nodeId} (takeover)`);
+      return { action: 'execution_paused', response: introText };
+    }
+
     let effectiveChannelId = getContact.channelId;
     if (!effectiveChannelId) {
       const [automationRow] = await db
@@ -3449,7 +3505,8 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     getContact: any,
     effectiveChannelId: string | null,
     context: ExecutionContext,
-    automation: any
+    automation: any,
+    forceAudio?: boolean
   ) {
     if (!responseText) return;
 
@@ -3463,8 +3520,8 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       });
     }
 
-    let shouldSendAudio = false;
-    if (aiVoiceEnabled && voiceProfile) {
+    let shouldSendAudio = forceAudio || false;
+    if (!shouldSendAudio && aiVoiceEnabled && voiceProfile) {
       try {
         const [latestCustomerMsg] = await db
           .select({ type: messages.type, metadata: messages.metadata })
@@ -3480,7 +3537,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
 
         if (latestCustomerMsg && (latestCustomerMsg.type === "audio" || (latestCustomerMsg.metadata as any)?.voice === true)) {
           shouldSendAudio = true;
-          console.log(`[AI Agent Voice] Detected voice incoming query. Synthesizing audio response...`);
+          console.log(`[AI Agent Voice] Detected voice incoming query or forced audio. Synthesizing audio response...`);
         } else {
           console.log(`[AI Agent Voice] Detected text incoming query. Responding with text only.`);
         }

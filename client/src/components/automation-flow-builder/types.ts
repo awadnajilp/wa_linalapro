@@ -106,6 +106,9 @@ export interface BuilderNodeData {
   aiUseTrainingData?: boolean;
   aiOutputVariable?: string;
   aiModel?: string;
+  aiIntroEnabled?: boolean;
+  aiIntroMessage?: string;
+  aiIntroType?: "text" | "voice";
   [key: string]: unknown;
 }
 

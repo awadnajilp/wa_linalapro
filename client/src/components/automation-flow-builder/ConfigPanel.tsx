@@ -1456,6 +1456,55 @@ export function ConfigPanel({
                   )}
                 </div>
 
+                {/* Proactive Intro Configuration */}
+                <div className="space-y-3 p-3 bg-white rounded-lg border border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-xs font-semibold text-gray-700">Conversation First to Customer</Label>
+                      <div className="text-[10px] text-gray-400">Proactively send the first intro message when takeover starts</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={d.aiIntroEnabled === true}
+                      onChange={(e) => onChange({ aiIntroEnabled: e.target.checked })}
+                      className="w-4 h-4 text-fuchsia-600 border-gray-300 rounded focus:ring-fuchsia-500 cursor-pointer"
+                    />
+                  </div>
+
+                  {d.aiIntroEnabled === true && (
+                    <div className="space-y-3 pt-2 border-t border-gray-50">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-semibold text-gray-500">Intro Message Text</Label>
+                        <Textarea
+                          rows={2}
+                          value={d.aiIntroMessage || ""}
+                          onChange={(e) => onChange({ aiIntroMessage: e.target.value })}
+                          placeholder="e.g. Hello! Welcome to our store. How can I help you today?"
+                          className="text-xs rounded bg-gray-50 border border-gray-200"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold text-gray-500">Intro Response Type</Label>
+                        <Select
+                          value={d.aiIntroType || "text"}
+                          onValueChange={(v) => onChange({ aiIntroType: v as any })}
+                        >
+                          <SelectTrigger className="h-8 text-xs rounded bg-gray-50 border border-gray-200">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="text">Text Message</SelectItem>
+                            <SelectItem value="voice" disabled={d.aiVoiceEnabled !== true}>
+                              Voice Message {d.aiVoiceEnabled !== true && "(Enable Voice first)"}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-gray-700">System Instructions / Prompt</Label>
                   <Textarea

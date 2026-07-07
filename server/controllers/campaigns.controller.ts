@@ -304,16 +304,52 @@ export const campaignsController = {
       return res.status(404).json({ error: "Campaign not found" });
     }
 
-    if (status === "paused" && existing.status !== "sending") {
+    if (status === "paused" && existing.status !== "sending" && existing.status !== "active") {
       return res.status(400).json({
-        error: `Cannot pause a campaign with status "${existing.status}". Only sending campaigns can be paused.`,
+        error: `Cannot pause a campaign with status "${existing.status}". Only active or sending campaigns can be paused.`,
       });
     }
 
-    if (status === "sending" && existing.status !== "paused") {
+    const allowedResumeStatuses = ["paused", "failed", "completed", "active"];
+    if (status === "sending" && !allowedResumeStatuses.includes(existing.status)) {
       return res.status(400).json({
-        error: `Cannot resume a campaign with status "${existing.status}". Only paused campaigns can be resumed.`,
+        error: `Cannot start/resume a campaign with status "${existing.status}".`,
       });
+    }
+
+    // If restarting/resuming, reset failed/processing message queue entries for this campaign,
+    // and ALSO reset scheduledFor for all queued messages to NOW() so they run immediately!
+    if (status === "sending") {
+      await db
+        .update(messageQueue)
+        .set({
+          status: "queued",
+          attempts: 0,
+          processedAt: null,
+          errorCode: null,
+          errorMessage: null,
+          scheduledFor: new Date()
+        })
+        .where(
+          and(
+            eq(messageQueue.campaignId, existing.id),
+            inArray(messageQueue.status, ["failed", "processing"])
+          )
+        );
+
+      await db
+        .update(messageQueue)
+        .set({
+          scheduledFor: new Date()
+        })
+        .where(
+          and(
+            eq(messageQueue.campaignId, existing.id),
+            eq(messageQueue.status, "queued")
+          )
+        );
+
+      console.log(`[Campaign ${existing.id}] Reset failed/processing messages and updated scheduledFor to NOW() on restart/resume.`);
     }
 
     const campaign = await storage.updateCampaign(req.params.id, { status });

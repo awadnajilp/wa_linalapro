@@ -84,11 +84,19 @@ const fileFilter = (
   file: Express.Multer.File,
   cb: FileFilterCallback
 ) => {
-  if (allowedTypes.includes(file.mimetype)) {
-    console.log(`✅ File type accepted: ${file.mimetype}`);
+  const ext = path.extname(file.originalname).toLowerCase();
+  const safeExtensions = [
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".ico",
+    ".mp4", ".webm", ".ogg", ".avi", ".mov", ".3gp",
+    ".mp3", ".wav", ".m4a", ".aac", ".opus",
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt"
+  ];
+
+  if (allowedTypes.includes(file.mimetype) || safeExtensions.includes(ext)) {
+    console.log(`✅ File type accepted: ${file.mimetype} (ext: ${ext})`);
     cb(null, true);
   } else {
-    console.log(`❌ File type rejected: ${file.mimetype}`);
+    console.log(`❌ File type rejected: ${file.mimetype} (ext: ${ext})`);
     req.fileFilterError = `Unsupported file type: ${file.mimetype}`;
     cb(null, false);
   }

@@ -114,9 +114,9 @@ export function CreateCampaignForm({
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaMimeType, setMediaMimeType] = useState("");
   const [mediaName, setMediaName] = useState("");
-  const [delayBetweenMessages, setDelayBetweenMessages] = useState(10);
-  const [chunkSize, setChunkSize] = useState(50);
-  const [delayBetweenChunks, setDelayBetweenChunks] = useState(60);
+  const [delayBetweenMessages, setDelayBetweenMessages] = useState(3);
+  const [chunkSize, setChunkSize] = useState(100);
+  const [delayBetweenChunks, setDelayBetweenChunks] = useState(5);
   const [warmerEnabled, setWarmerEnabled] = useState(false);
   const [selectedWarmerMsgs, setSelectedWarmerMsgs] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -824,7 +824,7 @@ export function CreateCampaignForm({
                     onChange={(e) => setDelayBetweenMessages(Math.max(1, parseInt(e.target.value) || 1))}
                     className="mt-1 h-9 text-xs"
                   />
-                  <span className="text-[10px] text-gray-500">Wait between messages. Default 10s.</span>
+                  <span className="text-[10px] text-gray-500">Wait between messages. Default 3s.</span>
                 </div>
                 <div>
                   <Label htmlFor="chunkSize" className="text-xs font-semibold text-gray-700">
@@ -838,7 +838,7 @@ export function CreateCampaignForm({
                     onChange={(e) => setChunkSize(Math.max(1, parseInt(e.target.value) || 1))}
                     className="mt-1 h-9 text-xs"
                   />
-                  <span className="text-[10px] text-gray-500">Batch size before long pause. Default 50.</span>
+                  <span className="text-[10px] text-gray-500">Batch size before long pause. Default 100.</span>
                 </div>
                 <div>
                   <Label htmlFor="delayBetweenChunks" className="text-xs font-semibold text-gray-700">
@@ -852,7 +852,7 @@ export function CreateCampaignForm({
                     onChange={(e) => setDelayBetweenChunks(Math.max(1, parseInt(e.target.value) || 1))}
                     className="mt-1 h-9 text-xs"
                   />
-                  <span className="text-[10px] text-gray-500">Pause duration between batches. Default 60m.</span>
+                  <span className="text-[10px] text-gray-500">Pause duration between batches. Default 5m.</span>
                 </div>
               </div>
             </CardContent>

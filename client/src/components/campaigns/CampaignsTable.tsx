@@ -252,6 +252,16 @@ export function CampaignsTable({
                             {t("campaigns.resume")}
                           </DropdownMenuItem>
                         )}
+                        {(campaign.status === "failed" || campaign.status === "completed") && (
+                          <DropdownMenuItem
+                            onClick={() =>
+                              onUpdateStatus(campaign.id, "sending")
+                            }
+                          >
+                            <Play className="mr-2 h-4 w-4" />
+                            Restart
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           onClick={() => onDeleteCampaign(campaign.id)}
                           className="text-destructive"
@@ -334,6 +344,16 @@ export function CampaignsTable({
                           >
                             <Play className="mr-2 h-4 w-4" />
                             Resume
+                          </DropdownMenuItem>
+                        )}
+                        {(campaign.status === "failed" || campaign.status === "completed") && (
+                          <DropdownMenuItem
+                            onClick={() =>
+                              onUpdateStatus(campaign.id, "sending")
+                            }
+                          >
+                            <Play className="mr-2 h-4 w-4" />
+                            Restart
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuItem

@@ -963,9 +963,9 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
     return;
   }
 
-  const chunkSize = campaign.chunkSize || 50;
-  const delayBetweenMessages = campaign.delayBetweenMessages || 10;
-  const delayBetweenChunks = campaign.delayBetweenChunks || 60; // in minutes
+  const chunkSize = isQr ? (campaign.chunkSize || 50) : contacts.length;
+  const delayBetweenMessages = isQr ? (campaign.delayBetweenMessages || 10) : 0;
+  const delayBetweenChunks = isQr ? (campaign.delayBetweenChunks || 60) : 0;
   const warmerEnabled = campaign.warmerEnabled || false;
   const warmerMessagesList = campaign.selectedWarmerMessages || [];
 

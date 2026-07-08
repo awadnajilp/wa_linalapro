@@ -1562,11 +1562,16 @@ async function handleTemplateStatusUpdate(value: any, wabaId?: string) {
   );
 
   if (message_template_id && event) {
+    const eventUpper = String(event).toUpperCase();
     let status = "PENDING";
-    if (event === "APPROVED") {
+    if (eventUpper === "APPROVED") {
       status = "APPROVED";
-    } else if (event === "REJECTED") {
+    } else if (eventUpper === "REJECTED") {
       status = "REJECTED";
+    } else if (eventUpper === "PAUSED") {
+      status = "PAUSED";
+    } else if (eventUpper === "DISABLED") {
+      status = "DISABLED";
     }
 
     let targetChannelId: string | null = null;
@@ -1598,14 +1603,13 @@ async function handleTemplateStatusUpdate(value: any, wabaId?: string) {
       const templatesResult = await storage.getTemplates(1, 10000);
       const templatesList = Array.isArray(templatesResult) ? templatesResult : (templatesResult?.data || []);
       template = templatesList.find(
-        (t: any) => String(t.whatsappTemplateId) === String(message_template_id) &&
-          (!targetChannelId || t.channelId === targetChannelId)
+        (t: any) => String(t.whatsappTemplateId) === String(message_template_id)
       );
     }
 
     if (template) {
       const updateData: any = { status };
-      if (event === "REJECTED" && reason) {
+      if (eventUpper === "REJECTED" && reason) {
         updateData.rejectionReason = reason;
       }
       await storage.updateTemplate(template.id, updateData);

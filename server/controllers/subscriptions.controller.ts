@@ -124,6 +124,23 @@ export const getSubscriptionById = async (req: Request, res: Response) => {
   }
 };
 
+const mergePlanDataWithLatestPlan = (subscription: any, plan: any) => {
+  if (!plan) return subscription;
+  return {
+    ...subscription,
+    planData: {
+      ...(subscription.planData || {}),
+      name: plan.name,
+      description: plan.description,
+      price: plan.price,
+      permissions: {
+        ...((subscription.planData || {}).permissions || {}),
+        ...(plan.permissions || {}),
+      }
+    }
+  };
+};
+
 export const getSubscriptionsByUserId = async (
   req: Request,
   res: Response
@@ -138,9 +155,11 @@ export const getSubscriptionsByUserId = async (
           id: users.id,
           username: users.username,
         },
+        plan: plans,
       })
       .from(subscriptions)
       .leftJoin(users, eq(subscriptions.userId, users.id))
+      .leftJoin(plans, eq(subscriptions.planId, plans.id))
       .where(
         and(
           eq(subscriptions.userId, userId),
@@ -149,7 +168,12 @@ export const getSubscriptionsByUserId = async (
       )
       .orderBy(desc(subscriptions.createdAt));
 
-    res.status(200).json({ success: true, data: userSubscriptions });
+    const mapped = userSubscriptions.map((item) => ({
+      subscription: mergePlanDataWithLatestPlan(item.subscription, item.plan),
+      user: item.user,
+    }));
+
+    res.status(200).json({ success: true, data: mapped });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -187,7 +211,18 @@ export const getActiveSubscriptionByUserId = async (
         .json({ success: false, message: "No active subscription found" });
     }
 
-    res.status(200).json({ success: true, data: activeSubscription[0] });
+    const mergedSubscription = mergePlanDataWithLatestPlan(
+      activeSubscription[0].subscription,
+      activeSubscription[0].plan
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        subscription: mergedSubscription,
+        plan: activeSubscription[0].plan,
+      },
+    });
   } catch (error) {
     res.status(500).json({
       success: false,

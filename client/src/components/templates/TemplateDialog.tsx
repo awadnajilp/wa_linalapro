@@ -372,6 +372,11 @@ const UTILITY_SAMPLES = [
     body: "Hello {{1}}, following your recent interaction on transaction {{2}}, we would like to confirm your service experience. Please reply with your rating.\n\nRef: {{3}}",
     samples: ["Sarah", "TX-8829", "SRV-28371"],
   },
+  {
+    title: "Service / Product Proposal",
+    body: "Dear {{1}}, this is an update regarding your catalog query for {{2}}. We have prepared your custom proposal details. Please contact our representative to proceed.\n\nRef: {{3}}",
+    samples: ["Alex", "Enterprise Suite", "PRP-928374"],
+  },
 ];
 
 export function TemplateDialog({

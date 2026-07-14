@@ -348,24 +348,29 @@ function LanguageSearch({
 
 const UTILITY_SAMPLES = [
   {
-    title: "Order Confirmation",
-    body: "Hi {{1}}, your order #{{2}} of {{3}} has been confirmed! We will update you once it ships. Thanks for shopping with us!\n\nRef: {{4}}",
-    samples: ["John Doe", "10283", "Premium Cotton Tee", "REF-82734"],
+    title: "Admission Announcement",
+    body: "Dear {{1}}, this is an update regarding your admission query for batch {{2}}. Registration has officially started. Please contact our support team to secure your seat.\n\nRef: {{3}}",
+    samples: ["John Doe", "2026-27", "ADM-827391"],
   },
   {
-    title: "Appointment Reminder",
-    body: "Hello {{1}}, this is a reminder for your upcoming appointment with {{2}} scheduled on {{3}} at {{4}}.\n\nRef: {{5}}",
-    samples: ["Sarah Smith", "Dr. Green", "2026-07-20", "10:30 AM", "REF-98712"],
+    title: "Abandoned Cart Recovery",
+    body: "Dear {{1}}, this is a status update on your checkout session {{2}}. The items you selected are reserved. Please visit your cart to finalize your order request.\n\nRef: {{3}}",
+    samples: ["Alice", "CS-9284", "CRT-18274"],
   },
   {
-    title: "Account Security OTP",
-    body: "Your verification code is {{1}}. This code will expire in {{2}} minutes. Please do not share this OTP with anyone.\n\nRef: {{3}}",
-    samples: ["829401", "10", "REF-34821"],
+    title: "Webinar / Event Booking",
+    body: "Hello {{1}}, this is a reservation status update for ticket {{2}} regarding the upcoming workshop scheduled on {{3}}. We look forward to your attendance.\n\nRef: {{4}}",
+    samples: ["John", "TK-902", "July 20th at 10 AM", "EVT-73821"],
   },
   {
-    title: "Transaction Update",
-    body: "Dear {{1}}, your account has been credited with {{2}} for reference {{3}}. Current balance is {{4}}.\n\nRef: {{5}}",
-    samples: ["Alice", "$150.00", "Refund #99", "$1250.40", "REF-47291"],
+    title: "Membership / Renewal Notice",
+    body: "Dear {{1}}, your membership for account {{2}} is due for renewal on {{3}}. To avoid service interruption, please update your billing details.\n\nRef: {{4}}",
+    samples: ["Bob", "MEMB-823", "2026-08-01", "REN-38291"],
+  },
+  {
+    title: "Service Feedback Request",
+    body: "Hello {{1}}, following your recent interaction on transaction {{2}}, we would like to confirm your service experience. Please reply with your rating.\n\nRef: {{3}}",
+    samples: ["Sarah", "TX-8829", "SRV-28371"],
   },
 ];
 

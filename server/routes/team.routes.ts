@@ -80,8 +80,11 @@ const createUserSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().optional(),
+  phoneNumber: z.string().optional(),
   role: z.enum(["team"]),
   channelId: z.string().optional(),
+  showOnlyAssigned: z.boolean().optional(),
+  isAdminMember: z.boolean().optional(),
   permissions: z
     .union([z.array(z.string()), z.record(z.boolean())])
     .optional()
@@ -221,6 +224,7 @@ router.get(
           email: users.email,
           firstName: users.firstName,
           lastName: users.lastName,
+          phoneNumber: users.phoneNumber,
           role: users.role,
           status: users.status,
           permissions: users.permissions,
@@ -230,6 +234,8 @@ router.get(
           updatedAt: users.updatedAt,
           createdBy: users.createdBy,
           channelId: users.channelId,
+          showOnlyAssigned: users.showOnlyAssigned,
+          isAdminMember: users.isAdminMember,
         })
         .from(users)
         .where(
@@ -303,6 +309,7 @@ router.post("/membersByUserId", requireAuth, requirePermission(PERMISSIONS.TEAM_
         email: users.email,
         firstName: users.firstName,
         lastName: users.lastName,
+        phoneNumber: users.phoneNumber,
         role: users.role,
         status: users.status,
         permissions: users.permissions,
@@ -311,6 +318,9 @@ router.post("/membersByUserId", requireAuth, requirePermission(PERMISSIONS.TEAM_
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
         createdBy: users.createdBy,
+        channelId: users.channelId,
+        showOnlyAssigned: users.showOnlyAssigned,
+        isAdminMember: users.isAdminMember,
       })
       .from(users)
       .where(eq(users.createdBy, userId))
@@ -366,10 +376,13 @@ requirePermission(PERMISSIONS.TEAM_CREATE), validateRequest(createUserSchema), a
       password,
       firstName,
       lastName,
+      phoneNumber,
       role,
       permissions,
       avatar,
       channelId,
+      showOnlyAssigned,
+      isAdminMember,
     } = req.body;
 
     if (channelId) {
@@ -405,6 +418,7 @@ requirePermission(PERMISSIONS.TEAM_CREATE), validateRequest(createUserSchema), a
         email,
         firstName,
         lastName,
+        phoneNumber: phoneNumber || null,
         role:'team',
         permissions,
         avatar: avatar || null,
@@ -412,6 +426,8 @@ requirePermission(PERMISSIONS.TEAM_CREATE), validateRequest(createUserSchema), a
         isEmailVerified: true,
         createdBy: (req.user as { id: string }).id,
         channelId: channelId || null,
+        showOnlyAssigned: showOnlyAssigned ?? false,
+        isAdminMember: isAdminMember ?? false,
       })
       .returning();
 
@@ -440,7 +456,7 @@ router.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { channelId, ...otherUpdates } = req.body;
+      const { channelId, showOnlyAssigned, isAdminMember, ...otherUpdates } = req.body;
       const loggedInUser = req.user as any;
 
       const [existingMember] = await db.select().from(users).where(eq(users.id, id));
@@ -473,6 +489,8 @@ router.put(
         .set({
           ...otherUpdates,
           ...(channelId !== undefined ? { channelId: channelId || null } : {}),
+          ...(showOnlyAssigned !== undefined ? { showOnlyAssigned } : {}),
+          ...(isAdminMember !== undefined ? { isAdminMember } : {}),
           updatedAt: new Date(),
         })
         .where(eq(users.id, id))

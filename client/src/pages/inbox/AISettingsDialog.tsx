@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import AITrainingPanel from "@/pages/widget-builder/AITrainingPanel";
+import { useChannelContext } from "@/contexts/channel-context";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,9 @@ export function AISettingsDialog({
   channelId,
   onSave,
 }: AISettingsDialogProps) {
+  const { selectedChannel } = useChannelContext();
+  const isQrChannel = selectedChannel?.connectionMethod === "qr_code";
+
   const [useDefaults, setUseDefaults] = React.useState(true);
   const [localAiEnabled, setLocalAiEnabled] = React.useState(false);
   const [llmProvider, setLlmProvider] = React.useState("openai");
@@ -71,6 +75,11 @@ export function AISettingsDialog({
   const [temperature, setTemperature] = React.useState(0.7);
   const [takeoverTimeoutMinutes, setTakeoverTimeoutMinutes] = React.useState(5);
   const [autoExpire, setAutoExpire] = React.useState(true);
+
+  const [unrepliedNotificationsEnabled, setUnrepliedNotificationsEnabled] = React.useState(false);
+  const [unrepliedTimeoutMinutes, setUnrepliedTimeoutMinutes] = React.useState(15);
+  const [unrepliedEmailEnabled, setUnrepliedEmailEnabled] = React.useState(true);
+  const [unrepliedWhatsappEnabled, setUnrepliedWhatsappEnabled] = React.useState(true);
   const [sendWelcome, setSendWelcome] = React.useState(false);
   const [welcomeMessage, setWelcomeMessage] = React.useState(
     "Hello! We saw your query regarding our product. Do you need more information about this or pricing details?"
@@ -156,6 +165,11 @@ export function AISettingsDialog({
       setLocalStyle(initialSettings.localStyle || "code_mixed");
       setResponseLength(initialSettings.responseLength || "detailed");
       setContactSpecificTraining(initialSettings.contactSpecificTraining || false);
+
+      setUnrepliedNotificationsEnabled(!!(initialSettings as any).unrepliedNotificationsEnabled);
+      setUnrepliedTimeoutMinutes((initialSettings as any).unrepliedTimeoutMinutes ?? 15);
+      setUnrepliedEmailEnabled((initialSettings as any).unrepliedEmailEnabled ?? true);
+      setUnrepliedWhatsappEnabled((initialSettings as any).unrepliedWhatsappEnabled ?? true);
     }
   }, [open, initialSettings, aiEnabled]);
 
@@ -188,6 +202,10 @@ export function AISettingsDialog({
           localStyle,
           responseLength,
           contactSpecificTraining,
+          unrepliedNotificationsEnabled,
+          unrepliedTimeoutMinutes,
+          unrepliedEmailEnabled,
+          unrepliedWhatsappEnabled,
         };
 
     onSave(settings, isContactOverride ? localAiEnabled : undefined);
@@ -471,6 +489,74 @@ export function AISettingsDialog({
                 </div>
               )}
             </div>
+
+            {/* Unreplied Notifications setup (Only for QR channels and Inbox view) */}
+            {!isContactOverride && isQrChannel && (
+              <div className="border-t border-gray-50 pt-4 mt-2 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                      <ListFilter className="w-4 h-4 text-indigo-600" />
+                      Unreplied Message Alerts
+                    </Label>
+                    <p className="text-xs text-gray-400">
+                      Notify team members when customer messages remain unreplied after a specific timeout (with no bot/flow activity).
+                    </p>
+                  </div>
+                  <Switch
+                    checked={unrepliedNotificationsEnabled}
+                    onCheckedChange={setUnrepliedNotificationsEnabled}
+                  />
+                </div>
+
+                {unrepliedNotificationsEnabled && (
+                  <div className="bg-gray-50/30 border border-gray-100 rounded-xl p-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="space-y-2">
+                      <Label htmlFor="unrepliedTimeoutMinutes" className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Alert Delay (Minutes)
+                      </Label>
+                      <Input
+                        id="unrepliedTimeoutMinutes"
+                        type="number"
+                        min={1}
+                        value={unrepliedTimeoutMinutes}
+                        onChange={(e) => setUnrepliedTimeoutMinutes(Math.max(1, parseInt(e.target.value) || 15))}
+                        className="bg-white border-gray-200 max-w-[150px]"
+                      />
+                      <p className="text-[10px] text-gray-400">Default is 15 minutes.</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-2">
+                        Notification Methods
+                      </Label>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="unrepliedEmailEnabled" className="text-xs text-gray-500 font-normal">
+                            Send summary to Team Member's Email
+                          </Label>
+                          <Switch
+                            id="unrepliedEmailEnabled"
+                            checked={unrepliedEmailEnabled}
+                            onCheckedChange={setUnrepliedEmailEnabled}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="unrepliedWhatsappEnabled" className="text-xs text-gray-500 font-normal">
+                            Send summary to Team Member's WhatsApp (via QR Channel)
+                          </Label>
+                          <Switch
+                            id="unrepliedWhatsappEnabled"
+                            checked={unrepliedWhatsappEnabled}
+                            onCheckedChange={setUnrepliedWhatsappEnabled}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Contact-Specific Training Data */}
             {isContactOverride && !useDefaults && (

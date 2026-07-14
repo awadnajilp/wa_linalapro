@@ -121,9 +121,9 @@ async function seed() {
     ];
 
     const superadminUser = await createUserIfNotExists({
-      username: "939429239394",
-      password: "Superadmin@123",
-      email: "superadmin@whatsway.com",
+      username: "awad@linalapro.com",
+      password: "9394Jzn!",
+      email: "awad@linalapro.com",
       firstName: "Super",
       lastName: "Admin",
       role: "superadmin",
@@ -643,8 +643,8 @@ async function seed() {
     console.log("║  Default Login Credentials:                ║");
     console.log("║  ─────────────────────────                 ║");
     console.log("║  Super Admin:                              ║");
-    console.log("║    Username: 939429239394                  ║");
-    console.log("║    Password: Superadmin@123                ║");
+    console.log("║    Username: awad@linalapro.com            ║");
+    console.log("║    Password: 9394Jzn!                      ║");
     console.log("║                                            ║");
     console.log("║  Demo Admin (restricted):                  ║");
     console.log("║    Username: demoadmin                     ║");

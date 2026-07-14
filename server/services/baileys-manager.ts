@@ -60,7 +60,8 @@ export class BaileysManager {
         syncFullHistory: false,
         defaultQueryTimeoutMs: 60000,
         connectTimeoutMs: 60000,
-        keepAliveIntervalMs: 30000
+        keepAliveIntervalMs: 30000,
+        generateHighQualityLinkPreview: true
       });
 
       this.activeSockets.set(channelId, sock);
@@ -839,6 +840,15 @@ export class BaileysManager {
     const options: any = {};
     if (replyToWaId) {
       options.quoted = { key: { id: replyToWaId, remoteJid: jid } };
+    }
+
+    const finalUrlCheck = media.url;
+    const isYoutube = finalUrlCheck && (finalUrlCheck.includes('youtube.com') || finalUrlCheck.includes('youtu.be') || finalUrlCheck.includes('youtube-nocookie.com'));
+
+    if (isYoutube) {
+      const textMessage = caption ? `${caption}\n\n${finalUrlCheck}` : finalUrlCheck;
+      console.log(`[YouTube Link] Intercepted YouTube link in Baileys sendMediaMessage. Sending as text message: ${finalUrlCheck}`);
+      return this.sendMessage(channelId, to, textMessage, replyToWaId);
     }
 
     const mime = media.mimeType || "";

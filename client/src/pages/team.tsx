@@ -92,10 +92,13 @@ interface TeamMemberFormData {
   lastName: string;
   email: string;
   username: string;
+  phoneNumber?: string;
   password?: string;
   role: "team";
   permissions: string[];
   channelId?: string;
+  showOnlyAssigned?: boolean;
+  isAdminMember?: boolean;
 }
 
 type TeamMemberFormState = {
@@ -103,10 +106,13 @@ type TeamMemberFormState = {
   lastName: string;
   email: string;
   username: string;
+  phoneNumber?: string;
   password?: string;
   role: "team";
   permissions: Record<string, boolean>;
   channelId?: string;
+  showOnlyAssigned: boolean;
+  isAdminMember: boolean;
 };
 
 const fetchTeamMembers = async (page: number = 1, limit: number = 10, search: string = "", channelId?: string) => {
@@ -1151,12 +1157,15 @@ function TeamMemberDialog({
     lastName: member?.lastName || "",
     email: member?.email || "",
     username: member?.username || "",
+    phoneNumber: (member as any)?.phoneNumber || "",
     password: "",
     role: (member?.role as "team") || "team",
     permissions: member?.permissions
       ? mapApiPermissionsToForm(member.permissions as string[])
       : {},
     channelId: (member as any)?.channelId || channelId || "",
+    showOnlyAssigned: !!(member as any)?.showOnlyAssigned,
+    isAdminMember: !!(member as any)?.isAdminMember,
   });
 
   const [expandedSections, setExpandedSections] = useState<
@@ -1174,12 +1183,15 @@ function TeamMemberDialog({
       lastName: member?.lastName || "",
       email: member?.email || "",
       username: member?.username || "",
+      phoneNumber: (member as any)?.phoneNumber || "",
       password: "",
       role: (member?.role as "team") || "team",
       permissions: member?.permissions
         ? mapApiPermissionsToForm(member.permissions as string[])
         : {},
       channelId: (member as any)?.channelId || channelId || "",
+      showOnlyAssigned: !!(member as any)?.showOnlyAssigned,
+      isAdminMember: !!(member as any)?.isAdminMember,
     });
   }, [member, channelId]);
 
@@ -1190,6 +1202,9 @@ function TeamMemberDialog({
       ...formData,
       permissions: mapFormPermissionsToApi(formData.permissions),
       channelId: formData.channelId || undefined,
+      showOnlyAssigned: formData.showOnlyAssigned,
+      isAdminMember: formData.isAdminMember,
+      phoneNumber: formData.phoneNumber || undefined,
     };
 
     onSave(payload);
@@ -1409,6 +1424,17 @@ function TeamMemberDialog({
                   required
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="phoneNumber">WhatsApp Number</Label>
+                <Input
+                  id="phoneNumber"
+                  placeholder="e.g. 918086563491"
+                  value={formData.phoneNumber || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, phoneNumber: e.target.value })
+                  }
+                />
+              </div>
               {!member && (
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
@@ -1423,7 +1449,8 @@ function TeamMemberDialog({
                   />
                 </div>
               )}
-              {/* <div className="space-y-2">
+            </div>
+            {/* <div className="space-y-2">
                 <Label htmlFor="role">Role</Label>
                 <Select
                   value={formData.role}
@@ -1444,6 +1471,35 @@ function TeamMemberDialog({
                   </SelectContent>
                 </Select>
               </div> */}
+
+
+            {/* Inbox & Channel Access Settings */}
+            <div className="space-y-3 pt-2 border-t">
+              <Label className="text-sm font-semibold">Inbox & Channel Access Settings</Label>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="showOnlyAssigned"
+                  checked={formData.showOnlyAssigned}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, showOnlyAssigned: !!checked })
+                  }
+                />
+                <Label htmlFor="showOnlyAssigned" className="text-xs font-normal cursor-pointer">
+                  Restrict this team member to only see conversations assigned to them in the inbox (via flow builder assignment or manually assigned).
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isAdminMember"
+                  checked={formData.isAdminMember}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, isAdminMember: !!checked })
+                  }
+                />
+                <Label htmlFor="isAdminMember" className="text-xs font-normal cursor-pointer">
+                  Admin Member (If checked, they can switch between all channels. If unchecked, they are locked to their assigned channel).
+                </Label>
+              </div>
             </div>
 
             {/* Dynamic Permissions Section */}

@@ -18,6 +18,7 @@
 import type { Express } from "express";
 import { handleDigitalOceanUpload, upload } from "../middlewares/upload.middleware";
 import crypto from "crypto";
+import fs from "fs";
 
 export function registerMediaRoutes(app: Express) {
   // General media upload
@@ -26,6 +27,30 @@ export function registerMediaRoutes(app: Express) {
     if (!file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
+
+    // Check WhatsApp media upload limits
+    const maxSizes: Record<string, number> = {
+      image: 5 * 1024 * 1024,      // 5MB
+      video: 16 * 1024 * 1024,     // 16MB
+      audio: 16 * 1024 * 1024,     // 16MB
+      document: 100 * 1024 * 1024, // 100MB
+    };
+    let mediaType = "document";
+    if (file.mimetype.startsWith("image/")) {
+      mediaType = "image";
+    } else if (file.mimetype.startsWith("video/")) {
+      mediaType = "video";
+    } else if (file.mimetype.startsWith("audio/")) {
+      mediaType = "audio";
+    }
+    const maxSize = maxSizes[mediaType];
+    if (file.size > maxSize) {
+      if (fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
+      return res.status(400).json({ message: `File too large. Max ${Math.round(maxSize / 1024 / 1024)}MB for ${mediaType}` });
+    }
+
     const relativePath = file.path.replace(/\\/g, "/").replace(/^uploads\//, "");
     const fileUrl = file.cloudUrl || `/uploads/${relativePath}`;
     res.json({

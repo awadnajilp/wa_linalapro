@@ -109,6 +109,8 @@ export interface BuilderNodeData {
   aiIntroEnabled?: boolean;
   aiIntroMessage?: string;
   aiIntroType?: "text" | "voice";
+  timeLimitHours?: number;
+  questionLimit?: number;
   [key: string]: unknown;
 }
 

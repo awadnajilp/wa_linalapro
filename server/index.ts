@@ -43,6 +43,7 @@ import { fetchConversationList } from "./controllers/conversations.controller";
 import { startScheduledCampaignCron } from "./cron/scheduledCampaigns.cron";
 import { startWhatsAppWarmerCron } from "./cron/whatsapp-warmer.cron";
 import { startCampaignExecution } from "./controllers/campaigns.controller";
+import { startUnrepliedAlertService } from "./services/unreplied-alert-service";
 import { BaileysManager } from "./services/baileys-manager";
 import { subscribeChannelToWebhook } from "./controllers/channels.controller";
 import { db } from "./db";
@@ -481,6 +482,21 @@ socket.on('leave_conversation', ({ conversationId, userId }) => {
   return room && room.size > 0;
 };
 
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow native apps (no origin header)
+    if (!origin) return callback(null, true);
+    // Allow localhost testing origins and linalapro domains
+    if (origin.startsWith("http://localhost:") || origin.includes("linalapro.com") || origin.startsWith("http://127.0.0.1:")) {
+      return callback(null, true);
+    }
+    callback(null, true);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", DIPLOY_HEADER_KEY, "x-session-id", "x-channel-id"]
+}));
+
 app.use((_req, res, next) => {
   res.setHeader(DIPLOY_HEADER_KEY, DIPLOY_HEADER_VALUE);
   next();
@@ -527,7 +543,15 @@ app.get("/api/agents/online", (req, res) => {
 
 initializeUploadsDirectory();
 
-// console.log("ENV::", process.env.NODE_ENV ,process.env.FORCE_HTTPS);
+// Custom header-to-cookie middleware to support cross-origin mobile app sessions
+app.use((req, res, next) => {
+  const sessionId = req.headers["x-session-id"];
+  if (sessionId) {
+    req.headers.cookie = `connect.sid=${sessionId}`;
+  }
+  next();
+});
+
 // Set up session management
 const PostgresSessionStore = connectPgSimple(session);
 app.use(
@@ -764,6 +788,7 @@ app.use((req, res, next) => {
 
       startScheduledCampaignCron();
       startWhatsAppWarmerCron();
+      startUnrepliedAlertService();
 
       const messageStatusUpdater = new MessageStatusUpdater();
       messageStatusUpdater.startCronJob(60);

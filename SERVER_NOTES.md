@@ -14,8 +14,8 @@
 - Web Server: Nginx (Proxying port 80 to 5005)
 
 ## Super Admin
-- Username: superadmin
-- Password: Superadmin@123
+- Username: awad@linalapro.com
+- Password: 9394Jzn!
 
 ## Notes for Future Agents
 - Use this directory for modifications related to wa.linalapro.com.

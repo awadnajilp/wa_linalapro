@@ -393,6 +393,54 @@ export async function sendOTPEmailVerify(
   }
 }
 
+export async function sendUnrepliedAlertEmail(
+  toEmail: string,
+  memberName: string,
+  unrepliedCount: number,
+  contactsList: string[]
+) {
+  const config = await getConfig();
+  const configs = await getPanelConfig();
+  const mailer = await getTransporter();
+
+  const companyName = configs?.name || "LINALA";
+  const fromName = config?.fromName || companyName;
+  const fromEmail = config?.fromEmail || "noreply@linalapro.com";
+
+  const contactsHtml = contactsList.map(c => `<li>${c}</li>`).join("");
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+      <h2 style="color: #4f46e5; margin-bottom: 20px;">Unreplied Messages Alert</h2>
+      <p>Hello <strong>${memberName}</strong>,</p>
+      <p>This is a summary of customer messages that have been waiting for a reply for more than 15 minutes with no reply or automated bot/flow activity:</p>
+      <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin: 20px 0;">
+        <span style="font-size: 24px; font-weight: bold; color: #1f2937;">${unrepliedCount}</span> pending unreplied messages.
+      </div>
+      <p><strong>Pending Contacts:</strong></p>
+      <ul style="padding-left: 20px; color: #374151;">
+        ${contactsHtml}
+      </ul>
+      <p style="margin-top: 30px; font-size: 12px; color: #9ca3af;">Please log in to your dashboard to reply to these messages.</p>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: `"${fromName}" <${fromEmail}>`,
+    to: toEmail,
+    subject: `[ALERT] ${unrepliedCount} Unreplied Messages waiting in your Inbox`,
+    html,
+  };
+
+  try {
+    const info = await mailer.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error("[Email] Failed to send unreplied alert email:", error);
+    return { success: false, error };
+  }
+}
+
 export async function verifyEmailConfiguration(): Promise<boolean> {
   try {
     const mailer = await getTransporter();

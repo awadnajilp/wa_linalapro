@@ -78,6 +78,7 @@ interface ContactsTableProps {
   goToNextPage: () => void;
   getPageNumbers: () => number[];
   goToPage: (page: number) => void;
+  tagsColorMap?: Record<string, string>;
 }
 
 export function ContactsTable({
@@ -113,6 +114,7 @@ export function ContactsTable({
   goToNextPage,
   getPageNumbers,
   goToPage,
+  tagsColorMap = {},
 }: ContactsTableProps) {
   const { t } = useTranslation();
 
@@ -253,13 +255,13 @@ export function ContactsTable({
                           : contact.phone}
                       </td>
                       <td className="px-3 lg:px-6 py-3 lg:py-4 hidden lg:table-cell">
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1 items-center">
+                          {/* Render Groups */}
                           {Array.isArray(contact.groups) &&
-                          contact.groups.length > 0 ? (
                             contact.groups.map(
                               (group: string, index: number) => (
                                 <Badge
-                                  key={index}
+                                  key={`group-${index}`}
                                   variant="secondary"
                                   className="text-xs"
                                 >
@@ -267,9 +269,29 @@ export function ContactsTable({
                                 </Badge>
                               )
                             )
-                          ) : (
+                          }
+                          {/* Render Tags */}
+                          {Array.isArray((contact as any).tags) &&
+                            (contact as any).tags.map((tag: string, index: number) => {
+                              const tagColor = tagsColorMap?.[tag] || "#6b7280";
+                              return (
+                                <span
+                                  key={`tag-${index}`}
+                                  className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                  style={{
+                                    backgroundColor: `${tagColor}20`,
+                                    color: tagColor,
+                                    border: `1px solid ${tagColor}40`,
+                                  }}
+                                >
+                                  {tag}
+                                </span>
+                              );
+                            })
+                          }
+                          {(!contact.groups || contact.groups.length === 0) && (!(contact as any).tags || (contact as any).tags.length === 0) && (
                             <span className="text-xs text-gray-400">
-                              {t("contacts.noGroups")}
+                              -
                             </span>
                           )}
                         </div>
@@ -497,15 +519,15 @@ export function ContactsTable({
                     </div>
                     <div className="flex justify-between items-start">
                       <span className="text-gray-500 font-medium text-xs">
-                        Groups:
+                        Groups / Labels:
                       </span>
                       <div className="flex flex-wrap gap-1 justify-end max-w-[60%]">
+                        {/* Render Groups */}
                         {Array.isArray(contact.groups) &&
-                        contact.groups.length > 0 ? (
                           contact.groups.map(
                             (group: string, index: number) => (
                               <Badge
-                                key={index}
+                                key={`group-${index}`}
                                 variant="secondary"
                                 className="text-xs"
                               >
@@ -513,11 +535,31 @@ export function ContactsTable({
                               </Badge>
                             )
                           )
-                        ) : (
-                          <span className="text-xs text-gray-400">
-                            {t("contacts.noGroups")}
-                          </span>
-                        )}
+                        }
+                        {/* Render Tags */}
+                        {Array.isArray((contact as any).tags) &&
+                          (contact as any).tags.map((tag: string, index: number) => {
+                            const tagColor = tagsColorMap?.[tag] || "#6b7280";
+                            return (
+                              <span
+                                key={`tag-${index}`}
+                                className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                style={{
+                                  backgroundColor: `${tagColor}20`,
+                                  color: tagColor,
+                                  border: `1px solid ${tagColor}40`,
+                                }}
+                              >
+                                  {tag}
+                                </span>
+                              );
+                            })
+                          }
+                          {(!contact.groups || contact.groups.length === 0) && (!(contact as any).tags || (contact as any).tags.length === 0) && (
+                            <span className="text-xs text-gray-400">
+                              -
+                            </span>
+                          )}
                       </div>
                     </div>
                     <div className="flex justify-between items-center">

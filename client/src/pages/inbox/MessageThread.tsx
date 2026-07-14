@@ -15,6 +15,11 @@
  * ============================================================
  */
 
+import React, { useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Tag as TagIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +52,7 @@ import {
   Zap,
   Brain,
   Settings2,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { normalizeDate } from "./utils";
@@ -126,6 +132,159 @@ const TeamAssignDropdown = ({
   );
 };
 
+const ConversationTagsDropdown = ({
+  conversationTags = [],
+  channelTags = [],
+  onUpdateTags,
+  onCreateTag,
+  channelId,
+}: {
+  conversationTags: string[];
+  channelTags: any[];
+  onUpdateTags: (tags: string[]) => Promise<void>;
+  onCreateTag: (name: string, color: string) => Promise<void>;
+  channelId: string;
+}) => {
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState("#3b82f6"); // Default blue
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleToggleTag = async (tagName: string) => {
+    const isAssigned = conversationTags.includes(tagName);
+    const newTags = isAssigned
+      ? conversationTags.filter(t => t !== tagName)
+      : [...conversationTags, tagName];
+    await onUpdateTags(newTags);
+  };
+
+  const handleCreateTagSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTagName.trim()) return;
+    try {
+      await onCreateTag(newTagName.trim(), newTagColor);
+      await onUpdateTags([...conversationTags, newTagName.trim()]);
+      setNewTagName("");
+      setIsCreating(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const colors = [
+    "#3b82f6", // Blue
+    "#ef4444", // Red
+    "#10b981", // Emerald
+    "#f59e0b", // Amber
+    "#8b5cf6", // Violet
+    "#ec4899", // Pink
+    "#06b6d4", // Cyan
+    "#14b8a6", // Teal
+    "#f97316", // Orange
+    "#6b7280", // Gray
+  ];
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5 px-2.5">
+          <TagIcon className="w-4 h-4 text-gray-500" />
+          <span className="hidden sm:inline">Tags</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-gray-700">Tags / Labels</span>
+          {!isCreating && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsCreating(true)}
+              className="h-6 px-1.5 text-xs text-indigo-600 gap-0.5 hover:text-indigo-700 hover:bg-indigo-50"
+            >
+              <Plus className="w-3 h-3" /> Add New
+            </Button>
+          )}
+        </div>
+
+        {isCreating ? (
+          <form onSubmit={handleCreateTagSubmit} className="space-y-3 pt-1 border-t border-gray-100">
+            <div>
+              <Label className="text-[10px] text-gray-500 font-medium">Tag Name</Label>
+              <Input
+                size={8}
+                value={newTagName}
+                onChange={e => setNewTagName(e.target.value)}
+                placeholder="e.g. VIP Customer"
+                className="h-8 text-xs mt-0.5"
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-gray-500 font-medium mb-1 block">Tag Color</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {colors.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setNewTagColor(c)}
+                    className="w-5 h-5 rounded-full border border-gray-200 flex items-center justify-center relative flex-shrink-0"
+                    style={{ backgroundColor: c }}
+                  >
+                    {newTagColor === c && (
+                      <Check className="w-3 h-3 text-white absolute" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-1.5 pt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs px-2.5"
+                onClick={() => setIsCreating(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 px-2.5 text-white">
+                Create
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {(!channelTags || channelTags.length === 0) ? (
+              <p className="text-xs text-gray-400 text-center py-3">No tags created yet</p>
+            ) : (
+              (channelTags || []).map((tag: any) => {
+                const isAssigned = conversationTags.includes(tag.name);
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    onClick={() => handleToggleTag(tag.name)}
+                    className={cn(
+                      "w-full flex items-center justify-between px-2 py-1.5 rounded text-xs text-left hover:bg-gray-50 transition-colors",
+                      isAssigned ? "bg-indigo-50/40 text-indigo-900" : "text-gray-700"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                      <span>{tag.name}</span>
+                    </div>
+                    {isAssigned && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 interface MessageThreadProps {
   selectedConversation: Conversation;
   messages: Message[];
@@ -161,7 +320,11 @@ interface MessageThreadProps {
   onOpenContactAiSettings: () => void;
   aiEnabled: boolean;
   onToggleAi: (enabled: boolean) => void;
-  }
+  channelTags?: any[];
+  onUpdateConversationTags?: (tags: string[]) => Promise<void>;
+  onCreateTag?: (name: string, color: string) => Promise<void>;
+  tagsColorMap?: Record<string, string>;
+}
 
   const MessageThread = ({
   selectedConversation,
@@ -198,7 +361,11 @@ interface MessageThreadProps {
   onOpenContactAiSettings,
   aiEnabled,
   onToggleAi,
-  }: MessageThreadProps) => {
+  channelTags = [],
+  onUpdateConversationTags,
+  onCreateTag,
+  tagsColorMap = {},
+}: MessageThreadProps) => {
   const demo = isDemoUser(user?.username);
   const { toast } = useToast();
 
@@ -313,12 +480,31 @@ interface MessageThreadProps {
               <p className="text-[13px] text-gray-500 mt-0.5 truncate">
                 {headerPhoneDisplay}
               </p>
+              {selectedConversation.tags && Array.isArray(selectedConversation.tags) && selectedConversation.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {selectedConversation.tags.map((tag: string) => {
+                    const tagColor = tagsColorMap?.[tag] || "#6b7280";
+                    return (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                        style={{
+                          backgroundColor: `${tagColor}20`,
+                          color: tagColor,
+                          border: `1px solid ${tagColor}40`,
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
           <div className="flex items-center gap-1.5">
-            {!demo &&
-              (
+            {!demo && (
               <TeamAssignDropdown
                 conversationId={selectedConversation.id}
                 currentAssignee={
@@ -328,7 +514,18 @@ interface MessageThreadProps {
                   selectedConversation?.assignedToName || undefined
                 }
                 onAssign={onAssignConversation}
-              /> )}
+              />
+            )}
+
+            {onUpdateConversationTags && onCreateTag && (
+              <ConversationTagsDropdown
+                conversationTags={selectedConversation.tags || []}
+                channelTags={channelTags}
+                onUpdateTags={onUpdateConversationTags}
+                onCreateTag={onCreateTag}
+                channelId={selectedConversation.channelId}
+              />
+            )}
 
             <Button
               variant={aiEnabled ? "default" : "outline"}

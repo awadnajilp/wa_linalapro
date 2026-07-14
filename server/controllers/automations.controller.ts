@@ -93,6 +93,23 @@ export const toggleAutomation = asyncHandler(async (req: Request, res: Response)
     status: !automation.status ? 'active' : 'inactive'
   });
   
+  if (updated.status === 'inactive') {
+    await db.update(automationExecutions)
+      .set({ 
+        status: 'failed', 
+        result: 'Automation flow disabled by user' 
+      })
+      .where(
+        and(
+          eq(automationExecutions.automationId, id),
+          or(
+            eq(automationExecutions.status, 'paused'),
+            eq(automationExecutions.status, 'running')
+          )
+        )
+      );
+  }
+  
   res.json(updated);
 });
 

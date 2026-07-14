@@ -31,7 +31,15 @@ export async function requireActiveChannel(
   next: NextFunction
 ) {
   try {
-    const activeChannel = await storage.getActiveChannel();
+    let activeChannel = await storage.getActiveChannel();
+
+    const user = (req as any).session?.user;
+    if (user && user.role === 'team' && !user.isAdminMember) {
+      if (user.channelId) {
+        activeChannel = await storage.getChannel(user.channelId);
+      }
+    }
+
     if (!activeChannel) {
       throw new AppError(400, 'No active channel found. Please configure a channel first.');
     }
@@ -49,14 +57,21 @@ export async function extractChannelId(
   next: NextFunction
 ) {
   try {
-    // Check query parameter first
-    let channelId = req.query.channelId as string | undefined;
+    // Check query parameter or header first
+    let channelId = (req.query.channelId as string) || (req.headers["x-channel-id"] as string | undefined);
     
-    // If not in query, check if we need to get active channel
+    // If not in query/header, check if we need to get active channel
     if (!channelId) {
       const activeChannel = await storage.getActiveChannel();
       if (activeChannel) {
         channelId = activeChannel.id;
+      }
+    }
+
+    const user = (req as any).session?.user;
+    if (user && user.role === 'team' && !user.isAdminMember) {
+      if (user.channelId) {
+        channelId = user.channelId;
       }
     }
     

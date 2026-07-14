@@ -158,6 +158,34 @@ export function CreateCampaignForm({
   });
 
   const handleFileChange = async (file: File) => {
+    // Determine maximum file size based on mime type
+    let maxSize = 100 * 1024 * 1024; // Default to 100MB for docs
+    let typeName = "document";
+    let sizeLabel = "100MB";
+
+    if (file.type.startsWith("image/")) {
+      maxSize = 5 * 1024 * 1024; // 5MB
+      typeName = "image";
+      sizeLabel = "5MB";
+    } else if (file.type.startsWith("video/")) {
+      maxSize = 16 * 1024 * 1024; // 16MB
+      typeName = "video";
+      sizeLabel = "16MB";
+    } else if (file.type.startsWith("audio/")) {
+      maxSize = 16 * 1024 * 1024; // 16MB
+      typeName = "audio";
+      sizeLabel = "16MB";
+    }
+
+    if (file.size > maxSize) {
+      toast({
+        title: "File too large",
+        description: `The maximum file size allowed for ${typeName} is ${sizeLabel}. Selected file is ${(file.size / (1024 * 1024)).toFixed(2)}MB.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsUploading(true);
     try {
       const formData = new FormData();
@@ -173,7 +201,11 @@ export function CreateCampaignForm({
       setMediaMimeType(data.mimeType);
     } catch (err) {
       console.error(err);
-      alert("Failed to upload file");
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload media file",
+        variant: "destructive",
+      });
     } finally {
       setIsUploading(false);
     }

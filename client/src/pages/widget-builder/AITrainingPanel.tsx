@@ -823,53 +823,51 @@ export default function AITrainingPanel({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="max-h-[400px]">
-                  <div className="space-y-3">
-                    {qaPairs.map((qa) => (
-                      <div
-                        key={qa.id}
-                        className={`p-3 border rounded-lg space-y-2 ${
-                          !qa.isActive ? "opacity-50" : ""
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Badge variant="outline" className="text-xs">
-                                {qa.category}
+                <div className="max-h-[500px] overflow-y-auto pr-2 space-y-3">
+                  {qaPairs.map((qa) => (
+                    <div
+                      key={qa.id}
+                      className={`p-3 border rounded-lg space-y-2 ${
+                        !qa.isActive ? "opacity-50" : ""
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline" className="text-xs">
+                              {qa.category}
+                            </Badge>
+                            {!qa.isActive && (
+                              <Badge variant="secondary" className="text-xs">
+                                Disabled
                               </Badge>
-                              {!qa.isActive && (
-                                <Badge variant="secondary" className="text-xs">
-                                  Disabled
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-sm font-medium">Q: {qa.question}</p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              A: {qa.answer}
-                            </p>
+                            )}
                           </div>
-                          <div className="flex gap-1 ml-2">
-                            <Switch
-                              checked={qa.isActive}
-                              onCheckedChange={(checked) =>
-                                toggleQaMutation.mutate({ qaId: qa.id, isActive: checked })
-                              }
-                            />
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-red-500"
-                              onClick={() => deleteQaMutation.mutate(qa.id)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
+                          <p className="text-sm font-medium">Q: {qa.question}</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            A: {qa.answer}
+                          </p>
+                        </div>
+                        <div className="flex gap-1 ml-2">
+                          <Switch
+                            checked={qa.isActive}
+                            onCheckedChange={(checked) =>
+                              toggleQaMutation.mutate({ qaId: qa.id, isActive: checked })
+                            }
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-red-500"
+                            onClick={() => deleteQaMutation.mutate(qa.id)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </ScrollArea>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}
@@ -1467,7 +1465,7 @@ export default function AITrainingPanel({
                       <h4 className="text-sm font-medium mb-2">
                         Q&A Pairs ({preview.qaPairs.length})
                       </h4>
-                      <div className="space-y-2">
+                      <div className="max-h-[300px] overflow-y-auto pr-2 space-y-2">
                         {preview.qaPairs.map((qa: any) => (
                           <div key={qa.id} className="p-2 border rounded text-sm">
                             <p className="font-medium">Q: {qa.question}</p>

@@ -63,7 +63,8 @@ export const api = {
   limit: number,
   groupFilter: string | undefined,
   statusFilter: string | undefined,
-  createdBy: string        // ✅ required now
+  createdBy: string,
+  tagFilter?: string
 ) => {
   const params = new URLSearchParams();
 
@@ -73,6 +74,7 @@ export const api = {
   if (limit) params.append("limit", limit.toString());
   if (groupFilter) params.append("group", groupFilter);
   if (statusFilter) params.append("status", statusFilter);
+  if (tagFilter) params.append("tag", tagFilter);
 
   // ✅ ALWAYS send createdBy
   params.append("createdBy", createdBy);
@@ -132,7 +134,13 @@ getAllContacts: (
   deleteTemplate: (id: string) => apiRequest("DELETE", `/api/templates/${id}`),
 
   // Conversations
-  getConversations: (channelId?: string) => apiRequest("GET", `/api/conversations${channelId ? `?channelId=${channelId}` : ""}`),
+  getConversations: (channelId?: string, tag?: string) => {
+    const params = new URLSearchParams();
+    if (channelId) params.append("channelId", channelId);
+    if (tag) params.append("tag", tag);
+    const qs = params.toString();
+    return apiRequest("GET", `/api/conversations${qs ? `?${qs}` : ""}`);
+  },
   getConversation: (id: string) => apiRequest("GET", `/api/conversations/${id}`),
   createConversation: (data: any) => apiRequest("POST", "/api/conversations", data),
   updateConversation: (id: string, data: any) => apiRequest("PUT", `/api/conversations/${id}`, data),

@@ -439,7 +439,7 @@ export default function Plans() {
       buttonColor: "bg-blue-500 hover:bg-blue-600",
       monthlyPrice: "0",
       annualPrice: "0",
-      permissions: { channel: "", contacts: "", automation: "", campaign: "", apiRequestsPerMonth: "", apiRateLimitPerMinute: "", qrCodeChannelEnabled: "false" },
+      permissions: { channel: "", contacts: "", automation: "", campaign: "", apiRequestsPerMonth: "", apiRateLimitPerMinute: "", qrCodeChannelEnabled: "false", utilityCategoryHelperEnabled: "false" },
       features: [],
     });
     setEditingPlan(null);
@@ -955,8 +955,8 @@ export default function Plans() {
                   </div>
 
                   {/* QR Code login channel package permission */}
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-2 cursor-pointer mt-2">
+                  <div className="flex flex-col gap-2 mt-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={formData.permissions.qrCodeChannelEnabled === "true"}
@@ -973,6 +973,26 @@ export default function Plans() {
                       />
                       <span className="text-sm font-medium text-gray-700">
                         Enable QR Code based channel login (Packages)
+                      </span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer mt-1">
+                      <input
+                        type="checkbox"
+                        checked={formData.permissions.utilityCategoryHelperEnabled === "true"}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            permissions: {
+                              ...formData.permissions,
+                              utilityCategoryHelperEnabled: e.target.checked ? "true" : "false",
+                            },
+                          })
+                        }
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Enable Utility Category Helper (Optimize Cloud API templates/campaigns)
                       </span>
                     </label>
                   </div>
@@ -1194,13 +1214,14 @@ export default function Plans() {
                                       apiRequestsPerMonth: t("plans.form.permissions.apiRequestsPerMonth"),
                                       apiRateLimitPerMinute: t("plans.form.permissions.apiRateLimitPerMinute"),
                                       qrCodeChannelEnabled: "QR Code Login Channel",
+                                      utilityCategoryHelperEnabled: "Utility Category Helper",
                                     };
                                     return (
                                       <div
                                         key={key}
                                         className="text-xs text-gray-600"
                                       >
-                                        ✓ {key === "qrCodeChannelEnabled" ? (value === "true" ? "Yes" : "No") : value} {labelMap[key] || key}
+                                        ✓ {key === "qrCodeChannelEnabled" || key === "utilityCategoryHelperEnabled" ? (value === "true" ? "Yes" : "No") : value} {labelMap[key] || key}
                                       </div>
                                     );
                                   })}

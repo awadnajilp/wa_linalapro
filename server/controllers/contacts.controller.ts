@@ -88,6 +88,14 @@ export const getContacts = asyncHandler(
       contacts = contacts.filter((contact: any) => contact.isGroup === (isGroup === "true"));
     }
 
+    const { tag } = req.query;
+    if (tag && typeof tag === "string") {
+      const tagList = tag.split(',').map(t => t.trim());
+      contacts = contacts.filter((contact: any) => 
+        contact.tags && Array.isArray(contact.tags) && tagList.every(t => contact.tags.includes(t))
+      );
+    }
+
     res.json(contacts);
   }
 );
@@ -208,7 +216,7 @@ export const getContactsByUser = asyncHandler(async (req: Request, res: Response
 
 export const getContactsWithPagination = asyncHandler(
   async (req: RequestWithChannel, res: Response) => {
-    const { search, channelId, page = "1", limit = "10", group, status, createdBy, isGroup } = req.query;
+    const { search, channelId, page = "1", limit = "10", group, status, createdBy, isGroup, tag } = req.query;
     const user = (req.session as any)?.user;
 
     const currentPage = parseInt(page, 10);
@@ -271,6 +279,17 @@ export const getContactsWithPagination = asyncHandler(
     // isGroup filter
     if (isGroup && typeof isGroup === "string") {
       conditions.push(eq(contacts.isGroup, isGroup === "true"));
+    }
+
+    // Tag filter (jsonb array)
+    if (tag && typeof tag === "string") {
+      const tagList = tag.split(',').map(t => t.trim());
+      if (tagList.length > 0) {
+        const jsonArray = JSON.stringify(tagList);
+        conditions.push(
+          sql`${contacts.tags} @> ${sql.raw(`'${jsonArray}'::jsonb`)}`
+        );
+      }
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

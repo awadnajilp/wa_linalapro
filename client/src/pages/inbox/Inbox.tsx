@@ -15,7 +15,7 @@
  * ============================================================
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import Header from "@/components/layout/header";
@@ -79,11 +79,74 @@ export default function Inbox() {
     staleTime: 30 * 1000,
   });
 
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+
+  // Reset selected tag when active channel changes
+  useEffect(() => {
+    setSelectedTag(null);
+  }, [activeChannel?.id]);
+
+  const { data: channelTags = [], refetch: refetchTags } = useQuery({
+    queryKey: ["/api/tags", activeChannel?.id],
+    queryFn: async () => {
+      if (!activeChannel?.id) return [];
+      const res = await apiRequest("GET", `/api/tags?channelId=${activeChannel.id}`);
+      if (!res.ok) throw new Error("Failed to load tags");
+      return await res.json();
+    },
+    enabled: !!activeChannel?.id,
+  });
+
+  const tagsColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (Array.isArray(channelTags)) {
+      for (const tag of channelTags) {
+        map[tag.name] = tag.color;
+      }
+    }
+    return map;
+  }, [channelTags]);
+
+  const onCreateTag = async (name: string, color: string) => {
+    if (!activeChannel?.id) return;
+    const res = await apiRequest("POST", "/api/tags", {
+      name,
+      color,
+      channelId: activeChannel.id,
+    });
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || "Failed to create tag");
+    }
+    await refetchTags();
+    toast({
+      title: "Tag Created",
+      description: `Tag "${name}" has been created successfully.`,
+    });
+  };
+
+  const onUpdateConversationTags = async (tagsList: string[]) => {
+    if (!selectedConversation?.id) return;
+    const res = await apiRequest("POST", `/api/tags/conversations/${selectedConversation.id}/tags`, {
+      tags: tagsList,
+    });
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || "Failed to update tags");
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    setSelectedConversation(prev => prev ? { ...prev, tags: tagsList } : null);
+    toast({
+      title: "Tags Updated",
+      description: "Conversation tags updated successfully.",
+    });
+  };
+
   const { data: conversations = [], isLoading: conversationsLoading } =
     useQuery({
-      queryKey: ["/api/conversations", activeChannel?.id],
+      queryKey: ["/api/conversations", activeChannel?.id, selectedTag],
       queryFn: async () => {
-        const response = await api.getConversations(activeChannel?.id);
+        const response = await api.getConversations(activeChannel?.id, selectedTag || undefined);
         if (!response.ok) {
           throw new Error(`Failed to load conversations: ${response.status}`);
         }
@@ -489,6 +552,15 @@ export default function Inbox() {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
     };
 
+    const handleConversationUpdated = (data: any) => {
+      if (selectedConversationRef.current?.id === data.id) {
+        setSelectedConversation((prev) => prev ? { ...prev, tags: data.tags } : null);
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    };
+
+    socket.on("conversation-updated", handleConversationUpdated);
+    socket.on("contact-updated", handleConversationUpdated);
     socket.on("new-message", handleNewMessage);
     socket.on("new_message", handleNewMessage);
     socket.on("conversation_created", handleConversationCreated);
@@ -499,6 +571,8 @@ export default function Inbox() {
     socket.on("conversation-ai-toggled", handleConversationAiToggled);
 
     return () => {
+      socket.off("conversation-updated", handleConversationUpdated);
+      socket.off("contact-updated", handleConversationUpdated);
       socket.off("new-message", handleNewMessage);
       socket.off("new_message", handleNewMessage);
       socket.off("conversation_created", handleConversationCreated);
@@ -950,6 +1024,10 @@ export default function Inbox() {
   };
 
   const filteredConversations = conversations.filter((conv: any) => {
+    if (user?.showOnlyAssigned && conv.assignedTo !== user?.id) {
+      return false;
+    }
+
     const matchesSearch =
       conv.contact?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       conv.contactPhone?.includes(searchQuery) ||
@@ -1020,6 +1098,10 @@ export default function Inbox() {
           user={user}
           onStartNewChat={handleStartNewChat}
           onOpenAiSettings={handleOpenInboxAiSettings}
+          tagsColorMap={tagsColorMap}
+          channelTags={channelTags}
+          selectedTag={selectedTag}
+          onSelectTag={setSelectedTag}
         />
 
         {selectedConversation ? (
@@ -1058,6 +1140,10 @@ export default function Inbox() {
             onOpenContactAiSettings={handleOpenContactAiSettings}
             aiEnabled={currentConversationAiEnabled}
             onToggleAi={handleToggleAi}
+            channelTags={channelTags}
+            onUpdateConversationTags={onUpdateConversationTags}
+            onCreateTag={onCreateTag}
+            tagsColorMap={tagsColorMap}
           />
         ) : (
           <div className="hidden md:flex flex-1 items-center justify-center bg-gray-50">

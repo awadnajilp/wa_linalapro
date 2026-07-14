@@ -46,6 +46,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   firstName: text("first_name"),
   lastName: text("last_name"),
+  phoneNumber: text("phone_number"),
   role: text("role").notNull().default("admin"), // admin, manager, agent
   avatar: text("avatar"),
   status: text("status").notNull().default("active"), // active, inactive
@@ -65,6 +66,8 @@ export const users = pgTable("users", {
   sarvamApiKey: text("sarvam_api_key"),
   groqApiKey: text("groq_api_key"),
   elevenlabsApiKey: text("eleven_labs_api_key"),
+  showOnlyAssigned: boolean("show_only_assigned").default(false),
+  isAdminMember: boolean("is_admin_member").default(false),
 });
 
 // Conversation assignments to users
@@ -352,6 +355,7 @@ export const conversations = pgTable(
     lastMessageText: text("last_message_text"), // Cache last message for display
     aiEnabled: boolean("ai_enabled").default(false),
     aiSettings: jsonb("ai_settings").default({}),
+    lastUnrepliedAlertSentAt: timestamp("last_unreplied_alert_sent_at"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
@@ -597,6 +601,7 @@ export const plans = pgTable("plans", {
     apiRequestsPerMonth?: string;
     apiRateLimitPerMinute?: string;
     qrCodeChannelEnabled?: string;
+    utilityCategoryHelperEnabled?: string;
   }>(),
 
   // Features (Array of objects)
@@ -1046,7 +1051,12 @@ export const messageQueue = pgTable("message_queue", {
   deliveredAt: timestamp("delivered_at"),
   readAt: timestamp("read_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  queueCampaignIdx: index("queue_campaign_idx").on(table.campaignId),
+  queueStatusIdx: index("queue_status_idx").on(table.status),
+  queueScheduledIdx: index("queue_scheduled_idx").on(table.scheduledFor),
+  queueStatusScheduledIdx: index("queue_status_scheduled_idx").on(table.status, table.scheduledFor),
+}));
 
 // API Request Logs for debugging
 export const apiLogs = pgTable("api_logs", {
@@ -1805,3 +1815,24 @@ export const insertVoiceProfileSchema = createInsertSchema(voiceProfiles).omit({
 
 export type VoiceProfile = typeof voiceProfiles.$inferSelect;
 export type InsertVoiceProfile = typeof voiceProfiles.$inferInsert;
+
+// ─── Tags/Labels ───────────────────────────────
+export const tags = pgTable("tags", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  color: varchar("color", { length: 20 }).notNull(),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  createdBy: varchar("created_by").default(""),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertTagSchema = z.object({
+  name: z.string(),
+  color: z.string(),
+  channelId: z.string(),
+  createdBy: z.string().optional(),
+});
+
+export type Tag = typeof tags.$inferSelect;
+export type InsertTag = typeof tags.$inferInsert;

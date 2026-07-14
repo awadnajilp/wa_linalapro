@@ -59,6 +59,7 @@ import { registerTrainingRoutes } from "./training.routes";
 import { registerLanguageRoutes } from "./language.routes";
 import { registerClientApiRoutes } from "./client-api.routes";
 import { registerRestApiV1Routes } from "./rest-api-v1.routes";
+import { registerTagsRoutes } from "./tags.routes";
 
 export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
   // Auth routes (no authentication required)
@@ -98,6 +99,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   registerLanguageRoutes(app);
   registerClientApiRoutes(app);
   registerRestApiV1Routes(app);
+  registerTagsRoutes(app);
   
   // Team management routes
   app.use("/api/team", teamRoutes);

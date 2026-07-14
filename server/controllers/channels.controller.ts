@@ -78,7 +78,21 @@ export const getChannelsByUserId = asyncHandler(async (req: Request, res: Respon
   }
 
   try {
-    const channels = await storage.getChannelsByUser(userId, Number(page), Number(limit));
+    let channels;
+    if (user && user.role === 'team' && !user.isAdminMember && user.channelId) {
+      const singleChannel = await storage.getChannel(user.channelId);
+      channels = {
+        data: singleChannel ? [singleChannel] : [],
+        pagination: {
+          total: singleChannel ? 1 : 0,
+          page: 1,
+          limit: 10,
+          totalPages: 1
+        }
+      };
+    } else {
+      channels = await storage.getChannelsByUser(userId, Number(page), Number(limit));
+    }
 
     return res.json({
       status: "success",

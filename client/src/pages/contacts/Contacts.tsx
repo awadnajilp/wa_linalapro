@@ -95,16 +95,17 @@ export default function Contacts() {
   const [showGroupDialog, setShowGroupDialog] = useState(false);
   const [showAssignGroupDialog, setShowAssignGroupDialog] = useState(false);
   const [assignGroupContactIds, setAssignGroupContactIds] = useState<string[]>([]);
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
   const [contactToDelete, setContactToDelete] = useState<string | null>(null);
   const [groupName, setGroupName] = useState("");
   const [groupDescription, setGroupDescription] = useState("");
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string | null>("all");
+  const [selectedTag, setSelectedTag] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const { user } = useAuth();
@@ -167,6 +168,27 @@ export default function Contacts() {
 
   const userIdNew = user?.role === "team" ? user?.createdBy : user?.id;
 
+  const { data: channelTags = [] } = useQuery({
+    queryKey: ["/api/tags", activeChannel?.id],
+    queryFn: async () => {
+      if (!activeChannel?.id) return [];
+      const res = await apiRequest("GET", `/api/tags?channelId=${activeChannel.id}`);
+      if (!res.ok) throw new Error("Failed to load tags");
+      return await res.json();
+    },
+    enabled: !!activeChannel?.id,
+  });
+
+  const tagsColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (Array.isArray(channelTags)) {
+      for (const tag of channelTags) {
+        map[tag.name] = tag.color;
+      }
+    }
+    return map;
+  }, [channelTags]);
+
   const { data: contactsResponse, isLoading } = useQuery<ContactsResponse>({
     queryKey: [
       "/api/contacts",
@@ -177,6 +199,7 @@ export default function Contacts() {
       selectedStatus,
       searchQuery,
       userIdNew,
+      selectedTag,
     ],
 
     queryFn: async () => {
@@ -189,7 +212,8 @@ export default function Contacts() {
         limit,
         selectedGroup !== "all" && selectedGroup ? selectedGroup : undefined,
         selectedStatus !== "all" && selectedStatus ? selectedStatus : undefined,
-        userIdNew
+        userIdNew,
+        selectedTag !== "all" && selectedTag ? selectedTag : undefined
       );
 
       return (await response.json()) as ContactsResponse;
@@ -288,6 +312,7 @@ export default function Contacts() {
     setSearchQuery("");
     setSelectedGroup(null);
     setSelectedStatus(null);
+    setSelectedTag("all");
     setCurrentPage(1);
   };
 
@@ -983,6 +1008,9 @@ export default function Contacts() {
           user={user}
           setLocation={setLocation}
           isImporting={importState.active}
+          selectedTag={selectedTag}
+          setSelectedTag={setSelectedTag}
+          channelTags={channelTags}
         />
 
         <ContactsTable
@@ -1007,6 +1035,7 @@ export default function Contacts() {
           channels={channels}
           user={user}
           deleteContactMutation={deleteContactMutation}
+          tagsColorMap={tagsColorMap}
           toast={toast}
           page={page}
           totalPages={totalPages}

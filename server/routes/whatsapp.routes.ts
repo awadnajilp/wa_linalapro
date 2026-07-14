@@ -25,6 +25,7 @@ import { requireAuth } from "../middlewares/auth.middleware";
 import { requireSubscription } from "../middlewares/requireSubscription";
 import { insertWhatsappChannelSchema } from "@shared/schema";
 import fs from "fs";
+import path from "path";
 import { db } from "../db";
 import { subscriptions, plans, channels, warmerConfigs, warmerMessages, contacts, groups } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
@@ -123,6 +124,79 @@ export function registerWhatsAppRoutes(app: Express) {
 
     } catch (err: any) {
       console.error("Error initiating QR session:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Reconnect/regenerate QR code for existing channel
+  app.post("/api/whatsapp/channels/qr/reconnect/:channelId", requireAuth, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { channelId } = req.params;
+      const userId = user.role === "team" && (user as any).createdBy ? (user as any).createdBy : user.id;
+
+      // Find the existing channel
+      const [channel] = await db
+        .select()
+        .from(channels)
+        .where(
+          and(
+            eq(channels.id, channelId),
+            eq(channels.connectionMethod, "qr_code"),
+            user.role !== "superadmin" ? eq(channels.createdBy, userId) : undefined
+          )
+        )
+        .limit(1);
+
+      if (!channel) {
+        return res.status(404).json({ error: "Channel not found." });
+      }
+
+      // Check if plan allows QR code channel login
+      if (user.role !== "superadmin") {
+        const activeSubs = await db
+          .select()
+          .from(subscriptions)
+          .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")));
+        if (activeSubs.length === 0) {
+          return res.status(403).json({ error: "Active subscription required." });
+        }
+        const [plan] = await db.select().from(plans).where(eq(plans.id, activeSubs[0].planId));
+        if (!plan || plan.permissions?.qrCodeChannelEnabled !== 'true') {
+          return res.status(403).json({ error: "Your plan package does not support QR code based channels. Please upgrade." });
+        }
+      }
+
+      // Clean up existing Baileys session folder and disconnect socket if active
+      try {
+        await BaileysManager.deleteSession(channelId);
+      } catch (cleanErr) {
+        console.warn(`Failed to clean up Baileys session ${channelId}:`, cleanErr);
+      }
+
+      // Update channel in DB: set isActive to false (since it needs scanning again)
+      await db.update(channels).set({ isActive: false }).where(eq(channels.id, channelId));
+
+      // Start new Baileys session
+      BaileysManager.createSession(channelId, channel.name, channel.phoneNumber || "");
+
+      // Wait briefly for initial QR generation
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const qrState = BaileysManager.getSessionStatus(channelId);
+
+      res.json({
+        success: true,
+        sessionId: channelId,
+        qrCodeUrl: qrState.qrCodeUrl || null,
+        status: qrState.status
+      });
+
+    } catch (err: any) {
+      console.error("Error reconnecting QR session:", err);
       res.status(500).json({ error: err.message });
     }
   });
@@ -1154,6 +1228,7 @@ app.post(
 app.post(
   "/api/whatsapp/channels/:id/upload-media",
   upload.fields([{ name: "mediaFile", maxCount: 1 }]),
+  handleDigitalOceanUpload,
   async (req, res) => {
     try {
       const user = (req as any).session?.user;
@@ -1174,10 +1249,6 @@ app.post(
         }
       }
 
-      if (!channel.phoneNumberId || !channel.accessToken) {
-        return res.status(400).json({ message: "Channel is not configured for WhatsApp" });
-      }
-
       const mediaFile = Array.isArray((req.files as any)?.mediaFile)
         ? (req.files as any).mediaFile[0]
         : null;
@@ -1189,6 +1260,7 @@ app.post(
         });
       }
 
+      // Check size limit for both qr_code and cloud API!
       const maxSizes: Record<string, number> = {
         image: 5 * 1024 * 1024,
         video: 16 * 1024 * 1024,
@@ -1198,8 +1270,21 @@ app.post(
       const mediaType = req.body.mediaType || "image";
       const maxSize = maxSizes[mediaType] || 16 * 1024 * 1024;
       if (mediaFile.size > maxSize) {
-        fs.unlinkSync(mediaFile.path);
+        if (fs.existsSync(mediaFile.path)) {
+          fs.unlinkSync(mediaFile.path);
+        }
         return res.status(400).json({ message: `File too large. Max ${Math.round(maxSize / 1024 / 1024)}MB for ${mediaType}` });
+      }
+
+      if (channel.connectionMethod === "qr_code") {
+        const relativeUrl = `/uploads/${path.basename(path.dirname(mediaFile.path))}/${mediaFile.filename}`;
+        const absoluteUrl = mediaFile.cloudUrl || `${req.protocol}://${req.get('host')}${relativeUrl}`;
+        console.log(`[Baileys Upload Media] File uploaded to cloud/local: ${absoluteUrl}`);
+        return res.json({ success: true, mediaId: absoluteUrl, mediaUrl: absoluteUrl });
+      }
+
+      if (!channel.phoneNumberId || !channel.accessToken) {
+        return res.status(400).json({ message: "Channel is not configured for WhatsApp" });
       }
 
       const buffer = fs.readFileSync(mediaFile.path);

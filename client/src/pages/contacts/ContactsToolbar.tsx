@@ -55,6 +55,9 @@ interface ContactsToolbarProps {
   user: any;
   setLocation: (path: string) => void;
   isImporting?: boolean;
+  selectedTag?: string;
+  setSelectedTag?: (tag: string) => void;
+  channelTags?: any[];
 }
 
 export function ContactsToolbar({
@@ -76,6 +79,9 @@ export function ContactsToolbar({
   user,
   setLocation,
   isImporting = false,
+  selectedTag = "all",
+  setSelectedTag,
+  channelTags = [],
 }: ContactsToolbarProps) {
   const { t } = useTranslation();
 
@@ -191,6 +197,43 @@ export function ContactsToolbar({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {/* Tag/Label Filter Dropdown */}
+              {Array.isArray(channelTags) && channelTags.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs sm:text-sm"
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full mr-2 shrink-0 animate-pulse" style={{ backgroundColor: selectedTag && selectedTag !== 'all' ? (channelTags || []).find(t => t.name === selectedTag)?.color || '#3b82f6' : '#cbd5e1' }} />
+                      <span className="hidden sm:inline">
+                        {selectedTag === "all" || !selectedTag ? "All Labels" : selectedTag}
+                      </span>
+                      <span className="sm:hidden">Label</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem
+                      onClick={() => setSelectedTag?.("all")}
+                      className={selectedTag === "all" || !selectedTag ? "bg-gray-100" : ""}
+                    >
+                      All Labels
+                    </DropdownMenuItem>
+                    {(channelTags || []).map((tag) => (
+                      <DropdownMenuItem
+                        key={tag.id}
+                        onClick={() => setSelectedTag?.(tag.name)}
+                        className={selectedTag === tag.name ? "bg-gray-100" : ""}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full mr-2 shrink-0" style={{ backgroundColor: tag.color }} />
+                        {tag.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
 
               <Button
                 variant="outline"

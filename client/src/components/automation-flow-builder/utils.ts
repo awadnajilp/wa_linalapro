@@ -62,6 +62,7 @@ export const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
     scheduleMinutes: 10,
     scheduleRecurring: false,
     scheduleInterval: "daily",
+    scheduleRepeatTimes: 1,
     scheduleDate: ""
   },
   send_template: { kind: "send_template", label: "Template", templateId: "" },

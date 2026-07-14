@@ -48,6 +48,10 @@ interface ConversationListProps {
   user?: any;
   onStartNewChat: (phone: string, name?: string) => Promise<void>;
   onOpenAiSettings: () => void;
+  tagsColorMap?: Record<string, string>;
+  channelTags?: any[];
+  selectedTag?: string | null;
+  onSelectTag?: (tag: string | null) => void;
 }
 
 const ConversationList = ({
@@ -62,6 +66,10 @@ const ConversationList = ({
   user,
   onStartNewChat,
   onOpenAiSettings,
+  tagsColorMap = {},
+  channelTags = [],
+  selectedTag = null,
+  onSelectTag,
 }: ConversationListProps) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [phoneInput, setPhoneInput] = useState("");
@@ -124,6 +132,47 @@ const ConversationList = ({
             <Plus className="h-4.5 w-4.5 text-white" />
           </Button>
         </div>
+
+        {/* Scrollable Tag/Label Filter Bar */}
+        {Array.isArray(channelTags) && channelTags.length > 0 && (
+          <div className="flex items-center gap-1.5 mb-2.5 mt-0.5 py-1.5 border-t border-b border-gray-100 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 shrink-0 mr-1">
+              Label:
+            </span>
+            <button
+              onClick={() => onSelectTag?.(null)}
+              className={cn(
+                "text-[10px] px-2 py-0.5 rounded-full font-medium transition-all shrink-0",
+                !selectedTag
+                   ? "bg-indigo-600 text-white"
+                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              )}
+            >
+              All
+            </button>
+            {(channelTags || []).map((tag: any) => {
+              const isSelected = selectedTag === tag.name;
+              return (
+                <button
+                  key={tag.id}
+                  onClick={() => onSelectTag?.(isSelected ? null : tag.name)}
+                  className={cn(
+                    "text-[10px] px-2 py-0.5 rounded-full font-medium transition-all shrink-0 flex items-center gap-1",
+                    isSelected
+                      ? "text-white shadow-sm"
+                      : "bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100"
+                  )}
+                  style={{
+                    backgroundColor: isSelected ? tag.color : undefined,
+                  }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: isSelected ? '#ffffff' : tag.color }} />
+                  {tag.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <Tabs value={filterTab} onValueChange={onFilterTabChange}>
           <div className="overflow-x-auto px-1 [&::-webkit-scrollbar]:h-[2px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
@@ -193,6 +242,7 @@ const ConversationList = ({
                 isSelected={selectedConversation?.id === conversation.id}
                 onClick={() => onSelectConversation(conversation)}
                 user={user}
+                tagsColorMap={tagsColorMap}
               />
             )
           )

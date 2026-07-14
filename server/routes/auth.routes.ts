@@ -127,14 +127,23 @@ if (user.isEmailVerified === false) {
       permissions: resolveUserPermissions(user.role, user.permissions as any),
       avatar: user.avatar,
       createdBy: user.createdBy || "",
+      channelId: user.channelId || null,
+      showOnlyAssigned: !!user.showOnlyAssigned,
+      isAdminMember: !!user.isAdminMember,
     };
 
     // Remove password before sending back
     const { password: _, ...userData } = user;
 
+    // Sign the session ID to support cross-origin header authentication
+    const signature = await import("cookie-signature");
+    const secret = process.env.SESSION_SECRET || "your-secret-key-change-in-production";
+    const signedSessionId = "s:" + signature.sign((req as any).sessionID, secret);
+
     res.json({
       message: "Login successful",
       user: userData,
+      sessionId: signedSessionId,
     });
   } catch (error) {
     console.log("Error during login:", error);
@@ -464,6 +473,9 @@ router.post("/impersonate/:userId", async (req, res) => {
       permissions: resolveUserPermissions(targetUser.role, targetUser.permissions as any),
       avatar: targetUser.avatar,
       createdBy: targetUser.createdBy || "",
+      channelId: targetUser.channelId || null,
+      showOnlyAssigned: !!targetUser.showOnlyAssigned,
+      isAdminMember: !!targetUser.isAdminMember,
       originalSuperadmin: session.originalUser
     };
 

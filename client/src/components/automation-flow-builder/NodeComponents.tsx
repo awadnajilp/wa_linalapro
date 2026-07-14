@@ -309,7 +309,8 @@ export function SchedulerNode({ data }: { data: BuilderNodeData }) {
   }
 
   if (recurring) {
-    display += ` (Every ${interval})`;
+    const repeatTimes = data.scheduleRepeatTimes !== undefined ? Number(data.scheduleRepeatTimes) : 1;
+    display += ` (Every ${interval}, x${repeatTimes})`;
   }
 
   return (
@@ -618,6 +619,8 @@ export function SendListMessageNode({ data }: { data: BuilderNodeData }) {
 
 export function SendMediaNode({ data }: { data: BuilderNodeData }) {
   const mediaLabel = data.mediaType ? data.mediaType.charAt(0).toUpperCase() + data.mediaType.slice(1) : "Media";
+  const sourceUrl = data.mediaUrl || (data.mediaId && data.mediaId.startsWith("http") ? data.mediaId : null);
+
   return (
     <div className="relative">
       <Handle type="target" position={Position.Top} className="!bg-pink-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
@@ -628,19 +631,42 @@ export function SendMediaNode({ data }: { data: BuilderNodeData }) {
         bgColor="bg-pink-50"
         borderColor="border-pink-100"
       >
-        <span className="inline-block bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded text-[10px] font-bold">
-          {mediaLabel}
-        </span>
-        {data.mediaUrl ? (
-          <div className="text-[11px] text-gray-500 truncate bg-gray-50 rounded px-2 py-1 font-mono border border-gray-100">
-            {data.mediaUrl}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="inline-block bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">
+              {mediaLabel}
+            </span>
           </div>
-        ) : (
-          <div className="text-gray-400 italic text-[11px]">No media URL set</div>
-        )}
-        {data.mediaCaption && (
-          <p className="text-[10px] text-gray-400 truncate">{data.mediaCaption}</p>
-        )}
+
+          {sourceUrl ? (
+            <div className="rounded border border-pink-100 overflow-hidden bg-gray-50 flex items-center justify-center max-h-[80px] w-full">
+              {data.mediaType === "image" && (
+                <img src={sourceUrl} alt="Preview" className="h-[80px] w-full object-cover" />
+              )}
+              {data.mediaType === "video" && (
+                <video src={sourceUrl} className="h-[80px] w-full object-cover" muted />
+              )}
+              {data.mediaType === "audio" && (
+                <div className="p-2 w-full text-center text-[10px] text-pink-600 font-medium">🎵 Audio Note</div>
+              )}
+              {data.mediaType === "document" && (
+                <div className="p-2 w-full flex items-center gap-1.5 text-[10px] text-pink-600 font-medium truncate">
+                  <FileIcon className="w-3.5 h-3.5" /> {data.mediaFileName || "Document"}
+                </div>
+              )}
+            </div>
+          ) : data.mediaId ? (
+            <div className="text-[10px] text-pink-700 font-medium truncate bg-pink-50/50 border border-pink-100 rounded px-1.5 py-0.5">
+              Media ID: {data.mediaId}
+            </div>
+          ) : (
+            <div className="text-gray-400 italic text-[10px]">No media configured</div>
+          )}
+
+          {data.mediaCaption && (
+            <p className="text-[9px] text-gray-400 truncate max-w-[180px]">{data.mediaCaption}</p>
+          )}
+        </div>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-pink-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
     </div>
@@ -784,6 +810,10 @@ export function AIAgentNode({ data, selected }: { data: BuilderNodeData; selecte
           <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
             <span className="font-semibold text-gray-700">Model:</span>
             <span>{data.aiModel || "gpt-4o"}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+            <span className="font-semibold text-gray-700">Limits:</span>
+            <span>{data.timeLimitHours !== undefined ? data.timeLimitHours : 1}h / {data.questionLimit !== undefined ? data.questionLimit : 50} Qs</span>
           </div>
           <div className="text-[10px] text-gray-500 line-clamp-2">
             <span className="font-semibold text-gray-700">Prompt:</span>{" "}

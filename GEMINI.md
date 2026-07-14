@@ -47,7 +47,7 @@ The app will be available at [http://localhost:5001](http://localhost:5001).
 ## 🔑 Default Credentials (from Seed)
 | User | Username | Password |
 |------|----------|----------|
-| Super Admin | `superadmin` | `Superadmin@123` |
+| Super Admin | `awad@linalapro.com` | `9394Jzn!` |
 | Demo Admin | `demoadmin` | `Admin@123` |
 
 ## 🏗 Project Structure
@@ -153,5 +153,9 @@ If you are using a **QR Code (Baileys/Session-based) Channel** instead of the of
 3. **Target Formatting Rules:**
    * **Individual Contacts:** Use standard digit formats (e.g. `918086563491` or `+918086563491`).
    * **WhatsApp Groups:** You must pass the full JID ending in `@g.us` (e.g. `120363400431715046@g.us`).
-   * **Masked Privacy Contacts (LIDs):** You must pass the full JID ending in `@lid` (e.g. `124012952854591@lid`).
+    * **Masked Privacy Contacts (LIDs):** You must pass the full JID ending in `@lid` (e.g. `124012952854591@lid`).
 
+### 8. Inbox Tagging & Database Performance Indexing (July 2026)
+*   **Inbox & Contacts Tagging:** Added support for creating tags with custom colors and assigning them to conversations and contacts. Real-time synchronizations were wired using Socket.io.
+*   **Database Performance Optimization:** Added composite and single-column indexes on `message_queue` (`campaign_id`, `status`, `scheduled_for`) to eliminate full table scans during campaign queue polling.
+*   **Local & Production Database Matching:** Pushed schema updates to create the `tags` table and indexes.

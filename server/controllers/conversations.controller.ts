@@ -51,6 +51,21 @@ export async function getConversations(req: Request, res: Response) {
       }
     }
 
+    const conditions = [eq(conversations.channelId, channelId)];
+    if (user && user.role === 'team' && user.showOnlyAssigned) {
+      conditions.push(eq(conversations.assignedTo, user.id));
+    }
+
+    if (req.query.tag && typeof req.query.tag === "string") {
+      const tagList = req.query.tag.split(',').map(t => t.trim());
+      if (tagList.length > 0) {
+        const jsonArray = JSON.stringify(tagList);
+        conditions.push(
+          sql`${conversations.tags} @> ${sql.raw(`'${jsonArray}'::jsonb`)}`
+        );
+      }
+    }
+
     const rows = await dbRead
       .select({
         conversation: conversations,
@@ -60,7 +75,7 @@ export async function getConversations(req: Request, res: Response) {
       .from(conversations)
       .leftJoin(contacts, eq(conversations.contactId, contacts.id))
       .leftJoin(users, eq(conversations.assignedTo, users.id))
-      .where(eq(conversations.channelId, channelId))
+      .where(and(...conditions))
       .orderBy(desc(conversations.lastMessageAt));
 
     const formatted = rows.map((row) => ({

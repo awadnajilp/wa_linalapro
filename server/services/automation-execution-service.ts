@@ -221,6 +221,17 @@ export class AutomationExecutionService {
     const startTime = new Date();
     console.log(`Executing node ${node.nodeId} (${node.type})`);
 
+    // Global check for active automation
+    if (automation && automation.status !== 'active') {
+      console.log(`⚠️ Blocked execution of node ${node.nodeId} because automation ${automation.id} is not active (status: ${automation.status})`);
+      await this.completeExecution(
+        context.executionId, 
+        'failed', 
+        `Automation is not active (status: ${automation.status})`
+      );
+      return;
+    }
+
     try {
       // Log node start
       await this.logNodeExecution(
@@ -739,6 +750,19 @@ private stemWord(word: string = ""): string {
     
     if (!pendingExecution) {
       console.warn(`No pending execution found for conversation ${conversationId} in memory or DB`);
+      return null;
+    }
+
+    // Get fresh automation data and verify active status
+    const automation = await this.getAutomationWithFlow(pendingExecution.automationId);
+    if (!automation || automation.status !== 'active') {
+      console.log(`⚠️ Blocked resuming execution ${pendingExecution.executionId} because automation is ${!automation ? 'not found' : 'inactive'}`);
+      this.pendingExecutions.delete(pendingExecution.pendingId);
+      await this.completeExecution(
+        pendingExecution.executionId,
+        'failed',
+        'Automation flow disabled or deleted'
+      );
       return null;
     }
 
@@ -1902,6 +1926,11 @@ private async sendInteractiveMessage(
         // If the server crashes before this returns, status='paused' + markers
         // are still present, so startup recovery will re-schedule correctly.
         const freshAutomation = await this.getAutomationWithFlow(context.automationId);
+        if (!freshAutomation || freshAutomation.status !== 'active') {
+          console.log(`⚠️ Blocked delay continuation for execution ${context.executionId} because automation is not active`);
+          await this.completeExecution(context.executionId, 'failed', 'Automation flow disabled or deleted');
+          return;
+        }
         await this.continueToNextNode(node, freshAutomation, context);
 
         // Continuation succeeded — clean up time_gap markers from DB variables.
@@ -1988,80 +2017,129 @@ private async sendInteractiveMessage(
   }
 
   private async resumeScheduler(executionId: string, node: any, automation: any, context: ExecutionContext) {
+    if (!automation || automation.status !== 'active') {
+      console.log(`⚠️ Blocked scheduler resumption for execution ${executionId} because automation is ${!automation ? 'not found' : 'inactive'}`);
+      await this.completeExecution(executionId, 'failed', 'Automation flow disabled or deleted');
+      return;
+    }
+
     const recurring = !!node.data?.scheduleRecurring;
     const interval = node.data?.scheduleInterval || 'daily';
     const type = node.data?.scheduleType || 'duration';
 
     if (recurring) {
-      let nextResumeAt = new Date();
-      if (type === 'date') {
-        const baseDate = node.data?.scheduleDate ? new Date(node.data.scheduleDate) : new Date();
-        let occurrence = new Date(baseDate);
-        while (occurrence.getTime() <= Date.now()) {
-          if (interval === 'daily') {
-            occurrence.setDate(occurrence.getDate() + 1);
-          } else if (interval === 'weekly') {
-            occurrence.setDate(occurrence.getDate() + 7);
-          } else if (interval === 'monthly') {
-            occurrence.setMonth(occurrence.getMonth() + 1);
-          } else {
-            occurrence.setDate(occurrence.getDate() + 1);
-          }
+      const maxRepeatTimes = Math.min(10, Math.max(1, Number(node.data?.scheduleRepeatTimes ?? 1)));
+      
+      let currentVariables = context.variables || {};
+      try {
+        const [currentExec] = await db.select().from(automationExecutions).where(eq(automationExecutions.id, executionId));
+        if (currentExec && currentExec.variables) {
+          currentVariables = currentExec.variables as Record<string, any>;
         }
-        nextResumeAt = occurrence;
-      } else {
-        const days = Number(node.data?.scheduleDays || 0);
-        const minutes = Number(node.data?.scheduleMinutes || 10);
-        const delaySeconds = (days * 24 * 60 + minutes) * 60;
-        nextResumeAt = new Date(Date.now() + delaySeconds * 1000);
+      } catch (err) {
+        console.error("[Scheduler] Error fetching current execution variables:", err);
       }
 
-      const [clonedExec] = await db.insert(automationExecutions).values({
-        automationId: context.automationId,
-        contactId: context.contactId ?? null,
-        conversationId: context.conversationId ?? null,
-        triggerData: {
-          trigger: 'scheduler',
-          parentExecutionId: executionId,
-          timestamp: new Date()
-        },
-        variables: context.variables,
-        status: 'running'
-      }).returning();
+      const runCount = Number(currentVariables._schedulerRunCount || 0) + 1;
 
-      void (async () => {
-        try {
-          const clonedContext: ExecutionContext = {
-            executionId: clonedExec.id,
-            automationId: context.automationId,
-            contactId: context.contactId,
-            conversationId: context.conversationId,
-            variables: context.variables,
-            triggerData: clonedExec.triggerData,
-            lastUserMessage: context.lastUserMessage
-          };
-          await this.continueToNextNode(node, automation, clonedContext);
-        } catch (err) {
-          console.error(`[Scheduler Cloned Run] Cloned execution ${clonedExec.id} failed:`, err);
+      if (runCount < maxRepeatTimes) {
+        let nextResumeAt = new Date();
+        if (type === 'date') {
+          const baseDate = node.data?.scheduleDate ? new Date(node.data.scheduleDate) : new Date();
+          let occurrence = new Date(baseDate);
+          while (occurrence.getTime() <= Date.now()) {
+            if (interval === 'daily') {
+              occurrence.setDate(occurrence.getDate() + 1);
+            } else if (interval === 'weekly') {
+              occurrence.setDate(occurrence.getDate() + 7);
+            } else if (interval === 'monthly') {
+              occurrence.setMonth(occurrence.getMonth() + 1);
+            } else {
+              occurrence.setDate(occurrence.getDate() + 1);
+            }
+          }
+          nextResumeAt = occurrence;
+        } else {
+          const days = Number(node.data?.scheduleDays || 0);
+          const minutes = Number(node.data?.scheduleMinutes || 10);
+          const delaySeconds = (days * 24 * 60 + minutes) * 60;
+          nextResumeAt = new Date(Date.now() + delaySeconds * 1000);
         }
-      })();
 
-      await db.update(automationExecutions)
-        .set({
-          variables: {
-            ...context.variables,
-            _timeGap_waitingUntil: nextResumeAt.toISOString(),
-            _timeGap_waitingNodeId: node.nodeId,
+        const [clonedExec] = await db.insert(automationExecutions).values({
+          automationId: context.automationId,
+          contactId: context.contactId ?? null,
+          conversationId: context.conversationId ?? null,
+          triggerData: {
+            trigger: 'scheduler',
+            parentExecutionId: executionId,
+            timestamp: new Date()
           },
-          result: `scheduler: next run scheduled for ${nextResumeAt.toISOString()}`,
-        })
-        .where(eq(automationExecutions.id, executionId));
+          variables: currentVariables,
+          status: 'running'
+        }).returning();
 
-      const remainingMs = Math.max(1000, nextResumeAt.getTime() - Date.now());
-      setTimeout(async () => {
-        const freshAutomation = await this.getAutomationWithFlow(context.automationId);
-        await this.resumeScheduler(executionId, node, freshAutomation, context);
-      }, remainingMs);
+        void (async () => {
+          try {
+            const clonedContext: ExecutionContext = {
+              executionId: clonedExec.id,
+              automationId: context.automationId,
+              contactId: context.contactId,
+              conversationId: context.conversationId,
+              variables: currentVariables,
+              triggerData: clonedExec.triggerData,
+              lastUserMessage: context.lastUserMessage
+            };
+            await this.continueToNextNode(node, automation, clonedContext);
+          } catch (err) {
+            console.error(`[Scheduler Cloned Run] Cloned execution ${clonedExec.id} failed:`, err);
+          }
+        })();
+
+        const updatedVars = {
+          ...currentVariables,
+          _schedulerRunCount: runCount,
+          _timeGap_waitingUntil: nextResumeAt.toISOString(),
+          _timeGap_waitingNodeId: node.nodeId,
+        };
+
+        await db.update(automationExecutions)
+          .set({
+            variables: updatedVars,
+            result: `scheduler: next run (${runCount + 1}/${maxRepeatTimes}) scheduled for ${nextResumeAt.toISOString()}`,
+          })
+          .where(eq(automationExecutions.id, executionId));
+
+        const remainingMs = Math.max(1000, nextResumeAt.getTime() - Date.now());
+        setTimeout(async () => {
+          const freshAutomation = await this.getAutomationWithFlow(context.automationId);
+          const updatedContext = {
+            ...context,
+            variables: updatedVars,
+          };
+          await this.resumeScheduler(executionId, node, freshAutomation, updatedContext);
+        }, remainingMs);
+      } else {
+        const finalVariables = {
+          ...currentVariables,
+          _schedulerRunCount: runCount,
+        };
+        delete finalVariables._timeGap_waitingUntil;
+        delete finalVariables._timeGap_waitingNodeId;
+
+        await db.update(automationExecutions)
+          .set({
+            variables: finalVariables,
+            status: 'running',
+            result: `scheduler: finished all ${maxRepeatTimes} runs`,
+          })
+          .where(eq(automationExecutions.id, executionId));
+
+        await this.continueToNextNode(node, automation, {
+          ...context,
+          variables: finalVariables
+        });
+      }
 
     } else {
       await this.continueToNextNode(node, automation, context);
@@ -2609,6 +2687,90 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     if (!channel) throw new Error('Channel not found');
 
     const caption = mediaCaption ? this.replaceVariables(mediaCaption, context.variables) : undefined;
+    const isYoutube = mediaType === 'video' && mediaUrl && (mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be'));
+
+    if (isYoutube) {
+      const textMessage = caption ? `${caption}\n\n${mediaUrl}` : mediaUrl;
+      console.log(`[YouTube Link] Sending YouTube link preview as text message: ${mediaUrl}`);
+
+      if (channel.connectionMethod === 'qr_code') {
+        const result = await BaileysManager.sendMessage(channel.id, conversation.contactPhone, textMessage);
+        await storage.createMessage({
+          conversationId: context.conversationId,
+          content: textMessage,
+          status: 'sent',
+          messageType: 'text',
+          whatsappMessageId: result?.messages?.[0]?.id || `baileys_${Date.now()}`,
+        });
+        return { action: 'media_sent', mediaType: 'text', mediaUrl };
+      } else {
+        const payload = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: conversation.contactPhone,
+          type: "text",
+          text: {
+            body: textMessage,
+            preview_url: true
+          }
+        };
+
+        const response = await fetch(
+          `https://graph.facebook.com/v24.0/${channel.phoneNumberId}/messages`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${channel.accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          }
+        );
+
+        const result = await response.json();
+        if (!response.ok) throw new Error(`WhatsApp API error: ${JSON.stringify(result.error)}`);
+
+        await storage.createMessage({
+          conversationId: context.conversationId,
+          content: textMessage,
+          status: 'sent',
+          messageType: 'text',
+          whatsappMessageId: result?.messages?.[0]?.id,
+        });
+
+        return { action: 'media_sent', mediaType: 'text', mediaUrl };
+      }
+    }
+
+    if (channel.connectionMethod === 'qr_code') {
+      console.log(`[Baileys QR] Sending media to ${conversation.contactPhone} via BaileysManager`);
+      const mediaSource = useUpload ? mediaId : mediaUrl;
+      if (!mediaSource) throw new Error('Media source is empty');
+
+      const mimeType = mediaType === 'video' ? 'video/mp4' : mediaType === 'image' ? 'image/jpeg' : mediaType === 'audio' ? 'audio/mpeg' : 'application/octet-stream';
+      const mediaPayload = {
+        url: mediaSource,
+        mimeType,
+        filename: mediaFileName || undefined
+      };
+
+      const result = await BaileysManager.sendMediaMessage(
+        channel.id,
+        conversation.contactPhone,
+        mediaPayload,
+        caption
+      );
+
+      await storage.createMessage({
+        conversationId: context.conversationId,
+        content: caption || `[${mediaType}]`,
+        status: 'sent',
+        messageType: mediaType,
+        whatsappMessageId: result?.messages?.[0]?.id || `baileys_${Date.now()}`,
+      });
+
+      return { action: 'media_sent', mediaType, mediaUrl: mediaSource };
+    }
 
     const mediaPayload: any = useUpload
       ? {
@@ -3087,6 +3249,34 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     context.variables.contactPhone = getContact.phone;
     context.variables.last_message = context.lastUserMessage || "";
 
+    // Limit and Timeout check for AI Agent
+    const timeLimitHours = nodeData.timeLimitHours !== undefined ? Number(nodeData.timeLimitHours) : 1;
+    const questionLimit = nodeData.questionLimit !== undefined ? Number(nodeData.questionLimit) : 50;
+
+    const startedAtKey = `_aiAgentStartedAt_${node.nodeId}`;
+    const countKey = `_aiAgentQuestionCount_${node.nodeId}`;
+
+    if (!context.variables[startedAtKey]) {
+      context.variables[startedAtKey] = new Date().toISOString();
+      context.variables[countKey] = 0;
+    }
+
+    const startTimeStr = context.variables[startedAtKey];
+    const startTime = startTimeStr ? new Date(startTimeStr) : new Date();
+    const elapsedMs = Date.now() - startTime.getTime();
+    const elapsedHours = elapsedMs / (1000 * 60 * 60);
+
+    const questionCount = Number(context.variables[countKey] || 0);
+
+    if (elapsedHours >= timeLimitHours || questionCount >= questionLimit) {
+      console.log(`[AI Agent] Time limit (${timeLimitHours}h, elapsed: ${elapsedHours.toFixed(2)}h) or question limit (${questionLimit}, count: ${questionCount}) exceeded. Moving to next node.`);
+      delete context.variables[startedAtKey];
+      delete context.variables[countKey];
+      delete context.variables[`_introSent_${node.nodeId}`];
+
+      return { action: 'limit_exceeded' };
+    }
+
     // Proactive Intro Message ("Conversation first to customer") support
     const introSentKey = `_introSent_${node.nodeId}`;
     if (nodeData.aiIntroEnabled === true && !context.variables[introSentKey]) {
@@ -3411,6 +3601,9 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       apiKey: finalApiKey,
       baseURL: finalBaseURL,
     });
+
+    // Increment question count before LLM call
+    context.variables[countKey] = (Number(context.variables[countKey] || 0)) + 1;
 
     console.log(`[AI Agent] Running conversational takeover completion using model ${finalModel}...`);
     const completion = await aiClient.chat.completions.create({

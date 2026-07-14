@@ -256,6 +256,23 @@ export function ConfigPanel({
   const Icon = meta.icon;
 
   const handleFileUpload = (type: "image" | "video" | "audio" | "document") => (file: File) => {
+    const maxSizes: Record<string, number> = {
+      image: 5 * 1024 * 1024,      // 5MB
+      video: 16 * 1024 * 1024,     // 16MB
+      audio: 16 * 1024 * 1024,     // 16MB
+      document: 100 * 1024 * 1024, // 100MB
+    };
+    const maxSize = maxSizes[type];
+    if (file.size > maxSize) {
+      const maxSizeMB = maxSize / (1024 * 1024);
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      toast({
+        title: "File too large",
+        description: `The maximum file size allowed for ${type} is ${maxSizeMB}MB. Selected file is ${fileSizeMB}MB.`,
+        variant: "destructive",
+      });
+      return;
+    }
     const previewUrl = URL.createObjectURL(file);
     onChange({ [`${type}File`]: file, [`${type}Preview`]: previewUrl } as any);
   };
@@ -461,6 +478,9 @@ export function ConfigPanel({
                   <FileIcon className="w-3.5 h-3.5" /> Document
                 </FileUploadButton>
               </div>
+              <div className="text-[10px] text-gray-400 mt-1">
+                Image: max 5MB | Video/Audio: max 16MB | Doc: max 100MB
+              </div>
               {d.imagePreview && (
                 <div className="relative rounded-xl overflow-hidden border border-gray-200 shadow-sm">
                   <img src={d.imagePreview} alt="preview" className="w-full h-28 object-cover" />
@@ -632,21 +652,40 @@ export function ConfigPanel({
                 </div>
 
                 {d.scheduleRecurring && (
-                  <div className="space-y-1.5 pt-1">
-                    <Label className="text-xs font-semibold text-gray-700">Recurring Interval</Label>
-                    <Select
-                      value={(d.scheduleInterval as string) || "daily"}
-                      onValueChange={(val) => onChange({ scheduleInterval: val })}
-                    >
-                      <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
-                        <SelectValue placeholder="Select interval" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="space-y-3 pt-1">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-gray-700">Recurring Interval</Label>
+                      <Select
+                        value={(d.scheduleInterval as string) || "daily"}
+                        onValueChange={(val) => onChange({ scheduleInterval: val })}
+                      >
+                        <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
+                          <SelectValue placeholder="Select interval" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="daily">Daily</SelectItem>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="scheduleRepeatTimes" className="text-xs font-semibold text-gray-700">
+                        Number of Times to Repeat (1 - 10)
+                      </Label>
+                      <Input
+                        id="scheduleRepeatTimes"
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={d.scheduleRepeatTimes !== undefined ? Number(d.scheduleRepeatTimes) : 1}
+                        onChange={(e) => {
+                          const val = Math.min(10, Math.max(1, parseInt(e.target.value, 10) || 1));
+                          onChange({ scheduleRepeatTimes: val });
+                        }}
+                        className="h-9 text-sm rounded-lg bg-white"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -1352,6 +1391,39 @@ export function ConfigPanel({
                   />
                 </div>
 
+                {/* Execution Limits Configuration */}
+                <div className="space-y-3 p-3 bg-white rounded-lg border border-gray-100">
+                  <Label className="text-xs font-bold text-gray-700 uppercase tracking-wide">Execution Limits</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-semibold text-gray-500">Time Limit (Hours)</Label>
+                      <Input
+                        type="number"
+                        min={0.1}
+                        step={0.1}
+                        value={d.timeLimitHours !== undefined ? d.timeLimitHours : 1}
+                        onChange={(e) => onChange({ timeLimitHours: parseFloat(e.target.value) || 1 })}
+                        className="h-8 text-xs rounded bg-gray-50 border border-gray-200"
+                        placeholder="e.g. 1"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-semibold text-gray-500">Max Questions</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={d.questionLimit !== undefined ? d.questionLimit : 50}
+                        onChange={(e) => onChange({ questionLimit: parseInt(e.target.value, 10) || 50 })}
+                        className="h-8 text-xs rounded bg-gray-50 border border-gray-200"
+                        placeholder="e.g. 50"
+                      />
+                    </div>
+                  </div>
+                  <div className="text-[9px] text-gray-400 leading-normal">
+                    Deactivates the takeover and routes the conversation to the next node once elapsed time or number of questions exceeds these limits.
+                  </div>
+                </div>
+
                 {/* Voice Support Configuration */}
                 <div className="space-y-3 p-3 bg-white rounded-lg border border-gray-100">
                   <div className="flex items-center justify-between">
@@ -1949,6 +2021,27 @@ export function ConfigPanel({
                           onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (!file || !channelId) return;
+
+                            const maxSizes: Record<string, number> = {
+                              image: 5 * 1024 * 1024,      // 5MB
+                              video: 16 * 1024 * 1024,     // 16MB
+                              audio: 16 * 1024 * 1024,     // 16MB
+                              document: 100 * 1024 * 1024, // 100MB
+                            };
+                            const mediaType = d.mediaType || "image";
+                            const maxSize = maxSizes[mediaType] || 16 * 1024 * 1024;
+                            if (file.size > maxSize) {
+                              const maxSizeMB = maxSize / (1024 * 1024);
+                              const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                              toast({
+                                title: "File too large",
+                                description: `The maximum file size allowed for ${mediaType} is ${maxSizeMB}MB. Selected file is ${fileSizeMB}MB.`,
+                                variant: "destructive",
+                              });
+                              e.target.value = "";
+                              return;
+                            }
+
                             setMediaUploading(true);
                             try {
                               const formData = new FormData();
@@ -2005,12 +2098,56 @@ export function ConfigPanel({
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-gray-700">Caption (Optional)</Label>
                     <Textarea
-                      rows={2}
+                      rows={5}
                       value={d.mediaCaption || ""}
                       onChange={(e) => onChange({ mediaCaption: e.target.value })}
-                      placeholder="Add a caption..."
-                      className="text-sm resize-none rounded-lg bg-white"
+                      placeholder="Add a caption (supports multiline text and variables)..."
+                      className="text-sm rounded-lg bg-white min-h-[100px]"
                     />
+                  </div>
+                )}
+
+                {/* Media Preview Player */}
+                {(d.mediaUrl || (d.mediaId && d.mediaId.startsWith("http"))) && (
+                  <div className="space-y-2 mt-2 pt-2 border-t border-pink-100">
+                    <Label className="text-xs font-semibold text-gray-700">Preview</Label>
+                    <div className="relative rounded-lg overflow-hidden border border-pink-200 bg-black flex items-center justify-center min-h-[150px] max-h-[250px]">
+                      {d.mediaType === "image" && (
+                        <img
+                          src={d.mediaUrl || d.mediaId}
+                          alt="Media Preview"
+                          className="max-h-[250px] w-full object-contain"
+                        />
+                      )}
+                      {d.mediaType === "video" && (
+                        <video
+                          src={d.mediaUrl || d.mediaId}
+                          controls
+                          className="max-h-[250px] w-full object-contain"
+                        />
+                      )}
+                      {d.mediaType === "audio" && (
+                        <div className="w-full p-4 bg-gray-50 flex flex-col items-center justify-center">
+                          <audio src={d.mediaUrl || d.mediaId} controls className="w-full" />
+                        </div>
+                      )}
+                      {d.mediaType === "document" && (
+                        <div className="w-full p-4 bg-gray-50 flex items-center gap-2">
+                          <FileIcon className="w-8 h-8 text-pink-500 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium truncate text-gray-700">{d.mediaFileName || "Document"}</p>
+                            <a
+                              href={d.mediaUrl || d.mediaId}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] text-pink-600 hover:underline font-mono truncate block"
+                            >
+                              Open document
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

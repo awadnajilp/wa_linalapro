@@ -74,11 +74,13 @@ const ConversationListItem = ({
   isSelected,
   onClick,
   user,
+  tagsColorMap = {},
 }: {
   conversation: ConversationWithContact;
   isSelected: boolean;
   onClick: () => void;
   user?: any;
+  tagsColorMap?: Record<string, string>;
 }) => {
   const lastMessageTime = conversation.lastMessageAt
     ? formatLastSeen(conversation.lastMessageAt)
@@ -121,6 +123,28 @@ const ConversationListItem = ({
             {lastMessageTime}
           </span>
         </div>
+
+        {/* Tag pills */}
+        {conversation.tags && Array.isArray(conversation.tags) && conversation.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-1.5">
+            {conversation.tags.map((tag: string) => {
+              const tagColor = tagsColorMap?.[tag] || "#6b7280";
+              return (
+                <span
+                  key={tag}
+                  className="inline-flex items-center text-[9px] font-semibold px-1.5 py-0.5 rounded-full leading-none"
+                  style={{
+                    backgroundColor: `${tagColor}20`,
+                    color: tagColor,
+                    border: `1px solid ${tagColor}40`,
+                  }}
+                >
+                  {tag}
+                </span>
+              );
+            })}
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center min-w-0">

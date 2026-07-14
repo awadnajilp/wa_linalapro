@@ -170,6 +170,30 @@ export function ChannelSettings() {
     };
   }, [showQrConnectDialog, qrSessionId, qrStatus, toast, queryClient]);
 
+  const handleQrReconnect = async (channel: any) => {
+    try {
+      setQrConnectLoading(true);
+      setQrChannelName(channel.name);
+      setQrPhoneNumber(channel.phoneNumber || "");
+      
+      const res = await apiRequest("POST", `/api/whatsapp/channels/qr/reconnect/${channel.id}`);
+      const data = await res.json();
+      
+      setQrSessionId(channel.id);
+      setQrCodeUrl(data.qrCodeUrl);
+      setQrStatus("pending");
+      setShowQrConnectDialog(true);
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to initiate reconnect session",
+        variant: "destructive"
+      });
+    } finally {
+      setQrConnectLoading(false);
+    }
+  };
+
   const { data: channelsData, isLoading: channelsLoading } = useQuery({
     queryKey: ["/api/channels"],
     queryFn: async () => {
@@ -1108,17 +1132,31 @@ export function ChannelSettings() {
                                     "No health check run yet"
                                   )}
                                 </p>
-                                <Button
-                                  onClick={() =>
-                                    checkChannelHealth(channel.id)
-                                  }
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-xs w-full sm:w-auto"
-                                >
-                                  <RefreshCw className="w-3 h-3 mr-1" />
-                                  {t("settings.channel_setting.refresh")}
-                                </Button>
+                                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                                  {channel.connectionMethod === "qr_code" && (
+                                    <Button
+                                      onClick={() => handleQrReconnect(channel)}
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-xs w-full sm:w-auto text-purple-700 border-purple-200 hover:bg-purple-50"
+                                      disabled={qrConnectLoading}
+                                    >
+                                      <QrCode className="w-3.5 h-3.5 mr-1" />
+                                      Reconnect & Scan QR
+                                    </Button>
+                                  )}
+                                  <Button
+                                    onClick={() =>
+                                      checkChannelHealth(channel.id)
+                                    }
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-xs w-full sm:w-auto"
+                                  >
+                                    <RefreshCw className="w-3 h-3 mr-1" />
+                                    {t("settings.channel_setting.refresh")}
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           )}

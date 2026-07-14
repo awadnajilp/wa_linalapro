@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
-import { Info, FileText, Clock, Eye, Check, Upload, Loader2, Smile } from "lucide-react";
+import { Info, FileText, Clock, Eye, Check, Upload, Loader2, Smile, Wrench } from "lucide-react";
 import { TemplatePickerDialog, getTemplateButtons } from "@/components/shared/TemplatePickerDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -90,6 +90,15 @@ export function CreateCampaignForm({
     expirationTimeMs?: number;
     carouselCardMediaIds?: Record<number, string>;
   } | null>(null);
+
+  const [optimizeCampaignToUtility, setOptimizeCampaignToUtility] = useState(false);
+  const { user, userPlans } = useAuth();
+
+  const utilityCategoryHelperEnabled = useMemo(() => {
+    return user?.role === "superadmin" || userPlans?.data?.some(
+      (d: any) => d.subscription?.status === "active" && d.subscription?.planData?.permissions?.utilityCategoryHelperEnabled === "true"
+    );
+  }, [user, userPlans]);
 
   const isQr = connectionMethod === "qr_code";
   const { toast } = useToast();
@@ -272,7 +281,15 @@ export function CreateCampaignForm({
 
     if (templateConfig.variables) {
       templateConfig.variables.forEach((v, i) => {
-        mapping[String(i + 1)] = v;
+        if (optimizeCampaignToUtility && v.type === "custom" && v.value) {
+          const randRef = Math.floor(100000 + Math.random() * 900000);
+          mapping[String(i + 1)] = {
+            ...v,
+            value: `${v.value} (Ref: ${randRef})`
+          };
+        } else {
+          mapping[String(i + 1)] = v;
+        }
       });
     }
 
@@ -389,7 +406,7 @@ export function CreateCampaignForm({
     );
   };
 
-  const { user } = useAuth();
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 mt-4">
@@ -426,7 +443,7 @@ export function CreateCampaignForm({
                 channelId={channelId}
                 onSelectTemplate={handleSelectTemplate}
                 submitLabel="Use Template"
-                categoryFilter="MARKETING"
+                categoryFilter={utilityCategoryHelperEnabled ? undefined : "MARKETING"}
                 trigger={
                   <Button type="button" variant="outline" className="gap-2">
                     <FileText className="h-4 w-4" />
@@ -469,6 +486,53 @@ export function CreateCampaignForm({
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Utility Campaign Optimizer & Tips */}
+            {utilityCategoryHelperEnabled && !isQr && selectedTemplate && (
+              <div className="space-y-3 p-4 rounded-xl border border-blue-200 bg-blue-50/50 mt-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="h-4 w-4 text-blue-600 animate-pulse" />
+                    <h4 className="text-sm font-semibold text-blue-900">
+                      Utility Campaign Optimizer
+                    </h4>
+                  </div>
+                  <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-[10px]">
+                    Premium Active
+                  </Badge>
+                </div>
+
+                <div className="flex items-start space-x-2.5 bg-white/60 p-3 rounded-lg border border-blue-100">
+                  <Checkbox
+                    id="optimizeCampaignToUtility"
+                    checked={optimizeCampaignToUtility}
+                    onCheckedChange={(checked) => setOptimizeCampaignToUtility(!!checked)}
+                    className="mt-0.5"
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <Label htmlFor="optimizeCampaignToUtility" className="text-xs font-semibold text-blue-900 cursor-pointer">
+                      Auto-Optimize Variables for Utility Category
+                    </Label>
+                    <p className="text-[11px] text-blue-700">
+                      System will automatically append reference numbers (e.g. <code>Ref: 837194</code>) to custom variable values to align with Meta's automated utility classification.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Utility category tips */}
+                <div className="space-y-1.5 bg-white/40 p-3 rounded-lg border border-blue-50 text-[11px] text-blue-800">
+                  <h5 className="font-semibold text-blue-900 flex items-center gap-1.5">
+                    <Info className="h-3.5 w-3.5 text-blue-600" />
+                    Tips to keep campaigns in Utility Category:
+                  </h5>
+                  <ul className="list-disc pl-4 space-y-1">
+                    <li><strong>Avoid Marketing Words:</strong> Do not use discount, sale, promo, buy, or shop in your custom inputs.</li>
+                    <li><strong>Make it Transactional:</strong> Make the message look like an update, receipt, or status notification.</li>
+                    <li><strong>Unique Identifiers:</strong> Make sure you map transaction/reference IDs to variables where possible.</li>
+                  </ul>
+                </div>
               </div>
             )}
           </CardContent>

@@ -74,9 +74,12 @@ import {
   ExternalLink,
   Clipboard,
   Timer,
+  Wrench,
 } from "lucide-react";
 import type { Template } from "@shared/schema";
 import { useAuth } from "@/contexts/auth-context";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import {
   WHATSAPP_LANGUAGES,
   MARKETING_SUBTYPES,
@@ -343,6 +346,29 @@ function LanguageSearch({
   );
 }
 
+const UTILITY_SAMPLES = [
+  {
+    title: "Order Confirmation",
+    body: "Hi {{1}}, your order #{{2}} of {{3}} has been confirmed! We will update you once it ships. Thanks for shopping with us!\n\nRef: {{4}}",
+    samples: ["John Doe", "10283", "Premium Cotton Tee", "REF-82734"],
+  },
+  {
+    title: "Appointment Reminder",
+    body: "Hello {{1}}, this is a reminder for your upcoming appointment with {{2}} scheduled on {{3}} at {{4}}.\n\nRef: {{5}}",
+    samples: ["Sarah Smith", "Dr. Green", "2026-07-20", "10:30 AM", "REF-98712"],
+  },
+  {
+    title: "Account Security OTP",
+    body: "Your verification code is {{1}}. This code will expire in {{2}} minutes. Please do not share this OTP with anyone.\n\nRef: {{3}}",
+    samples: ["829401", "10", "REF-34821"],
+  },
+  {
+    title: "Transaction Update",
+    body: "Dear {{1}}, your account has been credited with {{2}} for reference {{3}}. Current balance is {{4}}.\n\nRef: {{5}}",
+    samples: ["Alice", "$150.00", "Refund #99", "$1250.40", "REF-47291"],
+  },
+];
+
 export function TemplateDialog({
   open,
   onOpenChange,
@@ -353,9 +379,28 @@ export function TemplateDialog({
   onDraftSaved,
   channelId,
 }: TemplateDialogProps) {
-  const { user } = useAuth();
+  const { user, userPlans } = useAuth();
   const [submitted, setSubmitted] = useState(false);
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+  const [optimizeToUtility, setOptimizeToUtility] = useState(false);
+
+  const { data: activeChannel } = useQuery({
+    queryKey: ["/api/channels/active"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/channels/active");
+      if (!response.ok) return null;
+      return await response.json();
+    },
+    enabled: open,
+  });
+
+  const isUtilityHelperEnabled = useMemo(() => {
+    const hasPlanPermission = user?.role === "superadmin" || userPlans?.data?.some(
+      (d: any) => d.subscription?.status === "active" && d.subscription?.planData?.permissions?.utilityCategoryHelperEnabled === "true"
+    );
+    const isCloudApi = activeChannel?.connectionMethod !== "qr_code";
+    return !!(hasPlanPermission && isCloudApi);
+  }, [user, userPlans, activeChannel]);
 
   const form = useForm<TemplateFormData>({
     resolver: zodResolver(templateFormSchema),
@@ -511,6 +556,7 @@ export function TemplateDialog({
         authPackageName: (template as any).authPackageName || "",
         authSignatureHash: (template as any).authSignatureHash || "",
       });
+      setOptimizeToUtility(template.category === "UTILITY");
     } else {
       form.reset({
         name: "",
@@ -538,6 +584,7 @@ export function TemplateDialog({
         authPackageName: "",
         authSignatureHash: "",
       });
+      setOptimizeToUtility(false);
     }
   }, [template, form]);
 
@@ -570,6 +617,7 @@ export function TemplateDialog({
         authPackageName: d.authPackageName || "",
         authSignatureHash: d.authSignatureHash || "",
       });
+      setOptimizeToUtility(d.category === "UTILITY");
     }
   }, [initialDraft, template, open, form]);
 
@@ -602,6 +650,41 @@ export function TemplateDialog({
     const regex = /\{\{(\d+)\}\}/g;
     const matches = [...new Set([...text.matchAll(regex)].map((m) => m[1]))];
     return matches;
+  };
+
+  const handleOptimizeToggle = (checked: boolean) => {
+    setOptimizeToUtility(checked);
+    if (checked) {
+      form.setValue("category", "UTILITY");
+      form.setValue("marketingSubType", "CUSTOM");
+      
+      const currentBody = form.getValues("body") || "";
+      const vars = extractVariables(currentBody);
+      const hasRef = currentBody.toLowerCase().includes("ref:") || 
+                     currentBody.toLowerCase().includes("id:") || 
+                     (currentBody.includes("{{") && currentBody.toLowerCase().includes("reference"));
+      
+      if (!hasRef) {
+        const nextVarNum = vars.length + 1;
+        const refSuffix = `\n\nRef: {{${nextVarNum}}}`;
+        const newBody = currentBody.trim() + refSuffix;
+        form.setValue("body", newBody);
+        
+        const currentSamples = form.getValues("variables") || [];
+        const newSamples = [...currentSamples];
+        newSamples[nextVarNum - 1] = "REF-" + Math.floor(100000 + Math.random() * 900000);
+        form.setValue("variables", newSamples);
+      }
+    } else {
+      form.setValue("category", "MARKETING");
+    }
+  };
+
+  const handleSelectUtilitySample = (sample: typeof UTILITY_SAMPLES[0]) => {
+    form.setValue("body", sample.body);
+    form.setValue("variables", sample.samples);
+    form.setValue("category", "UTILITY");
+    setOptimizeToUtility(true);
   };
 
   const watchedValues = form.watch();
@@ -1873,6 +1956,60 @@ export function TemplateDialog({
                           )}
                         />
                       )}
+
+                    {/* Utility Category Optimization Helper */}
+                    {isUtilityHelperEnabled && (
+                      <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 space-y-3 mt-4 mb-4 transition-all duration-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Wrench className="h-4.5 w-4.5 text-blue-600 animate-pulse" />
+                            <h4 className="text-sm font-semibold text-blue-900">
+                              Utility Category Optimization Helper
+                            </h4>
+                          </div>
+                          <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-[10px]">
+                            Premium Feature
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-blue-700 leading-relaxed">
+                          WhatsApp automated review is highly likely to approve templates in the <strong>Utility</strong> category (which is cheaper and has higher delivery rates) if they contain transactional parameters (like reference codes/IDs) and lack promotional words.
+                        </p>
+
+                        <div className="flex items-center space-x-2 bg-white/60 p-2.5 rounded-lg border border-blue-100">
+                          <Switch
+                            id="optimizeToUtility"
+                            checked={optimizeToUtility}
+                            onCheckedChange={handleOptimizeToggle}
+                          />
+                          <Label htmlFor="optimizeToUtility" className="text-xs font-semibold text-blue-900 cursor-pointer">
+                            Optimize & Convert to Utility (Auto-append Reference ID)
+                          </Label>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-blue-900">
+                            Or Load a Pre-approved Utility Sample Format:
+                          </Label>
+                          <Select
+                            onValueChange={(val) => {
+                              const sample = UTILITY_SAMPLES.find((s) => s.title === val);
+                              if (sample) handleSelectUtilitySample(sample);
+                            }}
+                          >
+                            <SelectTrigger className="h-9 bg-white text-xs border-blue-200">
+                              <SelectValue placeholder="Select a utility base format..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {UTILITY_SAMPLES.map((sample) => (
+                                <SelectItem key={sample.title} value={sample.title} className="text-xs">
+                                  {sample.title}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Body */}
                     {!isCarousel && (

@@ -963,9 +963,22 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
     return;
   }
 
-  const chunkSize = isQr ? (campaign.chunkSize || 50) : (campaign.chunkSize || contacts.length);
-  const delayBetweenMessages = isQr ? (campaign.delayBetweenMessages || 10) : (campaign.delayBetweenMessages || 0);
-  const delayBetweenChunks = isQr ? (campaign.delayBetweenChunks || 60) : (campaign.delayBetweenChunks || 0);
+  const isUtilityOptimizedCampaign = !isQr && template && template.category === "UTILITY";
+  const isExplicitlyEnabled = !isQr && (
+    (campaign.chunkSize !== undefined && campaign.chunkSize !== null && campaign.chunkSize !== 50) ||
+    (campaign.delayBetweenMessages !== undefined && campaign.delayBetweenMessages !== null && campaign.delayBetweenMessages !== 10) ||
+    (campaign.delayBetweenChunks !== undefined && campaign.delayBetweenChunks !== null && campaign.delayBetweenChunks !== 60)
+  );
+
+  const chunkSize = isQr 
+    ? (campaign.chunkSize || 50) 
+    : ((isUtilityOptimizedCampaign || isExplicitlyEnabled) ? (campaign.chunkSize || contacts.length) : contacts.length);
+  const delayBetweenMessages = isQr 
+    ? (campaign.delayBetweenMessages || 10) 
+    : ((isUtilityOptimizedCampaign || isExplicitlyEnabled) ? (campaign.delayBetweenMessages || 0) : 0);
+  const delayBetweenChunks = isQr 
+    ? (campaign.delayBetweenChunks || 60) 
+    : ((isUtilityOptimizedCampaign || isExplicitlyEnabled) ? (campaign.delayBetweenChunks || 0) : 0);
   const warmerEnabled = campaign.warmerEnabled || false;
   const warmerMessagesList = campaign.selectedWarmerMessages || [];
 

@@ -123,8 +123,8 @@ export function CreateCampaignForm({
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaMimeType, setMediaMimeType] = useState("");
   const [mediaName, setMediaName] = useState("");
-  const [delayBetweenMessages, setDelayBetweenMessages] = useState(3);
-  const [chunkSize, setChunkSize] = useState(100);
+  const [delayBetweenMessages, setDelayBetweenMessages] = useState(connectionMethod === "qr_code" ? 3 : 0);
+  const [chunkSize, setChunkSize] = useState(connectionMethod === "qr_code" ? 100 : 500);
   const [delayBetweenChunks, setDelayBetweenChunks] = useState(5);
   const [warmerEnabled, setWarmerEnabled] = useState(false);
   const [selectedWarmerMsgs, setSelectedWarmerMsgs] = useState<string[]>([]);
@@ -327,18 +327,29 @@ export function CreateCampaignForm({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+
+    const finalChunkSize = !isQr 
+      ? (optimizeCampaignToUtility ? chunkSize : 999999) 
+      : chunkSize;
+    const finalDelayBetweenMessages = !isQr 
+      ? (optimizeCampaignToUtility ? delayBetweenMessages : 0) 
+      : delayBetweenMessages;
+    const finalDelayBetweenChunks = !isQr 
+      ? (optimizeCampaignToUtility ? delayBetweenChunks : 0) 
+      : delayBetweenChunks;
+
     const campaignData = {
       name: formData.get("name") as string,
       description: formData.get("description") as string,
       variableMapping: isQr ? {} : buildVariableMapping(),
+      delayBetweenMessages: finalDelayBetweenMessages,
+      chunkSize: finalChunkSize,
+      delayBetweenChunks: finalDelayBetweenChunks,
       ...(isQr ? {
         customMessage,
         mediaUrl: mediaUrl || null,
         mediaMimeType: mediaMimeType || null,
         mediaName: mediaName || null,
-        delayBetweenMessages,
-        chunkSize,
-        delayBetweenChunks,
         warmerEnabled,
         selectedWarmerMessages: selectedWarmerMsgs,
       } : {})
@@ -896,14 +907,23 @@ export function CreateCampaignForm({
         </div>
       )}
 
-      {isQr && (
+      {(isQr || (utilityCategoryHelperEnabled && selectedTemplate)) && (
         <>
-          {/* Anti-ban Optimization Card */}
+          {/* Anti-ban / Rate Limit Optimization Card */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Clock className="h-4 w-4 text-amber-500" />
-                Anti-Ban & Speed Optimization
+                {isQr ? (
+                  <>
+                    <Clock className="h-4 w-4 text-amber-500" />
+                    Anti-Ban & Speed Optimization
+                  </>
+                ) : (
+                  <>
+                    <Wrench className="h-4 w-4 text-blue-600 animate-pulse" />
+                    Rate Limit & Delivery Spacing Optimizer
+                  </>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -915,16 +935,18 @@ export function CreateCampaignForm({
                   <Input
                     id="delayBetweenMessages"
                     type="number"
-                    min={1}
+                    min={0}
                     value={delayBetweenMessages}
-                    onChange={(e) => setDelayBetweenMessages(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={(e) => setDelayBetweenMessages(Math.max(0, parseInt(e.target.value) || 0))}
                     className="mt-1 h-9 text-xs"
                   />
-                  <span className="text-[10px] text-gray-500">Wait between messages. Default 3s.</span>
+                  <span className="text-[10px] text-gray-500">
+                    {isQr ? "Wait between messages. Default 3s." : "Wait between API calls. Set 0s for instant."}
+                  </span>
                 </div>
                 <div>
                   <Label htmlFor="chunkSize" className="text-xs font-semibold text-gray-700">
-                    Chunk Size (Messages)
+                    {isQr ? "Chunk Size (Messages)" : "Batch Size (Messages)"}
                   </Label>
                   <Input
                     id="chunkSize"
@@ -934,21 +956,25 @@ export function CreateCampaignForm({
                     onChange={(e) => setChunkSize(Math.max(1, parseInt(e.target.value) || 1))}
                     className="mt-1 h-9 text-xs"
                   />
-                  <span className="text-[10px] text-gray-500">Batch size before long pause. Default 100.</span>
+                  <span className="text-[10px] text-gray-500">
+                    {isQr ? "Batch size before long pause. Default 100." : "Messages per batch. Default 500."}
+                  </span>
                 </div>
                 <div>
                   <Label htmlFor="delayBetweenChunks" className="text-xs font-semibold text-gray-700">
-                    Delay Between Chunks (Min)
+                    {isQr ? "Delay Between Chunks (Min)" : "Delay Between Batches (Min)"}
                   </Label>
                   <Input
                     id="delayBetweenChunks"
                     type="number"
-                    min={1}
+                    min={0}
                     value={delayBetweenChunks}
-                    onChange={(e) => setDelayBetweenChunks(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={(e) => setDelayBetweenChunks(Math.max(0, parseInt(e.target.value) || 0))}
                     className="mt-1 h-9 text-xs"
                   />
-                  <span className="text-[10px] text-gray-500">Pause duration between batches. Default 5m.</span>
+                  <span className="text-[10px] text-gray-500">
+                    {isQr ? "Pause duration between batches. Default 5m." : "Pause time between batches. Set 0m to disable."}
+                  </span>
                 </div>
               </div>
             </CardContent>

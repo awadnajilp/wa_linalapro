@@ -41,9 +41,9 @@ echo "📦 Installing dependencies..."
 npm install --production=false
 
 echo ""
-echo "🔧 Building application..."
-export NODE_OPTIONS="--max-old-space-size=1536"
-npm run build
+echo "🔧 Building application (Skipped — Built locally)..."
+# export NODE_OPTIONS="--max-old-space-size=1536"
+# npm run build
 
 echo ""
 echo "🗄️  Syncing database schema (Skipped — already up-to-date)..."

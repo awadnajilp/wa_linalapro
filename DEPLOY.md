@@ -12,10 +12,20 @@ This document outlines the step-by-step procedure to deploy updates to the produ
 *   **Active Proxy Configuration:** Apache proxying `/socket.io/` and HTTP traffic to Nginx, which proxies to Node.js on port `8003`.
 
 ---
+## 🚀 Step 1: Build Locally
 
-## 🚀 Step 1: Synchronize Code Safely (Zero-Overwrite Sync)
+To keep the server memory footprint low and avoid build disruptions, we compile and bundle the React + Vite frontend and the Express backend locally:
 
-To transfer local code updates to the server without overwriting user-uploaded media files or environment settings, execute `rsync` from your local machine using the strict command below.
+```bash
+# Build the application on your local machine
+npm run build
+```
+
+---
+
+## 📦 Step 2: Synchronize Code Safely (Zero-Overwrite Sync)
+
+To transfer local code updates and the compiled `dist/` build directory to the server without overwriting user-uploaded media files or environment settings, execute `rsync` from your local machine using the command below.
 
 ```bash
 # Sync files to the server using the designated deploy SSH key
@@ -36,9 +46,9 @@ rsync -avz \
 
 ---
 
-## 🔧 Step 2: Compile & Build on Server (Isolated Deployment)
+## 🔧 Step 3: Run Remote Deploy Script (Isolated Deployment)
 
-Once the files are synced, connect to the server via SSH to install packages, build the front-end production bundles, and restart only the target PM2 application.
+Once the local build files are synced, connect to the server via SSH to install packages and restart only the target PM2 application.
 
 ```bash
 # Execute deploy.sh remotely using your deploy key
@@ -46,9 +56,9 @@ ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa_deploy root@64.227.158.41 "cd /
 ```
 
 ### 📋 What [deploy.sh](file:///Users/awadnejil/Desktop/wa.linala/code/deploy.sh) does:
-1.  **Memory Management:** Checks the server RAM and automatically enables a 2GB swap space if RAM is low (ensuring the Vite bundle build does not run out of memory).
-2.  **Dependencies Install:** Runs `npm install --production=false` to get build dependencies without altering production modules.
-3.  **App Build:** Compiles the React + Vite frontend and bundles the Express server index using `npm run build`.
+1.  **Memory Management:** Checks the server RAM and automatically enables a 2GB swap space if RAM is low.
+2.  **Dependencies Install:** Runs `npm install --production=false` to get dependencies without altering production modules.
+3.  **App Build (Skipped):** Since we build locally, it skips running `npm run build` on the server.
 4.  **No Aggressive Migration:** Does NOT run `db:push --force` by default to prevent Drizzle ORM from dropping tables. Schema sync updates should be generated via safe migrations.
 5.  **Isolated PM2 Restart:** Restarts *only* the `whatsway` PM2 process:
     ```bash

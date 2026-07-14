@@ -92,6 +92,7 @@ export function CreateCampaignForm({
   } | null>(null);
 
   const [optimizeCampaignToUtility, setOptimizeCampaignToUtility] = useState(false);
+  const [enableChunking, setEnableChunking] = useState(connectionMethod === "qr_code");
   const { user, userPlans } = useAuth();
 
   const utilityCategoryHelperEnabled = useMemo(() => {
@@ -328,15 +329,9 @@ export function CreateCampaignForm({
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
-    const finalChunkSize = !isQr 
-      ? (optimizeCampaignToUtility ? chunkSize : 999999) 
-      : chunkSize;
-    const finalDelayBetweenMessages = !isQr 
-      ? (optimizeCampaignToUtility ? delayBetweenMessages : 0) 
-      : delayBetweenMessages;
-    const finalDelayBetweenChunks = !isQr 
-      ? (optimizeCampaignToUtility ? delayBetweenChunks : 0) 
-      : delayBetweenChunks;
+    const finalChunkSize = enableChunking ? chunkSize : 999999;
+    const finalDelayBetweenMessages = enableChunking ? delayBetweenMessages : 0;
+    const finalDelayBetweenChunks = enableChunking ? delayBetweenChunks : 0;
 
     const campaignData = {
       name: formData.get("name") as string,
@@ -912,72 +907,86 @@ export function CreateCampaignForm({
           {/* Anti-ban / Rate Limit Optimization Card */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                {isQr ? (
-                  <>
-                    <Clock className="h-4 w-4 text-amber-500" />
-                    Anti-Ban & Speed Optimization
-                  </>
-                ) : (
-                  <>
-                    <Wrench className="h-4 w-4 text-blue-600 animate-pulse" />
-                    Rate Limit & Delivery Spacing Optimizer
-                  </>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="delayBetweenMessages" className="text-xs font-semibold text-gray-700">
-                    Delay Between Messages (Sec)
-                  </Label>
-                  <Input
-                    id="delayBetweenMessages"
-                    type="number"
-                    min={0}
-                    value={delayBetweenMessages}
-                    onChange={(e) => setDelayBetweenMessages(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="mt-1 h-9 text-xs"
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  {isQr ? (
+                    <>
+                      <Clock className="h-4 w-4 text-amber-500" />
+                      Anti-Ban & Speed Optimization
+                    </>
+                  ) : (
+                    <>
+                      <Wrench className="h-4 w-4 text-blue-600 animate-pulse" />
+                      Rate Limit & Delivery Spacing Optimizer
+                    </>
+                  )}
+                </CardTitle>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="enableChunkingToggle"
+                    checked={enableChunking}
+                    onCheckedChange={(checked) => setEnableChunking(!!checked)}
                   />
-                  <span className="text-[10px] text-gray-500">
-                    {isQr ? "Wait between messages. Default 3s." : "Wait between API calls. Set 0s for instant."}
-                  </span>
-                </div>
-                <div>
-                  <Label htmlFor="chunkSize" className="text-xs font-semibold text-gray-700">
-                    {isQr ? "Chunk Size (Messages)" : "Batch Size (Messages)"}
+                  <Label htmlFor="enableChunkingToggle" className="text-xs font-semibold cursor-pointer text-gray-700">
+                    Enable Spaced Sending (Batches/Chunks)
                   </Label>
-                  <Input
-                    id="chunkSize"
-                    type="number"
-                    min={1}
-                    value={chunkSize}
-                    onChange={(e) => setChunkSize(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="mt-1 h-9 text-xs"
-                  />
-                  <span className="text-[10px] text-gray-500">
-                    {isQr ? "Batch size before long pause. Default 100." : "Messages per batch. Default 500."}
-                  </span>
-                </div>
-                <div>
-                  <Label htmlFor="delayBetweenChunks" className="text-xs font-semibold text-gray-700">
-                    {isQr ? "Delay Between Chunks (Min)" : "Delay Between Batches (Min)"}
-                  </Label>
-                  <Input
-                    id="delayBetweenChunks"
-                    type="number"
-                    min={0}
-                    value={delayBetweenChunks}
-                    onChange={(e) => setDelayBetweenChunks(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="mt-1 h-9 text-xs"
-                  />
-                  <span className="text-[10px] text-gray-500">
-                    {isQr ? "Pause duration between batches. Default 5m." : "Pause time between batches. Set 0m to disable."}
-                  </span>
                 </div>
               </div>
-            </CardContent>
+            </CardHeader>
+            {enableChunking && (
+              <CardContent className="transition-all duration-200">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="delayBetweenMessages" className="text-xs font-semibold text-gray-700">
+                      Delay Between Messages (Sec)
+                    </Label>
+                    <Input
+                      id="delayBetweenMessages"
+                      type="number"
+                      min={0}
+                      value={delayBetweenMessages}
+                      onChange={(e) => setDelayBetweenMessages(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="mt-1 h-9 text-xs"
+                    />
+                    <span className="text-[10px] text-gray-500">
+                      {isQr ? "Wait between messages. Default 3s." : "Wait between API calls. Set 0s for instant."}
+                    </span>
+                  </div>
+                  <div>
+                    <Label htmlFor="chunkSize" className="text-xs font-semibold text-gray-700">
+                      {isQr ? "Chunk Size (Messages)" : "Batch Size (Messages)"}
+                    </Label>
+                    <Input
+                      id="chunkSize"
+                      type="number"
+                      min={1}
+                      value={chunkSize}
+                      onChange={(e) => setChunkSize(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="mt-1 h-9 text-xs"
+                    />
+                    <span className="text-[10px] text-gray-500">
+                      {isQr ? "Batch size before long pause. Default 100." : "Messages per batch. Default 500."}
+                    </span>
+                  </div>
+                  <div>
+                    <Label htmlFor="delayBetweenChunks" className="text-xs font-semibold text-gray-700">
+                      {isQr ? "Delay Between Chunks (Min)" : "Delay Between Batches (Min)"}
+                    </Label>
+                    <Input
+                      id="delayBetweenChunks"
+                      type="number"
+                      min={0}
+                      value={delayBetweenChunks}
+                      onChange={(e) => setDelayBetweenChunks(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="mt-1 h-9 text-xs"
+                    />
+                    <span className="text-[10px] text-gray-500">
+                      {isQr ? "Pause duration between batches. Default 5m." : "Pause time between batches. Set 0m to disable."}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            )}
           </Card>
 
           {/* Warmer messages Setup */}

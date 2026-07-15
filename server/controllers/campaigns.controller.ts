@@ -109,6 +109,9 @@ const createCampaignSchema = z.object({
   delayBetweenChunks: z.number().optional(),
   warmerEnabled: z.boolean().optional(),
   selectedWarmerMessages: z.array(z.string()).optional(),
+  isRecurring: z.boolean().optional(),
+  recurringInterval: z.number().optional().nullable(),
+  recurringIterations: z.number().optional().nullable(),
 });
 
 const updateStatusSchema = z.object({
@@ -791,8 +794,19 @@ function buildContactComponents(contact: Contact, campaign: any, template: any, 
     for (const varText of bodyVars) {
       const index = varText.replace(/\D/g, "");
       const mapObj = campaign.variableMapping?.[index];
-      const textValue = resolveVariableValue(mapObj, contact);
-      bodyComponent.parameters.push({ type: "text", text: textValue });
+      let textValue = resolveVariableValue(mapObj, contact);
+
+      // Auto-generate reference value if empty and category is UTILITY
+      if (!textValue && template.category === "UTILITY") {
+        const varPos = bodyText.indexOf(varText);
+        const prefix = bodyText.substring(Math.max(0, varPos - 15), varPos).toLowerCase();
+        if (prefix.includes("ref") || prefix.includes("id") || prefix.includes("reference") || index === String(bodyVars.length)) {
+          const randRef = Math.floor(100000 + Math.random() * 900000);
+          textValue = `REF-${randRef}`;
+        }
+      }
+
+      bodyComponent.parameters.push({ type: "text", text: textValue || "N/A" });
     }
     components.push(bodyComponent);
   }

@@ -93,6 +93,10 @@ export function CreateCampaignForm({
 
   const [optimizeCampaignToUtility, setOptimizeCampaignToUtility] = useState(false);
   const [enableChunking, setEnableChunking] = useState(connectionMethod === "qr_code");
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringIntervalType, setRecurringIntervalType] = useState<"8" | "24" | "48" | "custom">("24");
+  const [customIntervalHours, setCustomIntervalHours] = useState(24);
+  const [recurringIterations, setRecurringIterations] = useState(3);
   const { user, userPlans } = useAuth();
 
   const utilityCategoryHelperEnabled = useMemo(() => {
@@ -340,6 +344,9 @@ export function CreateCampaignForm({
       delayBetweenMessages: finalDelayBetweenMessages,
       chunkSize: finalChunkSize,
       delayBetweenChunks: finalDelayBetweenChunks,
+      isRecurring: isQr ? isRecurring : false,
+      recurringInterval: isQr && isRecurring ? (recurringIntervalType === "custom" ? customIntervalHours : parseInt(recurringIntervalType)) : null,
+      recurringIterations: isQr && isRecurring ? recurringIterations : null,
       ...(isQr ? {
         customMessage,
         mediaUrl: mediaUrl || null,
@@ -1118,6 +1125,77 @@ export function CreateCampaignForm({
               Enable auto-retry for failed messages
             </Label>
           </div>
+
+          {isQr && (
+            <div className="space-y-3 pt-2 border-t border-gray-100">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isRecurring"
+                  checked={isRecurring}
+                  onCheckedChange={(checked) => setIsRecurring(!!checked)}
+                />
+                <Label htmlFor="isRecurring" className="font-normal text-sm cursor-pointer">
+                  Repeat/Schedule campaign on a recurring basis
+                </Label>
+              </div>
+
+              {isRecurring && (
+                <div className="space-y-3 pl-6 pt-1 transition-all duration-200">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">Recurring Interval</Label>
+                    <div className="flex gap-2">
+                      {(["8", "24", "48", "custom"] as const).map((preset) => (
+                        <Button
+                          key={preset}
+                          type="button"
+                          variant={recurringIntervalType === preset ? "default" : "outline"}
+                          size="sm"
+                          className="h-8 text-xs px-3"
+                          onClick={() => setRecurringIntervalType(preset)}
+                        >
+                          {preset === "custom" ? "Custom Hours" : `${preset} Hours`}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {recurringIntervalType === "custom" && (
+                    <div>
+                      <Label htmlFor="customIntervalHours" className="text-xs font-semibold text-gray-700">
+                        Custom Interval (Hours)
+                      </Label>
+                      <Input
+                        id="customIntervalHours"
+                        type="number"
+                        min={1}
+                        value={customIntervalHours}
+                        onChange={(e) => setCustomIntervalHours(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="mt-1 h-9 text-xs"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <Label htmlFor="recurringIterations" className="text-xs font-semibold text-gray-700">
+                      Iterations Limit (Max 20, Default 3)
+                    </Label>
+                    <Input
+                      id="recurringIterations"
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={recurringIterations}
+                      onChange={(e) => setRecurringIterations(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                      className="mt-1 h-9 text-xs"
+                    />
+                    <span className="text-[10px] text-gray-500 block">
+                      The campaign will run a total of {recurringIterations} times at the selected interval.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 

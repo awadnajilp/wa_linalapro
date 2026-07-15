@@ -450,6 +450,7 @@ async function seed() {
             apiRequestsPerMonth: "1000",
             apiRateLimitPerMinute: "10",
             qrCodeChannelEnabled: "false",
+            utilityCategoryHelperEnabled: "false",
           },
           features: [
             { name: "1 WhatsApp Channel", included: true },
@@ -482,6 +483,7 @@ async function seed() {
             apiRequestsPerMonth: "50000",
             apiRateLimitPerMinute: "60",
             qrCodeChannelEnabled: "false",
+            utilityCategoryHelperEnabled: "false",
           },
           features: [
             { name: "3 WhatsApp Channels", included: true },
@@ -514,6 +516,7 @@ async function seed() {
             apiRequestsPerMonth: "unlimited",
             apiRateLimitPerMinute: "300",
             qrCodeChannelEnabled: "true",
+            utilityCategoryHelperEnabled: "true",
           },
           features: [
             { name: "Unlimited WhatsApp Channels", included: true },

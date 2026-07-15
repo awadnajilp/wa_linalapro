@@ -277,6 +277,58 @@ export class MessageQueueService {
 
         console.log(`[MessageQueue] Campaign ${campaignId} completed`);
 
+        // Check for recurring scheduling (QR campaigns)
+        if (campaign.isRecurring && campaign.apiType === "qr_code") {
+          const currentIt = campaign.currentIteration || 1;
+          const maxIt = campaign.recurringIterations || 3;
+          if (currentIt < maxIt) {
+            const intervalHours = campaign.recurringInterval || 24;
+            const scheduledAtTime = campaign.scheduledAt ? new Date(campaign.scheduledAt) : new Date();
+            const nextScheduledAt = new Date(scheduledAtTime.getTime() + intervalHours * 60 * 60 * 1000);
+
+            const baseName = (campaign.name || "Campaign").replace(/\s*\(Run\s+\d+\/\d+\)/gi, "");
+            const nextRunName = `${baseName} (Run ${currentIt + 1}/${maxIt})`;
+
+            const nextCampaignData = {
+              channelId: campaign.channelId,
+              createdBy: campaign.createdBy,
+              name: nextRunName,
+              description: campaign.description,
+              campaignType: campaign.campaignType,
+              type: campaign.type,
+              apiType: campaign.apiType,
+              templateId: campaign.templateId,
+              templateName: campaign.templateName,
+              templateLanguage: campaign.templateLanguage,
+              variableMapping: campaign.variableMapping || {},
+              contactGroups: campaign.contactGroups || [],
+              csvData: campaign.csvData || [],
+              customMessage: campaign.customMessage,
+              mediaUrl: campaign.mediaUrl,
+              mediaMimeType: campaign.mediaMimeType,
+              mediaName: campaign.mediaName,
+              delayBetweenMessages: campaign.delayBetweenMessages,
+              chunkSize: campaign.chunkSize,
+              delayBetweenChunks: campaign.delayBetweenChunks,
+              warmerEnabled: campaign.warmerEnabled,
+              selectedWarmerMessages: campaign.selectedWarmerMessages || [],
+              
+              // Recurring settings
+              isRecurring: true,
+              recurringInterval: campaign.recurringInterval,
+              recurringIterations: maxIt,
+              currentIteration: currentIt + 1,
+              parentCampaignId: campaign.parentCampaignId || campaign.id,
+              
+              status: "scheduled",
+              scheduledAt: nextScheduledAt,
+            };
+
+            console.log(`[MessageQueue] Scheduling next iteration of recurring campaign: "${nextRunName}" for ${nextScheduledAt.toISOString()}`);
+            await storage.createCampaign(nextCampaignData);
+          }
+        }
+
         try {
           const ch = campaign.channelId
             ? await db

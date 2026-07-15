@@ -22,6 +22,7 @@ import { insertTemplateSchema } from '@shared/schema';
 import { AppError, asyncHandler } from '../middlewares/error.middleware';
 import { WhatsAppApiService } from '../services/whatsapp-api';
 import type { RequestWithChannel } from '../middlewares/channel.middleware';
+import { checkUtilityHelperPermission } from '../services/plan-permission.service';
 import fs from "fs";
 import sharp from 'sharp';
 
@@ -187,6 +188,13 @@ export const createTemplate = asyncHandler(
 
     const channel = await storage.getChannel(channelId);
     if (!channel) throw new AppError(404, "Channel not found");
+
+    if (category === "UTILITY" && channel.connectionMethod !== "qr_code") {
+      const hasPermission = await checkUtilityHelperPermission(createdBy);
+      if (!hasPermission) {
+        throw new AppError(403, "Your plan does not allow creating Utility templates. Please upgrade your plan.");
+      }
+    }
 
     if (channel.connectionMethod === "qr_code") {
       const template = await storage.createTemplate({
@@ -627,6 +635,16 @@ export const updateTemplate = asyncHandler(
 
     const channel = await storage.getChannel(channelId);
     if (!channel) throw new AppError(400, "Channel not found");
+
+    if (category === "UTILITY" && channel.connectionMethod !== "qr_code") {
+      const createdBy = req.user?.id;
+      if (createdBy) {
+        const hasPermission = await checkUtilityHelperPermission(createdBy);
+        if (!hasPermission) {
+          throw new AppError(403, "Your plan does not allow creating Utility templates. Please upgrade your plan.");
+        }
+      }
+    }
 
     /* ------------------------------------------------
        SAFE DB UPDATE PAYLOAD

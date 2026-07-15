@@ -45,6 +45,7 @@ import {
   CheckCircle,
   MessageSquare,
   XCircle,
+  Repeat,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useTranslation } from "@/lib/i18n";
@@ -174,7 +175,19 @@ export function CampaignsTable({
 
               return (
                 <TableRow key={campaign.id}>
-                  <TableCell className="font-medium">{campaign.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold">{campaign.name}</span>
+                      {campaign.isRecurring && (
+                        <div className="flex items-center gap-1 text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded w-max">
+                          <Repeat className="h-2.5 w-2.5" />
+                          <span>
+                            Recurring: Every {campaign.recurringInterval}h (Run {campaign.currentIteration}/{campaign.recurringIterations})
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>{isDemoUser(user?.username) ? maskName(campaign.createdByName) : campaign.createdByName}</TableCell>
                   <TableCell>{getStatusBadge(campaign.status)}</TableCell>
                   <TableCell>{campaign.templateName || "-"}</TableCell>
@@ -304,7 +317,17 @@ export function CampaignsTable({
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="text-base font-semibold mb-2">
-                      {campaign.name}
+                      <div className="flex flex-col gap-1.5">
+                        <span>{campaign.name}</span>
+                        {campaign.isRecurring && (
+                          <div className="flex items-center gap-1 text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded w-max font-normal">
+                            <Repeat className="h-2.5 w-2.5" />
+                            <span>
+                              Recurring: Every {campaign.recurringInterval}h (Run {campaign.currentIteration}/{campaign.recurringIterations})
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </CardTitle>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Calendar className="h-3 w-3" />

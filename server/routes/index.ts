@@ -122,18 +122,33 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   (global as any).broadcastToConversation = (conversationId: string, data: any) => {
     const io = (global as any).io;
     if (io) {
-      const payload = { ...data, conversationId };
-      console.log(`📡 [broadcastToConversation] Broadcasting to conversation:${conversationId}:`, payload);
-      
-      // Send to clients joined to this specific conversation room (Socket.io handles this)
-      io.to(`conversation:${conversationId}`).emit("new-message", payload);
-      io.to(`conversation_${conversationId}`).emit("new-message", payload);
-      io.to(`conversation:${conversationId}`).emit("new_message", payload);
-      io.to(`conversation_${conversationId}`).emit("new_message", payload);
-      
-      // Send to all clients (for real-time updates in sidebar and unread notifications)
-      io.emit("new-message", payload);
-      io.emit("new_message", payload);
+      Promise.resolve().then(async () => {
+        let channelId = data.channelId;
+        if (!channelId) {
+          try {
+            const { storage } = await import("../storage");
+            const conv = await storage.getConversation(conversationId);
+            if (conv) {
+              channelId = conv.channelId;
+            }
+          } catch (dbErr) {
+            console.error("❌ [broadcastToConversation] Database lookup error:", dbErr);
+          }
+        }
+        
+        const payload = { ...data, conversationId, channelId };
+        console.log(`📡 [broadcastToConversation] Broadcasting to conversation:${conversationId} (channelId: ${channelId}):`, payload);
+        
+        // Send to clients joined to this specific conversation room (Socket.io handles this)
+        io.to(`conversation:${conversationId}`).emit("new-message", payload);
+        io.to(`conversation_${conversationId}`).emit("new-message", payload);
+        io.to(`conversation:${conversationId}`).emit("new_message", payload);
+        io.to(`conversation_${conversationId}`).emit("new_message", payload);
+        
+        // Send to all clients (for real-time updates in sidebar and unread notifications)
+        io.emit("new-message", payload);
+        io.emit("new_message", payload);
+      });
     } else {
       console.error("❌ [broadcastToConversation] Socket.io not initialized");
     }

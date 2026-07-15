@@ -7,16 +7,20 @@ import { subscriptions, users } from "../../shared/schema";
  */
 export async function checkUtilityHelperPermission(userId: string): Promise<boolean> {
   try {
-    // 1. Fetch user role
+    // 1. Fetch user role and parent user ID if team member
     const [user] = await db
-      .select({ role: users.role })
+      .select({ role: users.role, createdBy: users.createdBy })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
 
-    if (user?.role === "superadmin") {
+    if (!user) return false;
+
+    if (user.role === "superadmin") {
       return true;
     }
+
+    const targetOwnerId = (user.role === "team" && user.createdBy) ? user.createdBy : userId;
 
     // 2. Fetch active subscription
     const [sub] = await db
@@ -24,7 +28,7 @@ export async function checkUtilityHelperPermission(userId: string): Promise<bool
       .from(subscriptions)
       .where(
         and(
-          eq(subscriptions.userId, userId),
+          eq(subscriptions.userId, targetOwnerId),
           eq(subscriptions.status, "active")
         )
       )

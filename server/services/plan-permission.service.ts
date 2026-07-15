@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
-import { subscriptions, users } from "../../shared/schema";
+import { subscriptions, users, plans } from "../../shared/schema";
 
 /**
  * Checks if the user is a superadmin or has the utilityCategoryHelperEnabled permission active.
@@ -22,10 +22,14 @@ export async function checkUtilityHelperPermission(userId: string): Promise<bool
 
     const targetOwnerId = (user.role === "team" && user.createdBy) ? user.createdBy : userId;
 
-    // 2. Fetch active subscription
-    const [sub] = await db
-      .select()
+    // 2. Fetch active subscription joined with plans
+    const [result] = await db
+      .select({
+        subscription: subscriptions,
+        plan: plans,
+      })
       .from(subscriptions)
+      .leftJoin(plans, eq(subscriptions.planId, plans.id))
       .where(
         and(
           eq(subscriptions.userId, targetOwnerId),
@@ -34,15 +38,25 @@ export async function checkUtilityHelperPermission(userId: string): Promise<bool
       )
       .limit(1);
 
-    if (!sub) return false;
+    if (!result || !result.subscription) return false;
 
     // Check if subscription has expired
-    if (new Date(sub.endDate) < new Date()) {
+    if (new Date(result.subscription.endDate) < new Date()) {
       return false;
     }
 
-    const planData = sub.planData as any;
-    return planData?.permissions?.utilityCategoryHelperEnabled === "true";
+    // Merge planData dynamically
+    const subscription = result.subscription;
+    const plan = result.plan;
+    const mergedPlanData = {
+      ...(subscription.planData as any || {}),
+      permissions: {
+        ...((subscription.planData as any || {}).permissions || {}),
+        ...(plan?.permissions || {}),
+      }
+    };
+
+    return mergedPlanData.permissions?.utilityCategoryHelperEnabled === "true";
   } catch (error) {
     console.error("Error checking plan permissions:", error);
     return false;

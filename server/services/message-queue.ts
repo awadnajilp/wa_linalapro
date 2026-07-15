@@ -277,8 +277,8 @@ export class MessageQueueService {
 
         console.log(`[MessageQueue] Campaign ${campaignId} completed`);
 
-        // Check for recurring scheduling (QR campaigns)
-        if (campaign.isRecurring && campaign.apiType === "qr_code") {
+        // Check for recurring scheduling (QR and WABA campaigns)
+        if (campaign.isRecurring) {
           const currentIt = campaign.currentIteration || 1;
           const maxIt = campaign.recurringIterations || 3;
           if (currentIt < maxIt) {

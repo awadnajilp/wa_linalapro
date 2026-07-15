@@ -344,9 +344,9 @@ export function CreateCampaignForm({
       delayBetweenMessages: finalDelayBetweenMessages,
       chunkSize: finalChunkSize,
       delayBetweenChunks: finalDelayBetweenChunks,
-      isRecurring: isQr ? isRecurring : false,
-      recurringInterval: isQr && isRecurring ? (recurringIntervalType === "custom" ? customIntervalHours : parseInt(recurringIntervalType)) : null,
-      recurringIterations: isQr && isRecurring ? recurringIterations : null,
+      isRecurring: isRecurring,
+      recurringInterval: isRecurring ? (recurringIntervalType === "custom" ? customIntervalHours : parseInt(recurringIntervalType)) : null,
+      recurringIterations: isRecurring ? recurringIterations : null,
       ...(isQr ? {
         customMessage,
         mediaUrl: mediaUrl || null,
@@ -1126,7 +1126,6 @@ export function CreateCampaignForm({
             </Label>
           </div>
 
-          {isQr && (
             <div className="space-y-3 pt-2 border-t border-gray-100">
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -1195,7 +1194,6 @@ export function CreateCampaignForm({
                 </div>
               )}
             </div>
-          )}
         </CardContent>
       </Card>
 

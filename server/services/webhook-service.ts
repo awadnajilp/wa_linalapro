@@ -260,7 +260,8 @@ export class WebhookService {
           channelId,
           from: message.from,
           type: message.type,
-          ...(message.image && { image: message.image }),
+          ...(((message as any).image) && { image: (message as any).image }),
+          ...(((message as any).audio) && { audio: (message as any).audio, voice: (message as any).audio?.voice || false }),
         },
       });
 

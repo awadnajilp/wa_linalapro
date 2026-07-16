@@ -40,7 +40,7 @@ export const getAllChannels = asyncHandler(async (req: Request, res: Response) =
 
 export const getChannels = asyncHandler(async (req: Request, res: Response) => {
   // @ts-ignore: custom property added by auth middleware
-  const user = (req.session as any).user;
+  const user = (req.session as any)?.user || req.user;
 
   if (!user) {
     return res.status(401).json({ message: 'Not authenticated' });
@@ -51,19 +51,23 @@ export const getChannels = asyncHandler(async (req: Request, res: Response) => {
   if (user.role === 'superadmin') {
     // Superadmin sees all channels
     channels = await storage.getChannels();
+  } else if (user.role === 'team' && !user.isAdminMember && user.channelId) {
+    // Non-admin team user assigned to a specific channel
+    const singleChannel = await storage.getChannel(user.channelId);
+    channels = singleChannel ? [singleChannel] : [];
   } else {
-    // Admin (or other roles) sees only their own channels
-    channels = await storage.getChannelsByUser(user.id);
+    // Admin (or other roles/team admins) sees their own/owner's channels
+    const ownerId = user.role === 'team' ? user.createdBy : user.id;
+    channels = await (storage as any).getChannelsByUserId(ownerId);
   }
 
-  // console.log("CHECK CHANNELS:", channels);
   res.json(channels);
 });
 
 
 export const getChannelsByUserId = asyncHandler(async (req: Request, res: Response) => {
   const { userId, page = 1, limit = 10 } = req.body;
-  const user = (req.session as any)?.user;
+  const user = (req.session as any)?.user || req.user;
 
   if (!userId) {
     return res.status(400).json({ message: "userId is required" });
@@ -106,37 +110,23 @@ export const getChannelsByUserId = asyncHandler(async (req: Request, res: Respon
 });
 
 
-
-// export const getActiveChannel = asyncHandler(async (req: Request, res: Response) => {
-//   const userId =  req.user.id ; 
-
-//   if(!userId){
-//     throw new AppError(404, 'No active channel found');
-//   }
-  
-//   const channel = await storage.getActiveChannelByUserId(userId);
-//   if (!channel) {
-//     throw new AppError(404, 'No active channel found');
-//   }
-//   res.json(channel);
-// });
-
-
 export const getActiveChannel = asyncHandler(async (req: Request, res: Response) => {
-  const user = req.user;
+  const user = (req.session as any)?.user || req.user;
 
   if (!user) {
     throw new AppError(401, 'User not found');
   }
 
-  // 🟩 Team member? use parent user (createdBy)
-  const userId = user.role === "team" ? user.createdBy : user.id;
-
-  if (!userId) {
-    throw new AppError(404, 'No active channel found');
+  let channel;
+  if (user.role === 'team' && !user.isAdminMember && user.channelId) {
+    channel = await storage.getChannel(user.channelId);
+  } else {
+    const userId = user.role === "team" ? user.createdBy : user.id;
+    if (!userId) {
+      throw new AppError(404, 'No active channel found');
+    }
+    channel = await storage.getActiveChannelByUserId(userId);
   }
-
-  const channel = await storage.getActiveChannelByUserId(userId);
 
   if (!channel) {
     throw new AppError(404, 'No active channel found');

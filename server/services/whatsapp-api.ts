@@ -1668,7 +1668,7 @@ async sendMediaMessagee(
       return null;
     }
 
-    const url = `https://graph.facebook.com/${this.apiVersion}/${this.channel.phoneNumberId}/messages`;
+    const url = `${this.baseUrl}/${this.channel.phoneNumberId}/messages`;
     const payload = {
       messaging_product: "whatsapp",
       status: "read",

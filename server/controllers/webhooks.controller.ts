@@ -41,7 +41,8 @@ import { WhatsAppApiService } from "server/services/whatsapp-api";
 import { searchTrainingData } from "../services/training.service";
 import { getWhatsAppError } from "@shared/whatsapp-error-codes";
 import { db } from "server/db";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql, or, isNull, isNotNull } from "drizzle-orm";
+import { sendPushNotification } from "../services/fcm-service";
 import { triggerNotification, triggerThrottledNotification, NOTIFICATION_EVENTS } from "server/services/notification.service";
 import { users } from "@shared/schema";
 import axios from "axios";
@@ -526,6 +527,7 @@ async function handleMessageChange(value: any) {
     let mediaUrl: string | null = null;
     let mediaMimeType: string | null = null;
     let mediaSha256: string | null = null;
+    let isVoice = false;
 
     if (type === "text" && text) {
       messageContent = text.body;
@@ -568,6 +570,9 @@ async function handleMessageChange(value: any) {
       mediaId = message.audio.id;
       mediaMimeType = message.audio.mime_type;
       mediaSha256 = message.audio.sha256;
+      if (message.audio.voice === true || (message.audio as any).voice === "true") {
+        isVoice = true;
+      }
 
     } else if (type === "video" && message.video) {
       messageContent = message.video.caption || "[Video]";
@@ -710,6 +715,9 @@ async function handleMessageChange(value: any) {
 
     // Parse context (Reply)
     let finalMetadata: any = interactiveData ? { ...interactiveData } : {};
+    if (isVoice) {
+      finalMetadata.voice = true;
+    }
     if (message.context && message.context.id) {
       try {
         const originalMsg = await storage.getMessageByWhatsAppId(message.context.id);

@@ -27,7 +27,8 @@ import {
   bulkUpdateUserStatus,
   verifyEmailOTP,
   createUserSuperadmin,
-  exportAllUsers
+  exportAllUsers,
+  registerFcmToken
 } from "../controllers/user.controller";
 import type { Express } from "express";
 
@@ -38,6 +39,7 @@ app.get("/api/admin/users/:id", requireAuth, getUserById);
 app.post("/api/users/create", createUser);
 app.post("/api/admin/users/create", requireAuth, requireRole("superadmin"), createUserSuperadmin);
 app.post("/api/users/verifyEmail", verifyEmailOTP)
+app.post("/api/users/fcm-token", requireAuth, registerFcmToken);
 app.put("/api/admin/users/bulk-status", requireAuth, bulkUpdateUserStatus);
 app.put("/api/users/:id", requireAuth, updateUser);
 app.put("/api/user/status/:id", requireAuth, updateUserStatus);

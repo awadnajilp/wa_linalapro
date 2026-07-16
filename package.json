@@ -90,6 +90,7 @@
     "express-session": "^1.18.1",
     "file-saver": "^2.0.5",
     "file-server": "^2.2.1",
+    "firebase-admin": "^14.1.0",
     "form-data": "^4.0.5",
     "framer-motion": "^11.13.1",
     "google-auth-library": "^10.2.0",

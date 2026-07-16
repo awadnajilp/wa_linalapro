@@ -694,3 +694,21 @@ export const createUserSuperadmin = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const registerFcmToken = async (req: Request, res: Response) => {
+  try {
+    const user = (req.session as any)?.user || req.user;
+    if (!user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ message: "token is required" });
+    }
+    await db.update(users).set({ fcmToken: token }).where(eq(users.id, user.id));
+    return res.status(200).json({ success: true, message: "FCM token registered successfully" });
+  } catch (error) {
+    console.error("Error registering FCM token:", error);
+    return res.status(500).json({ success: false, message: "Error registering FCM token", error });
+  }
+};

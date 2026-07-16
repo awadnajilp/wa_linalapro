@@ -26,6 +26,7 @@ import {
 } from "@shared/schema";
 import { db } from "server/db";
 import nodemailer from "nodemailer";
+import { sendPushNotification } from "./fcm-service";
 
 export const NOTIFICATION_EVENTS = {
   NEW_MESSAGE: 'new_message',
@@ -340,6 +341,15 @@ async function flushDigest(key: string) {
       });
     }
 
+    // Trigger FCM push notification for the digest alert
+    const userRowsForPush = await db.select().from(users).where(eq(users.id, userId));
+    if (userRowsForPush.length > 0 && userRowsForPush[0].fcmToken) {
+      sendPushNotification(userRowsForPush[0].fcmToken, digestTitle, digestMessage, {
+        conversationId: "",
+        channelId: entry.channelId || "",
+      }).catch(err => console.error("[FCM] Error sending digest push:", err));
+    }
+
     const [notif] = await db
       .insert(notifications)
       .values({
@@ -521,6 +531,16 @@ export async function triggerNotification(
             soundEnabled: eventPrefs.soundEnabled !== false,
             conversationId: variables.conversationId || null,
           });
+        }
+
+        // Trigger FCM push notification for the immediate alert
+        if (user.fcmToken) {
+          sendPushNotification(user.fcmToken, userResolvedTitle, cleanMessage, {
+            type: eventType,
+            link,
+            channelId: channelId || "",
+            conversationId: variables.conversationId || "",
+          }).catch(err => console.error("[FCM] Error sending immediate push:", err));
         }
       }
 

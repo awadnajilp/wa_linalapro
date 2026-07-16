@@ -28,6 +28,7 @@ export type NodeKind =
   | "end"
   | "add_to_group"
   | "update_contact"
+  | "delete_contact"
   | "set_variable"
   | "send_location"
   | "send_list_message"

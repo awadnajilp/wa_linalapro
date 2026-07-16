@@ -288,6 +288,10 @@ export class AutomationExecutionService {
           result = await this.executeUpdateContact(node, context);
           break;
 
+        case 'delete_contact':
+          result = await this.executeDeleteContact(node, context);
+          break;
+
         case 'set_variable':
           result = await this.executeSetVariable(node, context);
           break;
@@ -351,6 +355,13 @@ export class AutomationExecutionService {
       await db.update(automationExecutions)
         .set({ variables: context.variables })
         .where(eq(automationExecutions.id, context.executionId));
+
+      if (result?.action === 'contact_deleted') {
+        console.log(`🗑️ Contact ${context.contactId} deleted, ending flow.`);
+        await db.delete(automationExecutions).where(eq(automationExecutions.contactId, context.contactId));
+        await db.delete(contacts).where(eq(contacts.id, context.contactId));
+        return;
+      }
 
       if (result?.action === 'execution_paused') {
         console.log(`⏸️  Node ${node.nodeId} paused execution, not continuing to next node`);
@@ -2466,6 +2477,12 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     }
 
     return { action: 'contact_updated', field, value, contactId: context.contactId };
+  }
+
+  private async executeDeleteContact(node: any, context: ExecutionContext) {
+    if (!context.contactId) throw new Error('No contact ID in context');
+    console.log(`🗑️ executeDeleteContact: Marking contact ${context.contactId} for deletion`);
+    return { action: 'contact_deleted' };
   }
 
   private async executeSetVariable(node: any, context: ExecutionContext) {

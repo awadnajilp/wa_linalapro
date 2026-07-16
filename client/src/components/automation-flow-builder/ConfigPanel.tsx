@@ -48,6 +48,7 @@ import {
   CircleStop,
   UserPlus,
   UserCog,
+  UserX,
   Variable,
   MapPin,
   List,
@@ -92,6 +93,7 @@ const kindMeta: Record<NodeKind, { icon: any; label: string; color: string; bgTi
   end: { icon: CircleStop, label: "End", color: "text-red-600", bgTint: "bg-red-50" },
   add_to_group: { icon: UserPlus, label: "Add to Group", color: "text-emerald-600", bgTint: "bg-emerald-50" },
   update_contact: { icon: UserCog, label: "Update Contact", color: "text-cyan-600", bgTint: "bg-cyan-50" },
+  delete_contact: { icon: UserX, label: "Delete Contact", color: "text-rose-600", bgTint: "bg-rose-50" },
   set_variable: { icon: Variable, label: "Set Variable", color: "text-violet-600", bgTint: "bg-violet-50" },
   send_location: { icon: MapPin, label: "Send Location", color: "text-rose-600", bgTint: "bg-rose-50" },
   send_list_message: { icon: List, label: "List Message", color: "text-sky-600", bgTint: "bg-sky-50" },
@@ -1727,6 +1729,20 @@ export function ConfigPanel({
                   {(contactGroups as any[]).length === 0 && (
                     <div className="text-[10px] text-gray-400 italic">No groups found. Create groups in Contact Management first.</div>
                   )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {d.kind === "delete_contact" && (
+            <>
+              <SectionHeader>Delete Contact</SectionHeader>
+              <div className="space-y-3 bg-rose-50/50 rounded-xl p-4 border border-rose-100">
+                <div className="text-xs text-rose-700 font-medium">
+                  This action will permanently delete the contact and all associated chat logs from the CRM contacts directory.
+                </div>
+                <div className="text-[11px] text-gray-500">
+                  Recommended for opt-out, unsubscribe, or spam prevention conditions.
                 </div>
               </div>
             </>

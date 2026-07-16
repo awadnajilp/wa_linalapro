@@ -32,6 +32,7 @@ import {
   Image,
   UserPlus,
   UserCog,
+  UserX,
   Variable,
   MapPin,
   List,
@@ -519,6 +520,25 @@ export function UpdateContactNode({ data }: { data: BuilderNodeData }) {
   );
 }
 
+export function DeleteContactNode() {
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-rose-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<UserX className="w-4 h-4" />}
+        title="Delete Contact"
+        color="text-rose-700"
+        bgColor="bg-rose-50"
+        borderColor="border-rose-100"
+      >
+        <div className="text-[11px] text-gray-500 italic">
+          Removes contact from CRM
+        </div>
+      </NodeShell>
+    </div>
+  );
+}
+
 export function SetVariableNode({ data }: { data: BuilderNodeData }) {
   return (
     <div className="relative">
@@ -891,6 +911,7 @@ export const nodeTypes = {
   end: withNodeActions(EndNode),
   add_to_group: withNodeActions(AddToGroupNode),
   update_contact: withNodeActions(UpdateContactNode),
+  delete_contact: withNodeActions(DeleteContactNode),
   set_variable: withNodeActions(SetVariableNode),
   send_location: withNodeActions(SendLocationNode),
   send_list_message: withNodeActions(SendListMessageNode),

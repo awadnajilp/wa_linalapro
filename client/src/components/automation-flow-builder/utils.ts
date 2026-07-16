@@ -99,6 +99,10 @@ export const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
     contactField: "name",
     contactFieldValue: "",
   },
+  delete_contact: {
+    kind: "delete_contact",
+    label: "Delete Contact",
+  },
   set_variable: {
     kind: "set_variable",
     label: "Set Variable",

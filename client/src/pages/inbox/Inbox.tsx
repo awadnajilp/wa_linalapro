@@ -197,11 +197,30 @@ export default function Inbox() {
     (window as any).activeConversationId = selectedConversation?.id || null;
     if (selectedConversation) {
       setCurrentConversationAiEnabled((selectedConversation as any).aiEnabled || false);
+      
+      // Mark as read if there are unread messages
+      if (selectedConversation.unreadCount && selectedConversation.unreadCount > 0) {
+        queryClient.setQueryData(
+          ["/api/conversations", activeChannel?.id, selectedTag],
+          (old: any[]) => {
+            if (!Array.isArray(old)) return [];
+            return old.map((conv) =>
+              conv.id === selectedConversation.id ? { ...conv, unreadCount: 0 } : conv
+            );
+          }
+        );
+        
+        apiRequest("PUT", `/api/conversations/${selectedConversation.id}/read`).catch((err) => {
+          console.error("❌ Failed to mark conversation as read:", err);
+        });
+        
+        queryClient.invalidateQueries({ queryKey: ["/api/conversations/unread-count"] });
+      }
     }
     return () => {
       (window as any).activeConversationId = null;
     };
-  }, [selectedConversation]);
+  }, [selectedConversation, activeChannel?.id, selectedTag, queryClient]);
 
   useEffect(() => {
     activeChannelRef.current = activeChannel;
@@ -453,6 +472,15 @@ export default function Inbox() {
           createdAt: new Date(lastMessageAt).toISOString(),
           status: data.status || "received",
         };
+
+        const isMsgInbound = incomingMsg.direction === "inbound" || 
+          (data.direction === "inbound" || (!data.fromUser && data.from !== "business_app" && data.from !== "agent"));
+        
+        if (isMsgInbound) {
+          apiRequest("PUT", `/api/conversations/${conversationId}/read`).catch((err) => {
+            console.error("❌ Failed to mark incoming message as read:", err);
+          });
+        }
 
         queryClient.setQueryData(
           ["/api/conversations", conversationId, "messages"],

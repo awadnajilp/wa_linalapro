@@ -961,6 +961,34 @@ export class BaileysManager {
     };
   }
 
+  static async markMessageAsRead(channelId: string, to: string, whatsappMessageId: string): Promise<void> {
+    const sock = this.activeSockets.get(channelId);
+    if (!sock) {
+      console.warn(`[BaileysManager] No active socket for channel ${channelId} to mark read`);
+      return;
+    }
+
+    try {
+      const jid = to.endsWith("@g.us")
+        ? to
+        : (to.replace(/\D/g, "").startsWith("1") && to.replace(/\D/g, "").length === 15)
+          ? `${to.replace(/\D/g, "")}@lid`
+          : `${to.replace(/\D/g, "")}@s.whatsapp.net`;
+
+      console.log(`[BaileysManager] Sending read receipt for message ${whatsappMessageId} in ${jid}`);
+      
+      await sock.readMessages([
+        {
+          remoteJid: jid,
+          id: whatsappMessageId,
+          fromMe: false,
+        }
+      ]);
+    } catch (err) {
+      console.error(`[BaileysManager] Failed to mark message as read:`, err);
+    }
+  }
+
   static async deleteSession(channelId: string): Promise<void> {
     console.log(`[BaileysManager] Deleting session for channel ${channelId}`);
     const sock = this.activeSockets.get(channelId);

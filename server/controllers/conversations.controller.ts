@@ -216,6 +216,43 @@ export const markAsRead = asyncHandler(async (req: Request, res: Response) => {
   if (!conversation) {
     throw new AppError(404, 'Conversation not found');
   }
+
+  // Trigger WhatsApp read receipt asynchronously
+  if (conversation.channelId && conversation.contactPhone) {
+    (async () => {
+      try {
+        const [latestInbound] = await db
+          .select()
+          .from(messages)
+          .where(
+            and(
+              eq(messages.conversationId, id),
+              eq(messages.direction, "inbound"),
+              sql`${messages.whatsappMessageId} IS NOT NULL`
+            )
+          )
+          .orderBy(desc(messages.timestamp))
+          .limit(1);
+
+        if (latestInbound && latestInbound.whatsappMessageId) {
+          const channel = await storage.getChannel(conversation.channelId);
+          if (channel) {
+            if (channel.connectionMethod === "qr_code") {
+              const { BaileysManager } = await import("../services/baileys-manager");
+              await BaileysManager.markMessageAsRead(channel.id, conversation.contactPhone, latestInbound.whatsappMessageId);
+            } else {
+              const { WhatsAppApiService } = await import("../services/whatsapp-api");
+              const whatsappApi = new WhatsAppApiService(channel);
+              await whatsappApi.markMessageAsRead(latestInbound.whatsappMessageId);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to send WhatsApp read receipt:", err);
+      }
+    })();
+  }
+
   res.json(conversation);
 });
 

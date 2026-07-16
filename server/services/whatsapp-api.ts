@@ -1663,6 +1663,40 @@ async sendMediaMessagee(
 
 
 
+  async markMessageAsRead(whatsappMessageId: string): Promise<any> {
+    if (this.channel.connectionMethod === "qr_code") {
+      return null;
+    }
+
+    const url = `https://graph.facebook.com/${this.apiVersion}/${this.channel.phoneNumberId}/messages`;
+    const payload = {
+      messaging_product: "whatsapp",
+      status: "read",
+      message_id: whatsappMessageId,
+    };
+
+    console.log(`[WhatsApp-API] Marking message as read: ${whatsappMessageId}`);
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.channel.accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        console.error("❌ Failed to mark message as read on WABA:", data.error?.message || data);
+      }
+      return data;
+    } catch (err: any) {
+      console.error("❌ Error marking message as read on WABA:", err.message || err);
+      return null;
+    }
+  }
+
   async sendDirectMessage(payload: any): Promise<any> {
     if (this.channel.connectionMethod === "qr_code") {
       const to = payload.to;

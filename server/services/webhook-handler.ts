@@ -101,6 +101,7 @@ export interface WebhookMessage {
       details: string;
     };
   }>;
+  rawBaileysMessage?: any;
 }
 
 export interface WebhookStatus {
@@ -488,6 +489,11 @@ export class WebhookHandler {
           content = `[Unsupported: Message type "${message.type}" unknown]`;
           metadata = { type: "unsupported", originalType: message.type, rawWebhook: message };
           break;
+      }
+
+      if (message.rawBaileysMessage) {
+        if (!metadata) metadata = {};
+        metadata.rawBaileysMessage = message.rawBaileysMessage;
       }
 
       // Intercept audio message for voice-enabled AI takeover nodes

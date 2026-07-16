@@ -33,6 +33,9 @@ import {
   User,
   Phone,
   Mail,
+  Image,
+  Video,
+  Paperclip,
   Building,
   HelpCircle,
   Lightbulb,
@@ -192,6 +195,8 @@ const MessageItem = ({
     mimeType?: string;
     downloadUrl: string;
   } | null>(null);
+  const [mediaLoaded, setMediaLoaded] = useState(false);
+  const shouldConfirmLoad = !isOutbound && (messageType === "image" || messageType === "video" || messageType === "audio" || messageType === "document");
 
   const openLightbox = useCallback(
     (src: string, type: "image" | "video", downloadUrl: string, mimeType?: string) => {
@@ -209,6 +214,54 @@ const MessageItem = ({
   const renderMediaContent = () => {
     const hasMedia = message.mediaId || message.mediaUrl;
     const { mediaUrl, downloadUrl } = resolveMediaUrls(message);
+
+    if (shouldConfirmLoad && !mediaLoaded) {
+      const getMediaInfo = () => {
+        switch (messageType) {
+          case "image":
+            return { label: "Image", icon: Image, color: "text-blue-500", bg: "bg-blue-50" };
+          case "video":
+            return { label: "Video", icon: Video, color: "text-amber-500", bg: "bg-amber-50" };
+          case "audio":
+            return { label: "Voice Note", icon: Mic, color: "text-purple-500", bg: "bg-purple-50" };
+          case "document":
+            return { label: "Document", icon: FileText, color: "text-emerald-500", bg: "bg-emerald-50" };
+          default:
+            return { label: "Media File", icon: Paperclip, color: "text-gray-500", bg: "bg-gray-50" };
+        }
+      };
+
+      const info = getMediaInfo();
+      const Icon = info.icon;
+
+      return (
+        <div className="bg-white border border-gray-150 rounded-xl p-3 flex items-center justify-between gap-4 max-w-[280px] shadow-sm hover:shadow transition-all duration-200 my-1">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className={cn("p-2 rounded-xl flex-shrink-0", info.bg)}>
+              <Icon className={cn("w-4 h-4", info.color)} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-gray-800 truncate">
+                Incoming {info.label}
+              </p>
+              <p className="text-[10px] text-gray-400">
+                Click to load & view
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setMediaLoaded(true);
+            }}
+            className="flex-shrink-0 h-7 px-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-medium flex items-center justify-center gap-1 transition-colors shadow-sm cursor-pointer"
+          >
+            <Download className="w-3 h-3" />
+            Load
+          </button>
+        </div>
+      );
+    }
 
     const renderTextContent = () => {
       if (

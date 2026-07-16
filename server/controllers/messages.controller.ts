@@ -968,6 +968,34 @@ export const getMediaProxy = asyncHandler(async (req: Request, res: Response) =>
 
     const conversation = await storage.getConversation(message.conversationId);
     const channel = await storage.getChannel(conversation!.channelId!);
+    
+    if (channel!.connectionMethod === "qr_code" && !message.mediaUrl) {
+      const rawBaileysMessage = (message.metadata as any)?.rawBaileysMessage;
+      if (rawBaileysMessage) {
+        console.log("Media proxy: Downloading Baileys media on demand...");
+        const mimeType = message.mediaMimeType || "application/octet-stream";
+        const { BaileysManager } = await import("../services/baileys-manager");
+        const buffer = await BaileysManager.downloadAndCacheMediaOnDemand(
+          channel!.id,
+          message.id,
+          rawBaileysMessage,
+          mimeType
+        );
+        
+        if (buffer) {
+          res.set({
+            'Content-Type': mimeType,
+            'Cache-Control': 'public, max-age=86400',
+          });
+          if (download === 'true') {
+            const filename = (message.metadata as any)?.fileName || `media_${messageId}`;
+            res.set('Content-Disposition', `attachment; filename="${filename}"`);
+          }
+          return res.send(buffer);
+        }
+      }
+    }
+
     const whatsappApi = new WhatsAppApiService(channel!);
 
     console.log("Streaming media for mediaId:", message.mediaId);

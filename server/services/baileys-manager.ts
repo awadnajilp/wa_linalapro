@@ -428,13 +428,13 @@ export class BaileysManager {
         }
         console.log(`[BaileysManager] Received incoming message ${messageId} from ${senderPhone} on channel ${channelId}`);
 
-        // Download incoming media if any
-        if (msg.imageMessage || msg.videoMessage || msg.audioMessage || msg.documentMessage) {
+        // Download incoming media if any (only audio/voice note is downloaded automatically for real-time STT and AI takeover)
+        if (msg.audioMessage) {
           try {
             console.log(`[BaileysManager] Downloading incoming media for message ${messageId}...`);
             const buffer = await downloadMediaMessage(message, "buffer", {}, {} as any);
             
-            const mediaMsg = msg.imageMessage || msg.videoMessage || msg.audioMessage || msg.documentMessage;
+            const mediaMsg = msg.audioMessage;
             const mimeType = mediaMsg!.mimetype || "application/octet-stream";
             const originalName = (mediaMsg as any).fileName || "file";
             
@@ -681,6 +681,7 @@ export class BaileysManager {
       audio,
       document,
       location,
+      rawBaileysMessage: baileysMsg,
     };
   }
 
@@ -1129,6 +1130,112 @@ export class BaileysManager {
       }
     } catch (err) {
       console.error(`[BaileysManager] Failed to update message status for ${whatsappMessageId}:`, err);
+    }
+  }
+
+  static async downloadMediaOnDemand(channelId: string, rawMessage: any): Promise<Buffer | null> {
+    try {
+      const sock = this.getActiveSocket(channelId);
+      if (!sock) {
+        console.warn(`[BaileysManager] No active socket found for channel ${channelId} to download media on demand`);
+        return null;
+      }
+      console.log(`[BaileysManager] Downloading media on demand for message...`);
+      const buffer = await downloadMediaMessage(rawMessage, "buffer", {}, {} as any);
+      return buffer;
+    } catch (err) {
+      console.error(`[BaileysManager] Failed to download media on demand:`, err);
+      return null;
+    }
+  }
+
+  static async downloadAndCacheMediaOnDemand(channelId: string, messageId: string, rawMessage: any, mimeType: string): Promise<Buffer | null> {
+    try {
+      const buffer = await this.downloadMediaOnDemand(channelId, rawMessage);
+      if (!buffer) return null;
+
+      // Upload to S3 and cache/update DB in the background
+      setTimeout(async () => {
+        try {
+          const originalName = "file";
+          let ext = "bin";
+          if (mimeType.includes("jpeg") || mimeType.includes("jpg")) ext = "jpg";
+          else if (mimeType.includes("png")) ext = "png";
+          else if (mimeType.includes("gif")) ext = "gif";
+          else if (mimeType.includes("mp4")) ext = "mp4";
+          else if (mimeType.includes("ogg")) ext = "ogg";
+          else if (mimeType.includes("mpeg")) ext = "mp3";
+          else if (mimeType.includes("pdf")) ext = "pdf";
+
+          const filename = `qr_${randomUUID()}.${ext}`;
+          
+          // Try S3 upload
+          const { createDOClient } = await import("../config/digitalOceanConfig");
+          const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+          const doClient = await createDOClient();
+          let downloadedUrl = "";
+          
+          if (doClient) {
+            const { s3, bucket, endpoint } = doClient;
+            const fileKey = `uploads/incoming/${filename}`;
+            
+            try {
+              await s3.send(
+                new PutObjectCommand({
+                  Bucket: bucket!,
+                  Key: fileKey,
+                  Body: buffer,
+                  ACL: "public-read",
+                  ContentType: mimeType,
+                })
+              );
+            } catch (s3Error: any) {
+              await s3.send(
+                new PutObjectCommand({
+                  Bucket: bucket!,
+                  Key: fileKey,
+                  Body: buffer,
+                  ContentType: mimeType,
+                })
+              );
+            }
+            
+            const endpointUrl = new URL(endpoint || "");
+            downloadedUrl = `https://${bucket}.${endpointUrl.host}/${fileKey}`;
+          } else {
+            // Fallback to local file if S3 is not configured
+            const incomingDir = path.join(process.cwd(), "uploads/incoming");
+            if (!fs.existsSync(incomingDir)) {
+              fs.mkdirSync(incomingDir, { recursive: true });
+            }
+            const filePath = path.join(incomingDir, filename);
+            fs.writeFileSync(filePath, buffer);
+            downloadedUrl = `/uploads/incoming/${filename}`;
+          }
+
+          if (downloadedUrl) {
+            // Update the database message
+            const { db } = await import("../db");
+            const { messages } = await import("@shared/schema");
+            const { eq } = await import("drizzle-orm");
+            
+            await db.update(messages)
+              .set({ mediaUrl: downloadedUrl })
+              .where(eq(messages.id, messageId));
+              
+            const mediaId = `baileys_media_${messageId}`;
+            WhatsAppApiService.mediaCache.set(mediaId, { url: downloadedUrl, mimeType });
+            console.log(`[BaileysManager] On-demand media cached and database updated for message ${messageId}: ${downloadedUrl}`);
+          }
+        } catch (cacheErr) {
+          console.error(`[BaileysManager] Failed to cache on-demand downloaded media:`, cacheErr);
+        }
+      }, 0);
+
+      return buffer;
+    } catch (err) {
+      console.error(`[BaileysManager] Error in downloadAndCacheMediaOnDemand:`, err);
+      return null;
     }
   }
 }

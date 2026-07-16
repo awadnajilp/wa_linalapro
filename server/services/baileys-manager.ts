@@ -935,7 +935,15 @@ export class BaileysManager {
       finalUrl = absolutePath;
       console.log(`[BaileysManager] Resolved local media path: ${finalUrl}`);
     }
-    const mediaSource = fileBuffer || { url: finalUrl };
+    
+    let mediaSource = fileBuffer || { url: finalUrl };
+    let tempVoiceFile: string | null = null;
+    if (fileBuffer && (media as any).ptt && mime.startsWith("audio")) {
+      tempVoiceFile = path.join(process.cwd(), "uploads", `voicenote_${Date.now()}_${randomUUID().substring(0, 8)}.ogg`);
+      fs.writeFileSync(tempVoiceFile, fileBuffer);
+      mediaSource = { url: tempVoiceFile };
+      console.log(`[BaileysManager] Created temp voice note file for Baileys upload: ${tempVoiceFile}`);
+    }
 
     if (mime.startsWith("image")) {
       messageContent = { image: mediaSource, caption };
@@ -956,13 +964,24 @@ export class BaileysManager {
       };
     }
 
-    const result = await sock.sendMessage(jid, messageContent, options);
-    console.log(`[BaileysManager] Sent media message via Baileys to ${to}`);
+    try {
+      const result = await sock.sendMessage(jid, messageContent, options);
+      console.log(`[BaileysManager] Sent media message via Baileys to ${to}`);
 
-    return {
-      messages: [{ id: result.key.id }],
-      _via: "baileys"
-    };
+      return {
+        messages: [{ id: result.key.id }],
+        _via: "baileys"
+      };
+    } finally {
+      if (tempVoiceFile && fs.existsSync(tempVoiceFile)) {
+        try {
+          fs.unlinkSync(tempVoiceFile);
+          console.log(`[BaileysManager] Cleaned up temp voice note file: ${tempVoiceFile}`);
+        } catch (e) {
+          console.error(`[BaileysManager] Failed to clean up temp voice note file:`, e);
+        }
+      }
+    }
   }
 
   static async markMessageAsRead(channelId: string, to: string, whatsappMessageId: string): Promise<void> {

@@ -17,7 +17,6 @@
 
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loading } from "@/components/ui/loading";
 import { Search, Plus, Brain } from "lucide-react";
@@ -224,7 +223,7 @@ const ConversationList = ({
         </Tabs>
       </div>
 
-      <ScrollArea className="flex-1 pr-1">
+      <div className="flex-1 overflow-y-auto pr-1">
         {conversationsLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loading />
@@ -247,7 +246,7 @@ const ConversationList = ({
             )
           )
         )}
-      </ScrollArea>
+      </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">

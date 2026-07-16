@@ -62,7 +62,7 @@ async function convertWavToOggOpus(wavBuffer: Buffer): Promise<Buffer> {
 
   try {
     fs.writeFileSync(tempWav, wavBuffer);
-    await execPromise(`ffmpeg -y -i "${tempWav}" -c:a libopus -b:a 24k -ar 16000 -ac 1 "${tempOgg}"`);
+    await execPromise(`ffmpeg -y -i "${tempWav}" -c:a libopus -b:a 16k -ar 16000 -ac 1 -map_metadata -1 -f ogg "${tempOgg}"`);
     const oggBuffer = fs.readFileSync(tempOgg);
     return oggBuffer;
   } catch (err) {

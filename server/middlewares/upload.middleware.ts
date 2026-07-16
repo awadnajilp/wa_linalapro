@@ -271,8 +271,8 @@ export const transcodeVoiceNote = async (
         const tempOutput = path.join(path.dirname(file.path), `transcoded-${Date.now()}.ogg`);
         
         console.log(`🎙️ [transcodeVoiceNote] Transcoding ${file.path} to ${tempOutput} using ffmpeg...`);
-        // Run ffmpeg to transcode to OGG/Opus (resampling to 16kHz mono as required by WhatsApp)
-        await execPromise(`ffmpeg -y -i "${file.path}" -c:a libopus -b:a 24k -ar 16000 -ac 1 "${tempOutput}"`);
+        // Run ffmpeg to transcode to OGG/Opus (resampling to 16kHz mono, stripping metadata, and forcing Ogg format)
+        await execPromise(`ffmpeg -y -i "${file.path}" -c:a libopus -b:a 16k -ar 16000 -ac 1 -map_metadata -1 -f ogg "${tempOutput}"`);
         
         if (fs.existsSync(tempOutput)) {
           // Replace the original local file with the transcoded file

@@ -224,7 +224,7 @@ const ConversationList = ({
         </Tabs>
       </div>
 
-      <ScrollArea className="flex-1 ">
+      <ScrollArea className="flex-1 pr-1">
         {conversationsLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loading />

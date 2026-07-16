@@ -139,7 +139,7 @@ export function AISettingsDialog({
   useEffect(() => {
     if (open) {
       setUseDefaults(initialSettings.useDefaults !== false);
-      setLocalAiEnabled(aiEnabled);
+      setLocalAiEnabled(isContactOverride ? aiEnabled : (initialSettings.aiEnabled || false));
       setLlmProvider(initialSettings.llmProvider || "openai");
       setModel(initialSettings.model || "gpt-4o");
       setSystemPrompt(
@@ -185,7 +185,7 @@ export function AISettingsDialog({
   }, [llmProvider]);
 
   const handleSave = () => {
-    const settings: AISettings = isContactOverride && useDefaults
+    const settings: AISettings & { aiEnabled?: boolean } = isContactOverride && useDefaults
       ? { useDefaults: true }
       : {
           useDefaults: false,
@@ -206,6 +206,7 @@ export function AISettingsDialog({
           unrepliedTimeoutMinutes,
           unrepliedEmailEnabled,
           unrepliedWhatsappEnabled,
+          ...(!isContactOverride ? { aiEnabled: localAiEnabled } : {}),
         };
 
     onSave(settings, isContactOverride ? localAiEnabled : undefined);
@@ -225,21 +226,21 @@ export function AISettingsDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Main AI Trigger State (only for Contact Override) */}
-          {isContactOverride && (
-            <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-semibold text-indigo-900 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-indigo-600" />
-                  Enable AI Agent Auto-Replies
-                </Label>
-                <span className="text-xs text-indigo-700">
-                  Allow the AI agent to automatically take over and reply to this contact.
-                </span>
-              </div>
-              <Switch checked={localAiEnabled} onCheckedChange={setLocalAiEnabled} />
+          {/* Main AI Trigger State */}
+          <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-semibold text-indigo-900 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-indigo-600" />
+                {isContactOverride ? "Enable AI Agent Auto-Replies" : "Enable AI Agent for all incoming messages"}
+              </Label>
+              <span className="text-xs text-indigo-700">
+                {isContactOverride
+                  ? "Allow the AI agent to automatically take over and reply to this contact."
+                  : "Automatically trigger the AI agent for all incoming messages on this channel."}
+              </span>
             </div>
-          )}
+            <Switch checked={localAiEnabled} onCheckedChange={setLocalAiEnabled} />
+          </div>
 
           {/* Use defaults toggle */}
           {isContactOverride && (

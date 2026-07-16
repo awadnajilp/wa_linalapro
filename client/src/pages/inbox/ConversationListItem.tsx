@@ -114,7 +114,7 @@ const ConversationListItem = ({
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2 mb-0.5">
-          <h4 className="font-semibold text-[14px] text-gray-900 truncate leading-tight">
+          <h4 className="font-semibold text-[14px] text-gray-900 truncate leading-tight flex-1">
             {displayName ||
                 displayPhone ||
                 "Unknown"}
@@ -147,7 +147,7 @@ const ConversationListItem = ({
         )}
 
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center min-w-0">
+          <div className="flex items-center flex-1 min-w-0">
             {conversation.type === "whatsapp" && (
               <MessageCircle className="w-3.5 h-3.5 text-green-500 inline-block mr-1.5 flex-shrink-0" />
             )}
@@ -157,7 +157,7 @@ const ConversationListItem = ({
             {conversation.type === "chatbot" && (
               <Bot className="w-3.5 h-3.5 text-green-500 inline-block mr-1.5 flex-shrink-0" />
             )}
-            <p className="text-[13px] text-gray-500 truncate leading-tight">
+            <p className="text-[13px] text-gray-500 truncate leading-tight flex-1">
               {getMessagePreview(conversation.lastMessageText, demo) ||
                 "Tap to open conversation"}
             </p>

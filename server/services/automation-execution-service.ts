@@ -4085,14 +4085,17 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       const conversation = await db.query.conversations.findFirst({
         where: eq(conversations.id, conversationId),
       });
-      if (!conversation || !conversation.aiEnabled) {
-        return false;
-      }
+      if (!conversation) return false;
 
       const channel = await db.query.channels.findFirst({
         where: eq(channels.id, channelId),
       });
       if (!channel) return false;
+
+      const isChannelAiEnabled = channel.inboxAiSettings && (channel.inboxAiSettings as any).aiEnabled === true;
+      if (!conversation.aiEnabled && !isChannelAiEnabled) {
+        return false;
+      }
 
       const convSettings = (conversation.aiSettings || {}) as Record<string, any>;
       const chanSettings = (channel.inboxAiSettings || {}) as Record<string, any>;

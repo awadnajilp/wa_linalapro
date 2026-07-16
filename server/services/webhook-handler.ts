@@ -522,11 +522,12 @@ export class WebhookHandler {
           let voiceProfileId = null;
           let voiceLanguage = "en-IN";
 
+          const isChannelAiEnabled = channel[0]?.inboxAiSettings && (channel[0].inboxAiSettings as any).aiEnabled === true;
           if (node && node.type === "ai_agent" && (node.data as any)?.aiVoiceEnabled === true) {
             const nodeData = node.data as any;
             voiceProfileId = nodeData.voiceProfileId;
             voiceLanguage = nodeData.voiceLanguage || "en-IN";
-          } else if (conversation[0].aiEnabled) {
+          } else if (conversation[0].aiEnabled || isChannelAiEnabled) {
             const settings = (conversation[0].aiSettings || {}) as any;
             const chanSettings = (channel[0]?.inboxAiSettings || {}) as any;
             const voiceEnabled = settings.voiceEnabled !== undefined ? settings.voiceEnabled : chanSettings.voiceEnabled;
@@ -832,7 +833,8 @@ export class WebhookHandler {
         }
 
         // 8.6 Manual Inbox AI Agent Takeover (if active)
-        if (!automationHandled && conversation[0].aiEnabled) {
+        const isChannelAiEnabled = channel[0]?.inboxAiSettings && (channel[0].inboxAiSettings as any).aiEnabled === true;
+        if (!automationHandled && (conversation[0].aiEnabled || isChannelAiEnabled)) {
           try {
             const executionService = triggerService.getExecutionService();
             const aiHandled = await executionService.triggerInboxAiTakeover(

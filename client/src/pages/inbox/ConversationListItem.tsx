@@ -100,7 +100,7 @@ const ConversationListItem = ({
     <div
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all duration-150",
+        "flex items-center gap-3 pl-4 pr-6 py-3.5 cursor-pointer transition-all duration-150",
         isSelected
           ? "bg-green-50/80 border-l-[3px] border-l-green-500 shadow-sm"
           : "border-l-[3px] border-l-transparent hover:bg-gray-50/80"

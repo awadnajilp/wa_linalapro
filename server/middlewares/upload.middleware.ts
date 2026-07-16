@@ -281,7 +281,7 @@ export const transcodeVoiceNote = async (
           
           // Update file object metadata for subsequent middlewares (DO Upload and Controller)
           const newSize = fs.statSync(file.path).size;
-          file.mimetype = "audio/ogg";
+          file.mimetype = "audio/ogg;codecs=opus";
           file.size = newSize;
           
           // Replace extension in original name if it was .mp4 or .webm

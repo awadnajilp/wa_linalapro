@@ -942,7 +942,11 @@ export class BaileysManager {
     } else if (mime.startsWith("video")) {
       messageContent = { video: mediaSource, caption };
     } else if (mime.startsWith("audio")) {
-      messageContent = { audio: mediaSource, mimetype: mime, ptt: (media as any).ptt || false };
+      messageContent = { 
+        audio: mediaSource, 
+        mimetype: (media as any).ptt ? "audio/ogg; codecs=opus" : mime, 
+        ptt: (media as any).ptt || false 
+      };
     } else {
       messageContent = { 
         document: mediaSource, 

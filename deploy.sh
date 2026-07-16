@@ -42,6 +42,8 @@ npm install --production=false
 
 echo ""
 echo "🔧 Building application (Skipped — Built locally)..."
+# NOTE: The build process is executed locally (npm run build) on the developer machine
+# to avoid server memory/CPU exhaustion. Synced files in dist/ are deployed directly.
 # export NODE_OPTIONS="--max-old-space-size=1536"
 # npm run build
 

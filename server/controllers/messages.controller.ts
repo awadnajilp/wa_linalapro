@@ -252,6 +252,7 @@ const SUPPORTED_MIME_TYPES = [
   "video/mp4",
   "audio/ogg",
   "audio/ogg;codecs=opus",
+  "audio/ogg; codecs=opus",
   "audio/mpeg",
   "audio/webm",
   "audio/webm;codecs=opus",

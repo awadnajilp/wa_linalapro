@@ -1,6 +1,7 @@
 # Linala Production Deployment & Update Guide
 
-This document outlines the step-by-step procedure to deploy updates to the production server safely. By following this guide, you ensure **zero data loss** (protecting database schemas and media uploads) and **zero interference** with other live projects running on the same server.
+> [!IMPORTANT]
+> **Local Build Required**: Always compile the project locally (`npm run build`) before synchronizing and deploying. The production server has limited memory and its build step is disabled in `deploy.sh` to prevent server resource exhaustion.
 
 ---
 

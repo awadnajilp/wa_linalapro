@@ -24,6 +24,7 @@ import {
   Clock,
   FileText,
   Volume2,
+  Mic,
   Download,
   X,
   Maximize2,
@@ -336,12 +337,21 @@ const MessageItem = ({
                 isOutbound ? "bg-[#a8d98a]" : "bg-gray-200"
               )}
             >
-              <Volume2
-                className={cn(
-                  "w-4 h-4",
-                  isOutbound ? "text-gray-700" : "text-gray-600"
-                )}
-              />
+              {(message.metadata as any)?.voice ? (
+                <Mic
+                  className={cn(
+                    "w-4 h-4",
+                    isOutbound ? "text-purple-600" : "text-purple-500"
+                  )}
+                />
+              ) : (
+                <Volume2
+                  className={cn(
+                    "w-4 h-4",
+                    isOutbound ? "text-gray-700" : "text-gray-600"
+                  )}
+                />
+              )}
             </div>
             <div className="flex-1">
               <audio

@@ -15,6 +15,7 @@
  * ============================================================
  */
 
+import React, { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -27,7 +28,9 @@ import {
   Paperclip,
   AlertCircle,
   X,
-  BookOpen
+  BookOpen,
+  Mic,
+  Trash2
 } from "lucide-react";
 import { TemplatePickerDialog } from "@/components/shared/TemplatePickerDialog";
 import { useQuery } from "@tanstack/react-query";
@@ -47,6 +50,7 @@ interface MessageComposerProps {
   onSendMessage: () => void;
   onFileAttachment: () => void;
   onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onSendVoiceNote?: (file: File) => void;
   onSelectTemplate: (template: any, variables: { type?: string; value?: string }[], mediaId?: string, headerType?: string | null, buttonParameters?: string[], expirationTimeMs?: number, carouselCardMediaIds?: Record<number, string>) => void;
   is24HourWindowExpired: boolean;
   activeChannelId?: string;
@@ -64,6 +68,7 @@ const MessageComposer = ({
   onSendMessage,
   onFileAttachment,
   onFileChange,
+  onSendVoiceNote,
   onSelectTemplate,
   is24HourWindowExpired,
   activeChannelId,
@@ -84,6 +89,121 @@ const MessageComposer = ({
     },
     enabled: !!activeChannelId,
   });
+
+  // Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const shouldSendRef = useRef(true);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let mimeType = "audio/webm";
+      if (MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")) {
+        mimeType = "audio/ogg;codecs=opus";
+      } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+        mimeType = "audio/mp4";
+      }
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        stream.getTracks().forEach((track) => track.stop());
+
+        if (shouldSendRef.current && onSendVoiceNote) {
+          const extension = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "mp4" : "webm";
+          const file = new File([audioBlob], `voice-note-${Date.now()}.${extension}`, { type: mimeType });
+          onSendVoiceNote(file);
+        }
+      };
+
+      shouldSendRef.current = true;
+      recorder.start();
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error("Failed to start recording:", err);
+      alert("Could not access microphone. Please check permissions.");
+    }
+  };
+
+  const stopAndSendRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      shouldSendRef.current = true;
+      mediaRecorderRef.current.stop();
+    }
+    cleanupRecording();
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      shouldSendRef.current = false;
+      mediaRecorderRef.current.stop();
+    }
+    cleanupRecording();
+  };
+
+  const cleanupRecording = () => {
+    setIsRecording(false);
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+      recordingIntervalRef.current = null;
+    }
+  };
+
+  if (isRecording) {
+    const minutes = Math.floor(recordingDuration / 60);
+    const seconds = recordingDuration % 60;
+    const formattedTime = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+
+    return (
+      <div className="bg-white border-t border-gray-200 p-3 md:p-4">
+        <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5">
+          <div className="flex items-center gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+            <span className="text-sm font-semibold text-red-500">Recording</span>
+            <span className="text-sm font-mono font-medium text-gray-700">{formattedTime}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+              onClick={cancelRecording}
+              title="Discard Recording"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              className="h-8 w-8 bg-emerald-500 hover:bg-emerald-600 rounded-full"
+              onClick={stopAndSendRecording}
+              title="Send Voice Note"
+            >
+              <Send className="h-4 w-4 text-white" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white border-t border-gray-200 p-3 md:p-4">
       {is24HourWindowExpired &&
@@ -148,56 +268,51 @@ const MessageComposer = ({
                 accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
               />
 
-                <TemplatePickerDialog
-                  channelId={activeChannelId}
-                  onSelectTemplate={onSelectTemplate}
-                />
+              <TemplatePickerDialog
+                channelId={activeChannelId}
+                onSelectTemplate={onSelectTemplate}
+              />
 
-                {localTemplates && localTemplates.length > 0 && (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 md:h-9 md:w-9"
-                        title="Quick Templates"
-                      >
-                        <BookOpen className="h-4 w-4 text-emerald-600" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64 p-2" align="start">
-                      <div className="text-xs font-semibold text-gray-500 px-2 py-1 border-b border-gray-100 mb-1">
-                        Quick Templates
-                      </div>
-                      <div className="max-h-48 overflow-y-auto space-y-1">
-                        {localTemplates.map((tpl: any) => (
-                          <button
-                            key={tpl.id}
-                            type="button"
-                            onClick={() => {
-                              if (onSelectLocalTemplate) {
-                                onSelectLocalTemplate(tpl.body);
-                              }
-                            }}
-                            className="w-full text-left text-xs p-2 hover:bg-gray-100 rounded transition-colors truncate block font-medium text-gray-700"
-                            title={tpl.body}
-                          >
-                            <span className="font-semibold text-gray-900 block truncate">{tpl.name}</span>
-                            <span className="text-[10px] text-gray-500 truncate block">{tpl.body}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                )}
+              {localTemplates && localTemplates.length > 0 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 md:h-9 md:w-9"
+                      title="Quick Templates"
+                    >
+                      <BookOpen className="h-4 w-4 text-emerald-600" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-2" align="start">
+                    <div className="text-xs font-semibold text-gray-500 px-2 py-1 border-b border-gray-100 mb-1">
+                      Quick Templates
+                    </div>
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {localTemplates.map((tpl: any) => (
+                        <button
+                          key={tpl.id}
+                          type="button"
+                          onClick={() => {
+                            if (onSelectLocalTemplate) {
+                              onSelectLocalTemplate(tpl.body);
+                            }
+                          }}
+                          className="w-full text-left text-xs p-2 hover:bg-gray-100 rounded transition-colors truncate block font-medium text-gray-700"
+                          title={tpl.body}
+                        >
+                          <span className="font-semibold text-gray-900 block truncate">{tpl.name}</span>
+                          <span className="text-[10px] text-gray-500 truncate block">{tpl.body}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
             </>
           )}
-
-
-          
         </div>
-
-        
 
         <textarea
           placeholder={
@@ -228,20 +343,36 @@ const MessageComposer = ({
           style={{ minHeight: "36px", maxHeight: "120px" }}
         />
 
-        <Button
-          onClick={onSendMessage}
-          disabled={
-            !messageText.trim() ||
-                (is24HourWindowExpired &&
-                  selectedConversation.type === "whatsapp") ||
-                sendMessagePending
-          }
-          size="icon"
-          className="h-8 w-8 md:h-9 md:w-9 bg-emerald-500 hover:bg-emerald-600"
-          data-testid="button-send-message"
-        >
-          <Send className="h-4 w-4" />
-        </Button>
+        {messageText.trim() ? (
+          <Button
+            onClick={onSendMessage}
+            disabled={
+              !messageText.trim() ||
+              (is24HourWindowExpired &&
+                selectedConversation.type === "whatsapp") ||
+              sendMessagePending
+            }
+            size="icon"
+            className="h-8 w-8 md:h-9 md:w-9 bg-emerald-500 hover:bg-emerald-600"
+            data-testid="button-send-message"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            onClick={startRecording}
+            disabled={
+              (is24HourWindowExpired &&
+                selectedConversation.type === "whatsapp") ||
+              sendMessagePending
+            }
+            size="icon"
+            className="h-8 w-8 md:h-9 md:w-9 bg-purple-600 hover:bg-purple-700 text-white rounded-full"
+            title="Record Voice Note"
+          >
+            <Mic className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );

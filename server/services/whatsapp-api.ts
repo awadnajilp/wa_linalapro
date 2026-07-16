@@ -1629,7 +1629,8 @@ async sendMediaMessagee(
   mediaId: string,
   mediaType: "image" | "video" | "audio" | "document",
   caption?: string,
-  replyToWaId?: string
+  replyToWaId?: string,
+  isVoiceNote?: boolean
 ) {
   const formattedPhone = this.formatPhoneNumber(to);
 
@@ -1641,6 +1642,11 @@ async sendMediaMessagee(
       id: mediaId,
     },
   };
+
+  if (isVoiceNote && mediaType === "audio") {
+    body[mediaType].voice = true;
+    body.metadata = { voice: true };
+  }
 
   if (replyToWaId) {
     body.context = { message_id: replyToWaId };
@@ -1703,7 +1709,8 @@ async sendMediaMessagee(
         }
         
         if (mediaData) {
-          return BaileysManager.sendMediaMessage(this.channel.id, to, mediaData, caption, replyToWaId);
+          const isPtt = type === "audio" && (mediaObj?.voice || mediaObj?.ptt || payload.metadata?.voice);
+          return BaileysManager.sendMediaMessage(this.channel.id, to, { ...mediaData, ptt: !!isPtt } as any, caption, replyToWaId);
         } else {
           if (caption) {
             return BaileysManager.sendMessage(this.channel.id, to, caption, replyToWaId);

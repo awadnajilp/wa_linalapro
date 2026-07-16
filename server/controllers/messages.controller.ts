@@ -210,6 +210,10 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
         if (is24HourExpired) {
           throw new AppError(403, "24-hour messaging window has expired. Please use an approved template message instead.");
         }
+        const isVoiceNote = req.body.isVoiceNote === "true" || req.body.isVoiceNote === true;
+        if (isVoiceNote) {
+          finalMetadata.voice = true;
+        }
         const mimeType = file.mimetype;
         const fs = await import('fs');
         const filePath = file.path;
@@ -245,7 +249,14 @@ const SUPPORTED_MIME_TYPES = [
   "image/gif",
   "video/mp4",
   "audio/ogg",
+  "audio/ogg;codecs=opus",
   "audio/mpeg",
+  "audio/webm",
+  "audio/webm;codecs=opus",
+  "audio/mp4",
+  "audio/aac",
+  "audio/wav",
+  "audio/x-wav",
   "application/pdf",
   "text/plain",
   "application/msword",
@@ -296,7 +307,8 @@ if (file.size > MAX_SIZE_MB * 1024 * 1024) {
           mediaId,
           messageType as any,
           caption || content,
-          replyToWaId
+          replyToWaId,
+          isVoiceNote
         );
         msgBody = caption || `[${messageType}]`;
 

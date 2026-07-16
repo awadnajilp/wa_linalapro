@@ -324,6 +324,7 @@ interface MessageThreadProps {
   onUpdateConversationTags?: (tags: string[]) => Promise<void>;
   onCreateTag?: (name: string, color: string) => Promise<void>;
   tagsColorMap?: Record<string, string>;
+  onSendVoiceNote?: (file: File) => void;
 }
 
   const MessageThread = ({
@@ -338,6 +339,7 @@ interface MessageThreadProps {
   onSendMessage,
   onFileAttachment,
   onFileChange,
+  onSendVoiceNote,
   onSelectTemplate,
   is24HourWindowExpired,
   activeChannelId,
@@ -722,6 +724,7 @@ interface MessageThreadProps {
         onSendMessage={onSendMessage}
         onFileAttachment={onFileAttachment}
         onFileChange={onFileChange}
+        onSendVoiceNote={onSendVoiceNote}
         onSelectTemplate={onSelectTemplate}
         is24HourWindowExpired={is24HourWindowExpired}
         activeChannelId={activeChannelId}

@@ -515,4 +515,67 @@ router.post("/unimpersonate", async (req, res) => {
   }
 });
 
+// Account deletion route
+router.post("/delete-account", async (req, res) => {
+  try {
+    const { usernameOrEmail, password, reason } = req.body;
+
+    if (!usernameOrEmail || !password) {
+      return res.status(400).json({ error: "Username/Email and Password are required" });
+    }
+
+    // Find user by username or email
+    const results = await db
+      .select()
+      .from(users)
+      .where(
+        sql`${users.username} = ${usernameOrEmail} OR ${users.email} = ${usernameOrEmail}`
+      )
+      .limit(1);
+
+    const user = results[0];
+
+    if (!user) {
+      return res.status(401).json({ error: "Invalid username/email or password" });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: "Invalid username/email or password" });
+    }
+
+    // Protection for last admin
+    if (user.role === "admin") {
+      const [adminCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(users)
+        .where(and(eq(users.role, "admin"), ne(users.id, user.id)));
+      if (adminCount.count === 0) {
+        return res.status(400).json({ error: "Cannot delete the last admin user" });
+      }
+    }
+
+    // Protect superadmin from deletion
+    if (user.role === "superadmin") {
+      return res.status(400).json({ error: "Superadmin accounts cannot be deleted directly" });
+    }
+
+    // Clean up active session for this user if applicable
+    const sessionUserId = (req as any).session?.user?.id;
+    if (sessionUserId === user.id) {
+      (req as any).session.destroy(() => {});
+      res.clearCookie("connect.sid");
+    }
+
+    // Delete user from DB
+    await db.delete(users).where(eq(users.id, user.id));
+
+    res.json({ success: true, message: "Account deleted successfully" });
+  } catch (error: any) {
+    console.error("Account deletion error:", error);
+    res.status(500).json({ error: error.message || "Failed to delete account" });
+  }
+});
+
 export default router;

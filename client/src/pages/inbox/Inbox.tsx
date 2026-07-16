@@ -879,6 +879,47 @@ export default function Inbox() {
     event.target.value = "";
   };
 
+  const handleSendVoiceNote = async (file: File) => {
+    if (!selectedConversation) return;
+
+    const formData = new FormData();
+    formData.append("media", file);
+    formData.append("fromUser", "true");
+    formData.append("conversationId", selectedConversation.id);
+    formData.append("isVoiceNote", "true");
+    formData.append("caption", "");
+
+    try {
+      const response = await fetch(
+        `/api/conversations/${selectedConversation.id}/messages`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to send voice note");
+      }
+
+      toast({
+        title: "Success",
+        description: "Voice note sent successfully",
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["/api/conversations", selectedConversation.id, "messages"],
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const updateConversationStatus = (status: string) => {
     if (!selectedConversation) return;
 
@@ -1117,6 +1158,7 @@ export default function Inbox() {
             onSendMessage={handleSendMessage}
             onFileAttachment={handleFileAttachment}
             onFileChange={handleFileChange}
+            onSendVoiceNote={handleSendVoiceNote}
             onSelectTemplate={handleSelectTemplate}
             is24HourWindowExpired={is24HourWindowExpired}
             activeChannelId={activeChannel?.id}

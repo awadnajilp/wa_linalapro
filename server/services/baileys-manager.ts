@@ -823,7 +823,7 @@ export class BaileysManager {
   static async sendMediaMessage(
     channelId: string,
     to: string,
-    media: { buffer?: Buffer; url?: string; mimeType?: string; filename?: string },
+    media: { buffer?: Buffer; url?: string; mimeType?: string; filename?: string; ptt?: boolean },
     caption?: string,
     replyToWaId?: string
   ): Promise<any> {
@@ -942,7 +942,7 @@ export class BaileysManager {
     } else if (mime.startsWith("video")) {
       messageContent = { video: mediaSource, caption };
     } else if (mime.startsWith("audio")) {
-      messageContent = { audio: mediaSource, mimetype: mime };
+      messageContent = { audio: mediaSource, mimetype: mime, ptt: (media as any).ptt || false };
     } else {
       messageContent = { 
         document: mediaSource, 

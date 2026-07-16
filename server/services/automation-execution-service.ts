@@ -4109,7 +4109,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         ? previousLastIncomingMessageAt 
         : conversation.lastIncomingMessageAt;
 
-      if (takeoverTimeout > 0 && checkTime) {
+      if (!isChannelAiEnabled && takeoverTimeout > 0 && checkTime) {
         const inactiveMs = Date.now() - new Date(checkTime).getTime();
         const timeoutMs = takeoverTimeout * 60 * 1000;
         if (inactiveMs > timeoutMs) {

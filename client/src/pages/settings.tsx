@@ -44,6 +44,7 @@ import { GeneralSettings } from "@/components/settings/GeneralSettings";
 import WarmerSettings from "@/components/settings/WarmerSettings";
 import StorageSettings from "@/components/settings/StorageSettings";
 import AISettings from "@/components/settings/AISettings";
+import FirebaseSettings from "@/components/settings/FirebaseSettings";
 import { useAuth } from "@/contexts/auth-context";
 
 import { useTranslation } from "@/lib/i18n";
@@ -162,6 +163,11 @@ export default function Settings() {
                     <span>SMTP</span>
                   </TabsTrigger>
 
+                  <TabsTrigger value="firebase_setting" className={tabTriggerClass}>
+                    <SettingsIcon className="w-4 h-4 shrink-0" />
+                    <span>{t("settings.firebase.tabName")}</span>
+                  </TabsTrigger>
+
                   <TabsTrigger value="webhooks" className={tabTriggerClass}>
                     <Webhook className="w-4 h-4 shrink-0" />
                     <span>{t("settings.webhook_setting.tabName")}</span>
@@ -253,6 +259,10 @@ export default function Settings() {
               </TabsContent>
               <TabsContent value="smtp_setting">
                 <SMTPSettings />
+              </TabsContent>
+
+              <TabsContent value="firebase_setting">
+                <FirebaseSettings />
               </TabsContent>
               <TabsContent value="webhooks">
                 <WebhookSettings />

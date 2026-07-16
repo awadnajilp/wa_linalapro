@@ -49,6 +49,7 @@ import { errorHandler } from "../middlewares/error.middleware";
 import { registerPanelConfigRoutes } from "./panel.config.routes";
 import { registerStorageSettingsRoutes } from "./storage.settings.route";
 import { registerAISettingsRoutes } from "./ai.settings.routes";
+import { registerFirebaseSettingsRoutes } from "./firebase.settings.routes";
 import { registerWidgetRoutes } from "./chatbot.routes";
 import { registerTicketsRoutes } from "./support.tickets.routes";
 import { registerNotificationsRoutes } from "./notifications.routes";
@@ -76,6 +77,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   registerVoiceRoutes(app);
   registerStorageSettingsRoutes(app);
   registerAISettingsRoutes(app);
+  registerFirebaseSettingsRoutes(app);
   registerChannelRoutes(app);
   registerDashboardRoutes(app);
   registerAnalyticsRoutes(app); // Legacy - kept for compatibility

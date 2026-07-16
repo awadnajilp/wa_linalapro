@@ -4,6 +4,17 @@ import { firebaseConfig } from "@shared/schema";
 
 let initialized = false;
 
+export async function resetFcm(): Promise<void> {
+  initialized = false;
+  if (admin.apps.length > 0) {
+    try {
+      await Promise.all(admin.apps.map(app => app?.delete()));
+    } catch (err) {
+      console.error("[FCM Service] Error deleting Firebase app:", err);
+    }
+  }
+}
+
 export async function initFcm(): Promise<boolean> {
   if (initialized) return true;
   try {

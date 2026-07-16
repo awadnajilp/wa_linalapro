@@ -232,35 +232,7 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
           throw new AppError(400, "Uploaded file not found on disk or cloud");
         }
 
-        // If it is a voice note, transcode it to OGG/Opus for WhatsApp compatibility
-        if (isVoiceNote) {
-          try {
-            console.log(`🎙️ Voice note detected. Transcoding to OGG/Opus for WhatsApp compatibility...`);
-            const { exec } = await import('child_process');
-            const { promisify } = await import('util');
-            const execPromise = promisify(exec);
-            const path = await import('path');
-            const os = await import('os');
-            const tempInput = path.join(os.tmpdir(), `input-${Date.now()}-${file.originalname}`);
-            const tempOutput = path.join(os.tmpdir(), `output-${Date.now()}.ogg`);
-            
-            fs.writeFileSync(tempInput, buffer);
-            
-            await execPromise(`ffmpeg -y -i "${tempInput}" -c:a libopus -b:a 24k -ac 1 "${tempOutput}"`);
-            
-            if (fs.existsSync(tempOutput)) {
-              buffer = fs.readFileSync(tempOutput);
-              mimeType = "audio/ogg";
-              file.originalname = `voice-note-${Date.now()}.ogg`;
-              console.log(`🎙️ Successfully transcoded voice note to OGG/Opus.`);
-              
-              try { fs.unlinkSync(tempInput); } catch (e) {}
-              try { fs.unlinkSync(tempOutput); } catch (e) {}
-            }
-          } catch (transcodeErr) {
-            console.error("⚠️ Failed to transcode voice note audio, sending original file:", transcodeErr);
-          }
-        }
+
 
         console.log("📄 Uploading media:", {
   name: file.originalname,

@@ -22,6 +22,10 @@ import fs from "fs";
 import { Request, Response, NextFunction } from "express";
 import { createDOClient } from "../config/digitalOceanConfig";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execPromise = promisify(exec);
 
 
 
@@ -248,4 +252,50 @@ export const handleDigitalOceanUpload = async (
 export const initializeUploadsDirectory = (): void => {
   ensureDirectoryExists("uploads");
   console.log("✅ Uploads directory initialized");
+};
+
+// Middleware to transcode voice notes (recorded audio) to OGG/Opus using ffmpeg
+export const transcodeVoiceNote = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const file = req.file;
+  const isVoiceNote = req.body.isVoiceNote === "true" || req.body.isVoiceNote === true;
+
+  if (file && isVoiceNote) {
+    try {
+      console.log(`🎙️ [transcodeVoiceNote] Intercepted voice note upload. File: ${file.originalname}, Path: ${file.path}`);
+      
+      if (fs.existsSync(file.path)) {
+        const tempOutput = path.join(path.dirname(file.path), `transcoded-${Date.now()}.ogg`);
+        
+        console.log(`🎙️ [transcodeVoiceNote] Transcoding ${file.path} to ${tempOutput} using ffmpeg...`);
+        // Run ffmpeg to transcode to OGG/Opus
+        await execPromise(`ffmpeg -y -i "${file.path}" -c:a libopus -b:a 24k -ac 1 "${tempOutput}"`);
+        
+        if (fs.existsSync(tempOutput)) {
+          // Replace the original local file with the transcoded file
+          fs.unlinkSync(file.path);
+          fs.renameSync(tempOutput, file.path);
+          
+          // Update file object metadata for subsequent middlewares (DO Upload and Controller)
+          const newSize = fs.statSync(file.path).size;
+          file.mimetype = "audio/ogg";
+          file.size = newSize;
+          
+          // Replace extension in original name if it was .mp4 or .webm
+          const baseName = path.basename(file.originalname, path.extname(file.originalname));
+          file.originalname = `${baseName}.ogg`;
+          
+          console.log(`🎙️ [transcodeVoiceNote] Transcoding successful. New size: ${newSize} bytes`);
+        } else {
+          console.warn(`🎙️ [transcodeVoiceNote] ffmpeg ran but output file was not found.`);
+        }
+      }
+    } catch (err) {
+      console.error("🎙️ [transcodeVoiceNote] Failed to transcode audio file:", err);
+    }
+  }
+  next();
 };

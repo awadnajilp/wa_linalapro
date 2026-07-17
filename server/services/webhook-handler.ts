@@ -277,6 +277,37 @@ export class WebhookHandler {
         }
       }
 
+      // Fetch and update profile picture if not already fetched
+      if (channelId && contact.length > 0) {
+        const targetContact = contact[0];
+        const currentVars = (targetContact.variables as any) || {};
+        if (!currentVars.profilePicUrl) {
+          Promise.resolve().then(async () => {
+            try {
+              const { BaileysManager } = await import("./baileys-manager");
+              const sock = BaileysManager.getSocket(channelId);
+              if (sock) {
+                const ppUrl = await sock.profilePictureUrl(targetContact.phone, 'image').catch(() => null);
+                if (ppUrl) {
+                  await db
+                    .update(contacts)
+                    .set({
+                      variables: {
+                        ...currentVars,
+                        profilePicUrl: ppUrl
+                      }
+                    })
+                    .where(eq(contacts.id, targetContact.id));
+                  console.log(`📸 [Baileys] Successfully fetched and stored profile picture for ${targetContact.phone}`);
+                }
+              }
+            } catch (err) {
+              console.error("❌ Failed to fetch profile picture for contact:", err);
+            }
+          }).catch(console.error);
+        }
+      }
+
       // 3. Find or create conversation scoped to this channel
       let conversation;
       if (channelId) {

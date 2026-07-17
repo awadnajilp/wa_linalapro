@@ -456,8 +456,14 @@ export const createTransaction = async (req: Request, res: Response) => {
     }
 
     const plan = planData[0];
-    const amount =
-      billingCycle === "annual" ? plan.annualPrice : plan.monthlyPrice;
+    let amount = plan.monthlyPrice;
+    if (billingCycle === "annual") {
+      amount = plan.annualPrice;
+    } else if (billingCycle === "semi-annual") {
+      amount = String(Number(plan.monthlyPrice || 0) * 6);
+    } else if (billingCycle === "quarterly") {
+      amount = String(Number(plan.monthlyPrice || 0) * 3);
+    }
 
     const providerCurrencies = provider[0].supportedCurrencies;
     const dynamicCurrency = Array.isArray(providerCurrencies) && providerCurrencies.length > 0
@@ -720,9 +726,15 @@ export const initiatePayment = async (req: Request, res: Response) => {
     }
 
     const plan = planData[0];
-    const cycle = billingCycle === "annual" ? "annual" : "monthly";
-    const amount =
-      cycle === "annual" ? plan.annualPrice : plan.monthlyPrice;
+    const cycle = billingCycle;
+    let amount = plan.monthlyPrice;
+    if (cycle === "annual") {
+      amount = plan.annualPrice;
+    } else if (cycle === "semi-annual") {
+      amount = String(Number(plan.monthlyPrice || 0) * 6);
+    } else if (cycle === "quarterly") {
+      amount = String(Number(plan.monthlyPrice || 0) * 3);
+    }
 
     const provCurrencies = provider.supportedCurrencies;
     const resolvedCurrency = currency

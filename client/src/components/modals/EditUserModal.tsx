@@ -37,12 +37,12 @@ interface EditUserModalProps {
 
 export default function EditUserModal({ open, onOpenChange, user, onSuccess }: EditUserModalProps) {
   const { toast } = useToast();
-  const [form, setForm] = useState({ username: "", email: "" });
+  const [form, setForm] = useState({ username: "", email: "", password: "", sendEmail: false });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
-      setForm({ username: user.username || "", email: user.email || "" });
+      setForm({ username: user.username || "", email: user.email || "", password: "", sendEmail: false });
     }
   }, [user]);
 
@@ -53,7 +53,12 @@ export default function EditUserModal({ open, onOpenChange, user, onSuccess }: E
     }
     setLoading(true);
     try {
-      const res = await apiRequest("PUT", `/api/users/${user?.id}`, { username: form.username, email: form.email });
+      const payload: any = { username: form.username, email: form.email };
+      if (form.password) {
+        payload.password = form.password;
+        payload.sendEmail = form.sendEmail;
+      }
+      const res = await apiRequest("PUT", `/api/users/${user?.id}`, payload);
       const data = await res.json();
       if (data.success) {
         toast({ title: "Success", description: "User updated successfully!" });
@@ -83,6 +88,37 @@ export default function EditUserModal({ open, onOpenChange, user, onSuccess }: E
           <div>
             <Label>Email</Label>
             <Input value={form.email} onChange={(e) => setForm(prev => ({ ...prev, email: e.target.value }))} placeholder="email@example.com" type="email" />
+          </div>
+          
+          <div className="pt-4 border-t border-gray-100">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Security & Password Reset</h4>
+            
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label>New Password (leave blank to keep current)</Label>
+                <Input 
+                  value={form.password} 
+                  onChange={(e) => setForm(prev => ({ ...prev, password: e.target.value }))} 
+                  placeholder="Temporary password" 
+                  type="text" 
+                />
+              </div>
+
+              {form.password && (
+                <div className="flex items-center space-x-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="sendEmail"
+                    checked={form.sendEmail}
+                    onChange={(e) => setForm(prev => ({ ...prev, sendEmail: e.target.checked }))}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                  />
+                  <Label htmlFor="sendEmail" className="text-xs text-gray-600 cursor-pointer">
+                    Send temporary password to tenant's email address
+                  </Label>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">

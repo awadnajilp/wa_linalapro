@@ -23,7 +23,7 @@ import { eq, or, like, sql, and, desc, gte, inArray, gt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 import { otpVerifications } from "@shared/schema";
-import { sendOTPEmailVerify } from "../services/email.service";
+import { sendOTPEmailVerify, sendPasswordResetEmail } from "../services/email.service";
 
 
 // Default permissions 
@@ -561,13 +561,63 @@ export const createUserOld = async (req: Request, res: Response) => {
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { username, email, password, sendEmail, ...otherUpdates } = req.body;
+    const requestor = (req.session as any)?.user || req.user;
 
-    const updated = await db.update(users).set(updates).where(eq(users.id, id)).returning();
+    if (!requestor) {
+      return res.status(401).json({ success: false, message: "Not authenticated" });
+    }
 
-    res.status(200).json({ success: true, data: updated[0] });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Error updating user", error });
+    // Verify requesting user is allowed to edit this profile
+    const isSelf = requestor.id === id;
+    const isSuperadmin = requestor.role === "superadmin";
+
+    if (!isSelf && !isSuperadmin) {
+      return res.status(403).json({ success: false, message: "Not authorized to update this user" });
+    }
+
+    const updates: Record<string, any> = {
+      ...otherUpdates,
+      updatedAt: new Date(),
+    };
+
+    if (username) updates.username = username;
+    if (email) updates.email = email;
+
+    // Handle password update if passed
+    if (password) {
+      updates.password = await bcrypt.hash(password, 10);
+    }
+
+    const updated = await db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, id))
+      .returning();
+
+    if (!updated.length) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const updatedUser = updated[0];
+
+    // Trigger password reset email if requested and password was set
+    if (password && sendEmail && updatedUser.email) {
+      try {
+        await sendPasswordResetEmail(updatedUser.email, updatedUser.username, password);
+      } catch (emailErr) {
+        console.error("Failed to send password reset email:", emailErr);
+      }
+    }
+
+    // Sanitize response
+    const safeUser = { ...updatedUser };
+    delete safeUser.password;
+
+    res.status(200).json({ success: true, data: safeUser });
+  } catch (error: any) {
+    console.error("Error updating user:", error);
+    res.status(500).json({ success: false, message: "Error updating user", error: error.message });
   }
 };
 

@@ -278,13 +278,59 @@ export async function sendOTPEmail(
     ),
     text: generateForgotPasswordEmailText(companyName, otpCode, name),
   };
-
+ 
   try {
     const info = await mailer.sendMail(mailOptions);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error("[Email] Failed to send OTP:", error);
     throw new Error("Failed to send verification email");
+  }
+}
+
+export async function sendPasswordResetEmail(
+  email: string,
+  username: string,
+  newPassword: string
+) {
+  const config = await getConfig();
+  const configs = await getPanelConfig();
+  const mailer = await getTransporter();
+
+  const companyName = configs?.name || "Your Company";
+  const fromName = config?.fromName || companyName;
+  const fromEmail = config?.fromEmail;
+
+  const mailOptions = {
+    from: `"${fromName}" <${fromEmail}>`,
+    to: email,
+    subject: `Password Reset - ${companyName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <img src="${resolveLogoUrl(config?.logo, configs?.logo)}" alt="${companyName}" style="max-height: 50px;" />
+        </div>
+        <h2 style="color: #1f2937;">Password Reset Notification</h2>
+        <p style="color: #4b5563;">Hello ${username},</p>
+        <p style="color: #4b5563;">An administrator has reset your password. Please use the temporary credentials below to log in to your account:</p>
+        <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin: 20px 0; font-family: monospace; font-size: 16px; border: 1px solid #d1d5db;">
+          <strong>Username:</strong> ${username}<br/>
+          <strong>Password:</strong> ${newPassword}
+        </div>
+        <p style="color: #ef4444; font-size: 13px;">Important: For security reasons, we highly recommend changing this temporary password as soon as you log in.</p>
+        <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+        <p style="color: #9ca3af; font-size: 12px; text-align: center;">This is an automated notification. Please do not reply directly to this email.</p>
+      </div>
+    `,
+    text: `Hello ${username},\n\nAn administrator has reset your password. Please use the temporary credentials below to log in to your account:\n\nUsername: ${username}\nPassword: ${newPassword}\n\nFor security reasons, we highly recommend changing this temporary password as soon as you log in.\n\nBest regards,\n${companyName}`,
+  };
+
+  try {
+    const info = await mailer.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error("[Email] Failed to send password reset email:", error);
+    throw new Error("Failed to send password reset email");
   }
 }
 

@@ -256,11 +256,15 @@ export const AssignSubscription = async (req: Request, res: Response) => {
         )
       );
 
-    const billingCycle = requestedCycle === "annual" ? "annual" : "monthly";
+    const billingCycle = requestedCycle || "monthly";
     const startDate = new Date();
     const endDate = new Date();
     if (billingCycle === "annual") {
       endDate.setFullYear(endDate.getFullYear() + 1);
+    } else if (billingCycle === "semi-annual") {
+      endDate.setMonth(endDate.getMonth() + 6);
+    } else if (billingCycle === "quarterly") {
+      endDate.setMonth(endDate.getMonth() + 3);
     } else {
       endDate.setMonth(endDate.getMonth() + 1);
     }
@@ -676,6 +680,10 @@ export const renewSubscription = async (req: Request, res: Response) => {
 
     if (subscription.billingCycle === "annual") {
       newEndDate.setFullYear(newEndDate.getFullYear() + 1);
+    } else if (subscription.billingCycle === "semi-annual") {
+      newEndDate.setMonth(newEndDate.getMonth() + 6);
+    } else if (subscription.billingCycle === "quarterly") {
+      newEndDate.setMonth(newEndDate.getMonth() + 3);
     } else {
       newEndDate.setMonth(newEndDate.getMonth() + 1);
     }

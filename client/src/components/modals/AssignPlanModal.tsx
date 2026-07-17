@@ -15,279 +15,6 @@
  * ============================================================
  */
 
-// import { useState, useEffect, useMemo } from "react";
-// import {
-//   Dialog,
-//   DialogContent,
-//   DialogHeader,
-//   DialogTitle,
-//   DialogFooter,
-// } from "@/components/ui/dialog";
-// import { Label } from "@/components/ui/label";
-// import { Button } from "@/components/ui/button";
-// import { useToast } from "@/hooks/use-toast";
-// import { apiRequest } from "@/lib/queryClient";
-
-// interface AssignPlanModalProps {
-//   open: boolean;
-//   onOpenChange: (open: boolean) => void;
-//   user: any | null;
-//   plans: any[];
-//   onSuccess: () => void;
-// }
-
-// export default function AssignPlanModal({
-//   open,
-//   onOpenChange,
-//   user,
-//   plans,
-//   onSuccess,
-// }: AssignPlanModalProps) {
-//   const { toast } = useToast();
-
-//   // -----------------------------------------
-//   // 🔥 Subscriptions state stored here
-//   // -----------------------------------------
-//   const [subscriptions, setSubscriptions] = useState<any[]>([]);
-//   const [loadingSubs, setLoadingSubs] = useState(false);
-
-//   const [selectedPlan, setSelectedPlan] = useState("");
-//   const [planDetails, setPlanDetails] = useState<any>(null);
-//   const [loading, setLoading] = useState(false);
-
-//   /** -----------------------------------------
-//    *  🔥 FETCH USER SUBSCRIPTIONS WHEN MODAL OPENS
-//    * ----------------------------------------*/
-//   useEffect(() => {
-//     if (!open || !user?.id) return;
-
-//     const fetchSubs = async () => {
-//       try {
-//         setLoadingSubs(true);
-//         const res = await apiRequest(
-//           "GET",
-//           `/api/subscriptions/user/${user.id}`
-//         );
-//         const data = await res.json();
-
-//         const list = Array.isArray(data?.data) ? data.data : [];
-//         setSubscriptions(list);
-//       } catch (err) {
-//         console.error("Error loading subscriptions", err);
-//         setSubscriptions([]);
-//       } finally {
-//         setLoadingSubs(false);
-//       }
-//     };
-
-//     fetchSubs();
-//   }, [open, user?.id]);
-
-//   /** -----------------------------------------
-//    *  AUTO SELECT ACTIVE PLAN
-//    * ----------------------------------------*/
-//  useEffect(() => {
-//   if (!open) return;
-
-//   if (!Array.isArray(subscriptions)) {
-//     setSelectedPlan("");
-//     setPlanDetails(null);
-//     return;
-//   }
-
-//   // Extract correctly
-//   const list = subscriptions
-//     .map((item: any) => item?.subscription)
-//     .filter(Boolean);
-
-//   // Make status matching safe
-//   const active = list.find((s: any) =>
-//     s?.status?.toString().trim().toLowerCase() === "active"
-//   );
-
-//   if (active?.planId) {
-//     setSelectedPlan(active.planId);
-
-//     const details = plans.find((p) => p.id === active.planId);
-//     setPlanDetails(details || null);
-//   } else {
-//     setSelectedPlan("");
-//     setPlanDetails(null);
-//   }
-// }, [open, subscriptions, plans]);
-
-
-
-//   /** -----------------------------------------
-//    *  UPDATE DETAILS WHEN USER SELECTS PLAN
-//    * ----------------------------------------*/
-//   useEffect(() => {
-//     if (!selectedPlan) {
-//       setPlanDetails(null);
-//       return;
-//     }
-//     const details = plans.find((p) => p.id === selectedPlan);
-//     setPlanDetails(details || null);
-//   }, [selectedPlan, plans]);
-
-//   /** -----------------------------------------
-//    *  UNIQUE FEATURE FILTER
-//    * ----------------------------------------*/
-//   const uniqueFeatures = useMemo(() => {
-//     if (!planDetails?.features) return [];
-//     const seen = new Set<string>();
-
-//     return planDetails.features.filter((f: any) => {
-//       const clean = f.name.trim().toLowerCase();
-//       if (seen.has(clean)) return false;
-//       seen.add(clean);
-//       return true;
-//     });
-//   }, [planDetails]);
-
-//   /** -----------------------------------------
-//    *  ASSIGN PLAN
-//    * ----------------------------------------*/
-//   const handleAssign = async () => {
-//   if (!selectedPlan) {
-//     toast({
-//       title: "Missing Field",
-//       description: "Please select a plan.",
-//       variant: "destructive",
-//     });
-//     return;
-//   }
-
-//   setLoading(true);
-
-//   try {
-//     const res = await apiRequest(
-//       "POST",
-//       "/api/assignSubscription",
-//       {
-//         userId: user.id,
-//         planId: selectedPlan
-//       }
-//     );
-
-//     const data = await res.json();
-
-//     if (!data.success) throw new Error(data.message || "Failed");
-
-//     toast({
-//       title: "Success",
-//       description: "Plan assigned successfully!",
-//     });
-
-//     onSuccess();
-//     onOpenChange(false);
-
-//   } catch (error: any) {
-//     let msg = "Something went wrong";
-
-//     if (error?.message) {
-//       const index = error.message.indexOf("{");
-//       if (index !== -1) {
-//         try {
-//           const jsonString = error.message.slice(index);
-//           const parsed = JSON.parse(jsonString);
-//           msg = parsed.message || msg;
-//         } catch {
-//           msg = error.message;
-//         }
-//       } else {
-//         msg = error.message;
-//       }
-//     }
-
-//     toast({
-//       title: "Error",
-//       description: msg,
-//       variant: "destructive",
-//     });
-
-//   } finally {
-//     setLoading(false);
-//   }
-// };
-
-
-
-
-//   return (
-//     <Dialog open={open} onOpenChange={onOpenChange}>
-//       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-//         <DialogHeader>
-//           <DialogTitle>Assign Plan to {user?.username}</DialogTitle>
-//         </DialogHeader>
-
-//         {loadingSubs ? (
-//           <p>Loading user's subscription...</p>
-//         ) : (
-//           <div className="space-y-4 mt-4">
-//             {/* PLAN DROPDOWN */}
-//             <div>
-//               <Label>Select Plan *</Label>
-//               <select
-//                 className="border rounded p-2 w-full"
-//                 value={selectedPlan}
-//                 onChange={(e) => setSelectedPlan(e.target.value)}
-//               >
-//                 <option value="">Choose a plan</option>
-//                 {plans.map((p: any) => (
-//                   <option key={p.id} value={p.id}>
-//                     {p.name}
-//                   </option>
-//                 ))}
-//               </select>
-//             </div>
-
-//             {/* DETAILS */}
-//             {planDetails && (
-//               <div className="border rounded-lg p-4 bg-muted/30">
-//                 <h3 className="text-lg font-semibold">{planDetails.name}</h3>
-//                 <p className="text-sm text-gray-600 mt-1">
-//                   {planDetails.description}
-//                 </p>
-
-//                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-//                   <div><strong>Monthly:</strong> ₹{planDetails.monthlyPrice || 0}</div>
-//                   <div><strong>Annual:</strong> ₹{planDetails.annualPrice || 0}</div>
-//                 </div>
-
-//                 {uniqueFeatures.length > 0 && (
-//                   <div className="mt-4">
-//                     <h4 className="font-medium mb-2">Features</h4>
-//                     <ul className="space-y-1 text-sm">
-//                       {uniqueFeatures.map((f: any, i: number) => (
-//                         <li key={i}>
-//                           {f.included ? "✔️" : "❌"} {f.name}
-//                         </li>
-//                       ))}
-//                     </ul>
-//                   </div>
-//                 )}
-//               </div>
-//             )}
-//           </div>
-//         )}
-
-//         <DialogFooter className="mt-6">
-//           <Button variant="outline" onClick={() => onOpenChange(false)}>
-//             Cancel
-//           </Button>
-
-//           <Button onClick={handleAssign} disabled={loading || !selectedPlan}>
-//             {loading ? "Assigning..." : "Assign Plan"}
-//           </Button>
-//         </DialogFooter>
-//       </DialogContent>
-//     </Dialog>
-//   );
-// }
-
-
-
 import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
@@ -321,8 +48,9 @@ export default function AssignPlanModal({
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [loadingSubs, setLoadingSubs] = useState(false);
 
-  const [selectedPlan, setSelectedPlan] = useState(""); // ❗No default value
+  const [selectedPlan, setSelectedPlan] = useState("");
   const [planDetails, setPlanDetails] = useState<any>(null);
+  const [billingCycle, setBillingCycle] = useState("monthly");
   const [loading, setLoading] = useState(false);
 
   /** -----------------------------------------
@@ -366,12 +94,12 @@ export default function AssignPlanModal({
   }, [selectedPlan, plans]);
 
   useEffect(() => {
-  if (open) {
-    setSelectedPlan("");   // reset dropdown
-    setPlanDetails(null);  // reset details
-  }
-}, [open]);
-
+    if (open) {
+      setSelectedPlan("");   // reset dropdown
+      setPlanDetails(null);  // reset details
+      setBillingCycle("monthly"); // reset cycle
+    }
+  }, [open]);
 
   /** -----------------------------------------
    *  UNIQUE FEATURES (optional)
@@ -407,6 +135,7 @@ export default function AssignPlanModal({
       const res = await apiRequest("POST", "/api/assignSubscription", {
         userId: user.id,
         planId: selectedPlan,
+        billingCycle: billingCycle,
       });
 
       const data = await res.json();
@@ -431,9 +160,6 @@ export default function AssignPlanModal({
     }
   };
 
-  // ---------------------------------------
-  // Extract ACTIVE PLANS ONLY
-  // ---------------------------------------
   const activeSubs = subscriptions
     .map((x: any) => x.subscription)
     .filter((s: any) => s?.status === "active");
@@ -469,7 +195,7 @@ export default function AssignPlanModal({
             <div>
               <Label>Select Plan *</Label>
               <select
-                className="border rounded p-2 w-full"
+                className="border rounded p-2 w-full mt-1 bg-white"
                 value={selectedPlan}
                 onChange={(e) => setSelectedPlan(e.target.value)}
               >
@@ -482,23 +208,40 @@ export default function AssignPlanModal({
               </select>
             </div>
 
+            {/* BILLING CYCLE DROPDOWN */}
+            {selectedPlan && (
+              <div>
+                <Label>Billing Cycle *</Label>
+                <select
+                  className="border rounded p-2 w-full mt-1 bg-white"
+                  value={billingCycle}
+                  onChange={(e) => setBillingCycle(e.target.value)}
+                >
+                  <option value="monthly">Monthly (1 Month) — ₹{planDetails?.monthlyPrice || 0}</option>
+                  <option value="quarterly">Quarterly (3 Months) — ₹{Number(planDetails?.monthlyPrice || 0) * 3}</option>
+                  <option value="semi-annual">Semi-Annual (6 Months) — ₹{Number(planDetails?.monthlyPrice || 0) * 6}</option>
+                  <option value="annual">Annual (1 Year) — ₹{planDetails?.annualPrice || 0}</option>
+                </select>
+              </div>
+            )}
+
             {/* PLAN DETAILS */}
             {planDetails && (
               <div className="border rounded-lg p-4 bg-muted/30">
                 <h3 className="text-lg font-semibold">{planDetails.name}</h3>
-                <p className="text-sm">{planDetails.description}</p>
+                <p className="text-sm text-gray-500">{planDetails.description}</p>
 
-                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                  <div><strong>Monthly:</strong> ₹{planDetails.monthlyPrice}</div>
-                  <div><strong>Annual:</strong> ₹{planDetails.annualPrice}</div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm border-t border-gray-100 pt-3">
+                  <div><strong>Monthly Price:</strong> ₹{planDetails.monthlyPrice || 0}</div>
+                  <div><strong>Annual Price:</strong> ₹{planDetails.annualPrice || 0}</div>
                 </div>
 
                 {uniqueFeatures.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="font-medium mb-2">Features:</h4>
+                  <div className="mt-4 border-t border-gray-100 pt-3">
+                    <h4 className="font-semibold mb-2">Features:</h4>
                     <ul className="space-y-1 text-sm">
                       {uniqueFeatures.map((f: any, i: number) => (
-                        <li key={i}>
+                        <li key={i} className="flex items-center gap-1.5 text-gray-600">
                           {f.included ? "✔️" : "❌"} {f.name}
                         </li>
                       ))}
@@ -510,7 +253,7 @@ export default function AssignPlanModal({
           </div>
         )}
 
-        <DialogFooter className="mt-6">
+        <DialogFooter className="mt-6 border-t border-gray-100 pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

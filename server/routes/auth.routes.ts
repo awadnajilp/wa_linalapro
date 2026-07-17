@@ -156,6 +156,12 @@ router.post("/logout", (req, res) => {
   const userId = (req as any).session?.user?.id;
 
   if (userId) {
+    // Clear FCM token on logout
+    db.update(users)
+      .set({ fcmToken: null })
+      .where(eq(users.id, userId))
+      .catch(err => console.error("Error clearing FCM token on logout:", err));
+
     // Log activity
     db.insert(userActivityLogs)
       .values({
@@ -293,10 +299,10 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
 
 router.post("/reset-password", async (req, res) => {
   try {
-    const { email, newPassword } = req.body;
+    const { email, newPassword, otpCode } = req.body;
 
-    if (!email || !newPassword) {
-      return res.status(400).json({ error: "Email and new password are required" });
+    if (!email || !newPassword || !otpCode) {
+      return res.status(400).json({ error: "Email, new password, and OTP code are required" });
     }
 
     // Find user
@@ -312,20 +318,28 @@ router.post("/reset-password", async (req, res) => {
 
     const userId = existingUser[0].id;
 
-    // Find valid OTP
+    // Find OTP record by code
     const otpRecord = await db
       .select()
       .from(otpVerifications)
       .where(
         and(
           eq(otpVerifications.userId, userId),
-          eq(otpVerifications.isUsed, false)
+          eq(otpVerifications.otpCode, otpCode.toString())
         )
       )
       .limit(1);
 
     if (!otpRecord.length) {
-      return res.status(400).json({ error: "Invalid or already used OTP" });
+      return res.status(400).json({ error: "Invalid OTP code" });
+    }
+
+    const record = otpRecord[0];
+    const now = new Date();
+    if (new Date(record.expiresAt) < now) {
+      // Clean up expired OTP
+      await db.delete(otpVerifications).where(eq(otpVerifications.id, record.id));
+      return res.status(400).json({ error: "OTP code has expired" });
     }
 
     // Hash new password
@@ -337,12 +351,12 @@ router.post("/reset-password", async (req, res) => {
       .set({ password: hashedPassword })
       .where(eq(users.id, userId));
 
-    // Delete the OTP record after successful password reset
+    // Delete the OTP record after successful password reset to prevent reuse
     await db
       .delete(otpVerifications)
-      .where(eq(otpVerifications.id, otpRecord[0].id));
+      .where(eq(otpVerifications.id, record.id));
 
-    res.json({ success: true, message: "Password updated successfully" });
+    res.json({ success: true, message: "Password reset successfully" });
   } catch (error: any) {
     console.error("Reset password error:", error);
     res.status(500).json({ error: error.message || "Failed to reset password" });

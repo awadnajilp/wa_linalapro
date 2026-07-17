@@ -692,39 +692,41 @@ export class WebhookHandler {
       console.log(`[${channelId || 'no-channel'}] Received ${message.type} from ${message.from}: ${content.substring(0, 80)}`);
 
       // 8. Send notification to channel owner and team
-      try {
-        if (channel.length > 0 && channel[0].createdBy) {
-          const ownerId = channel[0].createdBy;
-          const ownerAndTeam = await db
-            .select()
-            .from(users)
-            .where(eq(users.id, ownerId));
-          const teamMembers = await db
-            .select()
-            .from(users)
-            .where(eq(users.createdBy, ownerId));
-          const allUsers = [...ownerAndTeam, ...teamMembers];
-          const targetUserIds = [...new Set(allUsers.map((u) => u.id))];
+      const isGroupMessage = contact[0]?.isGroup === true || message.from.endsWith("@g.us");
+      if (!isGroupMessage) {
+        try {
+          if (channel.length > 0 && channel[0].createdBy) {
+            const ownerId = channel[0].createdBy;
+            const ownerAndTeam = await db
+              .select()
+              .from(users)
+              .where(eq(users.id, ownerId));
+            const teamMembers = await db
+              .select()
+              .from(users)
+              .where(eq(users.createdBy, ownerId));
+            const allUsers = [...ownerAndTeam, ...teamMembers];
+            const targetUserIds = [...new Set(allUsers.map((u) => u.id))];
 
-          if (targetUserIds.length > 0) {
-            const messagePreview = content.length > 100 ? content.substring(0, 100) + "..." : content;
+            if (targetUserIds.length > 0) {
+              const messagePreview = content.length > 100 ? content.substring(0, 100) + "..." : content;
 
-            await triggerThrottledNotification({
-              contactName,
-              contactPhone: message.from,
-              channelName: channel[0].name || channel[0].phoneNumber || "Unknown",
-              messagePreview,
-              conversationId: conversation[0].id,
-            }, targetUserIds, channel[0].id);
+              await triggerThrottledNotification({
+                contactName,
+                contactPhone: message.from,
+                channelName: channel[0].name || channel[0].phoneNumber || "Unknown",
+                messagePreview,
+                conversationId: conversation[0].id,
+              }, targetUserIds, channel[0].id);
+            }
           }
+        } catch (notifError) {
+          console.error("Error sending new message notification:", notifError);
         }
-      } catch (notifError) {
-        console.error("Error sending new message notification:", notifError);
       }
 
       // 8.5 Automations (run first — takes priority over AI)
       let automationHandled = false;
-      const isGroupMessage = contact[0]?.isGroup === true || message.from.endsWith("@g.us");
 
       if (!isGroupMessage) {
         try {

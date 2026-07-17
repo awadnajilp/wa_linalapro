@@ -780,10 +780,6 @@ if (io) {
   console.log(`📡 [Socket Emit] Emitting to conversationRoom (${conversationRoom}):`, normalizedPayload);
   io.to(conversationRoom).emit("new-message", normalizedPayload);
 
-  // 🚀 GLOBAL FALLBACK (Temporary for Debugging)
-  console.log(`📡 [Socket Emit] GLOBAL FALLBACK EMISSION`);
-  io.emit("new-message", normalizedPayload);
-
   // ✅ New conversation notification
   if (isNewConversation) {
     io.to(channelRoom).emit("conversation_created", {
@@ -808,7 +804,8 @@ if (io) {
 }
 
     try {
-      if (channel.createdBy) {
+      const isGroupMessage = contact?.isGroup === true || from.endsWith("@g.us");
+      if (channel.createdBy && !isGroupMessage) {
         const ownerId = channel.createdBy;
         const ownerResult = await db.select().from(users).where(eq(users.id, ownerId));
         const teamMembers = await db.select().from(users).where(eq(users.createdBy, ownerId));

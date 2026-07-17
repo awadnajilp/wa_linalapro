@@ -104,7 +104,7 @@ export const getMessages = asyncHandler(async (req: Request, res: Response) => {
 
 export const createMessage = asyncHandler(async (req: Request, res: Response) => {
   const { conversationId } = req.params;
-  const { content, fromUser, caption, templateName, parameters, replyToMessageId } = req.body;
+  const { content, fromUser, caption, templateName, parameters, replyToMessageId, forwardFromMessageId } = req.body;
   const file = (req as any).file as Express.Multer.File & { cloudUrl?: string };
 
   const conversation = await storage.getConversation(conversationId);
@@ -115,6 +115,7 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
   let result: any = null;
   let mediaId: string | null = null;
   let mediaUrl: string | null = null;
+  let mediaMimeType: string | null = null;
   let messageStatus: "sent" | "failed" = "sent";
   
   let replyToWaId: string | undefined = undefined;
@@ -157,8 +158,85 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
       : (lastIncoming > 0 && (Date.now() - lastIncoming > 24 * 60 * 60 * 1000));
 
     try {
+      // FORWARDED MESSAGE
+      if (forwardFromMessageId) {
+        const forwardedMessage = await storage.getMessage(forwardFromMessageId);
+        if (!forwardedMessage) throw new AppError(404, "Original message to forward not found");
+
+        if (forwardedMessage.messageType === "text" || !forwardedMessage.messageType) {
+          if (is24HourExpired) {
+            throw new AppError(403, "24-hour messaging window has expired. Please use an approved template message instead.");
+          }
+          result = await whatsappApi.sendTextMessage(conversation.contactPhone, forwardedMessage.content, replyToWaId);
+          msgBody = forwardedMessage.content;
+          messageType = "text";
+        } else {
+          if (is24HourExpired) {
+            throw new AppError(403, "24-hour messaging window has expired. Please use an approved template message instead.");
+          }
+          messageType = forwardedMessage.messageType;
+          mediaMimeType = forwardedMessage.mediaMimeType;
+          const isVoiceNote = forwardedMessage.metadata?.voice === true || forwardedMessage.messageType === "audio";
+
+          if (channel.connectionMethod !== "qr_code" && forwardedMessage.mediaId) {
+            mediaId = forwardedMessage.mediaId;
+            mediaUrl = forwardedMessage.mediaUrl;
+            
+            result = await whatsappApi.sendMediaMessagee(
+              conversation.contactPhone,
+              mediaId,
+              messageType as any,
+              caption || forwardedMessage.content || "",
+              replyToWaId,
+              isVoiceNote
+            );
+            msgBody = caption || forwardedMessage.content || `[${messageType}]`;
+          } else if (forwardedMessage.mediaUrl) {
+            try {
+              let downloadUrl = forwardedMessage.mediaUrl;
+              if (downloadUrl.startsWith("/")) {
+                const port = process.env.PORT || 5000;
+                downloadUrl = `http://localhost:${port}${downloadUrl}`;
+              }
+              
+              const axios = (await import("axios")).default;
+              const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+              const buffer = Buffer.from(response.data);
+              
+              const originalname = forwardedMessage.metadata?.originalName || `forwarded_${Date.now()}`;
+              const mimeType = forwardedMessage.mediaMimeType || "image/jpeg";
+              
+              if (channel.connectionMethod !== "qr_code") {
+                mediaId = await whatsappApi.uploadMediaBuffer(buffer, mimeType, originalname);
+                try {
+                  mediaUrl = await whatsappApi.getMediaUrl(mediaId);
+                } catch (err) {
+                  mediaUrl = forwardedMessage.mediaUrl;
+                }
+              } else {
+                mediaUrl = forwardedMessage.mediaUrl;
+              }
+              
+              result = await whatsappApi.sendMediaMessagee(
+                conversation.contactPhone,
+                mediaId || "",
+                messageType as any,
+                caption || forwardedMessage.content || "",
+                replyToWaId,
+                isVoiceNote
+              );
+              msgBody = caption || forwardedMessage.content || `[${messageType}]`;
+            } catch (err: any) {
+              console.error("❌ Failed to forward media message via download:", err);
+              throw new AppError(500, `Failed to forward media message: ${err.message}`);
+            }
+          } else {
+            throw new AppError(400, "Forwarded media message has no mediaId or mediaUrl");
+          }
+        }
+      }
       // TEMPLATE MESSAGE
-      if (templateName) {
+      else if (templateName) {
         const templateMatch = await storage.getTemplateByNameAndChannel(templateName, conversation.channelId)
           || (await storage.getTemplatesByName(templateName))[0];
         msgBody = templateMatch?.body || `[template: ${templateName}]`;
@@ -343,7 +421,7 @@ if (file.size > MAX_SIZE_MB * 1024 * 1024) {
         timestamp: new Date(),
         mediaId: mediaId || undefined,
         mediaUrl: mediaUrl || file?.cloudUrl || undefined,
-        mediaMimeType: file?.mimetype || undefined,
+        mediaMimeType: mediaMimeType || file?.mimetype || undefined,
         metadata: Object.keys(finalMetadata).length > 0 
           ? (file ? { ...finalMetadata, originalName: file.originalname, size: file.size, isCloud: !!file.cloudUrl, cloudUrl: file.cloudUrl } : finalMetadata)
           : (file ? { originalName: file.originalname, size: file.size, isCloud: !!file.cloudUrl, cloudUrl: file.cloudUrl } : {}),

@@ -260,7 +260,7 @@ export class MessageQueueService {
           .where(
             and(
               eq(messageQueue.campaignId, campaignId),
-              notInArray(messageQueue.status, ["sent", "failed"])
+              inArray(messageQueue.status, ["queued", "processing"])
             )
           )
           .limit(1);
@@ -395,7 +395,7 @@ export class MessageQueueService {
           .where(
             and(
               eq(messageQueue.campaignId, campaign.id),
-              notInArray(messageQueue.status, ["sent", "failed"])
+              inArray(messageQueue.status, ["queued", "processing"])
             )
           )
           .limit(1);

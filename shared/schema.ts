@@ -1061,6 +1061,7 @@ export const messageQueue = pgTable("message_queue", {
   queueStatusIdx: index("queue_status_idx").on(table.status),
   queueScheduledIdx: index("queue_scheduled_idx").on(table.scheduledFor),
   queueStatusScheduledIdx: index("queue_status_scheduled_idx").on(table.status, table.scheduledFor),
+  queueWhatsappMessageIdx: index("queue_whatsapp_message_idx").on(table.whatsappMessageId),
 }));
 
 // API Request Logs for debugging

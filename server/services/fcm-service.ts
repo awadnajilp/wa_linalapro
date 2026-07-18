@@ -1,4 +1,8 @@
-import admin from "firebase-admin";
+import * as adminModule from "firebase-admin";
+import * as messagingModule from "firebase-admin/messaging";
+
+const admin = (adminModule as any).default || adminModule;
+const { getMessaging } = (messagingModule as any).default || messagingModule;
 import { db } from "../db";
 import { firebaseConfig } from "@shared/schema";
 
@@ -32,7 +36,7 @@ export async function initFcm(): Promise<boolean> {
     }
 
     admin.initializeApp({
-      credential: admin.credential.cert({
+      credential: admin.cert({
         projectId: config.projectId,
         clientEmail: config.clientEmail,
         privateKey: config.privateKey.replace(/\\n/g, '\n'),
@@ -84,7 +88,7 @@ export async function sendPushNotification(
       }
     };
 
-    const response = await admin.messaging().send(message);
+    const response = await getMessaging().send(message);
     console.log("🚀 [FCM Service] Sent push notification successfully:", response);
     return response;
   } catch (error) {

@@ -79,6 +79,14 @@ export function registerContactRoutes(app: Express) {
     contactsController.deleteBulkContacts
   );
 
+  // Update Bulk tags
+  app.put(
+    "/api/contacts-bulk/tags",
+    requireAuth,
+    requirePermission(PERMISSIONS.CONTACTS_EDIT),
+    contactsController.updateBulkContactsTags
+  );
+
   // Import contacts
   app.post(
     "/api/contacts/import",

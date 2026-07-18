@@ -159,3 +159,13 @@ If you are using a **QR Code (Baileys/Session-based) Channel** instead of the of
 *   **Inbox & Contacts Tagging:** Added support for creating tags with custom colors and assigning them to conversations and contacts. Real-time synchronizations were wired using Socket.io.
 *   **Database Performance Optimization:** Added composite and single-column indexes on `message_queue` (`campaign_id`, `status`, `scheduled_for`) to eliminate full table scans during campaign queue polling.
 *   **Local & Production Database Matching:** Pushed schema updates to create the `tags` table and indexes.
+
+### 9. Campaign Performance & Logic Updates (July 2026)
+*   **Campaign Recipient Selector Capping:** Increased `contactLimit` in the campaign recipient selector from 5000 to 100,000 to allow selecting large contact groups in their entirety.
+*   **Auto-Creation of Groups during Import:** Modified contact imports to parse incoming groups and register them as valid master groups inside the `groups` table under the active channel, enabling dropdown visibility and CRM edits.
+*   **Failed Contacts Counts:** Relabeled the campaign stats and reports listing from "failed" to "failed/unsupported".
+*   **Campaign Completion Logic & Recovery:**
+    *   Exposed `checkCampaignCompletions` to the BullMQ job worker to transition campaigns to "completed" status when using Redis.
+    *   Corrected completion checks to query for remaining `"queued"` or `"processing"` messages in the queue (as finished messages transition to `"delivered"` or `"read"` via webhooks).
+    *   Added a startup backfill checker (`backfillStuckCampaigns`) to locate and resolve any stuck `"sending"` campaigns upon server reboot.
+*   **Webhook Scale Performance Indexing:** Registered a database index on `message_queue (whatsapp_message_id)` to eliminate full table scans when processing webhook status updates, avoiding CPU/disk saturation during high-volume campaigns.

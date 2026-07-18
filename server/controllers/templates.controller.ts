@@ -18,7 +18,9 @@
 import type { Request, Response } from 'express';
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { storage } from '../storage';
-import { insertTemplateSchema } from '@shared/schema';
+import { insertTemplateSchema, mediaLibrary } from '@shared/schema';
+import { db } from "../db";
+import path from "path";
 import { AppError, asyncHandler } from '../middlewares/error.middleware';
 import { WhatsAppApiService } from '../services/whatsapp-api';
 import type { RequestWithChannel } from '../middlewares/channel.middleware';
@@ -318,6 +320,52 @@ export const createTemplate = asyncHandler(
           } catch (err: any) {
             console.error("❌ Meta media upload failed for template creation:", err);
             throw new AppError(500, `Failed to upload media to WhatsApp: ${err.message}`);
+          }
+          // Save to media library
+          try {
+            const mainUserId = req.user.role === "team" && (req.user as any).createdBy ? (req.user as any).createdBy : req.user.id;
+            
+            // Copy file from temp/local Multer destination to a persistent path if DO is not configured,
+            // or upload to DO if active
+            const { createDOClient } = await import("../middlewares/upload.middleware");
+            const doClient = await createDOClient();
+            let fileUrl = "";
+            
+            if (doClient) {
+              const { s3, bucket, endpoint } = doClient;
+              const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+              const fileKey = `uploads/${mainUserId}/${Date.now()}-${originalname}`;
+              await s3.send(
+                new PutObjectCommand({
+                  Bucket: bucket!,
+                  Key: fileKey,
+                  Body: fileBuffer,
+                  ContentType: mimetype,
+                })
+              );
+              const endpointUrl = new URL(endpoint || "");
+              fileUrl = `https://${bucket}.${endpointUrl.host}/${fileKey}`;
+            } else {
+              const persistentDir = path.join("uploads", mainUserId.toString());
+              if (!fs.existsSync(persistentDir)) {
+                fs.mkdirSync(persistentDir, { recursive: true });
+              }
+              const persistentFilename = `${Date.now()}-${originalname}`;
+              const persistentPath = path.join(persistentDir, persistentFilename);
+              fs.writeFileSync(persistentPath, fileBuffer);
+              fileUrl = `/uploads/${mainUserId}/${persistentFilename}`;
+            }
+
+            await db.insert(mediaLibrary).values({
+              userId: mainUserId,
+              url: fileUrl,
+              fileName: originalname,
+              mimeType: mimetype,
+              fileSize: fileBuffer.length,
+            });
+            console.log("✅ Template creation media tracked in Media Library:", originalname);
+          } catch (dbErr) {
+            console.error("Failed to save template creation media to media library:", dbErr);
           }
 
           components.push({

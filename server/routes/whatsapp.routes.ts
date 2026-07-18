@@ -27,7 +27,7 @@ import { insertWhatsappChannelSchema } from "@shared/schema";
 import fs from "fs";
 import path from "path";
 import { db } from "../db";
-import { subscriptions, plans, channels, warmerConfigs, warmerMessages, contacts, groups } from "@shared/schema";
+import { subscriptions, plans, channels, warmerConfigs, warmerMessages, contacts, groups, mediaLibrary } from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { BaileysManager } from "../services/baileys-manager";
@@ -1163,6 +1163,7 @@ app.get(
 app.post(
   "/api/whatsapp/channels/:id/upload-image",
   upload.fields([{ name: "mediaFile", maxCount: 1 }]),
+  handleDigitalOceanUpload,
   async (req, res) => {
     try {
       console.log("📥 Upload image request");
@@ -1224,10 +1225,38 @@ app.post(
           });
         }
 
-        buffer = fs.readFileSync(mediaFile.path);
+        let fileUrl = "";
+        if (mediaFile.cloudUrl) {
+          fileUrl = mediaFile.cloudUrl;
+          const axios = (await import("axios")).default;
+          const response = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+          buffer = Buffer.from(response.data);
+        } else {
+          const relativeUrl = `/uploads/${path.basename(path.dirname(mediaFile.path))}/${mediaFile.filename}`;
+          fileUrl = `${req.protocol}://${req.get('host')}${relativeUrl}`;
+          buffer = fs.readFileSync(mediaFile.path);
+        }
+
         mimetype = mediaFile.mimetype;
         originalname = mediaFile.originalname;
-        fs.unlinkSync(mediaFile.path);
+
+        // Save to media library
+        try {
+          const user = (req as any).session?.user;
+          const mainUserId = user ? (user.role === "team" && user.createdBy ? user.createdBy : user.id) : null;
+          if (mainUserId) {
+            await db.insert(mediaLibrary).values({
+              userId: mainUserId,
+              url: fileUrl,
+              fileName: originalname,
+              mimeType: mimetype,
+              fileSize: mediaFile.size,
+            });
+            console.log("✅ Template header file tracked in Media Library:", originalname);
+          }
+        } catch (dbErr) {
+          console.error("Failed to save template header attachment to media library:", dbErr);
+        }
       }
 
       const whatsappApi = new WhatsAppApiService(channel);
@@ -1316,6 +1345,22 @@ app.post(
         const relativeUrl = `/uploads/${path.basename(path.dirname(mediaFile.path))}/${mediaFile.filename}`;
         const absoluteUrl = mediaFile.cloudUrl || `${req.protocol}://${req.get('host')}${relativeUrl}`;
         console.log(`[Baileys Upload Media] File uploaded to cloud/local: ${absoluteUrl}`);
+
+        // Save to media library
+        try {
+          const mainUserId = user.role === "team" && user.createdBy ? user.createdBy : user.id;
+          await db.insert(mediaLibrary).values({
+            userId: mainUserId,
+            url: absoluteUrl,
+            fileName: mediaFile.originalname,
+            mimeType: mediaFile.mimetype,
+            fileSize: mediaFile.size,
+          });
+          console.log("✅ Baileys flow builder media tracked in Media Library:", mediaFile.originalname);
+        } catch (dbErr) {
+          console.error("Failed to save baileys flow builder media to media library:", dbErr);
+        }
+
         return res.json({ success: true, mediaId: absoluteUrl, mediaUrl: absoluteUrl });
       }
 
@@ -1326,7 +1371,35 @@ app.post(
       const buffer = fs.readFileSync(mediaFile.path);
       const whatsappApi = new WhatsAppApiService(channel);
       const mediaId = await whatsappApi.uploadMediaBuffer(buffer, mediaFile.mimetype, mediaFile.originalname);
-      fs.unlinkSync(mediaFile.path);
+
+      // Determine persistent URL
+      let fileUrl = "";
+      if (mediaFile.cloudUrl) {
+        fileUrl = mediaFile.cloudUrl;
+      } else {
+        const relativeUrl = `/uploads/${path.basename(path.dirname(mediaFile.path))}/${mediaFile.filename}`;
+        fileUrl = `${req.protocol}://${req.get('host')}${relativeUrl}`;
+      }
+
+      // Save to media library
+      try {
+        const mainUserId = user.role === "team" && user.createdBy ? user.createdBy : user.id;
+        await db.insert(mediaLibrary).values({
+          userId: mainUserId,
+          url: fileUrl,
+          fileName: mediaFile.originalname,
+          mimeType: mediaFile.mimetype,
+          fileSize: mediaFile.size,
+        });
+        console.log("✅ Flow builder media tracked in Media Library:", mediaFile.originalname);
+      } catch (dbErr) {
+        console.error("Failed to save flow builder media to media library:", dbErr);
+      }
+
+      // Only unlink local file if it was uploaded to cloud storage
+      if (mediaFile.cloudUrl && fs.existsSync(mediaFile.path)) {
+        fs.unlinkSync(mediaFile.path);
+      }
 
       return res.json({ success: true, mediaId });
     } catch (error: any) {

@@ -18,7 +18,8 @@
 import type { Request, Response } from 'express';
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { storage } from '../storage';
-import { insertMessageSchema} from '@shared/schema';
+import { insertMessageSchema, mediaLibrary } from '@shared/schema';
+import { db } from "../db";
 import { AppError, asyncHandler } from '../middlewares/error.middleware';
 import { WhatsAppApiService } from '../services/whatsapp-api';
 import type { RequestWithChannel } from '../middlewares/channel.middleware';
@@ -425,6 +426,21 @@ if (file.size > MAX_SIZE_MB * 1024 * 1024) {
         } catch (err) {
           console.warn("⚠️ Failed to get WhatsApp media URL, using local path instead");
           mediaUrl = (file as any).cloudUrl || `/uploads/${file.filename || file.originalname}`;
+        }
+
+        // Save message attachment to media library
+        try {
+          const mainUserId = req.user.role === "team" && (req.user as any).createdBy ? (req.user as any).createdBy : req.user.id;
+          await db.insert(mediaLibrary).values({
+            userId: mainUserId,
+            url: mediaUrl,
+            fileName: file.originalname,
+            mimeType: mimeType,
+            fileSize: file.size,
+          });
+          console.log("✅ Attachment successfully tracked in Media Library:", file.originalname);
+        } catch (dbErr) {
+          console.error("Failed to save message attachment to media library:", dbErr);
         }
 
         // Determine message type

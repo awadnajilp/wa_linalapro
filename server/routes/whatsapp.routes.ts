@@ -42,7 +42,7 @@ const qrSessions = new Map<string, {
 
 async function getFileBuffer(mediaFile: any): Promise<Buffer> {
   if (mediaFile.cloudUrl) {
-    const { createDOClient } = await import("../middlewares/upload.middleware");
+    const { createDOClient } = await import("../config/digitalOceanConfig");
     const doClient = await createDOClient();
     if (doClient) {
       const { s3, bucket } = doClient;

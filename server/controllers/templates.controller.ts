@@ -327,7 +327,7 @@ export const createTemplate = asyncHandler(
             
             // Copy file from temp/local Multer destination to a persistent path if DO is not configured,
             // or upload to DO if active
-            const { createDOClient } = await import("../middlewares/upload.middleware");
+            const { createDOClient } = await import("../config/digitalOceanConfig");
             const doClient = await createDOClient();
             let fileUrl = "";
             

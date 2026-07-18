@@ -1187,27 +1187,56 @@ app.post(
         });
       }
 
-      const mediaFile = Array.isArray((req.files as any)?.mediaFile)
-        ? (req.files as any).mediaFile[0]
-        : null;
+      let buffer: Buffer;
+      let mimetype: string;
+      let originalname: string;
 
-      if (!mediaFile) {
-        return res.status(400).json({
-          message: "mediaFile (image) is required",
-        });
+      const mediaUrl = req.body.mediaUrl;
+      if (mediaUrl) {
+        try {
+          mimetype = req.body.mediaMimeType || "image/jpeg";
+          originalname = req.body.mediaName || "image.jpg";
+          
+          let downloadUrl = mediaUrl;
+          if (downloadUrl.startsWith("/")) {
+            const port = process.env.PORT || 5000;
+            downloadUrl = `http://localhost:${port}${downloadUrl}`;
+          }
+          
+          const axios = (await import("axios")).default;
+          const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+          buffer = Buffer.from(response.data);
+        } catch (err: any) {
+          console.error("❌ Failed to process media library URL for template:", err);
+          return res.status(500).json({
+            success: false,
+            message: `Failed to download media file: ${err.message}`,
+          });
+        }
+      } else {
+        const mediaFile = Array.isArray((req.files as any)?.mediaFile)
+          ? (req.files as any).mediaFile[0]
+          : null;
+
+        if (!mediaFile) {
+          return res.status(400).json({
+            message: "mediaFile (image) or mediaUrl is required",
+          });
+        }
+
+        buffer = fs.readFileSync(mediaFile.path);
+        mimetype = mediaFile.mimetype;
+        originalname = mediaFile.originalname;
+        fs.unlinkSync(mediaFile.path);
       }
-
-      const buffer = fs.readFileSync(mediaFile.path);
 
       const whatsappApi = new WhatsAppApiService(channel);
 
       const mediaId = await whatsappApi.uploadMediaBufferHeader(
         buffer,
-        mediaFile.mimetype,
-        mediaFile.originalname
+        mimetype,
+        originalname
       );
-
-      fs.unlinkSync(mediaFile.path);
 
       // ✅ Template update
       await storage.updateTemplate(templateId, {

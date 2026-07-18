@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
 import { Info, FileText, Clock, Eye, Check, Upload, Loader2, Smile, Wrench } from "lucide-react";
 import { TemplatePickerDialog, getTemplateButtons } from "@/components/shared/TemplatePickerDialog";
+import { MediaGalleryDialog } from "@/components/media/MediaGalleryDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import {
@@ -134,6 +135,7 @@ export function CreateCampaignForm({
   const [warmerEnabled, setWarmerEnabled] = useState(false);
   const [selectedWarmerMsgs, setSelectedWarmerMsgs] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [showMediaGallery, setShowMediaGallery] = useState(false);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState("");
 
@@ -599,7 +601,17 @@ export function CreateCampaignForm({
 
                   <div className="flex-1 flex flex-col justify-between space-y-2">
                     <div>
-                      <Label htmlFor="mediaUrlInput" className="text-[11px] font-medium text-gray-500">Or Media URL directly</Label>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="mediaUrlInput" className="text-[11px] font-medium text-gray-500">Or Media URL directly</Label>
+                        <Button
+                          type="button"
+                          variant="link"
+                          className="h-auto p-0 text-[10px] text-purple-600 hover:text-purple-700 font-semibold"
+                          onClick={() => setShowMediaGallery(true)}
+                        >
+                          Choose from Gallery
+                        </Button>
+                      </div>
                       <Input
                         id="mediaUrlInput"
                         placeholder="https://example.com/image.jpg"
@@ -1198,6 +1210,22 @@ export function CreateCampaignForm({
       </Card>
 
       {children}
+
+      <MediaGalleryDialog
+        open={showMediaGallery}
+        onOpenChange={setShowMediaGallery}
+        onSelect={(url, name) => {
+          setMediaUrl(url);
+          setMediaName(name);
+          const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
+          let guessedMime = "image/jpeg";
+          if (ext === "png") guessedMime = "image/png";
+          else if (ext === "gif") guessedMime = "image/gif";
+          else if (ext === "mp4") guessedMime = "video/mp4";
+          else if (ext === "pdf") guessedMime = "application/pdf";
+          setMediaMimeType(guessedMime);
+        }}
+      />
 
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onCancel}>

@@ -276,20 +276,48 @@ export const createTemplate = asyncHandler(
         }
 
         if (mediaType !== "text") {
-          if (!mediaFile || !mediaFile.path) {
-            throw new AppError(400, "Media header requires file upload");
+          let fileBuffer: Buffer;
+          let mimetype: string;
+          let originalname: string;
+
+          if (req.body.mediaUrl) {
+            try {
+              mimetype = req.body.mediaMimeType || "image/jpeg";
+              originalname = req.body.mediaName || "image.jpg";
+              
+              let downloadUrl = req.body.mediaUrl;
+              if (downloadUrl.startsWith("/")) {
+                const port = process.env.PORT || 5000;
+                downloadUrl = `http://localhost:${port}${downloadUrl}`;
+              }
+              
+              const axios = (await import("axios")).default;
+              const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+              fileBuffer = Buffer.from(response.data);
+            } catch (err: any) {
+              console.error("❌ Failed to process media library URL for template creation:", err);
+              throw new AppError(500, `Failed to download media file: ${err.message}`);
+            }
+          } else {
+            if (!mediaFile || !mediaFile.path) {
+              throw new AppError(400, "Media header requires file upload or mediaUrl");
+            }
+            fileBuffer = fs.readFileSync(mediaFile.path);
+            mimetype = mediaFile.mimetype;
+            originalname = mediaFile.originalname;
+            try { fs.unlinkSync(mediaFile.path); } catch {}
           }
-          const fileBuffer = fs.readFileSync(mediaFile.path);
 
           try {
             mediaId = await whatsappApi.uploadMediaBufferHeader(
-              fileBuffer, mediaFile.mimetype, mediaFile.originalname
+              fileBuffer, mimetype, originalname
             );
             headerHandle = await whatsappApi.uploadTemplateMedia(
-              fileBuffer, mediaFile.mimetype, mediaFile.originalname
+              fileBuffer, mimetype, originalname
             );
-          } finally {
-            try { fs.unlinkSync(mediaFile.path); } catch {}
+          } catch (err: any) {
+            console.error("❌ Meta media upload failed for template creation:", err);
+            throw new AppError(500, `Failed to upload media to WhatsApp: ${err.message}`);
           }
 
           components.push({

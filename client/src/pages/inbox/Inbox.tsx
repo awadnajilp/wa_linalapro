@@ -907,6 +907,51 @@ export default function Inbox() {
     event.target.value = "";
   };
 
+  const handleSelectMediaUrl = async (url: string, name: string, mimeType: string) => {
+    if (!selectedConversation) return;
+
+    try {
+      const response = await fetch(
+        `/api/conversations/${selectedConversation.id}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            mediaUrl: url,
+            mediaName: name,
+            mediaMimeType: mimeType,
+            fromUser: "true",
+            caption: messageText || "",
+            conversationId: selectedConversation.id,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to send media");
+      }
+
+      toast({
+        title: "Success",
+        description: "Media sent successfully",
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["/api/conversations", selectedConversation.id, "messages"],
+      });
+      setMessageText("");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSendVoiceNote = async (file: File) => {
     if (!selectedConversation) return;
 
@@ -1186,6 +1231,7 @@ export default function Inbox() {
             onSendMessage={handleSendMessage}
             onFileAttachment={handleFileAttachment}
             onFileChange={handleFileChange}
+            onSelectMediaUrl={handleSelectMediaUrl}
             onSendVoiceNote={handleSendVoiceNote}
             onSelectTemplate={handleSelectTemplate}
             is24HourWindowExpired={is24HourWindowExpired}

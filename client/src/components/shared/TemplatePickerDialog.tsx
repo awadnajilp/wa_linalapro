@@ -33,6 +33,7 @@ import { api } from "@/lib/api";
 import { WHATSAPP_LANGUAGES } from "@/lib/template-constants";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { MediaGalleryDialog } from "@/components/media/MediaGalleryDialog";
 
 export const templateCategoryConfig: Record<string, { label: string; className: string; icon: any }> = {
   MARKETING: {
@@ -142,6 +143,9 @@ export function TemplatePickerDialog({
 }: TemplatePickerDialogProps) {
   const [open, setOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [showMediaGallery, setShowMediaGallery] = useState(false);
+  const [showCardGallery, setShowCardGallery] = useState(false);
+  const [selectCardIdx, setSelectCardIdx] = useState<number | null>(null);
   const [variables, setVariables] = useState<
     { type?: string; value?: string }[]
   >([]);
@@ -267,6 +271,99 @@ export function TemplatePickerDialog({
       toast({
         title: "Upload Failed",
         description: `Failed to upload media for card ${cardIdx + 1}.`,
+        variant: "destructive",
+      });
+    } finally {
+      setCardUploadingIdx(null);
+    }
+  };
+
+  const handleSelectHeaderMedia = async (url: string, name: string) => {
+    if (!channelId) return;
+    setIsUploading(true);
+    setUploadedMediaId(null);
+    try {
+      const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
+      let mimeType = "image/jpeg";
+      if (ext === "png") mimeType = "image/png";
+      else if (ext === "gif") mimeType = "image/gif";
+      else if (ext === "mp4") mimeType = "video/mp4";
+      else if (ext === "pdf") mimeType = "application/pdf";
+
+      toast({
+        title: `Uploading header media...`,
+        description: "Uploading media file from gallery to WhatsApp...",
+      });
+
+      const res = await fetch(`/api/whatsapp/channels/${channelId}/upload-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          templateId: selectedTemplate?.id,
+          mediaUrl: url,
+          mediaName: name,
+          mediaMimeType: mimeType,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      setUploadedMediaId(data.mediaId);
+      toast({
+        title: "Upload successful",
+        description: `Header uploaded from gallery successfully.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload file from gallery. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSelectCardMedia = async (url: string, name: string) => {
+    if (!channelId || selectCardIdx === null) return;
+    setCardUploadingIdx(selectCardIdx);
+    try {
+      const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
+      let mimeType = "image/jpeg";
+      if (ext === "png") mimeType = "image/png";
+      else if (ext === "gif") mimeType = "image/gif";
+      else if (ext === "mp4") mimeType = "video/mp4";
+      else if (ext === "pdf") mimeType = "application/pdf";
+
+      toast({ title: `Uploading card ${selectCardIdx + 1} media...` });
+
+      const res = await fetch(`/api/whatsapp/channels/${channelId}/upload-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          templateId: selectedTemplate?.id,
+          mediaUrl: url,
+          mediaName: name,
+          mediaMimeType: mimeType,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      const cardIdx = selectCardIdx;
+      setCardMediaIds((prev) => ({ ...prev, [cardIdx]: data.mediaId }));
+      toast({
+        title: "Upload successful",
+        description: `Card ${cardIdx + 1} media uploaded from gallery.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Upload Failed",
+        description: `Failed to upload card media from gallery.`,
         variant: "destructive",
       });
     } finally {
@@ -558,9 +655,19 @@ export function TemplatePickerDialog({
 
               {requiresHeaderImage && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-red-600">
-                    Header {headerType} (Required) *
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-red-600">
+                      Header {headerType} (Required) *
+                    </label>
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="h-auto p-0 text-xs text-purple-600 hover:text-purple-700 font-semibold"
+                      onClick={() => setShowMediaGallery(true)}
+                    >
+                      Choose from Gallery
+                    </Button>
+                  </div>
                   <input
                     type="file"
                     accept={getAcceptByHeaderType(headerType)}
@@ -602,7 +709,20 @@ export function TemplatePickerDialog({
                       <div key={cardIdx} className="border rounded-lg p-3 space-y-2 bg-gray-50">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium text-gray-700">Card {cardIdx + 1}</span>
-                          <Badge variant="outline" className="text-[10px]">{cardMediaType}</Badge>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="link"
+                              className="h-auto p-0 text-xs text-purple-600 hover:text-purple-700 font-semibold"
+                              onClick={() => {
+                                setSelectCardIdx(cardIdx);
+                                setShowCardGallery(true);
+                              }}
+                            >
+                              Choose Gallery
+                            </Button>
+                            <Badge variant="outline" className="text-[10px]">{cardMediaType}</Badge>
+                          </div>
                         </div>
                         {card.body && (
                           <p className="text-xs text-gray-600">{card.body}</p>
@@ -824,6 +944,18 @@ export function TemplatePickerDialog({
           )}
         </ScrollArea>
       </DialogContent>
+
+      <MediaGalleryDialog
+        open={showMediaGallery}
+        onOpenChange={setShowMediaGallery}
+        onSelect={handleSelectHeaderMedia}
+      />
+
+      <MediaGalleryDialog
+        open={showCardGallery}
+        onOpenChange={setShowCardGallery}
+        onSelect={handleSelectCardMedia}
+      />
     </Dialog>
   );
 }

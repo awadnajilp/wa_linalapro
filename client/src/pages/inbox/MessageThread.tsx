@@ -325,6 +325,7 @@ interface MessageThreadProps {
   onCreateTag?: (name: string, color: string) => Promise<void>;
   tagsColorMap?: Record<string, string>;
   onSendVoiceNote?: (file: File) => void;
+  onSelectMediaUrl?: (url: string, name: string, mimeType: string) => void;
 }
 
   const MessageThread = ({
@@ -367,6 +368,7 @@ interface MessageThreadProps {
   onUpdateConversationTags,
   onCreateTag,
   tagsColorMap = {},
+  onSelectMediaUrl,
 }: MessageThreadProps) => {
   const demo = isDemoUser(user?.username);
   const { toast } = useToast();
@@ -733,6 +735,7 @@ interface MessageThreadProps {
         replyToMessage={replyToMessage}
         onCancelReply={onCancelReply}
         onSelectLocalTemplate={onSelectLocalTemplate}
+        onSelectMediaUrl={onSelectMediaUrl}
       />
     </div>
   );

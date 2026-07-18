@@ -185,6 +185,11 @@ const createTemplateMutation = useMutation({
     if (data.mediaFile) {
       formData.append("mediaFile", data.mediaFile);
       formData.append("mediaType", data.mediaType);
+    } else if (data.mediaUrl) {
+      formData.append("mediaUrl", data.mediaUrl);
+      formData.append("mediaType", data.mediaType);
+      if (data.mediaName) formData.append("mediaName", data.mediaName);
+      if (data.mediaMimeType) formData.append("mediaMimeType", data.mediaMimeType);
     } else if (data.header) {
       formData.append("header", data.header);
     }

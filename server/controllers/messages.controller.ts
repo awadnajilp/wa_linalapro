@@ -283,7 +283,58 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
           return res.json(failedMessage);
         }
 
-      // MEDIA MESSAGE (blocked if 24-hour window expired)
+      // MEDIA MESSAGE FROM URL / LIBRARY
+      } else if (req.body.mediaUrl) {
+        if (is24HourExpired) {
+          throw new AppError(403, "24-hour messaging window has expired. Please use an approved template message instead.");
+        }
+        
+        mediaUrl = req.body.mediaUrl;
+        const mimeType = req.body.mediaMimeType || "image/jpeg";
+        const originalName = req.body.mediaName || "file";
+        mediaMimeType = mimeType;
+
+        if (mimeType.startsWith("image")) messageType = "image";
+        else if (mimeType.startsWith("video")) messageType = "video";
+        else if (mimeType.startsWith("audio")) messageType = "audio";
+        else messageType = "document";
+
+        const isVoiceNote = req.body.isVoiceNote === "true" || req.body.isVoiceNote === true;
+        if (isVoiceNote) {
+          finalMetadata.voice = true;
+        }
+
+        if (channel.connectionMethod !== "qr_code") {
+          try {
+            let downloadUrl = mediaUrl;
+            if (downloadUrl.startsWith("/")) {
+              const port = process.env.PORT || 5000;
+              downloadUrl = `http://localhost:${port}${downloadUrl}`;
+            }
+            
+            const axios = (await import("axios")).default;
+            const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+            const buffer = Buffer.from(response.data);
+            
+            mediaId = await whatsappApi.uploadMediaBuffer(buffer, mimeType, originalName);
+            console.log("✅ Media uploaded to WhatsApp from URL, ID:", mediaId);
+          } catch (err: any) {
+            console.error("❌ Failed to upload media message from URL:", err);
+            throw new AppError(500, `Failed to process media file: ${err.message}`);
+          }
+        }
+
+        result = await whatsappApi.sendMediaMessagee(
+          conversation.contactPhone,
+          mediaId || "",
+          messageType as any,
+          caption || content,
+          replyToWaId,
+          isVoiceNote
+        );
+        msgBody = caption || `[${messageType}]`;
+
+      // MEDIA MESSAGE FROM FILE UPLOAD (blocked if 24-hour window expired)
       } else if (file) {
         if (is24HourExpired) {
           throw new AppError(403, "24-hour messaging window has expired. Please use an approved template message instead.");

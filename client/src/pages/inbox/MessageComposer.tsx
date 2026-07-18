@@ -30,9 +30,11 @@ import {
   X,
   BookOpen,
   Mic,
-  Trash2
+  Trash2,
+  Image as ImageIcon
 } from "lucide-react";
 import { TemplatePickerDialog } from "@/components/shared/TemplatePickerDialog";
+import { MediaGalleryDialog } from "@/components/media/MediaGalleryDialog";
 import { useQuery } from "@tanstack/react-query";
 import {
   Popover,
@@ -59,6 +61,7 @@ interface MessageComposerProps {
   replyToMessage?: Message | null;
   onCancelReply?: () => void;
   onSelectLocalTemplate?: (text: string) => void;
+  onSelectMediaUrl?: (url: string, name: string, mimeType: string) => void;
 }
 
 const MessageComposer = ({
@@ -77,6 +80,7 @@ const MessageComposer = ({
   replyToMessage,
   onCancelReply,
   onSelectLocalTemplate,
+  onSelectMediaUrl,
 }: MessageComposerProps) => {
   const { data: localTemplates } = useQuery({
     queryKey: ["/api/templates", activeChannelId],
@@ -93,6 +97,7 @@ const MessageComposer = ({
   // Recording State
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [showMediaGallery, setShowMediaGallery] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -260,6 +265,23 @@ const MessageComposer = ({
                 </Tooltip>
               </TooltipProvider>
 
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 md:h-9 md:w-9 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                      onClick={() => setShowMediaGallery(true)}
+                      disabled={false}
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Media Library</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
               <input
                 ref={fileInputRef}
                 type="file"
@@ -374,6 +396,21 @@ const MessageComposer = ({
           </Button>
         )}
       </div>
+      <MediaGalleryDialog
+        open={showMediaGallery}
+        onOpenChange={setShowMediaGallery}
+        onSelect={(url, name) => {
+          if (onSelectMediaUrl) {
+            const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
+            let mimeType = "image/jpeg";
+            if (ext === "png") mimeType = "image/png";
+            else if (ext === "gif") mimeType = "image/gif";
+            else if (ext === "mp4") mimeType = "video/mp4";
+            else if (ext === "pdf") mimeType = "application/pdf";
+            onSelectMediaUrl(url, name, mimeType);
+          }
+        }}
+      />
     </div>
   );
 };

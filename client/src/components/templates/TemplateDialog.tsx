@@ -43,6 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MediaGalleryDialog } from "@/components/media/MediaGalleryDialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -185,6 +186,8 @@ const templateFormSchema = z.object({
   language: z.string().default("en_US"),
   mediaType: z.enum(["text", "image", "video", "document"]).default("text"),
   mediaUrl: z.string().optional(),
+  mediaName: z.string().optional(),
+  mediaMimeType: z.string().optional(),
   header: z
     .string()
     .max(60, "Header must be less than 60 characters")
@@ -393,6 +396,7 @@ export function TemplateDialog({
   const [submitted, setSubmitted] = useState(false);
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [optimizeToUtility, setOptimizeToUtility] = useState(false);
+  const [showMediaGallery, setShowMediaGallery] = useState(false);
 
   const { data: activeChannel } = useQuery({
     queryKey: ["/api/channels/active"],
@@ -576,6 +580,8 @@ export function TemplateDialog({
         language: "en_US",
         mediaType: "text",
         mediaUrl: "",
+        mediaName: "",
+        mediaMimeType: "",
         header: "",
         headerVariable: "",
         body: "",
@@ -609,6 +615,8 @@ export function TemplateDialog({
         language: d.language || "en_US",
         mediaType: d.mediaType || "text",
         mediaUrl: d.mediaUrl || "",
+        mediaName: d.mediaName || "",
+        mediaMimeType: d.mediaMimeType || "",
         header: d.header || "",
         headerVariable: d.headerVariable || "",
         body: d.body || "",
@@ -1864,10 +1872,21 @@ export function TemplateDialog({
                         name="mediaFile"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Upload Media</FormLabel>
+                            <div className="flex items-center justify-between">
+                              <FormLabel>Upload Media</FormLabel>
+                              <Button
+                                type="button"
+                                variant="link"
+                                className="h-auto p-0 text-xs text-purple-600 hover:text-purple-700 font-semibold"
+                                onClick={() => setShowMediaGallery(true)}
+                              >
+                                Choose from Gallery
+                              </Button>
+                            </div>
                             <FormControl>
                               <input
                                 type="file"
+                                className="w-full p-2 border rounded-md"
                                 accept={
                                   watchedValues.mediaType === "image"
                                     ? "image/*"
@@ -1880,6 +1899,8 @@ export function TemplateDialog({
                                 onChange={(e) => {
                                   const file = e.target.files?.[0] || null;
                                   field.onChange(file);
+                                  form.setValue("mediaName", file ? file.name : "");
+                                  form.setValue("mediaMimeType", file ? file.type : "");
                                   if (
                                     file &&
                                     watchedValues.mediaType === "image"
@@ -1896,8 +1917,13 @@ export function TemplateDialog({
                                 }}
                               />
                             </FormControl>
+                            {watchedValues.mediaUrl && !field.value && (
+                              <p className="text-xs text-green-600 font-medium mt-1">
+                                ✓ Chosen from gallery: {watchedValues.mediaName || watchedValues.mediaUrl.split("/").pop()}
+                              </p>
+                            )}
                             <FormDescription>
-                              Upload sample media for template review
+                              Upload a sample {watchedValues.mediaType} file for template approval.
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -2810,6 +2836,23 @@ export function TemplateDialog({
           </form>
         </Form>
       </DialogContent>
+
+      <MediaGalleryDialog
+        open={showMediaGallery}
+        onOpenChange={setShowMediaGallery}
+        onSelect={(url, name) => {
+          form.setValue("mediaUrl", url);
+          form.setValue("mediaName", name);
+          form.setValue("mediaFile", null);
+          const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
+          let guessedMime = "image/jpeg";
+          if (ext === "png") guessedMime = "image/png";
+          else if (ext === "gif") guessedMime = "image/gif";
+          else if (ext === "mp4") guessedMime = "video/mp4";
+          else if (ext === "pdf") guessedMime = "application/pdf";
+          form.setValue("mediaMimeType", guessedMime);
+        }}
+      />
     </Dialog>
   );
 }

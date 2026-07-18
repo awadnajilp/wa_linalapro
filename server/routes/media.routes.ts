@@ -17,16 +17,24 @@
 
 import type { Express } from "express";
 import { handleDigitalOceanUpload, upload } from "../middlewares/upload.middleware";
+import { requireAuth } from "../middlewares/auth.middleware";
+import { db } from "../db";
+import { mediaLibrary } from "@shared/schema";
+import { eq, and, desc } from "drizzle-orm";
 import crypto from "crypto";
 import fs from "fs";
+import path from "path";
 
 export function registerMediaRoutes(app: Express) {
-  // General media upload
-  app.post("/api/media/upload", upload.single("file"), handleDigitalOceanUpload, (req, res) => {
+  // General media upload - now stores files in the media library
+  app.post("/api/media/upload", requireAuth, upload.single("file"), handleDigitalOceanUpload, async (req, res) => {
     const file = (req as any).file;
     if (!file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
+
+    const user = req.user!;
+    const mainUserId = user.role === "team" && (user as any).createdBy ? (user as any).createdBy : user.id;
 
     // Check WhatsApp media upload limits
     const maxSizes: Record<string, number> = {
@@ -53,11 +61,90 @@ export function registerMediaRoutes(app: Express) {
 
     const relativePath = file.path.replace(/\\/g, "/").replace(/^uploads\//, "");
     const fileUrl = file.cloudUrl || `/uploads/${relativePath}`;
-    res.json({
-      url: fileUrl,
-      name: file.originalname,
-      mimeType: file.mimetype
-    });
+
+    try {
+      // Save to media library
+      const [mediaAsset] = await db
+        .insert(mediaLibrary)
+        .values({
+          userId: mainUserId,
+          url: fileUrl,
+          fileName: file.originalname,
+          mimeType: file.mimetype,
+          fileSize: file.size,
+        })
+        .returning();
+
+      res.json({
+        id: mediaAsset.id,
+        url: fileUrl,
+        name: file.originalname,
+        mimeType: file.mimetype,
+      });
+    } catch (err: any) {
+      console.error("Failed to save media to library:", err);
+      // Still return the fileUrl so the upload is not entirely blocked
+      res.json({
+        url: fileUrl,
+        name: file.originalname,
+        mimeType: file.mimetype,
+      });
+    }
+  });
+
+  // Get all media library items for the active main account
+  app.get("/api/media-library", requireAuth, async (req, res) => {
+    try {
+      const user = req.user!;
+      const mainUserId = user.role === "team" && (user as any).createdBy ? (user as any).createdBy : user.id;
+
+      const assets = await db
+        .select()
+        .from(mediaLibrary)
+        .where(eq(mediaLibrary.userId, mainUserId))
+        .orderBy(desc(mediaLibrary.createdAt));
+
+      res.json(assets);
+    } catch (err: any) {
+      console.error("Failed to fetch media library:", err);
+      res.status(500).json({ error: "Failed to fetch media gallery." });
+    }
+  });
+
+  // Delete media library item
+  app.delete("/api/media-library/:id", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user!;
+      const mainUserId = user.role === "team" && (user as any).createdBy ? (user as any).createdBy : user.id;
+
+      // Find asset
+      const [asset] = await db
+        .select()
+        .from(mediaLibrary)
+        .where(and(eq(mediaLibrary.id, id), eq(mediaLibrary.userId, mainUserId)))
+        .limit(1);
+
+      if (!asset) {
+        return res.status(404).json({ error: "Media asset not found or unauthorized." });
+      }
+
+      // Delete from database
+      await db.delete(mediaLibrary).where(eq(mediaLibrary.id, id));
+
+      // Attempt to delete physical file from local disk if it's local
+      if (asset.url.startsWith("/uploads/")) {
+        const filePath = path.join(process.cwd(), asset.url);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+
+      res.json({ success: true, message: "Asset deleted successfully." });
+    } catch (err: any) {
+      console.error("Failed to delete media asset:", err);
+      res.status(500).json({ error: "Failed to delete media asset." });
+    }
   });
 
   // Get media upload URL

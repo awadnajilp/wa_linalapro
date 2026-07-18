@@ -1843,3 +1843,25 @@ export const insertTagSchema = z.object({
 
 export type Tag = typeof tags.$inferSelect;
 export type InsertTag = typeof tags.$inferInsert;
+
+// ─── Media Library ───────────────────────────────
+export const mediaLibrary = pgTable("media_library", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  url: text("url").notNull(),
+  fileName: text("file_name").notNull(),
+  mimeType: varchar("mime_type", { length: 100 }).notNull(),
+  fileSize: integer("file_size"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertMediaLibrarySchema = z.object({
+  userId: z.string(),
+  url: z.string(),
+  fileName: z.string(),
+  mimeType: z.string(),
+  fileSize: z.number().optional().nullable(),
+});
+
+export type MediaLibrary = typeof mediaLibrary.$inferSelect;
+export type InsertMediaLibrary = typeof mediaLibrary.$inferInsert;

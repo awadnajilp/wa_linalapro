@@ -247,7 +247,7 @@ export class MessageQueueService {
     });
   }
 
-  private static async checkCampaignCompletions(processedMessages: any[]) {
+  public static async checkCampaignCompletions(processedMessages: any[]) {
     const campaignIds = [...new Set(
       processedMessages.map((m) => m.campaignId).filter(Boolean)
     )];
@@ -377,6 +377,42 @@ export class MessageQueueService {
       } catch (err) {
         console.error(`[MessageQueue] Error checking completion for campaign ${campaignId}:`, err);
       }
+    }
+  }
+
+  public static async backfillStuckCampaigns() {
+    try {
+      console.log("[MessageQueue] Running startup check for stuck campaigns...");
+      const activeCampaigns = await db
+        .select()
+        .from(campaigns)
+        .where(eq(campaigns.status, "sending"));
+
+      for (const campaign of activeCampaigns) {
+        const pending = await db
+          .select({ id: messageQueue.id })
+          .from(messageQueue)
+          .where(
+            and(
+              eq(messageQueue.campaignId, campaign.id),
+              notInArray(messageQueue.status, ["sent", "failed"])
+            )
+          )
+          .limit(1);
+
+        if (pending.length === 0) {
+          await db
+            .update(campaigns)
+            .set({
+              status: "completed",
+              completedAt: new Date(),
+            })
+            .where(eq(campaigns.id, campaign.id));
+          console.log(`[MessageQueue] Fixed stuck campaign ${campaign.id} -> completed`);
+        }
+      }
+    } catch (err) {
+      console.error("[MessageQueue] Error backfilling stuck campaigns:", err);
     }
   }
 

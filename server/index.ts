@@ -794,6 +794,7 @@ app.use((req, res, next) => {
       messageStatusUpdater.startCronJob(60);
 
       MessageQueueService.startProcessing();
+      MessageQueueService.backfillStuckCampaigns();
 
       const { channelHealthMonitor } = await import(
         "./cron/channel-health-monitor"

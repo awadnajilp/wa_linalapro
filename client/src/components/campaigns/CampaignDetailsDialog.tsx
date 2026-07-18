@@ -90,7 +90,7 @@ export function CampaignDetailsDialog({ campaign: initialCampaign, onClose }: Ca
   const statusData = [
     { name: 'Delivered', value: campaign.deliveredCount || 0, color: '#10b981' },
     { name: 'Read', value: campaign.readCount || 0, color: '#3b82f6' },
-    { name: 'Failed', value: campaign.failedCount || 0, color: '#ef4444' },
+    { name: 'Failed / Unsupported', value: campaign.failedCount || 0, color: '#ef4444' },
     { name: 'Pending', value: Math.max(0, (campaign.sentCount || 0) - (campaign.deliveredCount || 0) - (campaign.failedCount || 0)), color: '#6b7280' },
   ].filter(item => item.value > 0);
 
@@ -158,7 +158,7 @@ export function CampaignDetailsDialog({ campaign: initialCampaign, onClose }: Ca
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs text-muted-foreground">Failed</p>
+                      <p className="text-xs text-muted-foreground">Failed / Unsupported</p>
                       <p className="text-xl font-bold text-destructive">{campaign.failedCount || 0}</p>
                     </div>
                     <AlertCircle className="h-4 w-4 text-destructive" />

@@ -145,7 +145,7 @@ export default function Campaigns() {
         ? Infinity
         : Number(messagingLimitData.limit) || null;
 
-  const contactLimit: number = 5000;
+  const contactLimit: number = 100000;
   const { data: contactsResponse } = useQuery({
     queryKey: ["/api/user/contacts", userId, contactLimit],
     enabled: createDialogOpen && !!selectedChannel && !!userId,

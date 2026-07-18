@@ -18,7 +18,7 @@
 import type { Request, Response } from "express";
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { storage } from "../storage";
-import { contacts, users, insertContactSchema } from "@shared/schema";
+import { contacts, users, insertContactSchema, groups } from "@shared/schema";
 import { AppError, asyncHandler } from "../middlewares/error.middleware";
 import { db, dbRead } from "server/db";
 import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
@@ -577,6 +577,38 @@ export const deleteBulkContacts = asyncHandler(
   }
 );
 
+export const updateBulkContactsTags = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { ids, tags, operation } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new AppError(400, "No contact IDs provided");
+    }
+
+    if (!Array.isArray(tags)) {
+      throw new AppError(400, "Tags must be an array of strings");
+    }
+
+    for (const id of ids) {
+      const contactRows = await db.select().from(contacts).where(eq(contacts.id, id)).limit(1);
+      if (contactRows.length > 0) {
+        const contactObj = contactRows[0];
+        let currentGroups = contactObj.groups || [];
+        if (operation === 'add') {
+          currentGroups = Array.from(new Set([...currentGroups, ...tags]));
+        } else if (operation === 'remove') {
+          currentGroups = currentGroups.filter(g => !tags.includes(g));
+        } else {
+          currentGroups = tags;
+        }
+        await db.update(contacts).set({ groups: currentGroups }).where(eq(contacts.id, id));
+      }
+    }
+
+    res.json({ success: true, message: `Successfully updated tags for ${ids.length} contacts` });
+  }
+);
+
 export const importContacts = asyncHandler(
   async (req: RequestWithChannel, res: Response) => {
     const { contacts: incomingContacts, channelId: bodyChannelId } = req.body;
@@ -618,6 +650,44 @@ export const importContacts = asyncHandler(
     }
 
     const userId = (req.session as any).user.id;
+
+    // Collect unique groups and auto-create if they don't exist
+    const uniqueGroups = new Set<string>();
+    for (const contact of incomingContacts) {
+      if (Array.isArray(contact.groups)) {
+        for (const g of contact.groups) {
+          if (typeof g === "string" && g.trim()) {
+            uniqueGroups.add(g.trim());
+          }
+        }
+      }
+    }
+
+    if (uniqueGroups.size > 0 && channelId) {
+      try {
+        const existingGroups = await db
+          .select()
+          .from(groups)
+          .where(eq(groups.channelId, channelId));
+        
+        const existingGroupNames = new Set(existingGroups.map(g => g.name.toLowerCase()));
+        
+        for (const groupName of uniqueGroups) {
+          if (!existingGroupNames.has(groupName.toLowerCase())) {
+            await db.insert(groups).values({
+              name: groupName,
+              channelId,
+              createdBy: userId,
+              description: `Auto-created during import`,
+            });
+            console.log(`📁 Auto-created group "${groupName}" for channel ${channelId}`);
+          }
+        }
+      } catch (groupErr) {
+        console.error("❌ Failed to process group auto-creation:", groupErr);
+      }
+    }
+
     const duplicates: { contact: any; reason: string }[] = [];
     const errors: { contact: any; error: string }[] = [];
     const toInsert: (typeof contacts.$inferInsert)[] = [];

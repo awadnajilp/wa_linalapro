@@ -504,6 +504,7 @@ export function ContactDialogs({
               groupsData={groupsData}
               onSuccess={() => {
                 queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/user/contacts"] });
                 setShowEditDialog(false);
                 setSelectedContact(null);
                 toast({

@@ -197,7 +197,7 @@ export function CampaignsTable({
                       <span>{campaign.sentCount || 0}</span>
                       {campaign.failedCount ? (
                         <span className="text-xs text-destructive">
-                          ({campaign.failedCount} failed)
+                          ({campaign.failedCount} failed/unsupported)
                         </span>
                       ) : null}
                     </div>
@@ -439,7 +439,7 @@ export function CampaignsTable({
                       {campaign.sentCount || 0}
                       {campaign.failedCount ? (
                         <span className="text-xs text-destructive ml-1">
-                          ({campaign.failedCount} failed)
+                          ({campaign.failedCount} failed/unsupported)
                         </span>
                       ) : null}
                     </div>

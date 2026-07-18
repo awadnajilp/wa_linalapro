@@ -290,6 +290,13 @@ async function processMessageJob(job: Job) {
         .update(campaigns)
         .set({ sentCount: sql`${campaigns.sentCount} + 1` })
         .where(eq(campaigns.id, campaignId));
+
+      try {
+        const { MessageQueue } = await import("./message-queue");
+        await MessageQueue.checkCampaignCompletions([{ campaignId }]);
+      } catch (compErr) {
+        console.error(`[BullMQ] Error checking campaign completion for ${campaignId}:`, compErr);
+      }
     }
 
     console.log(`[BullMQ] Message sent: ${messageId}`);
@@ -312,6 +319,15 @@ async function processMessageJob(job: Job) {
         .update(campaigns)
         .set({ failedCount: sql`${campaigns.failedCount} + 1` })
         .where(eq(campaigns.id, campaignId));
+    }
+
+    if (campaignId) {
+      try {
+        const { MessageQueue } = await import("./message-queue");
+        await MessageQueue.checkCampaignCompletions([{ campaignId }]);
+      } catch (compErr) {
+        console.error(`[BullMQ] Error checking campaign completion for ${campaignId}:`, compErr);
+      }
     }
 
     throw error;

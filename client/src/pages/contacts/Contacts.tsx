@@ -103,6 +103,10 @@ export default function Contacts() {
   const [groupDescription, setGroupDescription] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const invalidateContacts = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/user/contacts"] });
+  };
   const [selectedGroup, setSelectedGroup] = useState<string | null>("all");
   const [selectedStatus, setSelectedStatus] = useState<string | null>("all");
   const [selectedTag, setSelectedTag] = useState<string>("all");
@@ -350,7 +354,7 @@ export default function Contacts() {
     },
 
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateContacts();
       toast({
         title: "Contact created",
         description: "The contact has been successfully added.",
@@ -376,7 +380,7 @@ export default function Contacts() {
       if (!response.ok) throw new Error("Failed to delete contact");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateContacts();
       toast({
         title: "Contact deleted",
         description: "The contact has been successfully deleted.",
@@ -406,7 +410,7 @@ export default function Contacts() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateContacts();
       toast({
         title: "Contacts deleted",
         description: "The selected contacts have been successfully deleted.",
@@ -548,7 +552,7 @@ export default function Contacts() {
         totalFailed += data.invalid ?? 0;
       }
 
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateContacts();
 
       const wasCanceled = importAbortRef.current;
       const description = [
@@ -597,7 +601,7 @@ export default function Contacts() {
         );
     },
     onSuccess: (_, { newStatus }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateContacts();
       toast({
         title: `Contact ${newStatus === "blocked" ? "blocked" : "unblocked"}`,
         description: `The contact has been ${
@@ -636,7 +640,7 @@ export default function Contacts() {
       return response.json();
     },
     onSuccess: (data, { groupName }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateContacts();
       toast({
         title: "Contacts added to group",
         description: `${data.updatedCount} contact${data.updatedCount !== 1 ? "s" : ""} added to "${groupName}"`,
@@ -665,7 +669,7 @@ export default function Contacts() {
       return response.json();
     },
     onSuccess: (data, { groupName }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateContacts();
       toast({
         title: "Contacts removed from group",
         description: `${data.updatedCount} contact${data.updatedCount !== 1 ? "s" : ""} removed from "${groupName}"`,

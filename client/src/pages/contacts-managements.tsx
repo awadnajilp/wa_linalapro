@@ -298,6 +298,10 @@ export default function ContactsManagements() {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const invalidateContacts = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/user/contacts"] });
+  };
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null); // Add status filter
   const [currentPage, setCurrentPage] = useState(1);
@@ -491,7 +495,7 @@ export default function ContactsManagements() {
       if (!response.ok) throw new Error("Failed to delete contact");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateContacts();
       toast({
         title: "Contact deleted",
         description: "The contact has been successfully deleted.",
@@ -521,7 +525,7 @@ export default function ContactsManagements() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateContacts();
       toast({
         title: "Contacts deleted",
         description: "The selected contacts have been successfully deleted.",
@@ -556,7 +560,7 @@ export default function ContactsManagements() {
         );
     },
     onSuccess: (_, { newStatus }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      invalidateContacts();
       toast({
         title: `Contact ${newStatus === "blocked" ? "blocked" : "unblocked"}`,
         description: `The contact has been ${
@@ -1252,7 +1256,7 @@ export default function ContactsManagements() {
             <EditContactForm
               contact={selectedContact}
               onSuccess={() => {
-                queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+                invalidateContacts();
                 setShowEditDialog(false);
                 setSelectedContact(null);
                 toast({

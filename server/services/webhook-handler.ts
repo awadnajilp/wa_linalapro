@@ -220,6 +220,11 @@ export class WebhookHandler {
 
       const channelId = channel.length > 0 ? channel[0].id : null;
 
+      if (channel.length > 0 && channel[0].disableIncomingInbox) {
+        console.log(`[WebhookHandler] Incoming messages disabled for channel ${channelId}. Ignoring message.`);
+        return;
+      }
+
       if (!channelId) {
         console.warn(`⚠️ No channel found for phoneNumberId: ${phoneNumberId}. Message from ${message.from} will be stored without channel scope.`);
       }
@@ -285,7 +290,7 @@ export class WebhookHandler {
           Promise.resolve().then(async () => {
             try {
               const { BaileysManager } = await import("./baileys-manager");
-              const sock = BaileysManager.getSocket(channelId);
+              const sock = BaileysManager.getActiveSocket(channelId);
               if (sock) {
                 const ppUrl = await sock.profilePictureUrl(targetContact.phone, 'image').catch(() => null);
                 if (ppUrl) {

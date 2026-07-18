@@ -424,6 +424,11 @@ async function handleMessageChange(value: any) {
     return;
   }
 
+  if (channel.disableIncomingInbox) {
+    console.log(`[Webhook] Incoming messages disabled for channel ${channel.id}. Ignoring messages.`);
+    return;
+  }
+
   const waApi = new WhatsAppApiService(channel);
 
   for (const message of messages) {

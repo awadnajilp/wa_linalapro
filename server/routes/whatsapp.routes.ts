@@ -65,7 +65,7 @@ export function registerWhatsAppRoutes(app: Express) {
         }
       }
 
-      const { name = "QR Channel", phoneNumber = "" } = req.body;
+      const { name = "QR Channel", phoneNumber = "", disableIncomingInbox = false } = req.body;
 
       // Clean up any previously initiated but uncompleted/inactive QR channels for this user
       try {
@@ -105,7 +105,8 @@ export function registerWhatsAppRoutes(app: Express) {
         connectionMethod: "qr_code",
         isActive: false,
         createdBy: userId,
-        appId: `qr_app_${randomUUID().substring(0, 8)}`
+        appId: `qr_app_${randomUUID().substring(0, 8)}`,
+        disableIncomingInbox: !!disableIncomingInbox
       }).returning();
 
       // 2. Start a real Baileys session
@@ -178,8 +179,14 @@ export function registerWhatsAppRoutes(app: Express) {
         console.warn(`Failed to clean up Baileys session ${channelId}:`, cleanErr);
       }
 
+      const { disableIncomingInbox } = req.body;
+
       // Update channel in DB: set isActive to false (since it needs scanning again)
-      await db.update(channels).set({ isActive: false }).where(eq(channels.id, channelId));
+      const updateData: any = { isActive: false };
+      if (typeof disableIncomingInbox === "boolean") {
+        updateData.disableIncomingInbox = disableIncomingInbox;
+      }
+      await db.update(channels).set(updateData).where(eq(channels.id, channelId));
 
       // Start new Baileys session
       BaileysManager.createSession(channelId, channel.name, channel.phoneNumber || "");

@@ -262,6 +262,7 @@ export const channels = pgTable("channels", {
   healthDetails: jsonb("health_details").default({}), // Detailed health information
   connectionMethod: varchar("connection_method", { length: 20 }).default("embedded"),
   inboxAiSettings: jsonb("inbox_ai_settings").default({}),
+  disableIncomingInbox: boolean("disable_incoming_inbox").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   createdBy: varchar("created_by").default(""),

@@ -74,6 +74,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Channel } from "@shared/schema";
 import { Loading } from "@/components/ui/loading";
+import { Switch } from "@/components/ui/switch";
 import { ChannelDialog } from "./ChannelDialog";
 import { BusinessProfileEditor } from "./BusinessProfileEditor";
 import { DisplayNameEditor } from "./DisplayNameEditor";
@@ -128,6 +129,7 @@ export function ChannelSettings() {
   const [qrPhoneNumber, setQrPhoneNumber] = useState("+1234567890");
   const [qrConnectLoading, setQrConnectLoading] = useState(false);
   const [qrStatus, setQrStatus] = useState<"pending" | "authenticated" | "expired">("pending");
+  const [qrDisableIncomingInbox, setQrDisableIncomingInbox] = useState(false);
 
   const qrCodeChannelEnabled = useMemo(() => {
     return user?.role === "superadmin" || userPlans?.data?.some((d: any) => d.subscription?.status === "active" && d.subscription?.planData?.permissions?.qrCodeChannelEnabled === "true");
@@ -175,8 +177,11 @@ export function ChannelSettings() {
       setQrConnectLoading(true);
       setQrChannelName(channel.name);
       setQrPhoneNumber(channel.phoneNumber || "");
+      setQrDisableIncomingInbox(channel.disableIncomingInbox || false);
       
-      const res = await apiRequest("POST", `/api/whatsapp/channels/qr/reconnect/${channel.id}`);
+      const res = await apiRequest("POST", `/api/whatsapp/channels/qr/reconnect/${channel.id}`, {
+        disableIncomingInbox: channel.disableIncomingInbox || false
+      });
       const data = await res.json();
       
       setQrSessionId(channel.id);
@@ -1493,7 +1498,8 @@ export function ChannelSettings() {
                         setQrConnectLoading(true);
                         const res = await apiRequest("POST", "/api/whatsapp/channels/qr/initiate", {
                           name: qrChannelName,
-                          phoneNumber: qrPhoneNumber
+                          phoneNumber: qrPhoneNumber,
+                          disableIncomingInbox: qrDisableIncomingInbox
                         });
                         const data = await res.json();
                         if (data.success) {
@@ -1661,6 +1667,17 @@ export function ChannelSettings() {
               />
             </div>
 
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 mt-2">
+              <div className="space-y-0.5">
+                <label className="text-xs font-semibold text-gray-700">Prevent Incoming Message in Inbox</label>
+                <p className="text-[10px] text-gray-500">Block incoming messages from populating the inbox. Highly recommended for campaign-only QR channels.</p>
+              </div>
+              <Switch
+                checked={qrDisableIncomingInbox}
+                onCheckedChange={setQrDisableIncomingInbox}
+              />
+            </div>
+
             {qrStatus !== "authenticated" && (
               <div className="flex flex-col items-center justify-center p-6 bg-gray-50 border border-gray-100 rounded-xl">
                 {qrCodeUrl ? (
@@ -1678,7 +1695,8 @@ export function ChannelSettings() {
                               setQrConnectLoading(true);
                               const res = await apiRequest("POST", "/api/whatsapp/channels/qr/initiate", {
                                 name: qrChannelName,
-                                phoneNumber: qrPhoneNumber
+                                phoneNumber: qrPhoneNumber,
+                                disableIncomingInbox: qrDisableIncomingInbox
                               });
                               const data = await res.json();
                               if (data.success) {
@@ -1734,7 +1752,8 @@ export function ChannelSettings() {
                   const res = await apiRequest("PUT", `/api/channels/${qrSessionId}`, {
                     name: qrChannelName,
                     phoneNumber: qrPhoneNumber,
-                    isActive: true
+                    isActive: true,
+                    disableIncomingInbox: qrDisableIncomingInbox
                   });
                   if (res.ok) {
                     toast({

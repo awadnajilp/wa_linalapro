@@ -40,6 +40,31 @@ const qrSessions = new Map<string, {
   createdAt: number;
 }>();
 
+async function getFileBuffer(mediaFile: any): Promise<Buffer> {
+  if (mediaFile.cloudUrl) {
+    const { createDOClient } = await import("../middlewares/upload.middleware");
+    const doClient = await createDOClient();
+    if (doClient) {
+      const { s3, bucket } = doClient;
+      const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+      const urlObj = new URL(mediaFile.cloudUrl);
+      const fileKey = decodeURIComponent(urlObj.pathname.substring(1)); // remove leading slash and decode
+      
+      const s3Res = await s3.send(new GetObjectCommand({
+        Bucket: bucket!,
+        Key: fileKey
+      }));
+      
+      const chunks: any[] = [];
+      for await (const chunk of s3Res.Body as any) {
+        chunks.push(chunk);
+      }
+      return Buffer.concat(chunks);
+    }
+  }
+  return fs.readFileSync(mediaFile.path);
+}
+
 export function registerWhatsAppRoutes(app: Express) {
   // Initiate QR code channel setup session
   app.post("/api/whatsapp/channels/qr/initiate", requireAuth, async (req, res) => {
@@ -1228,13 +1253,19 @@ app.post(
         let fileUrl = "";
         if (mediaFile.cloudUrl) {
           fileUrl = mediaFile.cloudUrl;
-          const axios = (await import("axios")).default;
-          const response = await axios.get(fileUrl, { responseType: 'arraybuffer' });
-          buffer = Buffer.from(response.data);
         } else {
           const relativeUrl = `/uploads/${path.basename(path.dirname(mediaFile.path))}/${mediaFile.filename}`;
           fileUrl = `${req.protocol}://${req.get('host')}${relativeUrl}`;
-          buffer = fs.readFileSync(mediaFile.path);
+        }
+
+        try {
+          buffer = await getFileBuffer(mediaFile);
+        } catch (bufErr: any) {
+          console.error("❌ Failed to read upload-image buffer:", bufErr);
+          return res.status(500).json({
+            success: false,
+            message: `Failed to read uploaded media: ${bufErr.message}`,
+          });
         }
 
         mimetype = mediaFile.mimetype;
@@ -1368,7 +1399,13 @@ app.post(
         return res.status(400).json({ message: "Channel is not configured for WhatsApp" });
       }
 
-      const buffer = fs.readFileSync(mediaFile.path);
+      let buffer: Buffer;
+      try {
+        buffer = await getFileBuffer(mediaFile);
+      } catch (bufErr: any) {
+        console.error("❌ Failed to read upload-media buffer:", bufErr);
+        return res.status(500).json({ success: false, message: `Failed to read uploaded media: ${bufErr.message}` });
+      }
       const whatsappApi = new WhatsAppApiService(channel);
       const mediaId = await whatsappApi.uploadMediaBuffer(buffer, mediaFile.mimetype, mediaFile.originalname);
 

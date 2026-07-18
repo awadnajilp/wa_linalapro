@@ -111,6 +111,72 @@ export function registerMediaRoutes(app: Express) {
     }
   });
 
+  // Proxy view media library item
+  app.get("/api/media-library/file/:id", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user!;
+      const mainUserId = user.role === "team" && (user as any).createdBy ? (user as any).createdBy : user.id;
+
+      // Find asset
+      const [asset] = await db
+        .select()
+        .from(mediaLibrary)
+        .where(and(eq(mediaLibrary.id, id), eq(mediaLibrary.userId, mainUserId)))
+        .limit(1);
+
+      if (!asset) {
+        return res.status(404).json({ error: "Media asset not found or unauthorized." });
+      }
+
+      // Check if S3 / cloud URL
+      if (asset.url.startsWith("http")) {
+        const { createDOClient } = await import("../config/digitalOceanConfig");
+        const doClient = await createDOClient();
+        if (doClient) {
+          const { s3, bucket, endpoint } = doClient;
+          const isOurBucket = asset.url.includes(bucket!) || (endpoint && asset.url.includes(new URL(endpoint).host));
+          if (isOurBucket) {
+            const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+            const urlObj = new URL(asset.url);
+            const fileKey = decodeURIComponent(urlObj.pathname.substring(1));
+            
+            const s3Res = await s3.send(new GetObjectCommand({
+              Bucket: bucket!,
+              Key: fileKey
+            }));
+            
+            res.set({
+              'Content-Type': asset.mimeType || 'application/octet-stream',
+              'Cache-Control': 'public, max-age=86400',
+            });
+            
+            const responseBody = s3Res.Body as any;
+            return responseBody.pipe(res);
+          }
+        }
+
+        // Fallback to redirecting to S3 url if not our bucket
+        return res.redirect(asset.url);
+      }
+
+      // Local file serve
+      const filePath = path.join(process.cwd(), asset.url);
+      if (fs.existsSync(filePath)) {
+        res.set({
+          'Content-Type': asset.mimeType || 'application/octet-stream',
+          'Cache-Control': 'public, max-age=86400',
+        });
+        return res.sendFile(filePath);
+      }
+
+      return res.status(404).json({ error: "File not found on disk." });
+    } catch (err: any) {
+      console.error("Failed to view media asset:", err);
+      res.status(500).json({ error: "Failed to view media asset." });
+    }
+  });
+
   // Delete media library item
   app.delete("/api/media-library/:id", requireAuth, async (req, res) => {
     try {

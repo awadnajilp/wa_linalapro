@@ -41,28 +41,46 @@ const qrSessions = new Map<string, {
 }>();
 
 async function getFileBuffer(mediaFile: any): Promise<Buffer> {
-  if (mediaFile.cloudUrl) {
+  const url = mediaFile.cloudUrl || mediaFile.path;
+  if (url && /^https?:\/\//i.test(url)) {
     const { createDOClient } = await import("../config/digitalOceanConfig");
     const doClient = await createDOClient();
     if (doClient) {
-      const { s3, bucket } = doClient;
-      const { GetObjectCommand } = await import("@aws-sdk/client-s3");
-      const urlObj = new URL(mediaFile.cloudUrl);
-      const fileKey = decodeURIComponent(urlObj.pathname.substring(1)); // remove leading slash and decode
-      
-      const s3Res = await s3.send(new GetObjectCommand({
-        Bucket: bucket!,
-        Key: fileKey
-      }));
-      
-      const chunks: any[] = [];
-      for await (const chunk of s3Res.Body as any) {
-        chunks.push(chunk);
+      const { s3, bucket, endpoint } = doClient;
+      const isOurBucket = url.includes(bucket!) || (endpoint && url.includes(new URL(endpoint).host));
+      if (isOurBucket) {
+        const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+        const urlObj = new URL(url);
+        const fileKey = decodeURIComponent(urlObj.pathname.substring(1)); // remove leading slash and decode
+        
+        const s3Res = await s3.send(new GetObjectCommand({
+          Bucket: bucket!,
+          Key: fileKey
+        }));
+        
+        const chunks: any[] = [];
+        for await (const chunk of s3Res.Body as any) {
+          chunks.push(chunk);
+        }
+        return Buffer.concat(chunks);
       }
-      return Buffer.concat(chunks);
+    }
+    
+    // Fallback to anonymous HTTP download for external links
+    const axios = (await import("axios")).default;
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    return Buffer.from(response.data);
+  }
+
+  let filePath = mediaFile.path;
+  if (filePath.startsWith("/")) {
+    if (filePath.startsWith("/uploads/")) {
+      filePath = path.join(process.cwd(), filePath);
+    } else {
+      filePath = path.join(process.cwd(), "public", filePath);
     }
   }
-  return fs.readFileSync(mediaFile.path);
+  return fs.readFileSync(filePath);
 }
 
 export function registerWhatsAppRoutes(app: Express) {
@@ -1222,16 +1240,7 @@ app.post(
         try {
           mimetype = req.body.mediaMimeType || "image/jpeg";
           originalname = req.body.mediaName || "image.jpg";
-          
-          let downloadUrl = mediaUrl;
-          if (downloadUrl.startsWith("/")) {
-            const port = process.env.PORT || 5000;
-            downloadUrl = `http://localhost:${port}${downloadUrl}`;
-          }
-          
-          const axios = (await import("axios")).default;
-          const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
-          buffer = Buffer.from(response.data);
+          buffer = await getFileBuffer({ cloudUrl: mediaUrl, path: mediaUrl });
         } catch (err: any) {
           console.error("❌ Failed to process media library URL for template:", err);
           return res.status(500).json({

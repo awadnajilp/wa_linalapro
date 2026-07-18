@@ -307,15 +307,7 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
 
         if (channel.connectionMethod !== "qr_code") {
           try {
-            let downloadUrl = mediaUrl;
-            if (downloadUrl.startsWith("/")) {
-              const port = process.env.PORT || 5000;
-              downloadUrl = `http://localhost:${port}${downloadUrl}`;
-            }
-            
-            const axios = (await import("axios")).default;
-            const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
-            const buffer = Buffer.from(response.data);
+            const buffer = await downloadFromCloudStorage(mediaUrl);
             
             mediaId = await whatsappApi.uploadMediaBuffer(buffer, mimeType, originalName);
             console.log("✅ Media uploaded to WhatsApp from URL, ID:", mediaId);

@@ -106,7 +106,7 @@ export function MediaGalleryDialog({
       case "image":
         return (
           <img
-            src={item.url}
+            src={`/api/media-library/file/${item.id}`}
             alt={item.fileName}
             className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
           />

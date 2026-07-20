@@ -2447,6 +2447,9 @@ export function TemplateDialog({
                                       )
                                     }
                                   />
+                                  <p className="text-[10px] text-gray-500 mt-1 leading-normal">
+                                    <strong className="text-amber-600 font-semibold">Note:</strong> Meta policy bans WhatsApp links (whatsapp.com, wa.me) in buttons. To link to a WhatsApp channel, please shorten it first using a free tool like <a href="https://tinyurl.com" target="_blank" rel="noreferrer" className="underline font-semibold text-purple-600 hover:text-purple-800">TinyURL</a> or <a href="https://bitly.com" target="_blank" rel="noreferrer" className="underline font-semibold text-purple-600 hover:text-purple-800">Bitly</a>.
+                                  </p>
                                   {btnErrors?.url?.message && (
                                     <p className="text-xs text-red-500 mt-0.5">{btnErrors.url.message}</p>
                                   )}
@@ -2681,8 +2684,10 @@ export function TemplateDialog({
                                       />
                                     </FormControl>
                                     <FormDescription>
-                                      You can use {"{{1}}"} as a dynamic
-                                      variable at the end of the URL
+                                      You can use {"{{1}}"} as a dynamic variable at the end of the URL.
+                                      <span className="block mt-1 text-xs">
+                                        <strong className="text-amber-600 font-semibold">Note:</strong> Meta policy bans WhatsApp links (whatsapp.com, wa.me) inside template buttons. To link to a WhatsApp channel, please shorten it first using a free tool like <a href="https://tinyurl.com" target="_blank" rel="noreferrer" className="underline font-semibold text-purple-600 hover:text-purple-800">TinyURL</a> or <a href="https://bitly.com" target="_blank" rel="noreferrer" className="underline font-semibold text-purple-600 hover:text-purple-800">Bitly</a>.
+                                      </span>
                                     </FormDescription>
                                     <FormMessage />
                                   </FormItem>

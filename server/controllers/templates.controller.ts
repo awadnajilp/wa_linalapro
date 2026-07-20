@@ -28,6 +28,49 @@ import { checkUtilityHelperPermission } from '../services/plan-permission.servic
 import fs from "fs";
 import sharp from 'sharp';
 
+async function getFileBuffer(url: string): Promise<Buffer> {
+  if (url && /^https?:\/\//i.test(url)) {
+    const { createDOClient } = await import("../config/digitalOceanConfig");
+    const doClient = await createDOClient();
+    if (doClient) {
+      const { s3, bucket, endpoint } = doClient;
+      const isOurBucket = url.includes(bucket!) || (endpoint && url.includes(new URL(endpoint).host));
+      if (isOurBucket) {
+        const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+        const urlObj = new URL(url);
+        const fileKey = decodeURIComponent(urlObj.pathname.substring(1));
+        
+        const s3Res = await s3.send(new GetObjectCommand({
+          Bucket: bucket!,
+          Key: fileKey
+        }));
+        
+        const chunks: any[] = [];
+        for await (const chunk of s3Res.Body as any) {
+          chunks.push(chunk);
+        }
+        return Buffer.concat(chunks);
+      }
+    }
+    
+    const axios = (await import("axios")).default;
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    return Buffer.from(response.data);
+  }
+
+  let filePath = url;
+  if (filePath.startsWith("/")) {
+    const path = await import("path");
+    if (filePath.startsWith("/uploads/")) {
+      filePath = path.join(process.cwd(), filePath);
+    } else {
+      filePath = path.join(process.cwd(), "public", filePath);
+    }
+  }
+  const fs = await import("fs");
+  return fs.readFileSync(filePath);
+}
+
 
 
 
@@ -286,16 +329,7 @@ export const createTemplate = asyncHandler(
             try {
               mimetype = req.body.mediaMimeType || "image/jpeg";
               originalname = req.body.mediaName || "image.jpg";
-              
-              let downloadUrl = req.body.mediaUrl;
-              if (downloadUrl.startsWith("/")) {
-                const port = process.env.PORT || 5000;
-                downloadUrl = `http://localhost:${port}${downloadUrl}`;
-              }
-              
-              const axios = (await import("axios")).default;
-              const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
-              fileBuffer = Buffer.from(response.data);
+              fileBuffer = await getFileBuffer(req.body.mediaUrl);
             } catch (err: any) {
               console.error("❌ Failed to process media library URL for template creation:", err);
               throw new AppError(500, `Failed to download media file: ${err.message}`);
@@ -406,11 +440,16 @@ export const createTemplate = asyncHandler(
           const existingBtns = Array.isArray(buttons) ? buttons : [];
           const copyCodeBtn: any = {
             type: "COPY_CODE",
-            example: couponCode,
+            example: [couponCode || "CODE123"],
           };
           const allButtons = [copyCodeBtn, ...existingBtns.map((btn: any) => {
             const obj: any = { type: btn.type, text: btn.text };
-            if (btn.url) obj.url = btn.url;
+            if (btn.type === "URL" && btn.url) {
+              obj.url = btn.url;
+              if (btn.url.includes("{{1}}")) {
+                obj.example = [btn.url.replace("{{1}}", "sample")];
+              }
+            }
             if (btn.phoneNumber) obj.phone_number = btn.phoneNumber;
             return obj;
           })];
@@ -420,10 +459,15 @@ export const createTemplate = asyncHandler(
             type: "BUTTONS",
             buttons: buttons.map((btn: any) => {
               const obj: any = { type: btn.type, text: btn.text };
-              if (btn.type === "URL" && btn.url) obj.url = btn.url;
+              if (btn.type === "URL" && btn.url) {
+                obj.url = btn.url;
+                if (btn.url.includes("{{1}}")) {
+                  obj.example = [btn.url.replace("{{1}}", "sample")];
+                }
+              }
               if (btn.type === "PHONE_NUMBER" && btn.phoneNumber) obj.phone_number = btn.phoneNumber;
               if (btn.type === "COPY_CODE") {
-                obj.example = btn.couponCode || "";
+                obj.example = [btn.couponCode || "CODE123"];
               }
               return obj;
             }),
@@ -480,7 +524,12 @@ export const createTemplate = asyncHandler(
                   type: "BUTTONS",
                   buttons: card.buttons.map((btn: any) => {
                     const obj: any = { type: btn.type, text: btn.text };
-                    if (btn.type === "URL" && btn.url) obj.url = btn.url;
+                    if (btn.type === "URL" && btn.url) {
+                      obj.url = btn.url;
+                      if (btn.url.includes("{{1}}")) {
+                        obj.example = [btn.url.replace("{{1}}", "sample")];
+                      }
+                    }
                     if (btn.type === "PHONE_NUMBER" && btn.phoneNumber) obj.phone_number = btn.phoneNumber;
                     return obj;
                   }),
@@ -850,9 +899,17 @@ export const updateTemplate = asyncHandler(
                   : "QUICK_REPLY";
 
               const obj: any = { type, text: btn.text };
-              if (type === "URL") obj.url = btn.url;
+              if (type === "URL" && btn.url) {
+                obj.url = btn.url;
+                if (btn.url.includes("{{1}}")) {
+                  obj.example = [btn.url.replace("{{1}}", "sample")];
+                }
+              }
               if (type === "PHONE_NUMBER")
                 obj.phone_number = btn.phoneNumber;
+              if (type === "COPY_CODE" || btn.type === "COPY_CODE") {
+                obj.example = [btn.couponCode || "CODE123"];
+              }
               return obj;
             }),
           });
@@ -1212,9 +1269,17 @@ export const updateTemplate4JANNN2026 = asyncHandler(
                   : "QUICK_REPLY";
 
               const obj: any = { type, text: btn.text };
-              if (type === "URL") obj.url = btn.url;
+              if (type === "URL" && btn.url) {
+                obj.url = btn.url;
+                if (btn.url.includes("{{1}}")) {
+                  obj.example = [btn.url.replace("{{1}}", "sample")];
+                }
+              }
               if (type === "PHONE_NUMBER")
                 obj.phone_number = btn.phoneNumber;
+              if (type === "COPY_CODE" || btn.type === "COPY_CODE") {
+                obj.example = [btn.couponCode || "CODE123"];
+              }
               return obj;
             }),
           });

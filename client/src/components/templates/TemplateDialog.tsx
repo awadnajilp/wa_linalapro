@@ -166,7 +166,7 @@ const carouselCardSchema = z.object({
         if (isWhatsAppDomain) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "Meta policy does not allow WhatsApp links (whatsapp.com, wa.me) inside template buttons. Please put these links in the message body instead.",
+            message: "Meta policy does not allow WhatsApp links (whatsapp.com, wa.me) inside template buttons. Please use a free URL shortener like TinyURL (https://tinyurl.com) or Bitly (https://bitly.com) to shorten your link, or put it in the message body instead.",
             path: ["url"]
           });
         }
@@ -237,7 +237,7 @@ const templateFormSchema = z.object({
           if (isWhatsAppDomain) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: "Meta policy does not allow WhatsApp links (whatsapp.com, wa.me) inside template buttons. Please put these links in the message body instead.",
+              message: "Meta policy does not allow WhatsApp links (whatsapp.com, wa.me) inside template buttons. Please use a free URL shortener like TinyURL (https://tinyurl.com) or Bitly (https://bitly.com) to shorten your link, or put it in the message body instead.",
               path: ["url"]
             });
           }

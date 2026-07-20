@@ -161,6 +161,16 @@ const carouselCardSchema = z.object({
       if (btn.type === "URL" && btn.url && !/^https?:\/\/.+/.test(btn.url)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Must be a valid URL starting with https://", path: ["url"] });
       }
+      if (btn.type === "URL" && btn.url) {
+        const isWhatsAppDomain = /^(https?:\/\/)?(www\.)?(wa\.me|whatsapp\.com)(\/.*)?$/i.test(btn.url) || btn.url.includes("wa.me") || btn.url.includes("whatsapp.com");
+        if (isWhatsAppDomain) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Meta policy does not allow WhatsApp links (whatsapp.com, wa.me) inside template buttons. Please put these links in the message body instead.",
+            path: ["url"]
+          });
+        }
+      }
       if (btn.type === "PHONE_NUMBER" && (!btn.phoneNumber || btn.phoneNumber.trim().length === 0)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Phone number is required", path: ["phoneNumber"] });
       }
@@ -221,6 +231,16 @@ const templateFormSchema = z.object({
         }
         if (btn.type === "URL" && btn.url && !/^https?:\/\/.+/.test(btn.url)) {
           ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Must be a valid URL starting with https://", path: ["url"] });
+        }
+        if (btn.type === "URL" && btn.url) {
+          const isWhatsAppDomain = /^(https?:\/\/)?(www\.)?(wa\.me|whatsapp\.com)(\/.*)?$/i.test(btn.url) || btn.url.includes("wa.me") || btn.url.includes("whatsapp.com");
+          if (isWhatsAppDomain) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Meta policy does not allow WhatsApp links (whatsapp.com, wa.me) inside template buttons. Please put these links in the message body instead.",
+              path: ["url"]
+            });
+          }
         }
         if (btn.type === "PHONE_NUMBER" && (!btn.phoneNumber || btn.phoneNumber.trim().length === 0)) {
           ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Phone number is required", path: ["phoneNumber"] });

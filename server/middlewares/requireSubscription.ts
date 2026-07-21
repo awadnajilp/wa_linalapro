@@ -159,7 +159,7 @@
 
 import { Request, Response, NextFunction } from "express";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, or, isNull, sql } from "drizzle-orm";
 import { db } from "server/db";
 import { plans, subscriptions, channels, automations, campaigns, contacts, sites } from "@shared/schema";
 
@@ -287,13 +287,21 @@ if (activeSubs.length === 0) {
             let currentCount = 0;
 
             if (requiredPermission === "contacts") {
-                const data = await db
-                    .select()
+                const [result] = await db
+                    .select({ count: sql<number>`count(*)` })
                     .from(contacts)
-                    .leftJoin(channels, eq(contacts.channelId, channels.id))
-                    .where(eq(channels.createdBy, userId));
+                    .innerJoin(channels, eq(contacts.channelId, channels.id))
+                    .where(
+                        and(
+                            eq(channels.createdBy, userId),
+                            or(
+                                eq(contacts.isGroup, false),
+                                isNull(contacts.isGroup)
+                            )
+                        )
+                    );
 
-                currentCount = data.length;
+                currentCount = Number(result?.count || 0);
             }
 
             if (requiredPermission === "channel") {

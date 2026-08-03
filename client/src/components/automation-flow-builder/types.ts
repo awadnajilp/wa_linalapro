@@ -38,7 +38,14 @@ export type NodeKind =
   | "ai_answer"
   | "ai_agent"
   | "send_contact_message"
-  | "scheduler";
+  | "scheduler"
+  | "route_crm_round_robin"
+  | "razorpay_generate"
+  | "razorpay_verify"
+  | "instamojo_payment"
+  | "zapier"
+  | "tap_payment"
+  | "noon_payment";
 
 export interface ListSection {
   title: string;
@@ -112,6 +119,63 @@ export interface BuilderNodeData {
   aiIntroType?: "text" | "voice";
   timeLimitHours?: number;
   questionLimit?: number;
+  razorpayKeyId?: string;
+  razorpayKeySecret?: string;
+  razorpayAmount?: string;
+  razorpayCurrency?: string;
+  razorpayCustomerName?: string;
+  razorpayCustomerEmail?: string;
+  razorpayCustomerPhone?: string;
+  razorpayDescription?: string;
+  razorpayReceipt?: string;
+  razorpayVarUrl?: string;
+  razorpayVarRefId?: string;
+  razorpayRefId?: string;
+  razorpayVarStatus?: string;
+  razorpayVarPaymentId?: string;
+  razorpayMode?: "generate_only" | "send_and_wait";
+  razorpayMessage?: string;
+  instamojoApiKey?: string;
+  instamojoAuthToken?: string;
+  instamojoSandbox?: boolean;
+  instamojoAmount?: string;
+  instamojoPurpose?: string;
+  instamojoCustomerName?: string;
+  instamojoCustomerEmail?: string;
+  instamojoCustomerPhone?: string;
+  instamojoMessage?: string;
+  instamojoVarUrl?: string;
+  instamojoVarRefId?: string;
+  instamojoVarStatus?: string;
+  instamojoVarPaymentId?: string;
+  zapierWebhookUrl?: string;
+  zapierPayloadMode?: "all_variables" | "custom";
+  zapierCustomPayload?: string;
+  tapSecretKey?: string;
+  tapAmount?: string;
+  tapCurrency?: string;
+  tapDescription?: string;
+  tapCustomerName?: string;
+  tapCustomerEmail?: string;
+  tapCustomerPhone?: string;
+  tapMessage?: string;
+  tapVarUrl?: string;
+  tapVarRefId?: string;
+  tapVarStatus?: string;
+  tapVarPaymentId?: string;
+  noonBusinessId?: string;
+  noonAppId?: string;
+  noonAppKey?: string;
+  noonSandbox?: boolean;
+  noonCategory?: string;
+  noonAmount?: string;
+  noonCurrency?: string;
+  noonDescription?: string;
+  noonMessage?: string;
+  noonVarUrl?: string;
+  noonVarRefId?: string;
+  noonVarStatus?: string;
+  noonVarPaymentId?: string;
   [key: string]: unknown;
 }
 

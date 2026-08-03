@@ -169,3 +169,104 @@ If you are using a **QR Code (Baileys/Session-based) Channel** instead of the of
     *   Corrected completion checks to query for remaining `"queued"` or `"processing"` messages in the queue (as finished messages transition to `"delivered"` or `"read"` via webhooks).
     *   Added a startup backfill checker (`backfillStuckCampaigns`) to locate and resolve any stuck `"sending"` campaigns upon server reboot.
 *   **Webhook Scale Performance Indexing:** Registered a database index on `message_queue (whatsapp_message_id)` to eliminate full table scans when processing webhook status updates, avoiding CPU/disk saturation during high-volume campaigns.
+
+### 10. Contact-Based Recurring Campaigns (July 2026)
+*   **Contact campaigns scheduling:** Added scheduling of templates or custom messages against individual contacts with recurrence options (`everyday`, `monthly`, `6months`, `yearly`).
+*   **Database & Migration:** Registered the `contact_campaigns` table in `schema.ts` and set up automatic table/indexes creation in `startup-migration.ts`.
+*   **Contacts Page Integration:** Added **Active Campaign** and **Next Schedule** columns in desktop grid and mobile card view.
+*   **Dialog Configuration:** Added a "Recurring Campaigns" option in contact action menus to open `ContactCampaignsDialog.tsx` for scheduling, variable mapping, pausing/resuming, and deleting contact campaigns.
+*   **Automated Background Cron Processor:** Integrated scheduled campaigns checks inside `scheduledCampaigns.cron.ts` to query active due schedules every minute, parse and compile contact variables, queue the messages in the message queue, and advance `nextSendAt` by the configured interval.
+
+---
+
+## 🔌 API Integration Guide: Contact-Based Recurring Campaigns
+
+Below are the developer REST API (v1) endpoints for managing contact-based recurring campaigns. Access them using your Developer API Key (`x-api-key` header) and channel scope (`x-channel-id` header).
+
+### 1. Create a Recurring Campaign for a Contact
+Creates a new scheduled recurring campaign against a contact. Supported frequencies are `everyday`, `monthly`, `6months`, and `yearly`.
+
+*   **Endpoint:** `POST /api/v1/contacts/:contactId/recurring-campaigns`
+*   **Permissions Required:** `campaigns.write`
+*   **Headers:**
+    *   `x-api-key`: `YOUR_DEVELOPER_API_KEY`
+    *   `x-channel-id`: `YOUR_ACTIVE_CHANNEL_UUID` (Optional if scoped by API key)
+*   **Path Parameters:**
+    *   `contactId` (string, UUID): The target contact's ID.
+*   **Request Body JSON Params:**
+    *   `name` (string, Required): The name of the campaign.
+    *   `frequency` (string, Required): Recurrence interval. Must be `"everyday"`, `"monthly"`, `"6months"`, or `"yearly"`.
+    *   `scheduledDate` (string, Date-string, Required): Anchor starting date/time (e.g. `"2026-08-01T10:00:00.000Z"`).
+    *   `templateId` (string, UUID, Optional): Target WhatsApp Template ID.
+    *   `templateName` (string, Optional): Target WhatsApp Template Name.
+    *   `templateLanguage` (string, Optional): Target Template Language (defaults to `"en_US"`).
+    *   `variableMapping` (object, Optional): Variable bindings for template placeholders (e.g., `{"1": "first_name"}`).
+    *   `customMessage` (string, Optional): Custom text message content (used when no template is selected).
+    *   `mediaUrl` (string, Optional): URL of media attachment.
+    *   `mediaMimeType` (string, Optional): Mime-type of media attachment (e.g. `"image/jpeg"`).
+    *   `mediaName` (string, Optional): Filename of media attachment.
+    *   `status` (string, Optional): Initial status (`"active"` or `"paused"`, defaults to `"active"`).
+
+#### Request Example:
+```json
+{
+  "name": "Insurance Renewal Alert",
+  "frequency": "yearly",
+  "scheduledDate": "2026-08-15T09:00:00.000Z",
+  "customMessage": "Hello {{name}}, your policy is due for renewal. Please visit our desk to renew."
+}
+```
+
+### 2. List Recurring Campaigns for a Contact
+Retrieves all recurring campaigns scheduled against a contact.
+
+*   **Endpoint:** `GET /api/v1/contacts/:contactId/recurring-campaigns`
+*   **Permissions Required:** `campaigns.read`
+*   **Path Parameters:**
+    *   `contactId` (string, UUID): The target contact's ID.
+
+### 3. Update a Recurring Campaign
+Updates an existing recurring campaign. If `scheduledDate` or `frequency` are updated, the upcoming `nextSendAt` is automatically recalculated.
+
+*   **Endpoint:** `PUT /api/v1/contacts/recurring-campaigns/:id`
+*   **Permissions Required:** `campaigns.write`
+*   **Path Parameters:**
+    *   `id` (string, UUID): The campaign's ID.
+*   **Request Body JSON Params:** Any fields from the creation schema can be passed (e.g. `status: "paused"`).
+
+### 4. Delete a Recurring Campaign
+Deletes a scheduled campaign.
+
+*   **Endpoint:** `DELETE /api/v1/contacts/recurring-campaigns/:id`
+*   **Permissions Required:** `campaigns.write`
+*   **Path Parameters:**
+    *   `id` (string, UUID): The campaign's ID.
+
+### 11. Razorpay & Instamojo Flow Builder Payment Nodes (August 2026)
+*   **Razorpay Payment Nodes:**
+    *   **Razorpay Generate Node:** Generates dynamic checkout links (silently in `"generate_only"` mode, or sends and pauses in `"send_and_wait"` mode) and stores reference ID & checkout URL.
+    *   **Razorpay Verify Node:** Verifies status checks and routes down green ("Paid") and red ("Unpaid") branches.
+*   **Instamojo Pay Node:**
+    *   **Instamojo Payment Node:** A unified single All-in-One payment integration node that auto-generates links, sends WhatsApp template messages, pauses execution flows, double-verifies transaction status, and routes down green ("Paid") and red ("Unpaid") handles automatically.
+*   **Secure Resumption & Callbacks:** Wired webhook listeners (`POST /webhooks/razorpay` and `POST /webhooks/instamojo`) that intercept callbacks, map payment IDs, run double-verification checks via their respective APIs, and wake up paused automation executions.
+*   **Config UI Stability:** Replaced select triggers inside side panels with native `<select>` dropdowns and added full optional chaining checks on canvas data models to completely prevent workspace rendering crashes.
+
+### 12. Zapier Integration Node (August 2026)
+*   **Branded Zapier Node:** Added a dedicated canvas flow node to trigger Zapier webhooks. Styled with Zapier's orange identity.
+*   **Payload Customization:** Supports two modes:
+    *   `all_variables`: Automatically compiles and forwards all active contact, channel, and conversation variables to Zapier as a unified JSON payload.
+    *   `custom`: Allows writing custom JSON structures supporting variable interpolation (e.g. `{{contact_name}}`).
+*   **Backend Client Execution:** Integrates a secure execution client using Axios inside `automation-execution-service.ts` that triggers the Zapier Catch Webhook URL and logs the webhook transmission status before advancing.
+
+### 13. Tap Payments Gateway Integration Node (August 2026)
+*   **Tap Payments Node:** A GCC/KSA branded All-in-One payment integration node that auto-generates Tap checkout links, sends WhatsApp messages containing the payment URL, pauses execution flows, and routes down green ("Paid") and red ("Unpaid") branches automatically.
+*   **Flexible Credentials:** Supports tenant-scoped Secret Keys in node settings (falling back to the global `TAP_SECRET_KEY` environment variable), allowing different tenants to collect payments to their respective Tap merchant accounts directly.
+*   **Webhooks & Secure Double-Verification:** Registers an automatic callback URL pointing to `/webhooks/tap` on checkout link creation. When the webhook triggers, the system loads the matching tenant's API credentials, queries the Tap API (`GET /v2/charges/:id`) to double-verify that the payment status is indeed `CAPTURED` (or failed/declined), updates variables dynamically, and wakes up the paused flow.
+*   **GCC Currency & Phone Support:** Includes GCC/KSA phone country code parsing and validation (separating country prefix from local number) and supports all major GCC currencies (SAR, KWD, AED, BHD, OMR, QAR, USD) natively.
+
+### 14. Noon Payments Integration Node (August 2026)
+*   **Noon Payments Node:** A Middle East (KSA/UAE/Egypt) branded All-in-One payment integration node that auto-generates Noon checkout orders, sends WhatsApp messages containing the checkout URL, pauses execution flows, and routes down green ("Paid") and red ("Unpaid") handles automatically.
+*   **Flexible Credentials:** Supports tenant-scoped Business ID, Application ID, and Application Key in node settings (falling back to global environment variables), allowing different tenants to collect payments to their own noon merchant accounts directly.
+*   **Webhook JWS Decoding & Verification:** Integrates a robust JWS payload decoder in the webhook handler to support both v1 (plain JSON) and v2 (JSON Web Signature - JWS) noon payments webhook notifications securely. The endpoint resolves the paused flow and double-verifies status via a direct GET order call.
+
+

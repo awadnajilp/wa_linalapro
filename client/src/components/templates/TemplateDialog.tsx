@@ -15,7 +15,7 @@
  * ============================================================
  */
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -204,7 +204,7 @@ const templateFormSchema = z.object({
     .optional()
     .default(""),
   headerVariable: z.string().optional().default(""),
-  body: z.string().max(550, "Body must be less than 550 characters").optional().default(""),
+  body: z.string().max(1024, "Body must be less than 1024 characters").optional().default(""),
   footer: z
     .string()
     .max(60, "Footer must be less than 60 characters")
@@ -301,6 +301,7 @@ function LanguageSearch({
 }) {
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
     if (!search) return WHATSAPP_LANGUAGES;
@@ -312,11 +313,28 @@ function LanguageSearch({
     );
   }, [search]);
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
   const selectedLabel =
     WHATSAPP_LANGUAGES.find((l) => l.code === value)?.label || value;
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
         type="button"
         className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
@@ -742,8 +760,7 @@ export function TemplateDialog({
   const isCallPermission =
     category === "MARKETING" && marketingSubType === "CALL_PERMISSION";
 
-  const bodyCharLimit =
-    category === "AUTHENTICATION" ? 1024 : 550;
+  const bodyCharLimit = 1024;
 
   useEffect(() => {
     if (!isAuthentication) return;

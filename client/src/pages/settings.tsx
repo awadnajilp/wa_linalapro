@@ -35,6 +35,7 @@ import {
   Key,
   Flame,
   Mic,
+  Tag,
 } from "lucide-react";
 import AIVoicesSettings from "@/components/settings/AIVoicesSettings";
 import { ChannelSettings } from "@/components/settings/ChannelSettings";
@@ -57,6 +58,7 @@ import Logs from "@/pages/logs";
 import BillingSubscriptionPage from "@/components/billing-subscription-page";
 import UserSupportTicketsNew from "@/pages/user-support-tickets";
 import TeamPage from "@/pages/team";
+import TagsManagerSettings from "@/components/settings/TagsManagerSettings";
 
 const tabTriggerClass =
   "flex items-center gap-2 whitespace-nowrap text-xs h-8 rounded-md px-3 sm:h-9 sm:px-4 sm:text-sm shrink-0";
@@ -243,6 +245,11 @@ export default function Settings() {
                     <Key className="w-4 h-4 shrink-0" />
                     <span>{t("settings.api_key_setting.tabName")}</span>
                   </TabsTrigger>
+
+                  <TabsTrigger value="tags_manager" className={tabTriggerClass}>
+                    <Tag className="w-4 h-4 shrink-0" />
+                    <span>Tags Manager</span>
+                  </TabsTrigger>
                 </>
               )}
             </TabsList>
@@ -319,6 +326,10 @@ export default function Settings() {
 
               <TabsContent value="notification_prefs">
                 <NotificationPreferences />
+              </TabsContent>
+
+              <TabsContent value="tags_manager">
+                <TagsManagerSettings />
               </TabsContent>
             </>
           )}

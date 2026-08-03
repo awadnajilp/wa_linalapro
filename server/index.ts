@@ -42,6 +42,8 @@ import { Server as SocketIOServer } from "socket.io";
 import { fetchConversationList } from "./controllers/conversations.controller";
 import { startScheduledCampaignCron } from "./cron/scheduledCampaigns.cron";
 import { startWhatsAppWarmerCron } from "./cron/whatsapp-warmer.cron";
+import { startCrmFollowupCron } from "./cron/crm-followups.cron";
+import { startCrmReportsCron } from "./cron/crm-reports.cron";
 import { startCampaignExecution } from "./controllers/campaigns.controller";
 import { startUnrepliedAlertService } from "./services/unreplied-alert-service";
 import { BaileysManager } from "./services/baileys-manager";
@@ -788,6 +790,8 @@ app.use((req, res, next) => {
 
       startScheduledCampaignCron();
       startWhatsAppWarmerCron();
+      startCrmFollowupCron();
+      startCrmReportsCron();
       startUnrepliedAlertService();
 
       const messageStatusUpdater = new MessageStatusUpdater();

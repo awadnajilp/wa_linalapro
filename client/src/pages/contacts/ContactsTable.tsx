@@ -42,6 +42,7 @@ import {
   Shield,
   CheckCircle,
   FolderPlus,
+  Calendar,
 } from "lucide-react";
 import { type Contact } from "./types";
 
@@ -59,6 +60,7 @@ interface ContactsTableProps {
   setSelectedContact: (contact: Contact | null) => void;
   setShowMessageDialog: (show: boolean) => void;
   setShowEditDialog: (show: boolean) => void;
+  setShowSchedulerDialog: (show: boolean) => void;
   handleDeleteContact: (id: string) => void;
   handleToggleContactStatus: (id: string, currentStatus: string | null) => void;
   handleOpenAssignGroup: (contactIds: string[]) => void;
@@ -95,6 +97,7 @@ export function ContactsTable({
   setSelectedContact,
   setShowMessageDialog,
   setShowEditDialog,
+  setShowSchedulerDialog,
   handleDeleteContact,
   handleToggleContactStatus,
   handleOpenAssignGroup,
@@ -179,6 +182,12 @@ export function ContactsTable({
                     <th className="text-left px-3 lg:px-6 py-3 lg:py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t("contacts.phone")}
                     </th>
+                    <th className="text-left px-3 lg:px-6 py-3 lg:py-4 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                      Active Campaign
+                    </th>
+                    <th className="text-left px-3 lg:px-6 py-3 lg:py-4 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                      Next Schedule
+                    </th>
                     <th className="text-left px-3 lg:px-6 py-3 lg:py-4 text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                       {t("contacts.groups")}
                     </th>
@@ -253,6 +262,30 @@ export function ContactsTable({
                           ? contact.phone.slice(0, -4).replace(/\d/g, "*") +
                             contact.phone.slice(-4)
                           : contact.phone}
+                      </td>
+                      <td className="px-3 lg:px-6 py-3 lg:py-4 text-xs lg:text-sm text-gray-900 hidden md:table-cell">
+                        {(contact as any).activeCampaignName ? (
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                            {(contact as any).activeCampaignName}
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-3 lg:px-6 py-3 lg:py-4 text-xs lg:text-sm text-gray-900 hidden md:table-cell">
+                        {(contact as any).nextScheduleDate ? (
+                          <span className="font-medium text-gray-700">
+                            {new Date((contact as any).nextScheduleDate).toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit"
+                            })}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-3 lg:px-6 py-3 lg:py-4 hidden lg:table-cell">
                         <div className="flex flex-wrap gap-1 items-center">
@@ -382,6 +415,15 @@ export function ContactsTable({
                               >
                                 <FolderPlus className="h-4 w-4 mr-2" />
                                 Add to Group
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedContact(contact);
+                                  setShowSchedulerDialog(true);
+                                }}
+                              >
+                                <Calendar className="h-4 w-4 mr-2" />
+                                Recurring Campaigns
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleMessageClick(contact)}
@@ -574,6 +616,38 @@ export function ContactsTable({
                           : "Never"}
                       </span>
                     </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 font-medium text-xs">
+                        Active Campaign:
+                      </span>
+                      <span className="text-xs">
+                        {(contact as any).activeCampaignName ? (
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 py-0.5">
+                            {(contact as any).activeCampaignName}
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 font-medium text-xs">
+                        Next Schedule:
+                      </span>
+                      <span className="text-gray-700 text-xs">
+                        {(contact as any).nextScheduleDate ? (
+                          new Date((contact as any).nextScheduleDate).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          })
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="flex justify-between gap-2 mt-4 pt-3 border-t border-gray-100">
@@ -610,6 +684,15 @@ export function ContactsTable({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedContact(contact);
+                            setShowSchedulerDialog(true);
+                          }}
+                        >
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Recurring Campaigns
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() =>
                             handleToggleContactStatus(

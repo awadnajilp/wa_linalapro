@@ -17,7 +17,7 @@
 
 import { db } from "../db";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
-import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites, automationExecutions, automations, voiceProfiles, automationNodes } from "@shared/schema";
+import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites, automationExecutions, automations, voiceProfiles, automationNodes, aiProfiles } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { triggerNotification, triggerThrottledNotification, NOTIFICATION_EVENTS } from "./notification.service";
@@ -564,18 +564,33 @@ export class WebhookHandler {
           let voiceProfileId = null;
           let voiceLanguage = "en-IN";
 
-          const isChannelAiEnabled = channel[0]?.inboxAiSettings && (channel[0].inboxAiSettings as any).aiEnabled === true;
-          if (node && node.type === "ai_agent" && (node.data as any)?.aiVoiceEnabled === true) {
-            const nodeData = node.data as any;
-            voiceProfileId = nodeData.voiceProfileId;
-            voiceLanguage = nodeData.voiceLanguage || "en-IN";
-          } else if (conversation[0].aiEnabled || isChannelAiEnabled) {
-            const settings = (conversation[0].aiSettings || {}) as any;
-            const chanSettings = (channel[0]?.inboxAiSettings || {}) as any;
-            const voiceEnabled = settings.voiceEnabled !== undefined ? settings.voiceEnabled : chanSettings.voiceEnabled;
-            if (voiceEnabled) {
-              voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
-              voiceLanguage = settings.voiceLanguage || chanSettings.voiceLanguage || "en-IN";
+          const settings = (conversation[0].aiSettings || {}) as any;
+          const chanSettings = (channel[0]?.inboxAiSettings || {}) as any;
+          const isChannelAiEnabled = channel[0]?.inboxAiSettings && chanSettings.aiEnabled === true;
+
+          const sttEnabled = settings.sttEnabled !== undefined ? settings.sttEnabled : chanSettings.sttEnabled;
+          
+          if (sttEnabled === true) {
+            voiceLanguage = settings.sttLanguage || chanSettings.sttLanguage || "en-IN";
+            voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
+            
+            if (!voiceProfileId) {
+              const firstProfile = await db.query.voiceProfiles.findFirst();
+              if (firstProfile) {
+                voiceProfileId = firstProfile.id;
+              }
+            }
+          } else {
+            if (node && node.type === "ai_agent" && (node.data as any)?.aiVoiceEnabled === true) {
+              const nodeData = node.data as any;
+              voiceProfileId = nodeData.voiceProfileId;
+              voiceLanguage = nodeData.voiceLanguage || "en-IN";
+            } else if (conversation[0].aiEnabled || isChannelAiEnabled) {
+              const voiceEnabled = settings.voiceEnabled !== undefined ? settings.voiceEnabled : chanSettings.voiceEnabled;
+              if (voiceEnabled) {
+                voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
+                voiceLanguage = settings.voiceLanguage || chanSettings.voiceLanguage || "en-IN";
+              }
             }
           }
 
@@ -660,6 +675,22 @@ export class WebhookHandler {
 
       const now = new Date();
       const contactName = contact[0].name || message.from;
+
+      // Check if AI Assistant Profile ignores this message (Personal Conversation Check)
+      if (channelId) {
+        const aiProfile = await db.query.aiProfiles.findFirst({
+          where: and(eq(aiProfiles.channelId, channelId), eq(aiProfiles.enabled, true)),
+        });
+        if (aiProfile && aiProfile.ignorePersonalConversations) {
+          const keywords = aiProfile.personalKeywords || [];
+          const lowerMsg = (content || "").toLowerCase();
+          const hasKeyword = keywords.some((kw: string) => lowerMsg.includes(kw.toLowerCase()));
+          if (hasKeyword) {
+            console.log(`🤫 [Webhook] Ignored personal conversation storage & replies due to AI Assistant Profile keywords.`);
+            return;
+          }
+        }
+      }
 
       const isNewConversation = conversation.length === 0;
       // 6. Create or update conversation with all channel-scoped fields
@@ -876,8 +907,39 @@ export class WebhookHandler {
           }
         }
 
+        // 8.5 Global Account-Level AI Assistant Profile Takeover
+        let isChannelAiEnabled = channel[0]?.inboxAiSettings && (channel[0].inboxAiSettings as any).aiEnabled === true;
+        if (channelId) {
+          const activeSettings = await db
+            .select()
+            .from(aiSettings)
+            .where(and(eq(aiSettings.channelId, channelId), eq(aiSettings.isActive, true)))
+            .limit(1);
+          if (activeSettings.length > 0) {
+            isChannelAiEnabled = true;
+          }
+        }
+        const isAiActive = conversation[0].aiEnabled || isChannelAiEnabled;
+
+        if (!automationHandled && channelId && content && isAiActive) {
+          try {
+            const { AiAssistantProfileService } = await import("./ai-assistant-profile.service");
+            const handled = await AiAssistantProfileService.processIncomingMessage(
+              channelId,
+              contact[0].id,
+              conversation[0].id,
+              content
+            );
+            if (handled) {
+              console.log(`🤖 [Webhook] AI Assistant Profile handled reply/action for conversation: ${conversation[0].id}`);
+              automationHandled = true;
+            }
+          } catch (aiProfileErr) {
+            console.error("❌ [Webhook] Error running AI Assistant Profile:", aiProfileErr);
+          }
+        }
+
         // 8.6 Manual Inbox AI Agent Takeover (if active)
-        const isChannelAiEnabled = channel[0]?.inboxAiSettings && (channel[0].inboxAiSettings as any).aiEnabled === true;
         if (!automationHandled && (conversation[0].aiEnabled || isChannelAiEnabled)) {
           try {
             const executionService = triggerService.getExecutionService();

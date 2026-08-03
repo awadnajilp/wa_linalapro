@@ -95,6 +95,7 @@ export default function AutomationFlowBuilder({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const activeChannelId = channelId || automation?.channelId;
 
   const draftIdRef = useRef<string>(automation?._draftId || `draft_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
   const savedSuccessRef = useRef(false);
@@ -166,12 +167,12 @@ export default function AutomationFlowBuilder({
   });
 
   const isQrChannel = useMemo(() => {
-    if (!channelId || !userChannelsData) return false;
+    if (!activeChannelId || !userChannelsData) return false;
     const currentChan = Array.isArray(userChannelsData)
-      ? userChannelsData.find((c: any) => c.id === channelId)
-      : userChannelsData.data?.find((c: any) => c.id === channelId);
+      ? userChannelsData.find((c: any) => c.id === activeChannelId)
+      : userChannelsData.data?.find((c: any) => c.id === activeChannelId);
     return currentChan?.connectionMethod === "qr_code";
-  }, [channelId, userChannelsData]);
+  }, [activeChannelId, userChannelsData]);
     
 
   const { data: teamMembers } = useQuery({
@@ -320,8 +321,8 @@ export default function AutomationFlowBuilder({
       formData.append("nodes", JSON.stringify(payload.nodes));
       formData.append("edges", JSON.stringify(payload.edges));
 
-    if (channelId) {
-      formData.append("channelId", channelId);
+    if (activeChannelId) {
+      formData.append("channelId", activeChannelId);
     }
 
       payload.nodes.forEach((node: any) => {
@@ -353,8 +354,8 @@ export default function AutomationFlowBuilder({
     },
     onSuccess: () => {
       savedSuccessRef.current = true;
-      if (channelId) {
-        removeDraftFromStorage(channelId, draftIdRef.current);
+      if (activeChannelId) {
+        removeDraftFromStorage(activeChannelId, draftIdRef.current);
       }
       toast({
         title: automation?.id ? "Automation updated" : "Automation created",
@@ -522,7 +523,7 @@ export default function AutomationFlowBuilder({
 
   useEffect(() => {
     return () => {
-      if (savedSuccessRef.current || !channelId) return;
+      if (savedSuccessRef.current || !activeChannelId) return;
       if (automation?.id && !automation?._isDraft) return;
 
       const currentNodes = nodesRef.current;
@@ -548,14 +549,14 @@ export default function AutomationFlowBuilder({
         target: e.target,
       }));
 
-      saveDraftToStorage(channelId, {
+      saveDraftToStorage(activeChannelId, {
         id: draftIdRef.current,
         name: nameRef.current || "Untitled Draft",
         description: descriptionRef.current,
         trigger: triggerRef.current,
         nodes: serializableNodes,
         edges: serializableEdges,
-        channelId,
+        channelId: activeChannelId,
         savedAt: new Date().toISOString(),
       });
 
@@ -652,7 +653,7 @@ export default function AutomationFlowBuilder({
           onDelete={deleteNode}
           templates={templates as Template[]}
           members={members as Member[]}
-          channelId={channelId}
+          channelId={activeChannelId}
           isQrChannel={isQrChannel}
         />
       </div>

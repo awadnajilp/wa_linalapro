@@ -1368,8 +1368,8 @@ app.post(
       // Check size limit for both qr_code and cloud API!
       const maxSizes: Record<string, number> = {
         image: 5 * 1024 * 1024,
-        video: 16 * 1024 * 1024,
-        audio: 16 * 1024 * 1024,
+        video: 100 * 1024 * 1024,
+        audio: 100 * 1024 * 1024,
         document: 100 * 1024 * 1024,
       };
       const mediaType = req.body.mediaType || "image";

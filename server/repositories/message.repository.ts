@@ -19,6 +19,8 @@ import { db } from "../db";
 import { eq, and, lt, or, desc, asc, SQL } from "drizzle-orm";
 import { 
   messages, 
+  conversations,
+  contacts,
   type Message, 
   type InsertMessage 
 } from "@shared/schema";
@@ -62,6 +64,37 @@ export class MessageRepository {
       .insert(messages)
       .values(insertMessage as any)
       .returning();
+
+    // Auto-increment CRM deal contacted count for successful outbound automated messages
+    if (
+      message.direction === "outbound" && 
+      message.fromType !== "agent" && 
+      (message.status === "sent" || message.status === "delivered" || message.status === "read")
+    ) {
+      try {
+        const [conversation] = await db
+          .select({ channelId: conversations.channelId, contactPhone: conversations.contactPhone })
+          .from(conversations)
+          .where(eq(conversations.id, message.conversationId))
+          .limit(1);
+
+        if (conversation) {
+          const [contact] = await db
+            .select({ id: contacts.id })
+            .from(contacts)
+            .where(and(eq(contacts.phone, conversation.contactPhone), eq(contacts.channelId, conversation.channelId)))
+            .limit(1);
+
+          if (contact) {
+            const { incrementCrmDealContactCount } = await import("../services/crm.service");
+            await incrementCrmDealContactCount(contact.id, conversation.channelId);
+          }
+        }
+      } catch (crmErr) {
+        console.error("Failed to auto-increment contacted count in MessageRepository.create:", crmErr);
+      }
+    }
+
     return message;
   }
 

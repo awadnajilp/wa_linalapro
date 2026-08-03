@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Users, Plus, Edit, Trash2, Shield, User, UserCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { TeamMember } from "@shared/schema";
+import type { User as TeamMember } from "@shared/schema";
 import { Loading } from "@/components/ui/loading";
 
 export function TeamSettings() {

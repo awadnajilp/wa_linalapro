@@ -30,6 +30,7 @@ import {
   Zap,
   ScrollText,
   UsersRound,
+  Briefcase,
   Menu,
   LogOut,
   X,
@@ -42,6 +43,7 @@ import {
   Code,
   BookOpen,
   Smartphone,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChannelSwitcher } from "@/components/channel-switcher";
@@ -49,6 +51,7 @@ import { useChannelContext } from "@/contexts/channel-context";
 import { useTranslation } from "@/lib/i18n";
 import { LanguageSelector } from "@/components/language-selector";
 import { useAuth } from "@/contexts/auth-context";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 // import logo from "../../images/logo1924.jpg";
 import { GiUpgrade } from "react-icons/gi";
 import { RiSecurePaymentFill } from "react-icons/ri";
@@ -98,6 +101,13 @@ function getNavItems(role: string): NavItem[] {
         labelKey: "navigation.inbox",
         color: "text-blue-400",
         allowedRoles: ["admin"],
+      },
+      {
+        href: "/crm",
+        icon: Briefcase,
+        labelKey: "navigation.crm",
+        color: "text-indigo-400",
+        allowedRoles: ["superadmin", "admin"],
       },
       {
         href: "/contacts",
@@ -176,9 +186,9 @@ function getNavItems(role: string): NavItem[] {
       },
       {
         href: "/gateway",
-        icon: Bell,
-        labelKey: "navigation.plans",
-        color: "text-blue-400",
+        icon: CreditCard,
+        labelKey: "navigation.payment_gateway",
+        color: "text-emerald-500",
         allowedRoles: ["superadmin"],
       },
       {
@@ -213,6 +223,14 @@ function getNavItems(role: string): NavItem[] {
         labelKey: "navigation.inbox",
         color: "text-blue-400",
         requiredPrefix: "inbox.",
+        allowedRoles: ["team"],
+      },
+      {
+        href: "/crm",
+        icon: Briefcase,
+        labelKey: "navigation.crm",
+        color: "text-indigo-400",
+        requiredPrefix: "crm.",
         allowedRoles: ["team"],
       },
       {
@@ -295,9 +313,9 @@ function getNavItems(role: string): NavItem[] {
       },
       {
         href: "/gateway",
-        icon: Bell,
-        labelKey: "navigation.plans",
-        color: "text-blue-400",
+        icon: CreditCard,
+        labelKey: "navigation.payment_gateway",
+        color: "text-emerald-500",
         requiredPrefix: "gateway.",
         allowedRoles: ["team"],
       },
@@ -794,14 +812,21 @@ export default function Sidebar() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="w-full flex items-center space-x-3 hover:bg-gray-50 rounded-lg p-2 transition-colors">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-600 to-green-500 flex items-center justify-center">
-                    <span className="text-sm font-medium text-white">
-                      {user
-                        ? (
-                            user.firstName?.[0] || user.username[0]
-                          ).toUpperCase()
-                        : "U"}
-                    </span>
+                  <div className="relative">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-600 to-green-500 flex items-center justify-center">
+                      <span className="text-sm font-medium text-white">
+                        {user
+                          ? (
+                              user.firstName?.[0] || user.username[0]
+                            ).toUpperCase()
+                          : "U"}
+                      </span>
+                    </div>
+                    {user && (
+                      <span className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white ${
+                        user.crmStatus === "online" ? "bg-green-400" : "bg-gray-400"
+                      }`} />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0 text-left">
                     <p className="text-sm font-medium text-gray-900 truncate">
@@ -825,6 +850,34 @@ export default function Sidebar() {
                   </div>
                 )}
                 <DropdownMenuLabel>{t("common.myAccount")}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1.5 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-500">CRM Status</span>
+                  <button
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const nextStatus = user?.crmStatus === "online" ? "offline" : "online";
+                      try {
+                        const res = await apiRequest("PATCH", `/api/team/members/${user?.id}/crm-status`, {
+                          crmStatus: nextStatus,
+                        });
+                        if (res.ok) {
+                          queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+                        }
+                      } catch (err) {
+                        console.error("Failed to update crm status", err);
+                      }
+                    }}
+                    className={`px-2 py-0.5 rounded-full text-xs font-bold transition-all duration-200 ${
+                      user?.crmStatus === "online"
+                        ? "bg-green-100 text-green-700 hover:bg-green-200"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {user?.crmStatus === "online" ? "● Online" : "○ Offline"}
+                  </button>
+                </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/settings" className="cursor-pointer">

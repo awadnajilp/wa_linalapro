@@ -889,14 +889,43 @@ Verify Token: my-custom-verify-token-12345</code></pre></div></div></div>
 
         <h3 id="module-automations">Automation Flows</h3>
         <p>Build visual automation workflows using the drag-and-drop flow builder. Automations trigger based on incoming messages and execute a series of actions.</p>
+        
         <h4>Available Node Types</h4>
         <ul>
-          <li><strong>Message Nodes</strong> — Text, image, video, document, list messages, location</li>
-          <li><strong>Logic Nodes</strong> — Conditions, delays, random split</li>
-          <li><strong>Action Nodes</strong> — Set variable, webhook call, HTTP request</li>
-          <li><strong>Contact Nodes</strong> — Add to group, update contact fields, tag contact</li>
-          <li><strong>Flow Control</strong> — Go to another flow, end flow</li>
+          <li><strong>Message Nodes</strong> — Text, image, video, document, list messages, location. Enhanced with <strong>Button-Specific Routing Handles</strong> to route flows based on exactly which button option was selected.</li>
+          <li><strong>Logic Nodes</strong> — Conditions, delays, random split, and the <strong>Wait for Reply Node</strong> which pauses flow execution until the contact replies.</li>
+          <li><strong>Action Nodes</strong> — Set variable, database query, webhook call, and the <strong>API Request Node</strong> (a native HTTP client supporting GET, POST, PUT, DELETE with headers and dynamic variable payload interpolation).</li>
+          <li><strong>Contact Nodes</strong> — Add to group, update contact fields, tag contact with custom-colored tags.</li>
+          <li><strong>Payment Nodes (Stripe, Razorpay, Instamojo, Tap Payments, Noon Payments)</strong>:
+            <ul>
+              <li><strong>Razorpay Generate:</strong> Generates dynamic checkout links silently ("Generate Only") or auto-sends links and pauses ("Send &amp; Wait" mode).</li>
+              <li><strong>Razorpay Verify:</strong> Verifies checkout status using Reference IDs and routes down green (Paid) and red (Unpaid) handles.</li>
+              <li><strong>Instamojo Pay:</strong> Single All-in-One payment request node that auto-sends checkout links, pauses execution, double-verifies transactions, and routes down green (Paid) and red (Unpaid) handles automatically.</li>
+              <li><strong>Tap Payments (KSA/GCC):</strong> Single All-in-One payment request node that auto-generates Tap checkout charges, sends checkout links via WhatsApp, pauses flow execution, verifies status (CAPTURED), and routes down green (Paid) and red (Unpaid) handles automatically.</li>
+              <li><strong>Noon Pay (KSA/UAE/Egypt):</strong> Single All-in-One payment request node that auto-generates Noon checkout orders, sends checkout links via WhatsApp, pauses flow execution, verifies status (SUCCESS/CAPTURED), and routes down green (Paid) and red (Unpaid) handles automatically.</li>
+            </ul>
+            <p class="text-xs text-gray-500 mt-1.5 leading-relaxed bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+              <strong>Payment Webhooks Configuration:</strong><br />
+              • <strong>Instamojo:</strong> Webhooks are configured automatically per request, sending updates to the platform's receiver without manual configuration.<br />
+              • <strong>Tap Payments:</strong> Webhooks are registered automatically per charge request. Add a webhook pointing to <code>https://&lt;your-domain&gt;/webhooks/tap</code> in your Tap Dashboard for real-time status callbacks.<br />
+              • <strong>Noon Payments:</strong> Webhooks are registered automatically per order request. Configure a webhook pointing to <code>https://&lt;your-domain&gt;/webhooks/noonpayments</code> in your Noon Merchant Portal (supports JWS-signed tokens and plain JSON payloads).<br />
+              • <strong>Razorpay:</strong> To wake up paused flow executions automatically upon checkout, tenants must configure a webhook endpoint inside their <em>Razorpay Dashboard &gt; Settings &gt; Webhooks</em> pointing to <code>https://&lt;your-domain&gt;/webhooks/razorpay</code>, enabling the <code>payment_link.paid</code> event subscription.
+            </p>
+          </li>
+          <li><strong>Integrations</strong>
+            <ul>
+              <li><strong>Zapier:</strong> Triggers Zapier workflows automatically by forwarding all active conversation and contact variables (or a custom structured JSON payload) to your Zapier Catch Webhook URL.</li>
+            </ul>
+          </li>
+          <li><strong>Flow Control</strong> — Go to another flow, end flow.</li>
         </ul>
+
+        <h4>Flow Data Dashboard</h4>
+        <p>Inside the Automations tab, the <strong>Collected Flow Data Dashboard</strong> tracks and persists custom variables populated during active user sessions. Filter collected data by contact name, phone, or flow, and download spreadsheet records using the <strong>Excel Export (.xlsx)</strong> action.</p>
+
+        <h4>Contact-Based Recurring Campaigns</h4>
+        <p>Schedule campaigns against individual contacts with selectable intervals (everyday, monthly, 6 months, yearly). Anchor start times and variables are configured via the contact actions menu drawer.</p>
+
         <p>Automations support variable substitution using <code>{{varName}}</code> syntax in message fields.</p>
 
         <h3 id="module-chatbot">Chatbot / Widget Builder</h3>

@@ -85,7 +85,30 @@ export type NodeKind =
   | "user_reply"
   | "time_gap"
   | "send_template"
-  | "assign_user";
+  | "assign_user"
+  | "webhook"
+  | "mysql"
+  | "end"
+  | "add_to_group"
+  | "update_contact"
+  | "delete_contact"
+  | "set_variable"
+  | "send_location"
+  | "send_list_message"
+  | "send_media"
+  | "mark_as_read"
+  | "wait_reply"
+  | "ai_answer"
+  | "ai_agent"
+  | "send_contact_message"
+  | "scheduler"
+  | "route_crm_round_robin"
+  | "razorpay_generate"
+  | "razorpay_verify"
+  | "instamojo_payment"
+  | "zapier"
+  | "tap_payment"
+  | "noon_payment";
 
 export interface BuilderNodeData {
   kind: NodeKind;
@@ -115,6 +138,63 @@ export interface BuilderNodeData {
     action: "next" | "custom";
     value?: string;
   }>;
+  razorpayKeyId?: string;
+  razorpayKeySecret?: string;
+  razorpayAmount?: string;
+  razorpayCurrency?: string;
+  razorpayCustomerName?: string;
+  razorpayCustomerEmail?: string;
+  razorpayCustomerPhone?: string;
+  razorpayDescription?: string;
+  razorpayReceipt?: string;
+  razorpayVarUrl?: string;
+  razorpayVarRefId?: string;
+  razorpayRefId?: string;
+  razorpayVarStatus?: string;
+  razorpayVarPaymentId?: string;
+  razorpayMode?: "generate_only" | "send_and_wait";
+  razorpayMessage?: string;
+  instamojoApiKey?: string;
+  instamojoAuthToken?: string;
+  instamojoSandbox?: boolean;
+  instamojoAmount?: string;
+  instamojoPurpose?: string;
+  instamojoCustomerName?: string;
+  instamojoCustomerEmail?: string;
+  instamojoCustomerPhone?: string;
+  instamojoMessage?: string;
+  instamojoVarUrl?: string;
+  instamojoVarRefId?: string;
+  instamojoVarStatus?: string;
+  zapierWebhookUrl?: string;
+  zapierPayloadMode?: "all_variables" | "custom";
+  zapierCustomPayload?: string;
+  instamojoVarPaymentId?: string;
+  tapSecretKey?: string;
+  tapAmount?: string;
+  tapCurrency?: string;
+  tapDescription?: string;
+  tapCustomerName?: string;
+  tapCustomerEmail?: string;
+  tapCustomerPhone?: string;
+  tapMessage?: string;
+  tapVarUrl?: string;
+  tapVarRefId?: string;
+  tapVarStatus?: string;
+  tapVarPaymentId?: string;
+  noonBusinessId?: string;
+  noonAppId?: string;
+  noonAppKey?: string;
+  noonSandbox?: boolean;
+  noonCategory?: string;
+  noonAmount?: string;
+  noonCurrency?: string;
+  noonDescription?: string;
+  noonMessage?: string;
+  noonVarUrl?: string;
+  noonVarRefId?: string;
+  noonVarStatus?: string;
+  noonVarPaymentId?: string;
   [key: string]: unknown;
 }
 

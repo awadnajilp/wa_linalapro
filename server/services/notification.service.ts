@@ -327,49 +327,6 @@ async function flushDigest(key: string) {
   }, DIGEST_COOLDOWN_MS);
 
   try {
-    const io = (global as any).io;
-    if (io) {
-      io.to(`user:${userId}`).emit('notification:new', {
-        id: `digest-${Date.now()}`,
-        title: digestTitle,
-        message: digestMessage,
-        type: NOTIFICATION_EVENTS.NEW_MESSAGE,
-        link: "/inbox",
-        channelId: entry.channelId || null,
-        createdAt: new Date().toISOString(),
-        soundEnabled: true,
-      });
-    }
-
-    // Trigger FCM push notification for the digest alert
-    const userRowsForPush = await db.select().from(users).where(eq(users.id, userId));
-    if (userRowsForPush.length > 0 && userRowsForPush[0].fcmToken) {
-      sendPushNotification(userRowsForPush[0].fcmToken, digestTitle, digestMessage, {
-        conversationId: "",
-        channelId: entry.channelId || "",
-      }).catch(err => console.error("[FCM] Error sending digest push:", err));
-    }
-
-    const [notif] = await db
-      .insert(notifications)
-      .values({
-        title: digestTitle,
-        message: digestMessage,
-        type: NOTIFICATION_EVENTS.NEW_MESSAGE,
-        createdBy: "system",
-        channelId: entry.channelId || null,
-        targetType: "single",
-        targetIds: [userId],
-        status: "sent",
-        sentAt: new Date(),
-      })
-      .returning();
-
-    await db.insert(sentNotifications).values({
-      notificationId: notif.id,
-      userId,
-    });
-
     if (!isUserOnline(userId)) {
       const userRows = await db.select().from(users).where(eq(users.id, userId));
       if (userRows.length > 0 && userRows[0].email) {
@@ -404,7 +361,7 @@ async function flushDigest(key: string) {
       }
     }
 
-    console.log(`[Notification Digest] Sent digest for user ${userId}: ${flushedCount} messages from ${flushedContacts.length} contacts — cooldown ${DIGEST_COOLDOWN_MS / 60000} min`);
+    console.log(`[Notification Digest] Sent digest email for user ${userId}: ${flushedCount} messages from ${flushedContacts.length} contacts — cooldown ${DIGEST_COOLDOWN_MS / 60000} min`);
   } catch (error) {
     console.error("[Notification Digest] Error flushing digest:", error);
   }
@@ -422,8 +379,21 @@ export async function triggerThrottledNotification(
     const key = `${userId}:${channelId || "default"}`;
     const existing = digestMap.get(key);
 
+    // ALWAYS fire the instant FCM/in-app notification (skip email) for every incoming message
+    try {
+      await triggerNotification(
+        NOTIFICATION_EVENTS.NEW_MESSAGE,
+        variables,
+        [userId],
+        channelId,
+        true // skipEmail — the email is throttled via digestMap below
+      );
+    } catch (err) {
+      console.error(`[Notification] Error sending immediate push/in-app notification to ${userId}:`, err);
+    }
+
     if (existing) {
-      // Always accumulate into the buffer.
+      // Always accumulate into the buffer for email digest
       existing.count++;
       existing.contacts.add(contactName);
 
@@ -445,19 +415,6 @@ export async function triggerThrottledNotification(
       cooldownTimer: null,
       inCooldown: false,
     });
-
-    // Fire an instant in-app notification (no email) so the user sees it live.
-    try {
-      await triggerNotification(
-        NOTIFICATION_EVENTS.NEW_MESSAGE,
-        variables,
-        [userId],
-        channelId,
-        true // skipEmail — the digest handles the email after the quick-flush delay
-      );
-    } catch (err) {
-      console.error(`[Notification Digest] Error sending in-app notification to ${userId}:`, err);
-    }
   }
 }
 

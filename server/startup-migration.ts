@@ -351,6 +351,35 @@ const steps: MigrationStep[] = [
       );
     `,
   },
+  {
+    description: "Create table contact_campaigns (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS contact_campaigns (
+        id                VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        contact_id        VARCHAR NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+        channel_id        VARCHAR NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+        name              TEXT NOT NULL,
+        template_id       VARCHAR REFERENCES templates(id) ON DELETE SET NULL,
+        template_name     TEXT,
+        template_language  TEXT,
+        variable_mapping  JSONB DEFAULT '{}',
+        custom_message    TEXT,
+        media_url         TEXT,
+        media_mime_type   TEXT,
+        media_name        TEXT,
+        frequency         TEXT NOT NULL,
+        scheduled_date    TIMESTAMP NOT NULL,
+        next_send_at      TIMESTAMP NOT NULL,
+        last_sent_at      TIMESTAMP,
+        status            TEXT DEFAULT 'active',
+        created_at        TIMESTAMP DEFAULT NOW(),
+        updated_at        TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS contact_campaigns_contact_idx ON contact_campaigns (contact_id);
+      CREATE INDEX IF NOT EXISTS contact_campaigns_next_send_idx ON contact_campaigns (next_send_at);
+      CREATE INDEX IF NOT EXISTS contact_campaigns_status_idx ON contact_campaigns (status);
+    `,
+  },
 ];
 
 /**

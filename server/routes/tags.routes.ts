@@ -65,6 +65,33 @@ export function registerTagsRoutes(app: Express) {
     }
   });
 
+  // Update Tag
+  router.put("/:id", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, color } = req.body;
+
+      if (!name || !color) {
+        return res.status(400).json({ error: "name and color are required" });
+      }
+
+      const [updated] = await db
+        .update(tags)
+        .set({ name, color })
+        .where(eq(tags.id, id))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ error: "Tag not found" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating tag:", error);
+      res.status(500).json({ error: "Failed to update tag" });
+    }
+  });
+
   // Delete Tag
   router.delete("/:id", requireAuth, async (req, res) => {
     try {

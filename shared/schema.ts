@@ -32,6 +32,7 @@ import {
   pgEnum,
   serial,
   uuid,
+  real,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -68,6 +69,7 @@ export const users = pgTable("users", {
   elevenlabsApiKey: text("eleven_labs_api_key"),
   showOnlyAssigned: boolean("show_only_assigned").default(false),
   isAdminMember: boolean("is_admin_member").default(false),
+  crmStatus: text("crm_status").default("online"),
 });
 
 // Conversation assignments to users
@@ -1057,12 +1059,14 @@ export const messageQueue = pgTable("message_queue", {
   deliveredAt: timestamp("delivered_at"),
   readAt: timestamp("read_at"),
   createdAt: timestamp("created_at").defaultNow(),
+  dealId: varchar("deal_id"),
 }, (table) => ({
   queueCampaignIdx: index("queue_campaign_idx").on(table.campaignId),
   queueStatusIdx: index("queue_status_idx").on(table.status),
   queueScheduledIdx: index("queue_scheduled_idx").on(table.scheduledFor),
   queueStatusScheduledIdx: index("queue_status_scheduled_idx").on(table.status, table.scheduledFor),
   queueWhatsappMessageIdx: index("queue_whatsapp_message_idx").on(table.whatsappMessageId),
+  queueDealIdx: index("queue_deal_idx").on(table.dealId),
 }));
 
 // API Request Logs for debugging
@@ -1292,6 +1296,12 @@ export const PERMISSIONS = {
   AUTOMATIONS_CREATE: "automations:create",
   AUTOMATIONS_EDIT: "automations:edit",
   AUTOMATIONS_DELETE: "automations:delete",
+
+  // Groups permissions
+  GROUPS_VIEW: "groups:view",
+  GROUPS_CREATE: "groups:create",
+  GROUPS_EDIT: "groups:edit",
+  GROUPS_DELETE: "groups:delete",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -1326,6 +1336,10 @@ export const DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.ANALYTICS_EXPORT,
     PERMISSIONS.SETTINGS_VIEW,
     PERMISSIONS.TEAM_VIEW,
+    PERMISSIONS.GROUPS_VIEW,
+    PERMISSIONS.GROUPS_CREATE,
+    PERMISSIONS.GROUPS_EDIT,
+    PERMISSIONS.GROUPS_DELETE,
   ],
   agent: [
     PERMISSIONS.DASHBOARD_VIEW,
@@ -1335,6 +1349,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.INBOX_VIEW,
     PERMISSIONS.INBOX_SEND_MESSAGE,
     PERMISSIONS.ANALYTICS_VIEW,
+    PERMISSIONS.GROUPS_VIEW,
   ],
 };
 
@@ -1865,3 +1880,312 @@ export const insertMediaLibrarySchema = z.object({
 
 export type MediaLibrary = typeof mediaLibrary.$inferSelect;
 export type InsertMediaLibrary = typeof mediaLibrary.$inferInsert;
+
+// ─── AI Assistant Profile ───────────────────────────────
+export const aiProfiles = pgTable("ai_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  name: text("name").default("My AI Assistant"),
+  enabled: boolean("enabled").default(false),
+  llmProvider: varchar("llm_provider", { length: 50 }).default("openai"),
+  model: varchar("model", { length: 100 }).default("gpt-4o"),
+  systemPrompt: text("system_prompt").default("You are a fully aware personal assistant. Speak in a natural, friendly tone."),
+  temperature: real("temperature").default(0.7),
+  voiceEnabled: boolean("voice_enabled").default(false),
+  voiceProfileId: varchar("voice_profile_id"),
+  voiceLanguage: varchar("voice_language", { length: 50 }).default("en-US"),
+  kbEnabled: boolean("kb_enabled").default(false),
+  kbSiteId: varchar("kb_site_id"),
+  triggerFlowEnabled: boolean("trigger_flow_enabled").default(false),
+  targetFlowId: varchar("target_flow_id"),
+  triggerFlowPrompt: text("trigger_flow_prompt").default("Triggers a helper chatbot/automation flow if the user wants to perform an action or process (like catalog, demo, support, pricing, or custom flows)."),
+  openaiApiKey: text("openai_api_key"),
+  groqApiKey: text("groq_api_key"),
+  elevenlabsApiKey: text("elevenlabs_api_key"),
+  sarvamApiKey: text("sarvam_api_key"),
+  analyzeInboxHistory: boolean("analyze_inbox_history").default(false),
+  ignorePersonalConversations: boolean("ignore_personal_conversations").default(true),
+  personalKeywords: jsonb("personal_keywords").$type<string[]>().default(["family", "personal", "private", "brother", "sister", "mom", "dad", "wife", "husband"]),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAiProfileSchema = z.object({
+  userId: z.string().optional(),
+  channelId: z.string().optional(),
+  name: z.string().optional(),
+  enabled: z.boolean().optional(),
+  llmProvider: z.string().optional(),
+  model: z.string().optional(),
+  systemPrompt: z.string().optional(),
+  temperature: z.number().optional(),
+  voiceEnabled: z.boolean().optional(),
+  voiceProfileId: z.string().optional().nullable(),
+  voiceLanguage: z.string().optional(),
+  kbEnabled: z.boolean().optional(),
+  kbSiteId: z.string().optional().nullable(),
+  triggerFlowEnabled: z.boolean().optional(),
+  targetFlowId: z.string().optional().nullable(),
+  triggerFlowPrompt: z.string().optional(),
+  openaiApiKey: z.string().optional().nullable(),
+  groqApiKey: z.string().optional().nullable(),
+  elevenlabsApiKey: z.string().optional().nullable(),
+  sarvamApiKey: z.string().optional().nullable(),
+  analyzeInboxHistory: z.boolean().optional(),
+  ignorePersonalConversations: z.boolean().optional(),
+  personalKeywords: z.array(z.string()).optional(),
+});
+
+export type AiProfile = typeof aiProfiles.$inferSelect;
+export type InsertAiProfile = typeof aiProfiles.$inferInsert;
+
+// ─── CRM Schemas ─────────────────────────────────────────
+
+export const crmPipelines = pgTable("crm_pipelines", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  name: text("name").notNull().default("Sales Pipeline"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const crmStages = pgTable("crm_stages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pipelineId: varchar("pipeline_id").references(() => crmPipelines.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  position: integer("position").notNull().default(0),
+  color: varchar("color", { length: 20 }).default("#cbd5e1"),
+});
+
+export const crmDeals = pgTable("crm_deals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").references(() => contacts.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  stageId: varchar("stage_id").references(() => crmStages.id, { onDelete: "restrict" }),
+  title: text("title").notNull(),
+  value: numeric("value", { precision: 10, scale: 2 }).default("0.00"),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  assignedTo: varchar("assigned_to").references(() => users.id, { onDelete: "set null" }),
+  status: varchar("status", { length: 20 }).default("open"), // open, won, lost
+  lostReason: text("lost_reason"),
+  expectedCloseDate: timestamp("expected_close_date"),
+  notes: text("notes"),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  customFollowUpDate: timestamp("custom_follow_up_date"),
+  isAutomatedFollowUpEnabled: boolean("is_automated_follow_up_enabled").default(false),
+  followUpMessage: text("follow_up_message"),
+  followUpTemplateName: text("follow_up_template_name"),
+  followUpTemplateLanguage: text("follow_up_template_language").default("en_US"),
+  followUpTemplateVariables: jsonb("follow_up_template_variables"),
+  followUpStatus: text("follow_up_status").default("pending"),
+  preferredContactMethod: varchar("preferred_contact_method", { length: 20 }).default("both"), // "call", "whatsapp", "both"
+  contactedCount: integer("contacted_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const crmCadences = pgTable("crm_cadences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  isActive: boolean("is_active").default(true),
+  triggerStageId: varchar("trigger_stage_id").references(() => crmStages.id),
+  stopCondition: varchar("stop_condition").default("reply_or_close"),
+  sendChannelId: varchar("send_channel_id").references(() => channels.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const crmCadenceSteps = pgTable("crm_cadence_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cadenceId: varchar("cadence_id").references(() => crmCadences.id, { onDelete: "cascade" }),
+  stepNumber: integer("step_number").notNull(),
+  delayHours: integer("delay_hours").notNull().default(24),
+  messageType: varchar("message_type").default("text"),
+  templateName: varchar("template_name"),
+  templateLanguage: varchar("template_language").default("en_US"),
+  messageText: text("message_text"),
+  mediaUrl: text("media_url"),
+  mediaType: varchar("media_type", { length: 20 }), // "image", "video", "document"
+  mediaName: text("media_name"),
+});
+
+export const crmDealFollowups = pgTable("crm_deal_followups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealId: varchar("deal_id").references(() => crmDeals.id, { onDelete: "cascade" }),
+  stepId: varchar("step_id").references(() => crmCadenceSteps.id, { onDelete: "cascade" }),
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  status: varchar("status").default("pending"),
+  sentAt: timestamp("sent_at"),
+});
+
+export const crmSettings = pgTable("crm_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  isLeadQualificationEnabled: boolean("is_lead_qualification_enabled").default(false),
+  qualificationFlowId: varchar("qualification_flow_id").references(() => automations.id, { onDelete: "set null" }),
+  isDailyReportEnabled: boolean("is_daily_report_enabled").default(false),
+  isWeeklyReportEnabled: boolean("is_weekly_report_enabled").default(false),
+  reportEmailRecipient: text("report_email_recipient"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const crmAgentTargets = pgTable("crm_agent_targets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  targetDealsWon: integer("target_deals_won").default(10),
+  targetValueWon: numeric("target_value_won", { precision: 10, scale: 2 }).default("1000.00"),
+  period: varchar("period", { length: 20 }).default("monthly"), // "weekly" or "monthly"
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Zod validation schemas
+export const insertCrmAgentTargetSchema = z.object({
+  userId: z.string(),
+  channelId: z.string(),
+  targetDealsWon: z.number().optional(),
+  targetValueWon: z.string().optional(),
+  period: z.string().optional(),
+});
+
+export const insertCrmPipelineSchema = z.object({
+  channelId: z.string(),
+  name: z.string(),
+});
+
+export const insertCrmStageSchema = z.object({
+  pipelineId: z.string(),
+  name: z.string(),
+  position: z.number().optional(),
+  color: z.string().optional(),
+});
+
+export const insertCrmDealSchema = z.object({
+  contactId: z.string(),
+  channelId: z.string(),
+  stageId: z.string(),
+  title: z.string(),
+  value: z.string().optional(),
+  currency: z.string().optional(),
+  assignedTo: z.string().optional().nullable(),
+  status: z.string().optional(),
+  lostReason: z.string().optional().nullable(),
+  expectedCloseDate: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  tags: z.array(z.string()).optional(),
+  customFollowUpDate: z.string().optional().nullable(),
+  isAutomatedFollowUpEnabled: z.boolean().optional(),
+  followUpMessage: z.string().optional().nullable(),
+  followUpTemplateName: z.string().optional().nullable(),
+  followUpTemplateLanguage: z.string().optional().nullable(),
+  followUpTemplateVariables: z.any().optional().nullable(),
+  followUpStatus: z.string().optional(),
+  preferredContactMethod: z.string().optional(),
+  contactedCount: z.number().optional(),
+});
+
+export const insertCrmCadenceSchema = z.object({
+  channelId: z.string(),
+  name: z.string(),
+  isActive: z.boolean().optional(),
+  triggerStageId: z.string(),
+  stopCondition: z.string().optional(),
+});
+
+export const insertCrmCadenceStepSchema = z.object({
+  cadenceId: z.string(),
+  stepNumber: z.number(),
+  delayHours: z.number().optional(),
+  messageType: z.string().optional(),
+  templateName: z.string().optional().nullable(),
+  templateLanguage: z.string().optional(),
+  messageText: z.string().optional().nullable(),
+});
+
+export const insertCrmSettingsSchema = z.object({
+  channelId: z.string(),
+  isLeadQualificationEnabled: z.boolean().optional(),
+  qualificationFlowId: z.string().optional().nullable(),
+  isDailyReportEnabled: z.boolean().optional(),
+  isWeeklyReportEnabled: z.boolean().optional(),
+  reportEmailRecipient: z.string().optional().nullable(),
+});
+
+// ─── Contact Campaigns ───────────────────────
+export const contactCampaigns = pgTable(
+  "contact_campaigns",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    contactId: varchar("contact_id")
+      .notNull()
+      .references(() => contacts.id, { onDelete: "cascade" }),
+    channelId: varchar("channel_id")
+      .notNull()
+      .references(() => channels.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    templateId: varchar("template_id").references(() => templates.id, {
+      onDelete: "set null",
+    }),
+    templateName: text("template_name"),
+    templateLanguage: text("template_language"),
+    variableMapping: jsonb("variable_mapping")
+      .$type<Record<string, string>>()
+      .default({}),
+    customMessage: text("custom_message"),
+    mediaUrl: text("media_url"),
+    mediaMimeType: text("media_mime_type"),
+    mediaName: text("media_name"),
+    frequency: text("frequency").notNull(), // "everyday", "monthly", "6months", "yearly"
+    scheduledDate: timestamp("scheduled_date").notNull(),
+    nextSendAt: timestamp("next_send_at").notNull(),
+    lastSentAt: timestamp("last_sent_at"),
+    status: text("status").default("active"), // "active", "paused", "completed"
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    contactCampaignContactIdx: index("contact_campaigns_contact_idx").on(table.contactId),
+    contactCampaignNextSendIdx: index("contact_campaigns_next_send_idx").on(table.nextSendAt),
+    contactCampaignStatusIdx: index("contact_campaigns_status_idx").on(table.status),
+  })
+);
+
+export const insertContactCampaignSchema = z.object({
+  contactId: z.string().optional(),
+  channelId: z.string().optional(),
+  name: z.string().min(1, "Name is required"),
+  templateId: z.string().nullable().optional(),
+  templateName: z.string().nullable().optional(),
+  templateLanguage: z.string().nullable().optional(),
+  variableMapping: z.any().optional(),
+  customMessage: z.string().nullable().optional(),
+  mediaUrl: z.string().nullable().optional(),
+  mediaMimeType: z.string().nullable().optional(),
+  mediaName: z.string().nullable().optional(),
+  frequency: z.string().min(1, "Frequency is required"),
+  scheduledDate: z.preprocess((val) => typeof val === "string" ? new Date(val) : val, z.date()),
+  status: z.string().optional(),
+});
+
+// Types
+export type ContactCampaign = typeof contactCampaigns.$inferSelect;
+export type InsertContactCampaign = typeof contactCampaigns.$inferInsert;
+export type CrmPipeline = typeof crmPipelines.$inferSelect;
+export type InsertCrmPipeline = typeof crmPipelines.$inferInsert;
+export type CrmStage = typeof crmStages.$inferSelect;
+export type InsertCrmStage = typeof crmStages.$inferInsert;
+export type CrmDeal = typeof crmDeals.$inferSelect;
+export type InsertCrmDeal = typeof crmDeals.$inferInsert;
+export type CrmCadence = typeof crmCadences.$inferSelect;
+export type InsertCrmCadence = typeof crmCadences.$inferInsert;
+export type CrmCadenceStep = typeof crmCadenceSteps.$inferSelect;
+export type InsertCrmCadenceStep = typeof crmCadenceSteps.$inferInsert;
+export type CrmDealFollowup = typeof crmDealFollowups.$inferSelect;
+export type InsertCrmDealFollowup = typeof crmDealFollowups.$inferInsert;
+export type CrmSetting = typeof crmSettings.$inferSelect;
+export type InsertCrmSetting = typeof crmSettings.$inferInsert;
+

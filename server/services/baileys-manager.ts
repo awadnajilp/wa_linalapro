@@ -3,7 +3,8 @@ import makeWASocket, {
   useMultiFileAuthState,
   makeCacheableSignalKeyStore,
   delay,
-  downloadMediaMessage
+  downloadMediaMessage,
+  fetchLatestBaileysVersion
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 import QRCode from "qrcode";
@@ -20,6 +21,24 @@ import { WhatsAppApiService } from "./whatsapp-api";
 export class BaileysManager {
   private static activeSockets = new Map<string, any>();
   private static qrStates = new Map<string, { qrCodeUrl?: string; status: "pending" | "authenticated" | "expired" | "disconnected" }>();
+  private static cachedVersion: any = null;
+
+  static async getBaileysVersion(): Promise<any> {
+    if (this.cachedVersion) return this.cachedVersion;
+    const fallbackVersion = [2, 3000, 1017531287];
+    try {
+      const versionPromise = fetchLatestBaileysVersion().then(res => res.version);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Timeout")), 3000)
+      );
+      const version = await Promise.race([versionPromise, timeoutPromise]) as any;
+      this.cachedVersion = version || fallbackVersion;
+    } catch (err) {
+      console.warn(`[BaileysManager] Failed to fetch latest version (using fallback):`, err);
+      this.cachedVersion = fallbackVersion;
+    }
+    return this.cachedVersion;
+  }
 
   static getActiveSocket(channelId: string) {
     return this.activeSockets.get(channelId);
@@ -48,15 +67,17 @@ export class BaileysManager {
       const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
       const logger = pino({ level: "error" });
+      const version = await this.getBaileysVersion();
 
       const sock = makeWASocket({
         auth: {
           creds: state.creds,
           keys: makeCacheableSignalKeyStore(state.keys, logger)
         },
+        version,
         logger,
         printQRInTerminal: false,
-        browser: ["LINALA QR Connect", "Chrome", "1.0.0"],
+        browser: ["Linala CRM", "Chrome", "20.0.0"],
         syncFullHistory: false,
         defaultQueryTimeoutMs: 60000,
         connectTimeoutMs: 60000,
@@ -273,6 +294,14 @@ export class BaileysManager {
 
         if (connection === "close") {
           const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+
+          // Check if this socket is still the active socket for this channel
+          const currentSock = this.activeSockets.get(channelId);
+          if (currentSock !== sock) {
+            console.log(`[BaileysManager] Session ${channelId} closed, but it is no longer the active socket. Skipping reconnection.`);
+            return;
+          }
+
           const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
           console.log(`[BaileysManager] Session ${channelId} closed. Status code: ${statusCode}. Reconnecting: ${shouldReconnect}`);
@@ -280,6 +309,11 @@ export class BaileysManager {
           if (shouldReconnect) {
             // Attempt to reconnect after delay
             setTimeout(() => {
+              // Check again before executing reconnect to prevent racing
+              if (this.activeSockets.get(channelId) !== sock) {
+                console.log(`[BaileysManager] Skipping reconnection for channel ${channelId} - socket replaced/deleted during delay.`);
+                return;
+              }
               this.createSession(channelId, name, phoneNumber, onQr).catch(err => {
                 console.error(`[BaileysManager] Reconnection failed for ${channelId}:`, err);
               });
@@ -812,7 +846,49 @@ export class BaileysManager {
       console.warn(`[BaileysManager] Failed to send presence update (non-fatal):`, presenceErr);
     }
 
-    const result = await sock.sendMessage(jid, { text }, options);
+    const messagePayload: any = { text };
+
+    // Fetch and embed YouTube preview metadata if URL is present in the text
+    const ytMatch = text.match(/(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube-nocookie\.com\/embed\/)([a-zA-Z0-9_-]{11}))/);
+    if (ytMatch) {
+      try {
+        const ytUrl = ytMatch[1];
+        const ytId = ytMatch[2];
+        const thumbUrl = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+        console.log(`[YouTube Preview] Fetching YouTube thumbnail: ${thumbUrl}`);
+        const thumbRes = await fetch(thumbUrl);
+        if (thumbRes.ok) {
+          const thumbBuffer = Buffer.from(await thumbRes.arrayBuffer());
+          
+          let title = "YouTube Video";
+          let description = "Watch this video on YouTube";
+          try {
+            const oembedUrl = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(ytUrl)}`;
+            const oembedRes = await fetch(oembedUrl);
+            if (oembedRes.ok) {
+              const oembedData = await oembedRes.json();
+              if (oembedData.title) title = oembedData.title;
+              if (oembedData.author_name) description = `Video by ${oembedData.author_name}`;
+            }
+          } catch (oembedErr) {
+            console.error("[YouTube Preview] Failed to fetch oembed info:", oembedErr);
+          }
+
+          messagePayload.linkPreview = {
+            "canonical-url": ytUrl,
+            "matched-text": ytUrl,
+            title,
+            description,
+            jpegThumbnail: thumbBuffer
+          };
+          console.log(`[YouTube Preview] Generated link preview for ${ytUrl}`);
+        }
+      } catch (err) {
+        console.error("[YouTube Preview] Failed to generate custom link preview:", err);
+      }
+    }
+
+    const result = await sock.sendMessage(jid, messagePayload, options);
     console.log(`[BaileysManager] Sent text message via Baileys to ${to}: ${text.substring(0, 50)}`);
     
     return {
@@ -851,9 +927,6 @@ export class BaileysManager {
       console.log(`[YouTube Link] Intercepted YouTube link in Baileys sendMediaMessage. Sending as text message: ${finalUrlCheck}`);
       return this.sendMessage(channelId, to, textMessage, replyToWaId);
     }
-
-    const mime = media.mimeType || "";
-    let messageContent: any = {};
 
     let finalUrl = media.url;
     let fileBuffer = media.buffer;
@@ -898,6 +971,28 @@ export class BaileysManager {
       }
     }
 
+    // General fallback downloader for external HTTP/HTTPS media URLs (like direct image URLs)
+    if (finalUrl && finalUrl.startsWith("http") && !fileBuffer) {
+      try {
+        console.log(`[BaileysManager] Fetching external media URL: ${finalUrl}`);
+        const response = await fetch(finalUrl);
+        if (response.ok) {
+          const contentType = response.headers.get("content-type");
+          const arrayBuffer = await response.arrayBuffer();
+          fileBuffer = Buffer.from(arrayBuffer);
+          if (contentType) {
+            media.mimeType = contentType;
+          }
+          finalUrl = undefined;
+          console.log(`[BaileysManager] Successfully fetched external media. Content-type: ${contentType}, length: ${fileBuffer.length}`);
+        } else {
+          console.warn(`[BaileysManager] External media fetch returned status: ${response.status}`);
+        }
+      } catch (fetchErr) {
+        console.error(`[BaileysManager] Failed to fetch external media URL: ${finalUrl}`, fetchErr);
+      }
+    }
+
     if (finalUrl && finalUrl.startsWith("/uploads/")) {
       const cleanPath = finalUrl.replace(/^\/+/, "");
       let absolutePath = path.join(process.cwd(), cleanPath);
@@ -937,6 +1032,9 @@ export class BaileysManager {
       console.log(`[BaileysManager] Resolved local media path: ${finalUrl}`);
     }
     
+    const mime = media.mimeType || "";
+    let messageContent: any = {};
+
     let mediaSource = fileBuffer || { url: finalUrl };
     let tempVoiceFile: string | null = null;
     if (fileBuffer && (media as any).ptt && mime.startsWith("audio")) {
@@ -1017,12 +1115,24 @@ export class BaileysManager {
     console.log(`[BaileysManager] Deleting session for channel ${channelId}`);
     const sock = this.activeSockets.get(channelId);
     if (sock) {
+      this.activeSockets.delete(channelId);
+      try {
+        sock.end(undefined);
+      } catch (endErr) {
+        console.warn(`[BaileysManager] Socket end warning for ${channelId}:`, endErr);
+      }
+      try {
+        if (sock.ws) {
+          sock.ws.close();
+        }
+      } catch (wsErr) {
+        // Ignore
+      }
       try {
         await sock.logout();
       } catch (err) {
         console.warn(`[BaileysManager] Logout warning for ${channelId}:`, err);
       }
-      this.activeSockets.delete(channelId);
     }
     this.qrStates.delete(channelId);
 
@@ -1036,13 +1146,18 @@ export class BaileysManager {
 
   static async initAllActiveSessions(): Promise<void> {
     try {
-      console.log(`[BaileysManager] Auto-initializing all QR channels...`);
+      console.log(`[BaileysManager] Auto-initializing active QR channels...`);
       const activeQrChannels = await db
         .select()
         .from(channels)
-        .where(eq(channels.connectionMethod, "qr_code"));
+        .where(
+          and(
+            eq(channels.connectionMethod, "qr_code"),
+            eq(channels.isActive, true)
+          )
+        );
 
-      console.log(`[BaileysManager] Found ${activeQrChannels.length} QR channels.`);
+      console.log(`[BaileysManager] Found ${activeQrChannels.length} active QR channels.`);
       for (const channel of activeQrChannels) {
         try {
           await this.createSession(channel.id, channel.name, channel.phoneNumber || undefined);

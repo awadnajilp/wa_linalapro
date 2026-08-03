@@ -343,11 +343,15 @@ export const createUser = async (req: Request, res: Response) => {
           isUsed: false,
         });
 
-        await sendOTPEmailVerify(email, otpCode, firstName || user.firstName);
+        try {
+          await sendOTPEmailVerify(email, otpCode, firstName || user.firstName);
+        } catch (emailErr) {
+          console.error("⚠️ [createUser] Verification email failed to resend:", emailErr);
+        }
 
         return res.status(200).json({
           success: true, // ✅ treat OTP resend as success
-          message: "Email already exists but not verified. OTP resent and account updated.",
+          message: "Email already exists but not verified. OTP generated and account updated.",
         });
       } else {
         return res.status(409).json({
@@ -404,11 +408,15 @@ export const createUser = async (req: Request, res: Response) => {
       isUsed: false,
     });
 
-    await sendOTPEmailVerify(email, otpCode, firstName);
+    try {
+      await sendOTPEmailVerify(email, otpCode, firstName);
+    } catch (emailErr) {
+      console.error("⚠️ [createUser] Verification email failed to send:", emailErr);
+    }
 
     return res.status(201).json({
       success: true,
-      message: "User created. Verification OTP sent to email.",
+      message: "User created. Verification OTP generated.",
     });
 
   } catch (error) {

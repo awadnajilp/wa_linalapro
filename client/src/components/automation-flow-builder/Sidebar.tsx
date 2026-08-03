@@ -38,7 +38,11 @@ import {
   Brain,
   Bot,
   Sparkles,
-  Calendar
+  Calendar,
+  Shuffle,
+  CreditCard,
+  ShieldCheck,
+  Zap
 } from "lucide-react";
 import { NodeKind } from "./types";
 import {
@@ -204,6 +208,15 @@ const nodeCategories = [
         tip: "Route the conversation to a specific team member or agent. Use after qualifying a lead or when human intervention is needed.",
       },
       {
+        kind: "route_crm_round_robin" as NodeKind,
+        name: "CRM Round Robin",
+        icon: Shuffle,
+        color: "text-indigo-600",
+        bg: "bg-indigo-50",
+        border: "border-indigo-200",
+        tip: "Route lead to CRM pipeline & assign to next online team member via round-robin distribution.",
+      },
+      {
         kind: "webhook" as NodeKind,
         name: "Webhook",
         icon: Globe,
@@ -270,6 +283,70 @@ const nodeCategories = [
         bg: "bg-rose-50",
         border: "border-rose-200",
         tip: "Remove the contact from the CRM contacts directory. Recommended for Unsubscribe, Stop, or Opt-out flows.",
+      },
+    ],
+  },
+  {
+    label: "Payments",
+    items: [
+      {
+        kind: "razorpay_generate" as NodeKind,
+        name: "RZP Generate",
+        icon: CreditCard,
+        color: "text-blue-600",
+        bg: "bg-blue-50/50",
+        border: "border-blue-200",
+        tip: "Generate a Razorpay payment link with custom amount, currency, and customer details, then save the payment URL and reference ID to variables.",
+      },
+      {
+        kind: "razorpay_verify" as NodeKind,
+        name: "RZP Verify",
+        icon: ShieldCheck,
+        color: "text-emerald-600",
+        bg: "bg-emerald-50/50",
+        border: "border-emerald-200",
+        tip: "Verify a Razorpay payment status using its reference ID or payment link ID, and branch the flow based on whether it is paid.",
+      },
+      {
+        kind: "instamojo_payment" as NodeKind,
+        name: "Instamojo Pay",
+        icon: CreditCard,
+        color: "text-purple-600",
+        bg: "bg-purple-50/50",
+        border: "border-purple-200",
+        tip: "Create an Instamojo payment link with customizable credentials, send it via WhatsApp, and branch execution down Paid and Unpaid handles.",
+      },
+      {
+        kind: "tap_payment" as NodeKind,
+        name: "Tap Payments",
+        icon: CreditCard,
+        color: "text-rose-600",
+        bg: "bg-rose-50/50",
+        border: "border-rose-200",
+        tip: "Create a Tap Payments checkout link (GCC/KSA) with customizable credentials, send it via WhatsApp, and branch execution down Paid and Unpaid handles.",
+      },
+      {
+        kind: "noon_payment" as NodeKind,
+        name: "Noon Pay",
+        icon: CreditCard,
+        color: "text-yellow-600",
+        bg: "bg-yellow-50/50",
+        border: "border-yellow-200",
+        tip: "Create a Noon Payments checkout link (GCC/KSA/Egypt) with customizable credentials, send it via WhatsApp, and branch execution down Paid and Unpaid handles.",
+      },
+    ],
+  },
+  {
+    label: "Integrations",
+    items: [
+      {
+        kind: "zapier" as NodeKind,
+        name: "Zapier",
+        icon: Zap,
+        color: "text-orange-600",
+        bg: "bg-orange-50/50",
+        border: "border-orange-200",
+        tip: "Trigger a Zapier automation by sending variables or custom payloads to a Zapier Webhook URL.",
       },
     ],
   },

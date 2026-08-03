@@ -20,8 +20,11 @@ import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
 import { storage } from "../storage";
 import { startCampaignExecution } from "../controllers/campaigns.controller";
 import { db } from "../db";
-import { campaigns as campaignsTable, messageQueue } from "@shared/schema";
-import { sql, eq } from "drizzle-orm";
+import { campaigns as campaignsTable, messageQueue, contactCampaigns, contacts } from "@shared/schema";
+import { sql, eq, and, lte } from "drizzle-orm";
+import { MessageQueueService } from "../services/message-queue";
+import { calculateNextSendAt } from "../controllers/contact-campaigns.controller";
+import { buildContactComponents } from "../controllers/campaigns.controller";
 
 // ⏰ Runs every minute
 export function startScheduledCampaignCron() {
@@ -149,8 +152,95 @@ export function startScheduledCampaignCron() {
       } catch (err) {
         console.error("[ScheduledCron] Error during orphan-sending safety net:", err);
       }
+
+      // ─── Contact campaigns processor ───
+      try {
+        await processDueContactCampaigns();
+      } catch (ccErr) {
+        console.error("[ScheduledCron] Error processing contact campaigns:", ccErr);
+      }
     } catch (error) {
       console.error("[ScheduledCron] Unhandled error in scheduled campaigns cron:", error);
     }
   });
+}
+
+async function processDueContactCampaigns() {
+  const now = new Date();
+  const dueCampaigns = await db
+    .select({
+      campaign: contactCampaigns,
+      contact: contacts,
+    })
+    .from(contactCampaigns)
+    .innerJoin(contacts, eq(contacts.id, contactCampaigns.contactId))
+    .where(
+      and(
+        eq(contactCampaigns.status, "active"),
+        lte(contactCampaigns.nextSendAt, now),
+        eq(contacts.status, "active")
+      )
+    );
+
+  if (dueCampaigns.length > 0) {
+    console.log(`[ContactCampaigns] Found ${dueCampaigns.length} contact campaign(s) to process`);
+  }
+
+  for (const { campaign, contact } of dueCampaigns) {
+    try {
+      console.log(`[ContactCampaigns] Processing campaign ${campaign.id} ("${campaign.name}") for contact ${contact.phone}`);
+
+      let template = null;
+      if (campaign.templateId) {
+        template = await storage.getTemplate(campaign.templateId);
+      }
+
+      const templateParams = template
+        ? buildContactComponents(contact, campaign, template, false)
+        : {
+            customMessage: campaign.customMessage,
+            mediaUrl: campaign.mediaUrl,
+            mediaType: campaign.mediaMimeType
+              ? campaign.mediaMimeType.includes("image")
+                ? "image"
+                : campaign.mediaMimeType.includes("video")
+                ? "video"
+                : campaign.mediaMimeType.includes("audio")
+                ? "audio"
+                : "document"
+              : undefined,
+            mediaName: campaign.mediaName,
+          };
+
+      // Queue the message using MessageQueueService
+      await MessageQueueService.queueSingleMessage(
+        campaign.channelId,
+        contact.phone,
+        {
+          templateName: campaign.templateName,
+          templateLanguage: campaign.templateLanguage,
+          templateParams,
+          customMessage: campaign.customMessage,
+          messageType: "utility",
+        }
+      );
+
+      // Calculate next send date
+      const nextSendAt = calculateNextSendAt(campaign.nextSendAt, campaign.frequency);
+
+      // Update the campaign record
+      await db
+        .update(contactCampaigns)
+        .set({
+          lastSentAt: now,
+          nextSendAt,
+          updatedAt: now,
+        })
+        .where(eq(contactCampaigns.id, campaign.id));
+
+      console.log(`[ContactCampaigns] Queued message and scheduled next send for ${nextSendAt.toISOString()}`);
+    } catch (err) {
+      console.error(`[ContactCampaigns] Error processing campaign ${campaign.id}:`, err);
+    }
+  }
 }

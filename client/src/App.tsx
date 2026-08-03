@@ -33,6 +33,7 @@ import Contacts from "@/pages/contacts";
 import Campaigns from "@/pages/campaigns";
 import Templates from "@/pages/templates";
 import Inbox from "@/pages/inbox";
+import CRM from "@/pages/crm/CRM";
 import Automations from "@/pages/automations";
 import Analytics from "@/pages/analytics";
 import CampaignAnalytics from "@/pages/campaign-analytics";
@@ -279,6 +280,12 @@ function ProtectedRoutes() {
               requiredPermission="inbox:view"
             />
           </Route>
+          <Route path="/crm">
+            <PermissionRoute
+              component={CRM}
+              requiredPermission="inbox:view"
+            />
+          </Route>
           <Route path="/plans">
             <PermissionRoute component={Plans} />
           </Route>
@@ -382,7 +389,7 @@ function ProtectedRoutes() {
             <PermissionRoute component={SupportTicketsNew} requiredRoles={["superadmin"]} />
           </Route>
           <Route path="/groups">
-            <PermissionRoute component={GroupsUI} />
+            <PermissionRoute component={GroupsUI} requiredPermission="groups:view" />
           </Route>
           <Route path="/api-docs">
             <PermissionRoute component={ApiDocs} requiredRoles={["admin"]} />

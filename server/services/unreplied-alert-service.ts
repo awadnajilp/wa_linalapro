@@ -6,7 +6,7 @@
  */
 
 import { db, dbRead } from "../db";
-import { conversations, channels, users } from "@shared/schema";
+import { conversations, channels, users, userNotificationPreferences } from "@shared/schema";
 import { eq, ne, and, isNull, or, gt, lte, sql } from "drizzle-orm";
 import { sendUnrepliedAlertEmail } from "./email.service";
 import { BaileysManager } from "./baileys-manager";
@@ -113,8 +113,22 @@ async function checkAndAlertUnrepliedMessages() {
       let emailSent = false;
       let whatsappSent = false;
 
+      // Fetch user's notification preferences for new_message
+      const [pref] = await dbRead
+        .select()
+        .from(userNotificationPreferences)
+        .where(
+          and(
+            eq(userNotificationPreferences.userId, userId),
+            eq(userNotificationPreferences.eventType, "new_message")
+          )
+        )
+        .limit(1);
+
+      const userEmailEnabled = pref ? pref.emailEnabled : true;
+
       // A. Send Email Notification
-      if (emailEnabled && user.email) {
+      if (emailEnabled && userEmailEnabled && user.email) {
         try {
           const res = await sendUnrepliedAlertEmail(
             user.email,

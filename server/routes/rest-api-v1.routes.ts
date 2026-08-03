@@ -922,4 +922,141 @@ export function registerRestApiV1Routes(app: Express) {
       return res.status(500).json({ success: false, error: "Failed to delete webhook" });
     }
   });
+
+  // ─── CONTACT-BASED RECURRING CAMPAIGNS ───
+  app.get("/api/v1/contacts/:contactId/recurring-campaigns", requireApiKey, requirePermission("campaigns.read"), async (req: Request, res: Response) => {
+    try {
+      const { channelId } = req.apiUser!;
+      const { contactId } = req.params;
+
+      const [contact] = await db
+        .select()
+        .from(schema.contacts)
+        .where(and(eq(schema.contacts.id, contactId), eq(schema.contacts.channelId, channelId)))
+        .limit(1);
+
+      if (!contact) {
+        return res.status(404).json({ success: false, error: "Contact not found" });
+      }
+
+      const campaigns = await db
+        .select()
+        .from(schema.contactCampaigns)
+        .where(eq(schema.contactCampaigns.contactId, contactId))
+        .orderBy(desc(schema.contactCampaigns.createdAt));
+
+      return res.json({ success: true, data: campaigns });
+    } catch (error: any) {
+      console.error("REST API - Get contact campaigns error:", error);
+      return res.status(500).json({ success: false, error: "Failed to fetch contact campaigns" });
+    }
+  });
+
+  app.post("/api/v1/contacts/:contactId/recurring-campaigns", requireApiKey, requirePermission("campaigns.write"), async (req: Request, res: Response) => {
+    try {
+      const { channelId } = req.apiUser!;
+      const { contactId } = req.params;
+
+      const [contact] = await db
+        .select()
+        .from(schema.contacts)
+        .where(and(eq(schema.contacts.id, contactId), eq(schema.contacts.channelId, channelId)))
+        .limit(1);
+
+      if (!contact) {
+        return res.status(404).json({ success: false, error: "Contact not found" });
+      }
+
+      const data = {
+        ...req.body,
+        contactId,
+        channelId,
+      };
+
+      const parsed = schema.insertContactCampaignSchema.safeParse(data);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: parsed.error.message });
+      }
+
+      const scheduledDate = new Date((parsed.data as any).scheduledDate);
+      const nextSendAt = new Date(scheduledDate);
+
+      const [campaign] = await db
+        .insert(schema.contactCampaigns)
+        .values({
+          ...(parsed.data as any),
+          scheduledDate,
+          nextSendAt,
+        })
+        .returning();
+
+      return res.status(201).json({ success: true, data: campaign });
+    } catch (error: any) {
+      console.error("REST API - Create contact campaign error:", error);
+      return res.status(500).json({ success: false, error: "Failed to create contact campaign" });
+    }
+  });
+
+  app.put("/api/v1/contacts/recurring-campaigns/:id", requireApiKey, requirePermission("campaigns.write"), async (req: Request, res: Response) => {
+    try {
+      const { channelId } = req.apiUser!;
+      const { id } = req.params;
+
+      const [existing] = await db
+        .select()
+        .from(schema.contactCampaigns)
+        .where(and(eq(schema.contactCampaigns.id, id), eq(schema.contactCampaigns.channelId, channelId)))
+        .limit(1);
+
+      if (!existing) {
+        return res.status(404).json({ success: false, error: "Recurring campaign not found" });
+      }
+
+      const updates = { ...req.body };
+
+      if (updates.scheduledDate || updates.frequency) {
+        const freq = updates.frequency || existing.frequency;
+        const sched = updates.scheduledDate ? new Date(updates.scheduledDate) : new Date(existing.scheduledDate);
+        updates.scheduledDate = sched;
+        updates.nextSendAt = new Date(sched);
+      }
+
+      const [updated] = await db
+        .update(schema.contactCampaigns)
+        .set(updates)
+        .where(eq(schema.contactCampaigns.id, id))
+        .returning();
+
+      return res.json({ success: true, data: updated });
+    } catch (error: any) {
+      console.error("REST API - Update contact campaign error:", error);
+      return res.status(500).json({ success: false, error: "Failed to update contact campaign" });
+    }
+  });
+
+  app.delete("/api/v1/contacts/recurring-campaigns/:id", requireApiKey, requirePermission("campaigns.write"), async (req: Request, res: Response) => {
+    try {
+      const { channelId } = req.apiUser!;
+      const { id } = req.params;
+
+      const [existing] = await db
+        .select()
+        .from(schema.contactCampaigns)
+        .where(and(eq(schema.contactCampaigns.id, id), eq(schema.contactCampaigns.channelId, channelId)))
+        .limit(1);
+
+      if (!existing) {
+        return res.status(404).json({ success: false, error: "Recurring campaign not found" });
+      }
+
+      await db
+        .delete(schema.contactCampaigns)
+        .where(eq(schema.contactCampaigns.id, id));
+
+      return res.json({ success: true, data: { message: "Recurring campaign deleted successfully" } });
+    } catch (error: any) {
+      console.error("REST API - Delete contact campaign error:", error);
+      return res.status(500).json({ success: false, error: "Failed to delete contact campaign" });
+    }
+  });
 }

@@ -24,11 +24,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Brain } from "lucide-react";
+import { Brain, UserCheck } from "lucide-react";
 import { Loading } from "@/components/ui/loading";
 import { apiRequest } from "@/lib/queryClient";
 import AITrainingPanel from "@/pages/widget-builder/AITrainingPanel";
 import { useChannelContext } from "@/contexts/channel-context";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import AIAssistantProfileSettings from "./AIAssistantProfileSettings";
 
 const defaultConfig = {
   aiTone: "professional",
@@ -94,25 +96,44 @@ export default function AISettings(): JSX.Element {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center text-base sm:text-lg">
-            <Brain className="w-5 h-5 mr-2 text-indigo-600" />
-            AI Training & Knowledge Base
-          </CardTitle>
-          <CardDescription>
-            Train your AI assistant with custom data, Q&A pairs, and configure behavior. This training data is shared across the chat widget and team inbox.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AITrainingPanel
-            config={trainingConfig as any}
-            updateConfig={handleTrainingConfigUpdate}
-            siteId={activeSite?.id}
-            channelId={channelId}
-          />
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="assistant_profile" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+          <TabsTrigger value="assistant_profile" className="flex items-center gap-2">
+            <UserCheck className="w-4 h-4" />
+            <span>AI Assistant Profile</span>
+          </TabsTrigger>
+          <TabsTrigger value="kb_training" className="flex items-center gap-2">
+            <Brain className="w-4 h-4" />
+            <span>Knowledge Base</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="assistant_profile" className="space-y-6 animate-in fade-in duration-200">
+          <AIAssistantProfileSettings />
+        </TabsContent>
+
+        <TabsContent value="kb_training" className="space-y-6 animate-in fade-in duration-200">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center text-base sm:text-lg">
+                <Brain className="w-5 h-5 mr-2 text-indigo-600" />
+                AI Training & Knowledge Base
+              </CardTitle>
+              <CardDescription>
+                Train your AI assistant with custom data, Q&A pairs, and configure behavior. This training data is shared across the chat widget and team inbox.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AITrainingPanel
+                config={trainingConfig as any}
+                updateConfig={handleTrainingConfigUpdate}
+                siteId={activeSite?.id}
+                channelId={channelId}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

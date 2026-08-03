@@ -68,9 +68,12 @@ import {
   type InsertWarmerConfig,
   type WarmerMessage,
   type InsertWarmerMessage,
+  type ContactCampaign,
+  type InsertContactCampaign,
+  contactCampaigns,
 } from "@shared/schema";
 import { db } from "./db";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, and, lte } from "drizzle-orm";
 
 export class DatabaseStorage implements IStorage {
   private userRepo = new UserRepository();
@@ -911,5 +914,38 @@ const totalChannels = await this.channelRepo.getAll()
   async updateWarmerMessage(id: string, text: string): Promise<WarmerMessage | undefined> {
     const [updated] = await db.update(warmerMessages).set({ messageText: text, updatedAt: new Date() }).where(eq(warmerMessages.id, id)).returning();
     return updated || undefined;
+  }
+
+  // Contact Campaigns
+  async getContactCampaignsByContact(contactId: string): Promise<ContactCampaign[]> {
+    return await db.select().from(contactCampaigns).where(eq(contactCampaigns.contactId, contactId)).orderBy(desc(contactCampaigns.createdAt));
+  }
+
+  async getContactCampaignsByChannel(channelId: string): Promise<ContactCampaign[]> {
+    return await db.select().from(contactCampaigns).where(eq(contactCampaigns.channelId, channelId)).orderBy(desc(contactCampaigns.createdAt));
+  }
+
+  async getContactCampaign(id: string): Promise<ContactCampaign | undefined> {
+    const [campaign] = await db.select().from(contactCampaigns).where(eq(contactCampaigns.id, id));
+    return campaign || undefined;
+  }
+
+  async createContactCampaign(campaign: InsertContactCampaign): Promise<ContactCampaign> {
+    const [created] = await db.insert(contactCampaigns).values(campaign).returning();
+    return created;
+  }
+
+  async updateContactCampaign(id: string, updates: Partial<ContactCampaign>): Promise<ContactCampaign | undefined> {
+    const [updated] = await db.update(contactCampaigns).set({ ...updates, updatedAt: new Date() }).where(eq(contactCampaigns.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async deleteContactCampaign(id: string): Promise<boolean> {
+    const result = await db.delete(contactCampaigns).where(eq(contactCampaigns.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getDueContactCampaigns(now: Date): Promise<ContactCampaign[]> {
+    return await db.select().from(contactCampaigns).where(and(eq(contactCampaigns.status, "active"), lte(contactCampaigns.nextSendAt, now)));
   }
 }

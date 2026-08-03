@@ -33,7 +33,7 @@ function resolveLogoUrl(smtpLogo?: string | null, panelLogo?: string | null): st
   return `${baseUrl}${path}`;
 }
 
-async function getTransporter() {
+export async function getTransporter() {
   if (transporter) return transporter;
 
   const config = await getSMTPConfig();
@@ -62,11 +62,11 @@ async function getTransporter() {
   return transporter;
 }
 
-async function getConfig() {
+export async function getConfig() {
   return getSMTPConfig();
 }
 
-async function getPanelConfig() {
+export async function getPanelConfig() {
   const configs = await getPanelConfigs();
   return Array.isArray(configs) ? configs[0] : configs;
 }
@@ -495,5 +495,52 @@ export async function verifyEmailConfiguration(): Promise<boolean> {
   } catch (error) {
     console.error("[Email] SMTP configuration error:", error);
     return false;
+  }
+}
+
+export async function sendLeadAssignmentEmail(
+  toEmail: string,
+  memberName: string,
+  leadName: string,
+  dealTitle: string,
+  dealValue?: string
+) {
+  const config = await getConfig();
+  const configs = await getPanelConfig();
+  const mailer = await getTransporter();
+
+  const companyName = configs?.name || "LINALA";
+  const fromName = config?.fromName || companyName;
+  const fromEmail = config?.fromEmail || "noreply@linalapro.com";
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+      <h2 style="color: #10b981; margin-bottom: 20px;">New Lead Assigned</h2>
+      <p>Hello <strong>${memberName}</strong>,</p>
+      <p>A new lead/deal has been assigned to you in the CRM:</p>
+      <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #10b981;">
+        <p style="margin: 4px 0;"><strong>Lead Name:</strong> ${leadName}</p>
+        <p style="margin: 4px 0;"><strong>Deal Title:</strong> ${dealTitle}</p>
+        ${dealValue ? `<p style="margin: 4px 0;"><strong>Value:</strong> ${dealValue} USD</p>` : ""}
+      </div>
+      <p style="margin-top: 30px; font-size: 13px; color: #4b5563;">Please log in to your dashboard to view the lead and start follow-ups.</p>
+      <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+      <p style="color: #9ca3af; font-size: 12px; text-align: center;">This is an automated notification from ${companyName}.</p>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: `"${fromName}" <${fromEmail}>`,
+    to: toEmail,
+    subject: `[CRM] New Lead Assigned: ${leadName}`,
+    html,
+  };
+
+  try {
+    const info = await mailer.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error("[Email] Failed to send lead assignment email:", error);
+    return { success: false, error };
   }
 }

@@ -718,7 +718,7 @@ export const campaignsController = {
 
 const cleanMediaId = (id: any) => (id ? String(id).trim() : id);
 
-function resolveVariableValue(mapObj: any, contact: Contact): string {
+export function resolveVariableValue(mapObj: any, contact: Contact): string {
   if (!mapObj) return "";
   const typeKey = mapObj.type;
   const valKey = mapObj.value;
@@ -747,7 +747,7 @@ function resolveVariableValue(mapObj: any, contact: Contact): string {
   return "";
 }
 
-function buildContactComponents(contact: Contact, campaign: any, template: any, hasLimitedTimeOffer: boolean): any[] {
+export function buildContactComponents(contact: Contact, campaign: any, template: any, hasLimitedTimeOffer: boolean): any[] {
   const components: any[] = [];
 
   const carouselCards = Array.isArray(template.carouselCards) && template.carouselCards.length > 0

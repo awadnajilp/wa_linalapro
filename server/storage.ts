@@ -47,6 +47,8 @@ import {
   type InsertWarmerConfig,
   type WarmerMessage,
   type InsertWarmerMessage,
+  type ContactCampaign,
+  type InsertContactCampaign,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -184,6 +186,15 @@ getConversationsByChannel(channelId: string): Promise<Conversation[]>;
 deleteConversation(id: string): Promise<boolean>;
   getAutomationByChannel(channelId: string): Promise<Automation[]>;
   getAnalyticsByChannel(channelId: string, days?: number): Promise<Analytics[]>;
+
+  // Contact Campaigns
+  getContactCampaignsByContact(contactId: string): Promise<ContactCampaign[]>;
+  getContactCampaignsByChannel(channelId: string): Promise<ContactCampaign[]>;
+  getContactCampaign(id: string): Promise<ContactCampaign | undefined>;
+  createContactCampaign(campaign: InsertContactCampaign): Promise<ContactCampaign>;
+  updateContactCampaign(id: string, campaign: Partial<ContactCampaign>): Promise<ContactCampaign | undefined>;
+  deleteContactCampaign(id: string): Promise<boolean>;
+  getDueContactCampaigns(now: Date): Promise<ContactCampaign[]>;
 
   // Warmer Configurations & Messages
   getWarmerConfig(channelId: string): Promise<WarmerConfig | undefined>;

@@ -27,7 +27,7 @@ import OpenAI from 'openai';
 import { requireAuth } from 'server/middlewares/auth.middleware';
 import { aiSettings, insertSiteSchema, panelConfig, sites, trainingQaPairs, knowledgeCategories, knowledgeArticles, channels } from '@shared/schema';
 import { requireSubscription } from 'server/middlewares/requireSubscription';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 import { db } from 'server/db';
 import { searchTrainingData } from '../services/training.service';
 import multer from 'multer';
@@ -925,15 +925,24 @@ ${triggerPhrases.length > 0 ? `- If the user mentions any of these phrases, esca
     }
   });
 
-  app.get("/api/sites", async (req, res) => {
+  app.get("/api/sites", requireAuth, async (req, res) => {
     try {
-      // Use authenticated user's tenantId
-      // const tenantId = req.user?.id;
-      // if (!tenantId) {
-      //   return res.status(400).json({ message: "No associated with user" });
-      // }
-      const sites = await storage.getSites();
-      res.json(sites);
+      const channelId = req.query.channelId as string;
+      const creatorId = (req.user as any)?.id;
+      
+      let sitesList;
+      if (channelId) {
+        sitesList = await db.select().from(sites).where(eq(sites.channelId, channelId));
+      } else {
+        const userChannels = await db.select().from(channels).where(eq(channels.createdBy, creatorId || ""));
+        const channelIds = userChannels.map(c => c.id);
+        if (channelIds.length > 0) {
+          sitesList = await db.select().from(sites).where(sql`${sites.channelId} IN (${sql.join(channelIds.map(id => sql`${id}`), sql`, `)})`);
+        } else {
+          sitesList = [];
+        }
+      }
+      res.json(sitesList);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

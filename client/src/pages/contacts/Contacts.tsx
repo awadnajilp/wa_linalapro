@@ -51,6 +51,8 @@ import { ContactsToolbar } from "./ContactsToolbar";
 import { ContactsTable } from "./ContactsTable";
 import { ContactDialogs } from "./ContactDialogs";
 import { TemplateMessageDialog } from "./TemplateMessageDialog";
+import { ContactCampaignsDialog } from "./ContactCampaignsDialog";
+import { RecurringCampaignsTab } from "./RecurringCampaignsTab";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -97,6 +99,8 @@ export default function Contacts() {
   const [assignGroupContactIds, setAssignGroupContactIds] = useState<string[]>([]);
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [showSchedulerDialog, setShowSchedulerDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState<"contacts" | "schedules">("contacts");
 
   const [contactToDelete, setContactToDelete] = useState<string | null>(null);
   const [groupName, setGroupName] = useState("");
@@ -993,65 +997,101 @@ export default function Contacts() {
       )}
 
       <main className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
-        <ContactsToolbar
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          selectedGroup={selectedGroup}
-          setSelectedGroup={setSelectedGroup}
-          selectedStatus={selectedStatus}
-          setSelectedStatus={setSelectedStatus}
-          groupsData={groupsData}
-          handleExportAllContacts={handleExportAllContacts}
-          handleCSVUpload={handleCSVUpload}
-          handleExcelUpload={handleExcelUpload}
-          handleExcelDownload={handleExcelDownload}
-          handleExportSelectedContacts={handleExportSelectedContacts}
-          handleOpenAssignGroup={handleOpenAssignGroup}
-          setShowBulkDeleteDialog={setShowBulkDeleteDialog}
-          selectedContactIds={selectedContactIds}
-          user={user}
-          setLocation={setLocation}
-          isImporting={importState.active}
-          selectedTag={selectedTag}
-          setSelectedTag={setSelectedTag}
-          channelTags={channelTags}
-        />
+        {/* Tabs Bar */}
+        <div className="flex border-b border-gray-200">
+          <button
+            type="button"
+            className={`pb-2.5 px-4 text-sm font-semibold border-b-2 transition-all ${
+              activeTab === "contacts"
+                ? "border-blue-600 text-blue-600 font-bold"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+            onClick={() => setActiveTab("contacts")}
+          >
+            Contacts Directory
+          </button>
+          <button
+            type="button"
+            className={`pb-2.5 px-4 text-sm font-semibold border-b-2 transition-all ${
+              activeTab === "schedules"
+                ? "border-blue-600 text-blue-600 font-bold"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+            onClick={() => setActiveTab("schedules")}
+          >
+            Recurring Campaigns
+          </button>
+        </div>
 
-        <ContactsTable
-          contacts={contacts}
-          selectedContactIds={selectedContactIds}
-          allSelected={allSelected}
-          toggleSelectAll={toggleSelectAll}
-          toggleSelectOne={toggleSelectOne}
-          searchQuery={searchQuery}
-          selectedGroup={selectedGroup}
-          selectedStatus={selectedStatus}
-          clearAllFilters={clearAllFilters}
-          setShowAddDialog={setShowAddDialog}
-          setSelectedContact={setSelectedContact}
-          setShowMessageDialog={setShowMessageDialog}
-          setShowEditDialog={setShowEditDialog}
-          handleDeleteContact={handleDeleteContact}
-          handleToggleContactStatus={handleToggleContactStatus}
-          handleOpenAssignGroup={handleOpenAssignGroup}
-          fetchTemplates={() => {}}
-          activeChannel={activeChannel}
-          channels={channels}
-          user={user}
-          deleteContactMutation={deleteContactMutation}
-          tagsColorMap={tagsColorMap}
-          toast={toast}
-          page={page}
-          totalPages={totalPages}
-          total={total}
-          limit={limit}
-          setLimit={setLimit}
-          setCurrentPage={setCurrentPage}
-          goToPreviousPage={goToPreviousPage}
-          goToNextPage={goToNextPage}
-          getPageNumbers={getPageNumbers}
-          goToPage={goToPage}
-        />
+        {activeTab === "contacts" ? (
+          <>
+            <ContactsToolbar
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              selectedGroup={selectedGroup}
+              setSelectedGroup={setSelectedGroup}
+              selectedStatus={selectedStatus}
+              setSelectedStatus={setSelectedStatus}
+              groupsData={groupsData}
+              handleExportAllContacts={handleExportAllContacts}
+              handleCSVUpload={handleCSVUpload}
+              handleExcelUpload={handleExcelUpload}
+              handleExcelDownload={handleExcelDownload}
+              handleExportSelectedContacts={handleExportSelectedContacts}
+              handleOpenAssignGroup={handleOpenAssignGroup}
+              setShowBulkDeleteDialog={setShowBulkDeleteDialog}
+              selectedContactIds={selectedContactIds}
+              user={user}
+              setLocation={setLocation}
+              isImporting={importState.active}
+              selectedTag={selectedTag}
+              setSelectedTag={setSelectedTag}
+              channelTags={channelTags}
+            />
+
+            <ContactsTable
+              contacts={contacts}
+              selectedContactIds={selectedContactIds}
+              allSelected={allSelected}
+              toggleSelectAll={toggleSelectAll}
+              toggleSelectOne={toggleSelectOne}
+              searchQuery={searchQuery}
+              selectedGroup={selectedGroup}
+              selectedStatus={selectedStatus}
+              clearAllFilters={clearAllFilters}
+              setShowAddDialog={setShowAddDialog}
+              setSelectedContact={setSelectedContact}
+              setShowMessageDialog={setShowMessageDialog}
+              setShowEditDialog={setShowEditDialog}
+              setShowSchedulerDialog={setShowSchedulerDialog}
+              handleDeleteContact={handleDeleteContact}
+              handleToggleContactStatus={handleToggleContactStatus}
+              handleOpenAssignGroup={handleOpenAssignGroup}
+              fetchTemplates={() => {}}
+              activeChannel={activeChannel}
+              channels={channels}
+              user={user}
+              deleteContactMutation={deleteContactMutation}
+              tagsColorMap={tagsColorMap}
+              toast={toast}
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              limit={limit}
+              setLimit={setLimit}
+              setCurrentPage={setCurrentPage}
+              goToPreviousPage={goToPreviousPage}
+              goToNextPage={goToNextPage}
+              getPageNumbers={getPageNumbers}
+              goToPage={goToPage}
+            />
+          </>
+        ) : (
+          <RecurringCampaignsTab
+            activeChannel={activeChannel}
+            user={user}
+          />
+        )}
       </main>
 
       <ContactDialogs
@@ -1102,6 +1142,13 @@ export default function Contacts() {
         user={user}
         headerType={headerType}
         setHeaderType={setHeaderType}
+      />
+
+      <ContactCampaignsDialog
+        open={showSchedulerDialog}
+        onOpenChange={setShowSchedulerDialog}
+        contact={selectedContact}
+        activeChannel={activeChannel}
       />
 
       <AlertDialog

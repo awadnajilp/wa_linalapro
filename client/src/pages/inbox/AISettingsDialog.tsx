@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Sparkles, Brain, Volume2, Globe, ListFilter, Thermometer } from "lucide-react";
+import { Sparkles, Brain, Volume2, Globe, ListFilter, Thermometer, Mic } from "lucide-react";
 
 interface AISettings {
   llmProvider?: string;
@@ -39,6 +39,8 @@ interface AISettings {
   sendWelcome?: boolean;
   welcomeMessage?: string;
   contactSpecificTraining?: boolean;
+  sttEnabled?: boolean;
+  sttLanguage?: string;
 }
 
 interface AISettingsDialogProps {
@@ -87,6 +89,8 @@ export function AISettingsDialog({
   const [voiceEnabled, setVoiceEnabled] = React.useState(false);
   const [voiceProfileId, setVoiceProfileId] = React.useState("");
   const [voiceLanguage, setVoiceLanguage] = React.useState("en-US");
+  const [sttEnabled, setSttEnabled] = React.useState(false);
+  const [sttLanguage, setSttLanguage] = React.useState("en-IN");
   const [localStyle, setLocalStyle] = React.useState("code_mixed");
   const [responseLength, setResponseLength] = React.useState("detailed");
   const [contactSpecificTraining, setContactSpecificTraining] = React.useState(false);
@@ -162,6 +166,8 @@ export function AISettingsDialog({
       setVoiceEnabled(initialSettings.voiceEnabled || false);
       setVoiceProfileId(initialSettings.voiceProfileId || "");
       setVoiceLanguage(initialSettings.voiceLanguage || "en-US");
+      setSttEnabled(initialSettings.sttEnabled || false);
+      setSttLanguage(initialSettings.sttLanguage || "en-IN");
       setLocalStyle(initialSettings.localStyle || "code_mixed");
       setResponseLength(initialSettings.responseLength || "detailed");
       setContactSpecificTraining(initialSettings.contactSpecificTraining || false);
@@ -199,6 +205,8 @@ export function AISettingsDialog({
           voiceEnabled,
           voiceProfileId,
           voiceLanguage,
+          sttEnabled,
+          sttLanguage,
           localStyle,
           responseLength,
           contactSpecificTraining,
@@ -484,6 +492,46 @@ export function AISettingsDialog({
                         <SelectItem value="gu-IN">Gujarati (India)</SelectItem>
                         <SelectItem value="pa-IN">Punjabi (India)</SelectItem>
                         <SelectItem value="or-IN">Odia (India)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Voice Note Transcription (STT) setup */}
+            <div className="border-t border-gray-50 pt-4 mt-2 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                    <Mic className="w-4 h-4 text-indigo-600" />
+                    Voice Note Transcription (STT)
+                  </Label>
+                  <p className="text-xs text-gray-400">
+                    Transcribe incoming WhatsApp voice notes into text (disabled by default).
+                  </p>
+                </div>
+                <Switch checked={sttEnabled} onCheckedChange={setSttEnabled} />
+              </div>
+
+              {sttEnabled && (
+                <div className="grid grid-cols-1 gap-4 bg-gray-50/30 border border-gray-100 rounded-xl p-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider flex items-center gap-1">
+                      <Globe className="w-3.5 h-3.5" /> Transcription Language
+                    </Label>
+                    <Select value={sttLanguage} onValueChange={setSttLanguage}>
+                      <SelectTrigger className="bg-white border-gray-200">
+                        <SelectValue placeholder="Select language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="en-IN">English (India / US)</SelectItem>
+                        <SelectItem value="ml-IN">Malayalam (India)</SelectItem>
+                        <SelectItem value="hi-IN">Hindi (India)</SelectItem>
+                        <SelectItem value="ar-SA">Arabic (Saudi Arabia)</SelectItem>
+                        <SelectItem value="ta-IN">Tamil (India)</SelectItem>
+                        <SelectItem value="te-IN">Telugu (India)</SelectItem>
+                        <SelectItem value="kn-IN">Kannada (India)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

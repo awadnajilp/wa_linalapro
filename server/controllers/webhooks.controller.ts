@@ -32,6 +32,8 @@ import {
   paymentProviders,
   sites,
   conversations,
+  automationExecutions,
+  automations,
 } from "@shared/schema";
 import { AppError, asyncHandler } from "../middlewares/error.middleware";
 import crypto from "crypto";
@@ -905,15 +907,32 @@ if (io) {
     // AI auto reply — only fires when no automation handled this message, text only
     if (!automationHandled && type === "text" && messageContent) {
       try {
-        const shouldSendAiReply = await checkAndSendAiReply(
-          messageContent,
-          conversation,
-          contact,
-          waApi
-        );
+        const { AiAssistantProfileService } = await import("../services/ai-assistant-profile.service");
+        let handled = false;
+        try {
+          handled = await AiAssistantProfileService.processIncomingMessage(
+            channel.id,
+            contact.id,
+            conversation.id,
+            messageContent
+          );
+        } catch (aiProfileErr) {
+          console.error("❌ [Webhook] Error running AI Assistant Profile:", aiProfileErr);
+        }
 
-        if (shouldSendAiReply) {
-          console.log(`AI auto reply complete for conversation ${conversation.id}`);
+        if (handled) {
+          console.log(`🤖 [Webhook] AI Assistant Profile handled reply/action for Cloud API conversation: ${conversation.id}`);
+        } else {
+          const shouldSendAiReply = await checkAndSendAiReply(
+            messageContent,
+            conversation,
+            contact,
+            waApi
+          );
+
+          if (shouldSendAiReply) {
+            console.log(`AI auto reply complete for conversation ${conversation.id}`);
+          }
         }
       } catch (err) {
         console.error("AI Error:", err);
@@ -1743,15 +1762,63 @@ export const razorpayWebhook = async (req: Request, res: Response) => {
       .update(rawBody)
       .digest('hex');
 
-    if (signature !== expectedSignature) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid webhook signature'
-      });
-    }
-
+    let isSignatureValid = (signature === expectedSignature);
     const event = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString()) : req.body;
     const eventType = event.event;
+
+    if (!isSignatureValid) {
+      console.log('⚠️ Razorpay webhook signature invalid, running tenant-specific callback validation fallback...');
+      
+      // Fallback for tenant-specific accounts
+      if (eventType === 'payment_link.paid' && event.payload?.payment_link?.entity?.id) {
+        const paymentLinkId = event.payload.payment_link.entity.id;
+        const pausedExecutions = await db
+          .select()
+          .from(automationExecutions)
+          .where(eq(automationExecutions.status, 'paused'));
+
+        const matched = pausedExecutions.find((exec: any) => {
+          const vars = exec.variables || {};
+          return Object.values(vars).includes(paymentLinkId);
+        });
+
+        if (matched) {
+          // Found matching paused execution! Now let's find the active node in the automation schema
+          const automationData = await db.select().from(automations).where(eq(automations.id, matched.automationId)).limit(1);
+          if (automationData.length > 0 && automationData[0].automation_nodes) {
+            const nodes = automationData[0].automation_nodes as any[];
+            // Find a razorpay_generate node that produced this URL variable
+            const rzpNode = nodes.find(n => n.type === 'razorpay_generate');
+            const keyId = rzpNode?.data?.razorpayKeyId;
+            const keySecret = rzpNode?.data?.razorpayKeySecret;
+
+            if (keyId && keySecret) {
+              console.log(`🔍 Webhook Fallback: Double-verifying payment link ${paymentLinkId} directly via Tenant Razorpay API...`);
+              const Razorpay = (await import('razorpay')).default;
+              const tenantRzp = new Razorpay({ key_id: keyId, key_secret: keySecret });
+              try {
+                const fetchedLink: any = await tenantRzp.paymentLink.fetch(paymentLinkId);
+                if (fetchedLink && fetchedLink.status === 'paid') {
+                  console.log(`✅ Webhook Fallback: Tenant Razorpay API confirmed payment link is PAID. Proceeding.`);
+                  isSignatureValid = true; // Mark as valid to allow execution
+                } else {
+                  console.log(`❌ Webhook Fallback: Tenant Razorpay API returned status: ${fetchedLink?.status || 'unknown'}`);
+                }
+              } catch (fetchErr) {
+                console.error(`❌ Webhook Fallback: Failed to fetch payment link status:`, fetchErr);
+              }
+            }
+          }
+        }
+      }
+
+      if (!isSignatureValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid webhook signature'
+        });
+      }
+    }
 
     console.log('Razorpay Webhook Event:', eventType);
 
@@ -1761,6 +1828,9 @@ export const razorpayWebhook = async (req: Request, res: Response) => {
         break;
       case 'payment.captured':
         await handleRazorpayPaymentCaptured(event);
+        break;
+      case 'payment_link.paid':
+        await handleRazorpayPaymentLinkPaid(event);
         break;
       case 'payment.failed':
         await handleRazorpayPaymentFailed(event);
@@ -1793,6 +1863,367 @@ export const razorpayWebhook = async (req: Request, res: Response) => {
     res.status(200).json({ success: true, message: 'Webhook received' });
   } catch (error) {
     console.error('Razorpay webhook error:', error);
+    res.status(500).json({ success: false, message: 'Webhook processing failed', error });
+  }
+};
+
+// Instamojo Webhook Handler
+export const instamojoWebhook = async (req: Request, res: Response) => {
+  try {
+    const { payment_request_id, status, payment_id } = req.body;
+    console.log(`💳 Instamojo Webhook: Received callback for payment request ${payment_request_id}, status: ${status}`);
+
+    if (!payment_request_id) {
+      return res.status(400).json({ success: false, message: 'Missing payment_request_id' });
+    }
+
+    // Find paused execution matching this reference ID
+    const pausedExecutions = await db
+      .select()
+      .from(automationExecutions)
+      .where(eq(automationExecutions.status, 'paused'));
+
+    const matched = pausedExecutions.find((exec: any) => {
+      const vars = exec.variables || {};
+      return Object.values(vars).includes(payment_request_id);
+    });
+
+    if (!matched) {
+      console.log(`⚠️ Instamojo Webhook: No matching paused execution found for payment request ${payment_request_id}`);
+      return res.status(200).json({ success: true, message: 'No execution matched' });
+    }
+
+    console.log(`▶️ Instamojo Webhook: Found matching execution ${matched.id}. Triggering verification...`);
+
+    // Fetch automation to find the node config
+    const automation = await db.query.automations.findFirst({
+      where: eq(automations.id, matched.automationId),
+    });
+
+    if (!automation || !automation.nodes) {
+      return res.status(500).json({ success: false, message: 'Automation not found' });
+    }
+
+    const flowData = typeof automation.nodes === 'string' ? JSON.parse(automation.nodes) : automation.nodes;
+    const nodes = flowData.nodes || [];
+    const currentNode = nodes.find((n: any) => n.id === matched.currentNodeId);
+
+    if (!currentNode || currentNode.type !== 'instamojo_payment') {
+      console.log(`⚠️ Instamojo Webhook: Current node is not instamojo_payment`);
+      return res.status(200).json({ success: true });
+    }
+
+    const apiKey = currentNode.data?.instamojoApiKey || process.env.INSTAMOJO_API_KEY;
+    const authToken = currentNode.data?.instamojoAuthToken || process.env.INSTAMOJO_AUTH_TOKEN;
+    const sandbox = currentNode.data?.instamojoSandbox !== undefined ? currentNode.data.instamojoSandbox : (process.env.INSTAMOJO_SANDBOX === 'true');
+
+    if (!apiKey || !authToken) {
+      console.error(`❌ Instamojo Webhook: Missing credentials for matched execution`);
+      return res.status(500).json({ success: false, message: 'Missing credentials' });
+    }
+
+    // Call API live to confirm payment status (security double-check)
+    const baseUrl = sandbox ? 'https://test.instamojo.com/api/1.1' : 'https://www.instamojo.com/api/1.1';
+    const response = await axios.get(`${baseUrl}/payment-requests/${payment_request_id}/`, {
+      headers: {
+        'X-Api-Key': apiKey,
+        'X-Auth-Token': authToken
+      }
+    });
+
+    let isPaid = false;
+    let finalStatus = 'unknown';
+    let confirmedPaymentId = payment_id || '';
+
+    if (response.data && response.data.success && response.data.payment_request) {
+      const pr = response.data.payment_request;
+      finalStatus = pr.status;
+      isPaid = (finalStatus === 'Completed');
+      if (pr.payments && pr.payments.length > 0) {
+        const lastPayment = pr.payments[pr.payments.length - 1];
+        confirmedPaymentId = lastPayment.payment_id || confirmedPaymentId;
+      }
+    }
+
+    if (isPaid) {
+      console.log(`✅ Instamojo Webhook: Payment verified! Waking up execution ${matched.id}`);
+      const vars = matched.variables || {};
+      vars[currentNode.data?.instamojoVarStatus || 'payment_status'] = 'paid';
+      if (confirmedPaymentId) {
+        vars[currentNode.data?.instamojoVarPaymentId || 'payment_id'] = confirmedPaymentId;
+      }
+
+      await db.update(automationExecutions)
+        .set({ variables: vars })
+        .where(eq(automationExecutions.id, matched.id));
+
+      const executionService = triggerService.getExecutionService();
+      await executionService.handleUserResponse(matched.conversationId, "PAID");
+    } else {
+      console.log(`❌ Instamojo Webhook: Payment status was not completed: ${finalStatus}`);
+    }
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Instamojo webhook error:', error);
+    res.status(500).json({ success: false, message: 'Webhook processing failed', error });
+  }
+};
+
+// Tap Payments Webhook Handler
+export const tapWebhook = async (req: Request, res: Response) => {
+  try {
+    let chargeId = req.body.id;
+    let status = req.body.status;
+
+    if (req.body.data && req.body.data.id) {
+      chargeId = req.body.data.id;
+      if (req.body.data.status) {
+        status = req.body.data.status;
+      }
+    }
+
+    console.log(`💳 Tap Webhook: Received callback for charge ${chargeId}, status: ${status}`);
+
+    if (!chargeId) {
+      return res.status(200).json({ success: true, message: 'No charge ID in callback' });
+    }
+
+    // Find paused execution matching this reference ID
+    const pausedExecutions = await db
+      .select()
+      .from(automationExecutions)
+      .where(eq(automationExecutions.status, 'paused'));
+
+    const matched = pausedExecutions.find((exec: any) => {
+      const vars = exec.variables || {};
+      return Object.values(vars).includes(chargeId);
+    });
+
+    if (!matched) {
+      console.log(`⚠️ Tap Webhook: No matching paused execution found for charge ${chargeId}`);
+      return res.status(200).json({ success: true, message: 'No execution matched' });
+    }
+
+    console.log(`▶️ Tap Webhook: Found matching execution ${matched.id}. Triggering verification...`);
+
+    // Fetch automation to find the node config
+    const automation = await db.query.automations.findFirst({
+      where: eq(automations.id, matched.automationId),
+    });
+
+    if (!automation || !automation.nodes) {
+      return res.status(500).json({ success: false, message: 'Automation not found' });
+    }
+
+    const flowData = typeof automation.nodes === 'string' ? JSON.parse(automation.nodes) : automation.nodes;
+    const nodes = flowData.nodes || [];
+    const currentNode = nodes.find((n: any) => n.id === matched.currentNodeId);
+
+    if (!currentNode || currentNode.type !== 'tap_payment') {
+      console.log(`⚠️ Tap Webhook: Current node is not tap_payment`);
+      return res.status(200).json({ success: true });
+    }
+
+    const secretKey = currentNode.data?.tapSecretKey || process.env.TAP_SECRET_KEY;
+
+    if (!secretKey) {
+      console.error(`❌ Tap Webhook: Missing secret key for matched execution`);
+      return res.status(500).json({ success: false, message: 'Missing secret key' });
+    }
+
+    // Call API live to confirm charge status (security double-check)
+    const response = await axios.get(`https://api.tap.company/v2/charges/${chargeId}`, {
+      headers: {
+        'Authorization': `Bearer ${secretKey}`,
+        'accept': 'application/json'
+      }
+    });
+
+    let isPaid = false;
+    let finalStatus = 'unknown';
+
+    if (response.data && response.data.id) {
+      finalStatus = response.data.status;
+      isPaid = (finalStatus === 'CAPTURED');
+    }
+
+    if (isPaid) {
+      console.log(`✅ Tap Webhook: Payment verified! Waking up execution ${matched.id}`);
+      const vars = matched.variables || {};
+      vars[currentNode.data?.tapVarStatus || 'payment_status'] = 'paid';
+      vars[currentNode.data?.tapVarPaymentId || 'payment_id'] = chargeId;
+
+      await db.update(automationExecutions)
+        .set({ variables: vars })
+        .where(eq(automationExecutions.id, matched.id));
+
+      const executionService = triggerService.getExecutionService();
+      await executionService.handleUserResponse(matched.conversationId, "PAID");
+    } else {
+      console.log(`❌ Tap Webhook: Payment status was not completed: ${finalStatus}`);
+      if (finalStatus === 'FAILED' || finalStatus === 'DECLINED' || finalStatus === 'CANCELLED') {
+        console.log(`❌ Tap Webhook: Payment failed, waking up execution with UNPAID branch`);
+        const vars = matched.variables || {};
+        vars[currentNode.data?.tapVarStatus || 'payment_status'] = 'failed';
+        
+        await db.update(automationExecutions)
+          .set({ variables: vars })
+          .where(eq(automationExecutions.id, matched.id));
+
+        const executionService = triggerService.getExecutionService();
+        await executionService.handleUserResponse(matched.conversationId, "UNPAID");
+      }
+    }
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Tap webhook error:', error);
+    res.status(500).json({ success: false, message: 'Webhook processing failed', error });
+  }
+};
+
+// Helper to decode JWS payload
+function decodeJWSPayload(jwsToken: string): any {
+  try {
+    const parts = jwsToken.split('.');
+    if (parts.length === 3) {
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = Buffer.from(base64, 'base64').toString('utf8');
+      return JSON.parse(jsonPayload);
+    }
+  } catch (err) {
+    console.error('Failed to decode JWS payload:', err);
+  }
+  return null;
+}
+
+// Noon Payments Webhook Handler
+export const noonWebhook = async (req: Request, res: Response) => {
+  try {
+    let orderId = req.body?.orderId || req.body?.order?.id;
+    let status = req.body?.order?.status;
+
+    // Check if the body contains a JWS token instead (e.g. from version 2 webhook)
+    if (!orderId) {
+      let rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      const match = rawBody.match(/([a-zA-Z0-9_-]+)\.([a-zA-Z0-9_-]+)\.([a-zA-Z0-9_-]+)/);
+      if (match) {
+        const decoded = decodeJWSPayload(match[0]);
+        if (decoded && decoded.order) {
+          orderId = decoded.order.id;
+          status = decoded.order.status;
+        }
+      }
+    }
+
+    console.log(`💳 Noon Webhook: Received callback for order ID: ${orderId}, status: ${status}`);
+
+    if (!orderId) {
+      return res.status(200).json({ success: true, message: 'No order ID in callback' });
+    }
+
+    // Find paused execution matching this order ID
+    const pausedExecutions = await db
+      .select()
+      .from(automationExecutions)
+      .where(eq(automationExecutions.status, 'paused'));
+
+    const matched = pausedExecutions.find((exec: any) => {
+      const vars = exec.variables || {};
+      return Object.values(vars).includes(String(orderId));
+    });
+
+    if (!matched) {
+      console.log(`⚠️ Noon Webhook: No matching paused execution found for order ID: ${orderId}`);
+      return res.status(200).json({ success: true, message: 'No execution matched' });
+    }
+
+    console.log(`▶️ Noon Webhook: Found matching execution ${matched.id}. Triggering verification...`);
+
+    // Fetch automation to find the node config
+    const automation = await db.query.automations.findFirst({
+      where: eq(automations.id, matched.automationId),
+    });
+
+    if (!automation || !automation.nodes) {
+      return res.status(500).json({ success: false, message: 'Automation not found' });
+    }
+
+    const flowData = typeof automation.nodes === 'string' ? JSON.parse(automation.nodes) : automation.nodes;
+    const nodes = flowData.nodes || [];
+    const currentNode = nodes.find((n: any) => n.id === matched.currentNodeId);
+
+    if (!currentNode || currentNode.type !== 'noon_payment') {
+      console.log(`⚠️ Noon Webhook: Current node is not noon_payment`);
+      return res.status(200).json({ success: true });
+    }
+
+    const nodeData = (currentNode.data || {}) as any;
+    const businessId = nodeData.noonBusinessId || process.env.NOON_BUSINESS_ID;
+    const appId = nodeData.noonAppId || process.env.NOON_APP_ID;
+    const appKey = nodeData.noonAppKey || process.env.NOON_APP_KEY;
+    const sandbox = nodeData.noonSandbox !== undefined ? nodeData.noonSandbox : (process.env.NOON_SANDBOX === 'true');
+
+    if (!businessId || !appId || !appKey) {
+      console.error(`❌ Noon Webhook: Missing credentials for matched execution`);
+      return res.status(500).json({ success: false, message: 'Missing credentials' });
+    }
+
+    const authString = `${businessId}:${appId}:${appKey}`;
+    const encodedAuth = Buffer.from(authString).toString('base64');
+    const baseUrl = sandbox
+      ? 'https://api-test.noonpayments.com/payment/v1'
+      : 'https://api.noonpayments.com/payment/v1';
+
+    // Call GET API live to confirm order status (security double-check)
+    const response = await axios.get(`${baseUrl}/order/${orderId}`, {
+      headers: {
+        'Authorization': `Key ${encodedAuth}`,
+        'accept': 'application/json'
+      }
+    });
+
+    let isPaid = false;
+    let finalStatus = 'unknown';
+
+    if (response.data && response.data.resultCode === 0 && response.data.result?.order) {
+      finalStatus = response.data.result.order.status;
+      isPaid = (finalStatus === 'SUCCESS' || finalStatus === 'CAPTURED');
+    }
+
+    if (isPaid) {
+      console.log(`✅ Noon Webhook: Payment verified! Waking up execution ${matched.id}`);
+      const vars = matched.variables || {};
+      vars[nodeData.noonVarStatus || 'payment_status'] = 'paid';
+      vars[nodeData.noonVarPaymentId || 'payment_id'] = String(orderId);
+
+      await db.update(automationExecutions)
+        .set({ variables: vars })
+        .where(eq(automationExecutions.id, matched.id));
+
+      const executionService = triggerService.getExecutionService();
+      await executionService.handleUserResponse(matched.conversationId, "PAID");
+    } else {
+      console.log(`❌ Noon Webhook: Payment status was not completed: ${finalStatus}`);
+      if (finalStatus === 'FAILED' || finalStatus === 'FAIL' || finalStatus === 'CANCELLED') {
+        console.log(`❌ Noon Webhook: Payment failed, waking up execution with UNPAID branch`);
+        const vars = matched.variables || {};
+        vars[nodeData.noonVarStatus || 'payment_status'] = 'failed';
+        
+        await db.update(automationExecutions)
+          .set({ variables: vars })
+          .where(eq(automationExecutions.id, matched.id));
+
+        const executionService = triggerService.getExecutionService();
+        await executionService.handleUserResponse(matched.conversationId, "UNPAID");
+      }
+    }
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Noon webhook error:', error);
     res.status(500).json({ success: false, message: 'Webhook processing failed', error });
   }
 };
@@ -1921,6 +2352,68 @@ async function handleRazorpayPaymentCaptured(event: any) {
       .where(eq(transactions.id, transaction.id));
 
     await createSubscriptionFromTransaction(transaction, null, "razorpay");
+  }
+
+  // Also check if this payment was for an active automation payment link
+  if (payment.payment_link_id) {
+    await handleRazorpayPaymentLinkPaid({
+      payload: {
+        payment_link: {
+          entity: {
+            id: payment.payment_link_id,
+            status: 'paid',
+            payments: [
+              { payment_id: payment.id }
+            ]
+          }
+        }
+      }
+    });
+  }
+}
+
+async function handleRazorpayPaymentLinkPaid(event: any) {
+  const paymentLink = event.payload.payment_link.entity;
+  const paymentLinkId = paymentLink.id;
+  const status = paymentLink.status; // 'paid'
+  const paymentId = paymentLink.payments && paymentLink.payments.length > 0
+    ? paymentLink.payments[paymentLink.payments.length - 1].payment_id || ''
+    : '';
+
+  console.log(`💳 Razorpay Webhook: Payment link paid: ${paymentLinkId}`);
+
+  try {
+    const pausedExecutions = await db
+      .select()
+      .from(automationExecutions)
+      .where(eq(automationExecutions.status, 'paused'));
+
+    const matched = pausedExecutions.find((exec: any) => {
+      const vars = exec.variables || {};
+      return Object.values(vars).includes(paymentLinkId);
+    });
+
+    if (matched) {
+      console.log(`▶️ Webhook: Waking up execution ${matched.id} because payment link ${paymentLinkId} was paid`);
+      
+      const vars = matched.variables || {};
+      vars.payment_status = status;
+      if (paymentId) {
+        vars.payment_id = paymentId;
+      }
+
+      // Update variables in the database
+      await db.update(automationExecutions)
+        .set({ variables: vars })
+        .where(eq(automationExecutions.id, matched.id));
+      
+      const executionService = triggerService.getExecutionService();
+      await executionService.handleUserResponse(matched.conversationId, "PAID");
+    } else {
+      console.log(`ℹ️ Webhook: No matching paused automation execution found for payment link ${paymentLinkId}`);
+    }
+  } catch (err) {
+    console.error('Error handling Razorpay payment link webhook:', err);
   }
 }
 

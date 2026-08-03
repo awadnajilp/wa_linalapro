@@ -61,6 +61,7 @@
     "templates": "Templates",
     "master_templates": "Master Templates",
     "inbox": "Team Inbox",
+    "crm": "CRM",
     "automations": "Automations",
     "messageLogs": "Message Logs",
     "analytics": "Analytics",

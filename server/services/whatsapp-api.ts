@@ -81,6 +81,9 @@ export class WhatsAppApiService {
       const template = await storage.getTemplateByNameAndChannel(templateName, channel.id)
         || (await storage.getTemplatesByName(templateName))[0];
       let text = "";
+      let hasHeaderMedia = false;
+      let headerMediaData: any = null;
+
       if (template) {
         text = template.body;
         if (components && components.length > 0) {
@@ -91,9 +94,28 @@ export class WhatsAppApiService {
               text = text.replace(new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'), val);
             });
           }
+
+          const headerComp = components.find(c => c.type === "header");
+          if (headerComp && headerComp.parameters && headerComp.parameters.length > 0) {
+            const mediaParam = headerComp.parameters[0];
+            const mediaType = mediaParam.type;
+            const mediaInfo = mediaParam[mediaType];
+            if (mediaInfo && mediaInfo.link) {
+              hasHeaderMedia = true;
+              headerMediaData = {
+                url: mediaInfo.link,
+                mimeType: mediaType === "image" ? "image/jpeg" : mediaType === "video" ? "video/mp4" : "application/pdf",
+                filename: mediaInfo.filename || "file"
+              };
+            }
+          }
         }
       } else {
         text = `Template: ${templateName}`;
+      }
+
+      if (hasHeaderMedia && headerMediaData) {
+        return BaileysManager.sendMediaMessage(channel.id, to, headerMediaData, text || undefined);
       }
       return BaileysManager.sendMessage(channel.id, to, text);
     }
@@ -816,6 +838,51 @@ async sendMessage(
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error?.message || "Failed to send message");
+    }
+
+    return await response.json();
+  }
+
+  async sendMediaMessageByUrl(
+    to: string,
+    mediaUrl: string,
+    type: "image" | "video" | "document" | "audio",
+    caption?: string,
+    filename?: string
+  ): Promise<any> {
+    if (this.channel.connectionMethod === "qr_code") {
+      const mediaData = {
+        url: mediaUrl,
+        mimeType: type === "image" ? "image/jpeg" : type === "video" ? "video/mp4" : "application/pdf",
+        filename: filename || "file"
+      };
+      return BaileysManager.sendMediaMessage(this.channel.id, to, mediaData, caption || undefined);
+    }
+
+    const formattedPhone = this.formatPhoneNumber(to);
+    const body: any = {
+      messaging_product: "whatsapp",
+      to: formattedPhone,
+      type: type,
+      [type]: {
+        link: mediaUrl,
+        ...(caption ? { caption } : {}),
+        ...(type === "document" && filename ? { filename } : {}),
+      },
+    };
+
+    const response = await fetch(
+      `${this.baseUrl}/${this.channel.phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: this.headers,
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || "Failed to send media message by URL");
     }
 
     return await response.json();
@@ -1660,6 +1727,29 @@ async sendMediaMessagee(
 
   return this.sendDirectMessage(body);
 }
+
+  async sendVoiceNote(to: string, mediaUrl: string): Promise<any> {
+    if (this.channel.connectionMethod === "qr_code") {
+      const mediaData = {
+        url: mediaUrl,
+        mimeType: "audio/ogg; codecs=opus",
+        filename: "audio.ogg",
+        ptt: true
+      };
+      return BaileysManager.sendMediaMessage(this.channel.id, to, mediaData, undefined);
+    }
+
+    const formattedPhone = this.formatPhoneNumber(to);
+    const body = {
+      messaging_product: "whatsapp",
+      to: formattedPhone,
+      type: "audio",
+      audio: {
+        link: mediaUrl
+      }
+    };
+    return this.sendDirectMessage(body);
+  }
 
 
 

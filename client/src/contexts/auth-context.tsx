@@ -33,6 +33,7 @@ interface User {
   avatar?: string;
   createdAt?: string;
   originalSuperadmin?: any;
+  crmStatus?: string;
 }
 
 interface BrandSettings {

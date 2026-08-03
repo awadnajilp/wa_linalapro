@@ -31,18 +31,24 @@ import { apiRequest } from "@/lib/queryClient";
 interface EditUserModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  user: { id: string; username: string; email: string } | null;
+  user: { id: string; username: string; email: string; isEmailVerified?: boolean } | null;
   onSuccess: () => void;
 }
 
 export default function EditUserModal({ open, onOpenChange, user, onSuccess }: EditUserModalProps) {
   const { toast } = useToast();
-  const [form, setForm] = useState({ username: "", email: "", password: "", sendEmail: false });
+  const [form, setForm] = useState({ username: "", email: "", password: "", sendEmail: false, isEmailVerified: false });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
-      setForm({ username: user.username || "", email: user.email || "", password: "", sendEmail: false });
+      setForm({
+        username: user.username || "",
+        email: user.email || "",
+        password: "",
+        sendEmail: false,
+        isEmailVerified: user.isEmailVerified ?? false,
+      });
     }
   }, [user]);
 
@@ -53,7 +59,11 @@ export default function EditUserModal({ open, onOpenChange, user, onSuccess }: E
     }
     setLoading(true);
     try {
-      const payload: any = { username: form.username, email: form.email };
+      const payload: any = {
+        username: form.username,
+        email: form.email,
+        isEmailVerified: form.isEmailVerified,
+      };
       if (form.password) {
         payload.password = form.password;
         payload.sendEmail = form.sendEmail;
@@ -88,6 +98,19 @@ export default function EditUserModal({ open, onOpenChange, user, onSuccess }: E
           <div>
             <Label>Email</Label>
             <Input value={form.email} onChange={(e) => setForm(prev => ({ ...prev, email: e.target.value }))} placeholder="email@example.com" type="email" />
+          </div>
+          
+          <div className="flex items-center space-x-2 pt-1">
+            <input
+              type="checkbox"
+              id="isEmailVerified"
+              checked={form.isEmailVerified}
+              onChange={(e) => setForm(prev => ({ ...prev, isEmailVerified: e.target.checked }))}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+            />
+            <Label htmlFor="isEmailVerified" className="text-xs font-semibold text-gray-700 cursor-pointer">
+              Email Verified (Manually verify email)
+            </Label>
           </div>
           
           <div className="pt-4 border-t border-gray-100">

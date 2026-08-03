@@ -19,6 +19,7 @@ import {
   Loader2,
   File,
   Check,
+  Plus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
@@ -53,6 +54,40 @@ export function MediaGalleryDialog({
   const { data: mediaItems, isLoading } = useQuery<MediaAsset[]>({
     queryKey: ["/api/media-library"],
     enabled: open,
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/media/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to upload file");
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/media-library"] });
+      toast({
+        title: "Uploaded!",
+        description: "File uploaded successfully and saved to Media Library.",
+      });
+      if (data.url) {
+        onSelect(data.url, data.fileName || "Uploaded File");
+        onOpenChange(false);
+      }
+    },
+    onError: (err: any) => {
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: err.message || "Failed to upload file.",
+      });
+    },
   });
 
   const deleteAssetMutation = useMutation({
@@ -174,6 +209,43 @@ export function MediaGalleryDialog({
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-8 h-9 text-xs rounded-lg"
             />
+          </div>
+        </div>
+
+        {/* Upload section directly inside gallery */}
+        <div className="mt-3 border border-dashed border-purple-200 rounded-xl p-3 bg-purple-50/20 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-purple-100/80 flex items-center justify-center text-purple-700">
+              {uploadMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4" />
+              )}
+            </div>
+            <div className="text-left">
+              <h4 className="text-xs font-bold text-gray-700">Upload new media to Library</h4>
+              <p className="text-[10px] text-gray-500">Supports image, video, audio & docs (Max 100MB)</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="file"
+              id="gallery-direct-upload"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadMutation.mutate(file);
+              }}
+              disabled={uploadMutation.isPending}
+            />
+            <Button
+              type="button"
+              onClick={() => document.getElementById("gallery-direct-upload")?.click()}
+              className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg h-8 text-xs font-semibold px-4"
+              disabled={uploadMutation.isPending}
+            >
+              {uploadMutation.isPending ? "Uploading..." : "Upload File"}
+            </Button>
           </div>
         </div>
 

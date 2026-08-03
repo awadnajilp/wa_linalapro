@@ -567,33 +567,27 @@ export function CreateCampaignForm({
               <div className="space-y-3">
                 <Label className="text-xs font-semibold text-gray-700 block">Header Media File (Optional)</Label>
                 <div className="flex flex-col md:flex-row gap-3 items-stretch">
-                  <div className="flex-1 flex items-center justify-center border-2 border-dashed rounded-lg p-4 bg-gray-50/50 hover:bg-gray-50 transition relative min-h-[100px]">
-                    <input
-                      type="file"
-                      className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleFileChange(file);
-                      }}
-                      disabled={isUploading}
-                    />
+                  <div 
+                    onClick={() => setShowMediaGallery(true)}
+                    className="flex-1 flex items-center justify-center border-2 border-dashed rounded-lg p-4 bg-gray-50/50 hover:bg-purple-50/30 hover:border-purple-300 cursor-pointer transition min-h-[100px]"
+                  >
                     <div className="flex flex-col items-center text-center gap-1.5">
                       {isUploading ? (
                         <>
-                          <Loader2 className="h-6 w-6 text-green-600 animate-spin" />
+                          <Loader2 className="h-6 w-6 text-purple-600 animate-spin" />
                           <span className="text-xs font-medium text-gray-600">Uploading file...</span>
                         </>
                       ) : mediaUrl ? (
                         <>
-                          <Check className="h-6 w-6 text-green-600" />
+                          <Check className="h-6 w-6 text-purple-600" />
                           <span className="text-xs font-semibold text-gray-800 max-w-[150px] truncate">{mediaName || "File uploaded"}</span>
                           <span className="text-[10px] text-gray-500">Click to change</span>
                         </>
                       ) : (
                         <>
                           <Upload className="h-6 w-6 text-gray-400" />
-                          <span className="text-xs font-medium text-gray-600">Upload Media</span>
-                          <span className="text-[10px] text-gray-500">Image, Video, Doc</span>
+                          <span className="text-xs font-semibold text-purple-700">Open Media Gallery</span>
+                          <span className="text-[10px] text-gray-500">Select or upload (Max 100MB)</span>
                         </>
                       )}
                     </div>

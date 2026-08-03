@@ -485,26 +485,39 @@ export class MessageQueueService {
           language,
           isMarketing
         );
-      } else if (channel.connectionMethod === "qr_code" && message.campaignId) {
-        const campaign = await storage.getCampaign(message.campaignId);
-        if (!campaign) {
-          throw new Error(`Campaign not found: ${message.campaignId}`);
-        }
-
-        const isWarmer = message.templateParams && (message.templateParams as any).isWarmer;
+      } else if (channel.connectionMethod === "qr_code") {
         let text = "";
-        let mediaUrl = campaign.mediaUrl;
-        let mediaMimeType = campaign.mediaMimeType;
-        let mediaName = campaign.mediaName;
+        let mediaUrl = null;
+        let mediaMimeType = null;
+        let mediaName = null;
 
-        if (isWarmer) {
-          text = (message.templateParams as any).customMessage || "";
-          mediaUrl = null;
+        if (message.campaignId) {
+          const campaign = await storage.getCampaign(message.campaignId);
+          if (!campaign) {
+            throw new Error(`Campaign not found: ${message.campaignId}`);
+          }
+          const isWarmer = message.templateParams && (message.templateParams as any).isWarmer;
+          if (isWarmer) {
+            text = (message.templateParams as any).customMessage || "";
+          } else {
+            text = campaign.customMessage || "";
+          }
+          mediaUrl = campaign.mediaUrl;
+          mediaMimeType = campaign.mediaMimeType;
+          mediaName = campaign.mediaName;
         } else {
-          text = campaign.customMessage || "";
+          // Direct follow-up or API raw text message
+          const params = message.templateParams as any;
+          text = params?.customMessage || message.errorMessage || "";
+          mediaUrl = params?.mediaUrl || null;
+          if (mediaUrl) {
+            const mType = params?.mediaType || "image";
+            mediaMimeType = mType === "image" ? "image/jpeg" : mType === "video" ? "video/mp4" : mType === "audio" ? "audio/mpeg" : "application/pdf";
+            mediaName = params?.mediaName || "file";
+          }
         }
 
-        // Interpolate variables in customMessage (e.g. {{name}}, {{phone}}, etc.)
+        // Interpolate variables in text
         let contact = await storage.getContactByPhoneAndChannel(message.recipientPhone, channel.id);
         if (!contact) {
           contact = await storage.getContactByPhone(message.recipientPhone);
@@ -515,7 +528,6 @@ export class MessageQueueService {
         text = text.replace(/\{\{\s*phone\s*\}\}/gi, message.recipientPhone);
         text = text.replace(/\{\{\s*email\s*\}\}/gi, contact?.email || "");
 
-        // Replace other custom variables from contact.variables
         if (contact && contact.variables && typeof contact.variables === "object") {
           Object.entries(contact.variables as Record<string, string>).forEach(([key, val]) => {
             const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -565,7 +577,29 @@ export class MessageQueueService {
           );
         }
       } else {
-        throw new Error("Non-template messages not yet implemented");
+        // Cloud API direct message (text or media)
+        const params = message.templateParams as any;
+        const text = params?.customMessage || message.errorMessage || "";
+        const mediaUrl = params?.mediaUrl;
+        const mediaType = params?.mediaType;
+        const mediaName = params?.mediaName;
+
+        if (mediaUrl && (mediaType === "image" || mediaType === "video" || mediaType === "document" || mediaType === "audio")) {
+          const api = new WhatsAppApiService(channel);
+          response = await api.sendMediaMessageByUrl(
+            message.recipientPhone,
+            mediaUrl,
+            mediaType,
+            text || undefined,
+            mediaName || undefined
+          );
+        } else {
+          response = await WhatsAppApiService.sendTextMessage(
+            channel,
+            message.recipientPhone,
+            text
+          );
+        }
       }
 
       const waMessageId = response.messages?.[0]?.id;
@@ -667,6 +701,21 @@ export class MessageQueueService {
           fromType: "campaign",
           status: isQrCode ? "read" : "sent",
         });
+
+        // Auto-increment CRM deal contacted count
+        try {
+          const { incrementCrmDealContactCount } = await import("./crm.service");
+          const [contact] = await db
+            .select({ id: contacts.id })
+            .from(contacts)
+            .where(and(eq(contacts.phone, message.recipientPhone), eq(contacts.channelId, message.channelId)))
+            .limit(1);
+          if (contact) {
+            await incrementCrmDealContactCount(contact.id, message.channelId);
+          }
+        } catch (crmErr) {
+          console.error("Failed to auto-increment contacted count in message-queue:", crmErr);
+        }
       } catch (logErr) {
         console.error(`[MessageQueue] Failed to write message log for ${message.id}:`, logErr);
       }
@@ -838,6 +887,45 @@ export class MessageQueueService {
     }
 
     return totalQueued;
+  }
+
+  static async queueSingleMessage(
+    channelId: string,
+    recipientPhone: string,
+    messageDetails: {
+      templateName?: string | null;
+      templateLanguage?: string | null;
+      templateParams?: any;
+      messageType?: string;
+      customMessage?: string | null;
+    },
+    scheduledFor?: Date
+  ): Promise<string> {
+    const [inserted] = await db.insert(messageQueue).values({
+      channelId,
+      recipientPhone,
+      templateName: messageDetails.templateName || null,
+      templateLanguage: messageDetails.templateLanguage || "en_US",
+      templateParams: messageDetails.templateParams || (messageDetails.customMessage ? { customMessage: messageDetails.customMessage } : []),
+      messageType: messageDetails.messageType || "utility",
+      status: "queued" as const,
+      scheduledFor,
+      sentVia: "marketing_messages",
+    }).returning({ id: messageQueue.id });
+
+    if (this.usingBullMQ && isBullQueueAvailable() && inserted) {
+      await addBulkMessagesToBullQueue([{
+        messageId: inserted.id,
+        channelId,
+        recipientPhone,
+        templateName: messageDetails.templateName || null,
+        templateParams: messageDetails.templateParams || (messageDetails.customMessage ? { customMessage: messageDetails.customMessage } : []),
+        messageType: messageDetails.messageType || "utility",
+        scheduledFor,
+      }]);
+    }
+
+    return inserted.id;
   }
 
   static async getQueueStats() {

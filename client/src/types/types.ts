@@ -228,4 +228,5 @@ export interface TeamUser {
   createdAt: string;
   updatedAt: string;
   createdBy: string;
+  crmStatus?: string;
 }

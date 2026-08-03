@@ -35,13 +35,20 @@ import {
   users,
   voiceProfiles,
   conversations,
+  aiProfiles,
+  crmPipelines,
+  crmStages,
+  crmDeals,
+  crmSettings,
 } from "@shared/schema";
 import OpenAI from "openai";
 import { searchTrainingData } from "./training.service";
 import { VoiceManager } from "./voice";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, asc } from "drizzle-orm";
 import { sendBusinessMessage } from "../services/messageService";
 import { WhatsAppApiService } from "./whatsapp-api";
+import { getRazorpay } from "./payment-gateway.service";
+import Razorpay from "razorpay";
 import { storage } from "server/storage";
 import { BaileysManager } from "./baileys-manager";
 import { randomUUID } from "crypto";
@@ -86,6 +93,8 @@ interface ExecutionContext {
   variables: Record<string, any>;
   triggerData: any;
   lastUserMessage?: string; // Add this to track user input for conditions
+  currentNodeId?: string;
+  status?: string;
 }
 
 interface PendingExecution {
@@ -276,6 +285,10 @@ export class AutomationExecutionService {
           result = await this.executeAssignUser(node, context);
           break;
 
+        case 'route_crm_round_robin':
+          result = await this.executeRouteCrmRoundRobin(node, context);
+          break;
+
         case 'conditions':
           result = await this.executeConditions(node, automation, context);
           return; // Conditions handle their own routing
@@ -330,6 +343,30 @@ export class AutomationExecutionService {
 
         case 'send_contact_message':
           result = await this.executeSendContactMessage(node, context);
+          break;
+
+        case 'razorpay_generate':
+          result = await this.executeRazorpayGenerate(node, context);
+          break;
+
+        case 'razorpay_verify':
+          result = await this.executeRazorpayVerify(node, automation, context);
+          return; // Verification handles its own routing (paid vs unpaid)
+
+        case 'instamojo_payment':
+          result = await this.executeInstamojoPayment(node, context);
+          break;
+
+        case 'tap_payment':
+          result = await this.executeTapPayment(node, context);
+          break;
+
+        case 'noon_payment':
+          result = await this.executeNoonPayment(node, context);
+          break;
+
+        case 'zapier':
+          result = await this.executeZapier(node, context);
           break;
 
         case 'end':
@@ -855,6 +892,148 @@ private stemWord(word: string = ""): string {
       if (currentNode) {
         if (pendingExecution.nodeType === 'ai_agent') {
           await this.executeNode(currentNode, automation, context);
+        } else if (currentNode.type === 'razorpay_generate') {
+          const nodeData = (currentNode.data || {}) as any;
+          if (nodeData.razorpayMode === 'send_and_wait') {
+            let isPaid = false;
+            try {
+              const refIdVar = nodeData.razorpayVarRefId || 'payment_ref_id';
+              const refIdText = context.variables[refIdVar];
+              if (refIdText) {
+                const razorpay = await getRazorpay();
+                if (razorpay) {
+                  const paymentLink: any = await razorpay.paymentLink.fetch(refIdText);
+                  if (paymentLink) {
+                    const status = paymentLink.status;
+                    isPaid = (status === 'paid');
+                    context.variables[nodeData.razorpayVarStatus || 'payment_status'] = status;
+                    if (paymentLink.payments && paymentLink.payments.length > 0) {
+                      const lastPayment = paymentLink.payments[paymentLink.payments.length - 1];
+                      context.variables[nodeData.razorpayVarPaymentId || 'payment_id'] = lastPayment.payment_id || '';
+                    }
+                  }
+                }
+              }
+            } catch (err) {
+              console.error('Error verifying payment link during resume:', err);
+            }
+            await this.routeFromPaymentVerification(currentNode, automation, context, isPaid);
+          }
+        } else if (currentNode.type === 'instamojo_payment') {
+          let isPaid = false;
+          let status = 'unknown';
+          let paymentId = '';
+          const nodeData = (currentNode.data || {}) as any;
+          try {
+            const refIdVar = nodeData.instamojoVarRefId || 'payment_ref_id';
+            const refIdText = context.variables[refIdVar];
+            if (refIdText) {
+              const apiKey = nodeData.instamojoApiKey || process.env.INSTAMOJO_API_KEY;
+              const authToken = nodeData.instamojoAuthToken || process.env.INSTAMOJO_AUTH_TOKEN;
+              const sandbox = nodeData.instamojoSandbox !== undefined ? nodeData.instamojoSandbox : (process.env.INSTAMOJO_SANDBOX === 'true');
+              
+              if (apiKey && authToken) {
+                const baseUrl = sandbox ? 'https://test.instamojo.com/api/1.1' : 'https://www.instamojo.com/api/1.1';
+                const response = await axios.get(`${baseUrl}/payment-requests/${refIdText}/`, {
+                  headers: {
+                    'X-Api-Key': apiKey,
+                    'X-Auth-Token': authToken
+                  }
+                });
+                if (response.data && response.data.success && response.data.payment_request) {
+                  const pr = response.data.payment_request;
+                  status = pr.status;
+                  isPaid = (status === 'Completed');
+                  if (pr.payments && pr.payments.length > 0) {
+                    const lastPayment = pr.payments[pr.payments.length - 1];
+                    paymentId = lastPayment.payment_id || '';
+                  }
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Error verifying Instamojo payment link during resume:', err);
+          }
+          context.variables[nodeData.instamojoVarStatus || 'payment_status'] = isPaid ? 'paid' : status;
+          if (paymentId) {
+            context.variables[nodeData.instamojoVarPaymentId || 'payment_id'] = paymentId;
+          }
+          await this.routeFromPaymentVerification(currentNode, automation, context, isPaid);
+        } else if (currentNode.type === 'tap_payment') {
+          let isPaid = false;
+          let status = 'unknown';
+          let paymentId = '';
+          const nodeData = (currentNode.data || {}) as any;
+          try {
+            const refIdVar = nodeData.tapVarRefId || 'payment_ref_id';
+            const refIdText = context.variables[refIdVar];
+            if (refIdText) {
+              const secretKey = nodeData.tapSecretKey || process.env.TAP_SECRET_KEY;
+              if (secretKey) {
+                const response = await axios.get(`https://api.tap.company/v2/charges/${refIdText}`, {
+                  headers: {
+                    'Authorization': `Bearer ${secretKey}`,
+                    'accept': 'application/json'
+                  }
+                });
+                if (response.data && response.data.id) {
+                  status = response.data.status;
+                  isPaid = (status === 'CAPTURED');
+                  paymentId = response.data.id;
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Error verifying Tap payment link during resume:', err);
+          }
+          context.variables[nodeData.tapVarStatus || 'payment_status'] = isPaid ? 'paid' : status;
+          if (paymentId) {
+            context.variables[nodeData.tapVarPaymentId || 'payment_id'] = paymentId;
+          }
+          await this.routeFromPaymentVerification(currentNode, automation, context, isPaid);
+        } else if (currentNode.type === 'noon_payment') {
+          let isPaid = false;
+          let status = 'unknown';
+          let paymentId = '';
+          const nodeData = (currentNode.data || {}) as any;
+          try {
+            const refIdVar = nodeData.noonVarRefId || 'payment_ref_id';
+            const refIdText = context.variables[refIdVar];
+            if (refIdText) {
+              const businessId = nodeData.noonBusinessId || process.env.NOON_BUSINESS_ID;
+              const appId = nodeData.noonAppId || process.env.NOON_APP_ID;
+              const appKey = nodeData.noonAppKey || process.env.NOON_APP_KEY;
+              const sandbox = nodeData.noonSandbox !== undefined ? nodeData.noonSandbox : (process.env.NOON_SANDBOX === 'true');
+              
+              if (businessId && appId && appKey) {
+                const authString = `${businessId}:${appId}:${appKey}`;
+                const encodedAuth = Buffer.from(authString).toString('base64');
+                const baseUrl = sandbox
+                  ? 'https://api-test.noonpayments.com/payment/v1'
+                  : 'https://api.noonpayments.com/payment/v1';
+
+                const response = await axios.get(`${baseUrl}/order/${refIdText}`, {
+                  headers: {
+                    'Authorization': `Key ${encodedAuth}`,
+                    'accept': 'application/json'
+                  }
+                });
+
+                if (response.data && response.data.resultCode === 0 && response.data.result?.order) {
+                  status = response.data.result.order.status;
+                  isPaid = (status === 'SUCCESS' || status === 'CAPTURED');
+                  paymentId = String(response.data.result.order.id);
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Error verifying Noon payment link during resume:', err);
+          }
+          context.variables[nodeData.noonVarStatus || 'payment_status'] = isPaid ? 'paid' : status;
+          if (paymentId) {
+            context.variables[nodeData.noonVarPaymentId || 'payment_id'] = paymentId;
+          }
+          await this.routeFromPaymentVerification(currentNode, automation, context, isPaid);
         } else {
           await this.continueToNextNode(currentNode, automation, context, selectedButtonId);
         }
@@ -3025,6 +3204,923 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     }
   }
 
+  private async executeRazorpayGenerate(node: any, context: ExecutionContext) {
+    const amountText = this.replaceVariables(node.data?.razorpayAmount || '', context.variables);
+    const currency = this.replaceVariables(node.data?.razorpayCurrency || 'INR', context.variables);
+    const customerName = this.replaceVariables(node.data?.razorpayCustomerName || '', context.variables);
+    const customerEmail = this.replaceVariables(node.data?.razorpayCustomerEmail || '', context.variables);
+    const customerPhone = this.replaceVariables(node.data?.razorpayCustomerPhone || '', context.variables);
+    const description = this.replaceVariables(node.data?.razorpayDescription || 'Payment link', context.variables);
+    const receipt = this.replaceVariables(node.data?.razorpayReceipt || '', context.variables);
+
+    const varUrlName = node.data?.razorpayVarUrl || 'payment_url';
+    const varRefIdName = node.data?.razorpayVarRefId || 'payment_ref_id';
+
+    if (!amountText) {
+      throw new Error('Razorpay amount is required');
+    }
+
+    const amountNum = parseFloat(amountText);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      throw new Error(`Invalid Razorpay amount: ${amountText}`);
+    }
+
+    const amountInPaise = Math.round(amountNum * 100);
+
+    let razorpay: any;
+    const nodeKeyId = node.data?.razorpayKeyId;
+    const nodeKeySecret = node.data?.razorpayKeySecret;
+
+    if (nodeKeyId && nodeKeySecret) {
+      razorpay = new Razorpay({ key_id: nodeKeyId, key_secret: nodeKeySecret });
+    } else {
+      razorpay = await getRazorpay();
+    }
+
+    if (!razorpay) {
+      throw new Error('Razorpay is not configured on the platform');
+    }
+
+    const customer: any = {};
+    if (customerName) customer.name = customerName;
+    if (customerEmail) customer.email = customerEmail;
+    if (customerPhone) customer.contact = customerPhone;
+
+    console.log(`💳 Creating Razorpay payment link for ${amountNum} ${currency}`);
+
+    const payload: any = {
+      amount: amountInPaise,
+      currency: currency.toUpperCase(),
+      accept_partial: false,
+      description,
+      notify: {
+        sms: false,
+        email: false
+      },
+      reminder_enable: false,
+    };
+
+    if (Object.keys(customer).length > 0) {
+      payload.customer = customer;
+    }
+
+    if (receipt) {
+      payload.reference_id = receipt;
+    }
+
+    const paymentLink = await razorpay.paymentLink.create(payload);
+
+    if (!paymentLink || !paymentLink.id) {
+      throw new Error('Failed to create Razorpay payment link');
+    }
+
+    const shortUrl = paymentLink.short_url;
+    const refId = paymentLink.id;
+
+    const isSendAndWait = node.data?.razorpayMode === 'send_and_wait';
+    if (isSendAndWait) {
+      if (!context.conversationId) {
+        throw new Error('conversationId is required to pause flow for payment');
+      }
+      if (!context.contactId) {
+        throw new Error('contactId is required to send auto-message');
+      }
+
+      const getContact = await db.query.contacts.findFirst({
+        where: eq(contacts.id, context.contactId),
+      });
+
+      if (!getContact) {
+        throw new Error('Contact not found');
+      }
+
+      let effectiveChannelId = getContact.channelId;
+      if (!effectiveChannelId) {
+        const [automationRow] = await db
+          .select({ channelId: automations.channelId })
+          .from(automations)
+          .where(eq(automations.id, context.automationId))
+          .limit(1);
+        effectiveChannelId = automationRow?.channelId ?? null;
+      }
+
+      if (!effectiveChannelId) {
+        throw new Error('No channelId found on contact or automation — cannot send message');
+      }
+
+      const rawMessage = node.data?.razorpayMessage || "Please complete payment here: {{payment_url}}";
+      const tempVars = { ...context.variables, [varUrlName]: shortUrl, payment_url: shortUrl };
+      const customizedMessage = this.replaceVariables(rawMessage, tempVars);
+
+      console.log(`✉️ RZP Generate Auto-Message: Sending link to ${getContact.phone} on channel ${effectiveChannelId}`);
+      await sendBusinessMessage({
+        to: getContact.phone,
+        message: customizedMessage,
+        channelId: effectiveChannelId,
+      });
+
+      const varStatusName = node.data?.razorpayVarStatus || 'payment_status';
+      const varPaymentIdName = node.data?.razorpayVarPaymentId || 'payment_id';
+
+      context.variables[varUrlName] = shortUrl;
+      context.variables[varRefIdName] = refId;
+      context.variables[varStatusName] = 'created';
+      if (receipt) {
+        context.variables[`${varRefIdName}_receipt`] = receipt;
+      }
+
+      // Store the execution state for resumption
+      const pendingId = `${context.executionId}_${node.nodeId}_${Date.now()}`;
+      const pendingExecution: PendingExecution = {
+        executionId: context.executionId,
+        automationId: context.automationId,
+        nodeId: node.nodeId,
+        nodeType: 'razorpay_generate',
+        conversationId: context.conversationId,
+        contactId: context.contactId,
+        context: { ...context },
+        saveAs: varRefIdName,
+        timestamp: new Date(),
+        status: 'waiting_for_response',
+        expectedButtons: []
+      };
+
+      this.pendingExecutions.set(pendingId, pendingExecution);
+
+      await db.update(automationExecutions)
+        .set({
+          status: 'paused',
+          currentNodeId: node.nodeId,
+          variables: {
+            ...context.variables,
+            _userReply_waiting: true,
+            _userReply_nodeId: node.nodeId,
+            _userReply_saveAs: varRefIdName,
+          }
+        })
+        .where(eq(automationExecutions.id, context.executionId));
+
+      return {
+        action: 'execution_paused',
+        paymentLinkId: refId,
+        shortUrl,
+        amount: amountNum,
+        currency
+      };
+    }
+
+    context.variables[varUrlName] = shortUrl;
+    context.variables[varRefIdName] = refId;
+    if (receipt) {
+      context.variables[`${varRefIdName}_receipt`] = receipt;
+    }
+
+    console.log(`✅ Razorpay payment link created: ${refId} -> ${shortUrl}`);
+
+    return {
+      action: 'razorpay_link_generated',
+      paymentLinkId: paymentLink.id,
+      shortUrl,
+      amount: amountNum,
+      currency
+    };
+  }
+
+  private async executeRazorpayVerify(node: any, automation: any, context: ExecutionContext) {
+    const refIdText = this.replaceVariables(node.data?.razorpayRefId || '', context.variables);
+    const varStatusName = node.data?.razorpayVarStatus || 'payment_status';
+    const varPaymentIdName = node.data?.razorpayVarPaymentId || 'payment_id';
+
+    if (!refIdText) {
+      throw new Error('Razorpay reference ID / payment link ID is required for verification');
+    }
+
+    const razorpay = await getRazorpay();
+    if (!razorpay) {
+      throw new Error('Razorpay is not configured on the platform');
+    }
+
+    console.log(`🔍 Verifying Razorpay payment link: ${refIdText}`);
+
+    let isPaid = false;
+    let status = 'unknown';
+    let paymentId = '';
+
+    try {
+      const paymentLink: any = await razorpay.paymentLink.fetch(refIdText);
+      if (paymentLink) {
+        status = paymentLink.status;
+        isPaid = (status === 'paid');
+
+        if (paymentLink.payments && paymentLink.payments.length > 0) {
+          const lastPayment = paymentLink.payments[paymentLink.payments.length - 1];
+          paymentId = lastPayment.payment_id || '';
+        }
+      }
+    } catch (err: any) {
+      console.error(`Error fetching Razorpay payment link ${refIdText}:`, err);
+      status = 'error';
+    }
+
+    context.variables[varStatusName] = status;
+    if (paymentId) {
+      context.variables[varPaymentIdName] = paymentId;
+    }
+
+    console.log(`🎯 Razorpay payment verification result: status=${status}, isPaid=${isPaid}`);
+
+    const result = {
+      action: 'razorpay_verified',
+      referenceId: refIdText,
+      status,
+      isPaid,
+      paymentId
+    };
+
+    // Log success
+    await this.logNodeExecution(
+      context.executionId,
+      node.nodeId,
+      node.type,
+      'completed',
+      node.data,
+      result,
+      null
+    );
+
+    // Save execution variables to the database before recursing
+    await db.update(automationExecutions)
+      .set({ variables: context.variables })
+      .where(eq(automationExecutions.id, context.executionId));
+
+    // Route execution down paid or unpaid path
+    await this.routeFromPaymentVerification(node, automation, context, isPaid);
+
+    return result;
+  }
+
+  private async executeInstamojoPayment(node: any, context: ExecutionContext) {
+    const amountText = this.replaceVariables(node.data?.instamojoAmount || '', context.variables);
+    const purpose = this.replaceVariables(node.data?.instamojoPurpose || 'Payment Request', context.variables);
+    const customerName = this.replaceVariables(node.data?.instamojoCustomerName || '', context.variables);
+    const customerEmail = this.replaceVariables(node.data?.instamojoCustomerEmail || '', context.variables);
+    const customerPhone = this.replaceVariables(node.data?.instamojoCustomerPhone || '', context.variables);
+
+    const apiKey = node.data?.instamojoApiKey || process.env.INSTAMOJO_API_KEY;
+    const authToken = node.data?.instamojoAuthToken || process.env.INSTAMOJO_AUTH_TOKEN;
+    const sandbox = node.data?.instamojoSandbox !== undefined ? node.data.instamojoSandbox : (process.env.INSTAMOJO_SANDBOX === 'true');
+
+    const varUrlName = node.data?.instamojoVarUrl || 'payment_url';
+    const varRefIdName = node.data?.instamojoVarRefId || 'payment_ref_id';
+    const varStatusName = node.data?.instamojoVarStatus || 'payment_status';
+
+    if (!apiKey || !authToken) {
+      throw new Error('Instamojo API Key and Auth Token are required (set in node configuration or environment variables)');
+    }
+
+    if (!amountText) {
+      throw new Error('Instamojo amount is required');
+    }
+
+    const amountNum = parseFloat(amountText);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      throw new Error(`Invalid Instamojo amount: ${amountText}`);
+    }
+
+    console.log(`💳 Creating Instamojo payment request for ${amountNum} INR`);
+
+    const baseUrl = sandbox
+      ? 'https://test.instamojo.com/api/1.1'
+      : 'https://www.instamojo.com/api/1.1';
+
+    const payload: any = {
+      amount: amountNum.toFixed(2),
+      purpose,
+      send_email: false,
+      send_sms: false,
+      allow_repeated_payments: false
+    };
+
+    if (customerName) payload.buyer_name = customerName;
+    if (customerEmail) payload.email = customerEmail;
+    if (customerPhone) payload.phone = customerPhone;
+
+    const serverUrl = process.env.SERVER_URL || '';
+    if (serverUrl) {
+      payload.webhook = `${serverUrl}/webhooks/instamojo`;
+    }
+
+    const response = await axios.post(`${baseUrl}/payment-requests/`, payload, {
+      headers: {
+        'X-Api-Key': apiKey,
+        'X-Auth-Token': authToken,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      transformRequest: [(data) => {
+        const params = new URLSearchParams();
+        for (const key in data) {
+          params.append(key, data[key]);
+        }
+        return params.toString();
+      }]
+    });
+
+    if (!response.data || !response.data.success || !response.data.payment_request) {
+      throw new Error(`Failed to create Instamojo payment request: ${JSON.stringify(response.data)}`);
+    }
+
+    const pr = response.data.payment_request;
+    const longUrl = pr.longurl;
+    const refId = pr.id;
+
+    if (!context.conversationId) {
+      throw new Error('conversationId is required to pause flow for Instamojo payment');
+    }
+    if (!context.contactId) {
+      throw new Error('contactId is required to send auto-message');
+    }
+
+    const getContact = await db.query.contacts.findFirst({
+      where: eq(contacts.id, context.contactId),
+    });
+
+    if (!getContact) {
+      throw new Error('Contact not found');
+    }
+
+    let effectiveChannelId = getContact.channelId;
+    if (!effectiveChannelId) {
+      const [automationRow] = await db
+        .select({ channelId: automations.channelId })
+        .from(automations)
+        .where(eq(automations.id, context.automationId))
+        .limit(1);
+      effectiveChannelId = automationRow?.channelId ?? null;
+    }
+
+    if (!effectiveChannelId) {
+      throw new Error('No channelId found on contact or automation — cannot send message');
+    }
+
+    const rawMessage = node.data?.instamojoMessage || "Hello {{contact_name}}, please complete your payment of {{amount}} here: {{payment_url}}";
+    const tempVars = {
+      ...context.variables,
+      [varUrlName]: longUrl,
+      payment_url: longUrl,
+      amount: amountText
+    };
+    const customizedMessage = this.replaceVariables(rawMessage, tempVars);
+
+    console.log(`✉️ Instamojo Auto-Message: Sending link to ${getContact.phone} on channel ${effectiveChannelId}`);
+    await sendBusinessMessage({
+      to: getContact.phone,
+      message: customizedMessage,
+      channelId: effectiveChannelId,
+    });
+
+    context.variables[varUrlName] = longUrl;
+    context.variables[varRefIdName] = refId;
+    context.variables[varStatusName] = 'created';
+
+    const pendingId = `${context.executionId}_${node.nodeId}_${Date.now()}`;
+    const pendingExecution: PendingExecution = {
+      executionId: context.executionId,
+      automationId: context.automationId,
+      nodeId: node.nodeId,
+      nodeType: 'instamojo_payment',
+      conversationId: context.conversationId,
+      contactId: context.contactId,
+      context: { ...context },
+      saveAs: varRefIdName,
+      timestamp: new Date(),
+      status: 'waiting_for_response',
+      expectedButtons: []
+    };
+
+    this.pendingExecutions.set(pendingId, pendingExecution);
+
+    await db.update(automationExecutions)
+      .set({
+        status: 'paused',
+        currentNodeId: node.nodeId,
+        variables: {
+          ...context.variables,
+          _userReply_waiting: true,
+          _userReply_nodeId: node.nodeId,
+          _userReply_saveAs: varRefIdName,
+        }
+      })
+      .where(eq(automationExecutions.id, context.executionId));
+
+    const result = {
+      action: 'execution_paused',
+      paymentLinkId: refId,
+      shortUrl: longUrl,
+      amount: amountNum
+    };
+
+    // Log success
+    await this.logNodeExecution(
+      context.executionId,
+      node.nodeId,
+      node.type,
+      'completed',
+      node.data,
+      result,
+      null
+    );
+
+    return result;
+  }
+
+  private async executeTapPayment(node: any, context: ExecutionContext) {
+    const amountText = this.replaceVariables(node.data?.tapAmount || '', context.variables);
+    const currency = this.replaceVariables(node.data?.tapCurrency || 'SAR', context.variables);
+    const description = this.replaceVariables(node.data?.tapDescription || 'Payment Request', context.variables);
+    const customerName = this.replaceVariables(node.data?.tapCustomerName || '', context.variables);
+    const customerEmail = this.replaceVariables(node.data?.tapCustomerEmail || '', context.variables);
+    const customerPhone = this.replaceVariables(node.data?.tapCustomerPhone || '', context.variables);
+
+    const secretKey = node.data?.tapSecretKey || process.env.TAP_SECRET_KEY;
+
+    const varUrlName = node.data?.tapVarUrl || 'payment_url';
+    const varRefIdName = node.data?.tapVarRefId || 'payment_ref_id';
+    const varStatusName = node.data?.tapVarStatus || 'payment_status';
+
+    if (!secretKey) {
+      throw new Error('Tap Secret Key is required (set in node configuration or environment variables)');
+    }
+
+    if (!amountText) {
+      throw new Error('Tap payment amount is required');
+    }
+
+    const amountNum = parseFloat(amountText);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      throw new Error(`Invalid Tap payment amount: ${amountText}`);
+    }
+
+    if (!context.conversationId) {
+      throw new Error('conversationId is required to pause flow for Tap payment');
+    }
+    if (!context.contactId) {
+      throw new Error('contactId is required to send auto-message');
+    }
+
+    const getContact = await db.query.contacts.findFirst({
+      where: eq(contacts.id, context.contactId),
+    });
+
+    if (!getContact) {
+      throw new Error('Contact not found');
+    }
+
+    let effectiveChannelId = getContact.channelId;
+    if (!effectiveChannelId) {
+      const [automationRow] = await db
+        .select({ channelId: automations.channelId })
+        .from(automations)
+        .where(eq(automations.id, context.automationId))
+        .limit(1);
+      effectiveChannelId = automationRow?.channelId ?? null;
+    }
+
+    if (!effectiveChannelId) {
+      throw new Error('No channelId found on contact or automation — cannot send message');
+    }
+
+    // Split name
+    let firstName = 'Customer';
+    let lastName = 'Payment';
+    if (customerName) {
+      const parts = customerName.trim().split(/\s+/);
+      if (parts.length > 0) {
+        firstName = parts[0];
+        if (parts.length > 1) {
+          lastName = parts.slice(1).join(' ');
+        }
+      }
+    }
+
+    // Clean and parse phone
+    const targetPhone = customerPhone || getContact.phone || '';
+    const cleanPhone = targetPhone.replace(/\D/g, '');
+    let countryCode = '966';
+    let phoneNumberOnly = cleanPhone;
+
+    const gccCodes = ['966', '965', '971', '973', '968', '974', '91', '20', '1'];
+    for (const code of gccCodes) {
+      if (cleanPhone.startsWith(code)) {
+        countryCode = code;
+        phoneNumberOnly = cleanPhone.substring(code.length);
+        break;
+      }
+    }
+
+    if (!phoneNumberOnly) {
+      phoneNumberOnly = '500000000';
+    }
+
+    const email = customerEmail || 'customer@example.com';
+
+    console.log(`💳 Creating Tap payment request for ${amountNum} ${currency}`);
+
+    const serverUrl = process.env.SERVER_URL || '';
+    const webhookUrl = serverUrl ? `${serverUrl}/webhooks/tap` : '';
+
+    const payload: any = {
+      amount: amountNum,
+      currency: currency.toUpperCase(),
+      customer_initiated: true,
+      threeDSecure: true,
+      save_card: false,
+      description,
+      metadata: {
+        executionId: context.executionId,
+        automationId: context.automationId,
+        nodeId: node.nodeId,
+        conversationId: context.conversationId
+      },
+      customer: {
+        first_name: firstName,
+        last_name: lastName,
+        email: email,
+        phone: {
+          country_code: countryCode,
+          number: phoneNumberOnly
+        }
+      },
+      source: {
+        id: 'src_all'
+      }
+    };
+
+    if (webhookUrl) {
+      payload.post = {
+        url: webhookUrl
+      };
+      payload.redirect = {
+        url: webhookUrl
+      };
+    }
+
+    const response = await axios.post('https://api.tap.company/v2/charges', payload, {
+      headers: {
+        'Authorization': `Bearer ${secretKey}`,
+        'accept': 'application/json',
+        'content-type': 'application/json'
+      }
+    });
+
+    if (!response.data || !response.data.id || !response.data.transaction?.url) {
+      throw new Error(`Failed to create Tap payment request: ${JSON.stringify(response.data)}`);
+    }
+
+    const paymentUrl = response.data.transaction.url;
+    const refId = response.data.id;
+
+    const rawMessage = node.data?.tapMessage || "Hello {{contact_name}}, please complete your payment of {{amount}} {{currency}} here: {{payment_url}}";
+    const tempVars = {
+      ...context.variables,
+      [varUrlName]: paymentUrl,
+      payment_url: paymentUrl,
+      amount: amountText,
+      currency: currency
+    };
+    const customizedMessage = this.replaceVariables(rawMessage, tempVars);
+
+    console.log(`✉️ Tap Auto-Message: Sending link to ${getContact.phone} on channel ${effectiveChannelId}`);
+    await sendBusinessMessage({
+      to: getContact.phone,
+      message: customizedMessage,
+      channelId: effectiveChannelId,
+    });
+
+    context.variables[varUrlName] = paymentUrl;
+    context.variables[varRefIdName] = refId;
+    context.variables[varStatusName] = 'created';
+
+    const pendingId = `${context.executionId}_${node.nodeId}_${Date.now()}`;
+    const pendingExecution: PendingExecution = {
+      executionId: context.executionId,
+      automationId: context.automationId,
+      nodeId: node.nodeId,
+      nodeType: 'tap_payment',
+      conversationId: context.conversationId,
+      contactId: context.contactId,
+      context: { ...context },
+      saveAs: varRefIdName,
+      timestamp: new Date(),
+      status: 'waiting_for_response',
+      expectedButtons: []
+    };
+
+    this.pendingExecutions.set(pendingId, pendingExecution);
+
+    await db.update(automationExecutions)
+      .set({
+        status: 'paused',
+        currentNodeId: node.nodeId,
+        variables: {
+          ...context.variables,
+          [varUrlName]: paymentUrl,
+          [varRefIdName]: refId,
+          [varStatusName]: 'created',
+          _userReply_waiting: true,
+          _userReply_nodeId: node.nodeId,
+          _userReply_saveAs: varRefIdName,
+        }
+      })
+      .where(eq(automationExecutions.id, context.executionId));
+
+    const result = {
+      action: 'execution_paused',
+      paymentLinkId: refId,
+      shortUrl: paymentUrl,
+      amount: amountNum
+    };
+
+    await this.logNodeExecution(
+      context.executionId,
+      node.nodeId,
+      node.type,
+      'completed',
+      node.data,
+      result,
+      null
+    );
+
+    return result;
+  }
+
+  private async executeNoonPayment(node: any, context: ExecutionContext) {
+    const amountText = this.replaceVariables(node.data?.noonAmount || '', context.variables);
+    const currency = this.replaceVariables(node.data?.noonCurrency || 'SAR', context.variables);
+    const description = this.replaceVariables(node.data?.noonDescription || 'Payment Request', context.variables);
+
+    const businessId = node.data?.noonBusinessId || process.env.NOON_BUSINESS_ID;
+    const appId = node.data?.noonAppId || process.env.NOON_APP_ID;
+    const appKey = node.data?.noonAppKey || process.env.NOON_APP_KEY;
+    const sandbox = node.data?.noonSandbox !== undefined ? node.data.noonSandbox : (process.env.NOON_SANDBOX === 'true');
+    const category = node.data?.noonCategory || process.env.NOON_CATEGORY || 'pay_by_link';
+
+    const varUrlName = node.data?.noonVarUrl || 'payment_url';
+    const varRefIdName = node.data?.noonVarRefId || 'payment_ref_id';
+    const varStatusName = node.data?.noonVarStatus || 'payment_status';
+
+    if (!businessId || !appId || !appKey) {
+      throw new Error('Noon Payments credentials (Business ID, App ID, App Key) are required (set in node configuration or environment variables)');
+    }
+
+    if (!amountText) {
+      throw new Error('Noon payment amount is required');
+    }
+
+    const amountNum = parseFloat(amountText);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      throw new Error(`Invalid Noon payment amount: ${amountText}`);
+    }
+
+    if (!context.conversationId) {
+      throw new Error('conversationId is required to pause flow for Noon payment');
+    }
+    if (!context.contactId) {
+      throw new Error('contactId is required to send auto-message');
+    }
+
+    const getContact = await db.query.contacts.findFirst({
+      where: eq(contacts.id, context.contactId),
+    });
+
+    if (!getContact) {
+      throw new Error('Contact not found');
+    }
+
+    let effectiveChannelId = getContact.channelId;
+    if (!effectiveChannelId) {
+      const [automationRow] = await db
+        .select({ channelId: automations.channelId })
+        .from(automations)
+        .where(eq(automations.id, context.automationId))
+        .limit(1);
+      effectiveChannelId = automationRow?.channelId ?? null;
+    }
+
+    if (!effectiveChannelId) {
+      throw new Error('No channelId found on contact or automation — cannot send message');
+    }
+
+    console.log(`💳 Creating Noon payment request for ${amountNum} ${currency}`);
+
+    const serverUrl = process.env.SERVER_URL || '';
+    const webhookUrl = serverUrl ? `${serverUrl}/webhooks/noonpayments` : '';
+
+    const authString = `${businessId}:${appId}:${appKey}`;
+    const encodedAuth = Buffer.from(authString).toString('base64');
+
+    const payload: any = {
+      apiOperation: 'INITIATE',
+      order: {
+        reference: `${context.executionId}_${Date.now()}`,
+        amount: amountNum.toFixed(2),
+        currency: currency.toUpperCase(),
+        name: description,
+        channel: 'WEB',
+        category: category
+      },
+      configuration: {
+        paymentAction: 'SALE'
+      }
+    };
+
+    if (webhookUrl) {
+      payload.configuration.returnUrl = webhookUrl;
+      payload.configuration.webhookUrl = webhookUrl;
+    }
+
+    const baseUrl = sandbox
+      ? 'https://api-test.noonpayments.com/payment/v1'
+      : 'https://api.noonpayments.com/payment/v1';
+
+    const response = await axios.post(`${baseUrl}/order`, payload, {
+      headers: {
+        'Authorization': `Key ${encodedAuth}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.data || response.data.resultCode !== 0 || !response.data.result?.checkoutData?.postUrl) {
+      throw new Error(`Failed to create Noon payment request: ${JSON.stringify(response.data)}`);
+    }
+
+    const paymentUrl = response.data.result.checkoutData.postUrl;
+    const refId = String(response.data.result.order.id);
+
+    const rawMessage = node.data?.noonMessage || "Hello {{contact_name}}, please complete your payment of {{amount}} {{currency}} here: {{payment_url}}";
+    const tempVars = {
+      ...context.variables,
+      [varUrlName]: paymentUrl,
+      payment_url: paymentUrl,
+      amount: amountText,
+      currency: currency
+    };
+    const customizedMessage = this.replaceVariables(rawMessage, tempVars);
+
+    console.log(`✉️ Noon Auto-Message: Sending link to ${getContact.phone} on channel ${effectiveChannelId}`);
+    await sendBusinessMessage({
+      to: getContact.phone,
+      message: customizedMessage,
+      channelId: effectiveChannelId,
+    });
+
+    context.variables[varUrlName] = paymentUrl;
+    context.variables[varRefIdName] = refId;
+    context.variables[varStatusName] = 'created';
+
+    const pendingId = `${context.executionId}_${node.nodeId}_${Date.now()}`;
+    const pendingExecution: PendingExecution = {
+      executionId: context.executionId,
+      automationId: context.automationId,
+      nodeId: node.nodeId,
+      nodeType: 'noon_payment',
+      conversationId: context.conversationId,
+      contactId: context.contactId,
+      context: { ...context },
+      saveAs: varRefIdName,
+      timestamp: new Date(),
+      status: 'waiting_for_response',
+      expectedButtons: []
+    };
+
+    this.pendingExecutions.set(pendingId, pendingExecution);
+
+    await db.update(automationExecutions)
+      .set({
+        status: 'paused',
+        currentNodeId: node.nodeId,
+        variables: {
+          ...context.variables,
+          [varUrlName]: paymentUrl,
+          [varRefIdName]: refId,
+          [varStatusName]: 'created',
+          _userReply_waiting: true,
+          _userReply_nodeId: node.nodeId,
+          _userReply_saveAs: varRefIdName,
+        }
+      })
+      .where(eq(automationExecutions.id, context.executionId));
+
+    const result = {
+      action: 'execution_paused',
+      paymentLinkId: refId,
+      shortUrl: paymentUrl,
+      amount: amountNum
+    };
+
+    await this.logNodeExecution(
+      context.executionId,
+      node.nodeId,
+      node.type,
+      'completed',
+      node.data,
+      result,
+      null
+    );
+
+    return result;
+  }
+
+  private async executeZapier(node: any, context: ExecutionContext) {
+    const webhookUrl = this.replaceVariables(node.data?.zapierWebhookUrl || '', context.variables);
+    const payloadMode = node.data?.zapierPayloadMode || 'all_variables';
+    const customPayload = node.data?.zapierCustomPayload || '';
+
+    if (!webhookUrl) {
+      throw new Error('Zapier Webhook URL is required');
+    }
+
+    let payload: any = {};
+
+    if (payloadMode === 'all_variables') {
+      const getContact = await storage.getContact(context.contactId);
+      payload = {
+        ...context.variables,
+        contact_id: context.contactId,
+        contact_name: getContact?.name || '',
+        contact_phone: getContact?.phone || '',
+        contact_email: getContact?.email || '',
+        channel_id: context.channelId || '',
+        conversation_id: context.conversationId || '',
+        triggered_at: new Date().toISOString()
+      };
+    } else {
+      if (!customPayload) {
+        throw new Error('Custom JSON payload is empty');
+      }
+      try {
+        const compiledString = this.replaceVariables(customPayload, context.variables);
+        payload = JSON.parse(compiledString);
+      } catch (err: any) {
+        throw new Error(`Failed to parse custom JSON payload: ${err.message}`);
+      }
+    }
+
+    console.log(`⚡ Sending Zapier Webhook request to ${webhookUrl}`);
+
+    const response = await axios.post(webhookUrl, payload, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 10000
+    });
+
+    console.log(`✅ Zapier Webhook request successful. Status: ${response.status}`);
+
+    return {
+      action: 'zapier_webhook_triggered',
+      status: response.status,
+      data: response.data
+    };
+  }
+
+  private async routeFromPaymentVerification(
+    node: any,
+    automation: any,
+    context: ExecutionContext,
+    isPaid: boolean
+  ) {
+    const outgoingEdges = automation.edges.filter(
+      (e: any) => e.sourceNodeId === node.nodeId
+    );
+
+    if (outgoingEdges.length === 0) {
+      console.log(`⚠️ No outgoing edges from payment verification node ${node.nodeId}`);
+      await this.completeExecution(context.executionId, 'completed', 'Payment verified but no next steps defined');
+      return;
+    }
+
+    const branchHandle = isPaid ? 'payment-paid' : 'payment-unpaid';
+    const branchLabel = isPaid ? 'PAID' : 'UNPAID';
+
+    let selectedEdge = outgoingEdges.find((e: any) => e.sourceHandle === branchHandle);
+
+    if (!selectedEdge) {
+      const unlabeled = outgoingEdges.filter((e: any) => !e.sourceHandle || e.sourceHandle === 'default');
+      selectedEdge = unlabeled[0] || null;
+    }
+
+    if (!selectedEdge) {
+      console.log(`🛑 Payment verification ${branchLabel}: No path defined, ending execution`);
+      await this.completeExecution(context.executionId, 'completed', `Payment verification is ${branchLabel} and no path`);
+      return;
+    }
+
+    const nextNode = automation.nodes.find((n: any) => n.nodeId === selectedEdge.targetNodeId);
+    if (nextNode) {
+      await this.executeNode(nextNode, automation, context);
+    }
+  }
+
   private async executeMySQL(node: any, context: ExecutionContext) {
     const contact = context.contactId
       ? await db.query.contacts.findFirst({ where: eq(contacts.id, context.contactId) })
@@ -4152,20 +5248,57 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       });
       if (!getContact) return false;
 
-      const isGroqLlm = convSettings.llmProvider === "groq" || chanSettings.llmProvider === "groq";
-      const isElevenLabsLlm = convSettings.llmProvider === "elevenlabs" || chanSettings.llmProvider === "elevenlabs";
-      const aiApiKey = convSettings.apiKey || chanSettings.apiKey || "";
-      const aiModel = convSettings.model || chanSettings.model || "";
-      const aiSystemPrompt = convSettings.systemPrompt || chanSettings.systemPrompt || "You are a conversational AI Agent taking over this chat. Answer user questions and call custom functions/tools when needed.";
-      const aiTemperature = convSettings.temperature !== undefined ? convSettings.temperature : (chanSettings.temperature !== undefined ? chanSettings.temperature : 0.7);
+      // 1. Fetch active AI Profile for this channel (scoped per channel)
+      const activeProfile = await db.query.aiProfiles.findFirst({
+        where: and(eq(aiProfiles.channelId, channelId), eq(aiProfiles.enabled, true)),
+      });
+
+      const profileLlmProvider = activeProfile?.llmProvider;
+      const isGroqLlm = activeProfile 
+        ? profileLlmProvider === "groq" 
+        : (convSettings.llmProvider === "groq" || chanSettings.llmProvider === "groq");
+      const isElevenLabsLlm = activeProfile 
+        ? profileLlmProvider === "elevenlabs" 
+        : (convSettings.llmProvider === "elevenlabs" || chanSettings.llmProvider === "elevenlabs");
+      const isSarvamLlm = activeProfile 
+        ? profileLlmProvider === "sarvam" 
+        : false;
+
+      // Profile keys override WABA default keys
+      let aiApiKey = "";
+      if (activeProfile) {
+        if (profileLlmProvider === "openai") aiApiKey = activeProfile.openaiApiKey || "";
+        else if (profileLlmProvider === "groq") aiApiKey = activeProfile.groqApiKey || "";
+        else if (profileLlmProvider === "elevenlabs") aiApiKey = activeProfile.elevenlabsApiKey || "";
+        else if (profileLlmProvider === "sarvam") aiApiKey = activeProfile.sarvamApiKey || "";
+      }
+      if (!aiApiKey) {
+        aiApiKey = convSettings.apiKey || chanSettings.apiKey || "";
+      }
+
+      const aiModel = activeProfile 
+        ? activeProfile.model || "" 
+        : (convSettings.model || "");
+      const aiSystemPrompt = activeProfile 
+        ? activeProfile.systemPrompt || "" 
+        : (convSettings.systemPrompt || chanSettings.systemPrompt || "You are a conversational AI Agent taking over this chat. Answer user questions and call custom functions/tools when needed.");
+      const aiTemperature = activeProfile 
+        ? (activeProfile.temperature !== null ? Number(activeProfile.temperature) : 0.7)
+        : (convSettings.temperature !== undefined ? convSettings.temperature : (chanSettings.temperature !== undefined ? chanSettings.temperature : 0.7));
       
-      const aiVoiceEnabled = convSettings.voiceEnabled !== undefined ? convSettings.voiceEnabled : (chanSettings.voiceEnabled !== undefined ? chanSettings.voiceEnabled : false);
-      const voiceProfileId = convSettings.voiceProfileId || chanSettings.voiceProfileId || "";
-      const voiceLanguage = convSettings.voiceLanguage || chanSettings.voiceLanguage || "en-US";
+      const aiVoiceEnabled = activeProfile 
+        ? !!activeProfile.voiceEnabled 
+        : (convSettings.voiceEnabled !== undefined ? convSettings.voiceEnabled : (chanSettings.voiceEnabled !== undefined ? chanSettings.voiceEnabled : false));
+      const voiceProfileId = activeProfile 
+        ? activeProfile.voiceProfileId || "" 
+        : (convSettings.voiceProfileId || chanSettings.voiceProfileId || "");
+      const voiceLanguage = activeProfile 
+        ? activeProfile.voiceLanguage || "en-US" 
+        : (convSettings.voiceLanguage || chanSettings.voiceLanguage || "en-US");
       const aiLocalStyle = convSettings.localStyle || chanSettings.localStyle || "code_mixed";
 
       const nodeData = {
-        aiLlmProvider: isGroqLlm ? "groq" : isElevenLabsLlm ? "elevenlabs" : "openai",
+        aiLlmProvider: isGroqLlm ? "groq" : isElevenLabsLlm ? "elevenlabs" : isSarvamLlm ? "sarvam" : "openai",
         aiApiKey,
         aiModel,
         aiSystemPrompt,
@@ -4178,7 +5311,11 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       };
 
       let finalApiKey = aiApiKey;
-      let finalBaseURL = isGroqLlm ? "https://api.groq.com/openai/v1" : "https://api.openai.com/v1";
+      let finalBaseURL = isGroqLlm 
+        ? "https://api.groq.com/openai/v1" 
+        : isSarvamLlm 
+        ? "https://api.sarvam.ai/v1"
+        : "https://api.openai.com/v1";
       let finalModel = aiModel || (isGroqLlm ? "llama-3.3-70b-versatile" : isElevenLabsLlm ? "conversational-ai" : "gpt-4o");
 
       if (isElevenLabsLlm) {
@@ -4198,7 +5335,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
             .limit(1);
           userKey = defaultUser?.elevenlabsApiKey || "";
         }
-        finalApiKey = userKey || process.env.ELEVENLABS_API_KEY || "";
+        finalApiKey = finalApiKey || userKey || process.env.ELEVENLABS_API_KEY || "";
       } else if (isGroqLlm) {
         let userKey = "";
         const ownerId = channel.createdBy;
@@ -4216,7 +5353,25 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
             .limit(1);
           userKey = defaultUser?.groqApiKey || "";
         }
-        finalApiKey = userKey || process.env.GROQ_API_KEY || "";
+        finalApiKey = finalApiKey || userKey || process.env.GROQ_API_KEY || "";
+      } else if (isSarvamLlm) {
+        let userKey = "";
+        const ownerId = channel.createdBy;
+        if (ownerId) {
+          const ownerUser = await db.query.users.findFirst({
+            where: eq(users.id, ownerId),
+          });
+          userKey = ownerUser?.sarvamApiKey || "";
+        }
+        if (!userKey) {
+          const [defaultUser] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, "awadnajilp@gmail.com"))
+            .limit(1);
+          userKey = defaultUser?.sarvamApiKey || "";
+        }
+        finalApiKey = finalApiKey || userKey || process.env.SARVAM_API_KEY || "";
       } else {
         if (!finalApiKey) {
           let aiSetting = await db
@@ -4224,6 +5379,15 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
             .from(aiSettings)
             .where(and(eq(aiSettings.channelId, channelId), eq(aiSettings.isActive, true)))
             .limit(1);
+
+          if (aiSetting.length === 0) {
+            aiSetting = await db
+              .select()
+              .from(aiSettings)
+              .where(eq(aiSettings.channelId, channelId))
+              .limit(1);
+          }
+
           if (aiSetting.length === 0) {
             aiSetting = await db
               .select()
@@ -4231,6 +5395,14 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
               .where(eq(aiSettings.isActive, true))
               .limit(1);
           }
+
+          if (aiSetting.length === 0) {
+            aiSetting = await db
+              .select()
+              .from(aiSettings)
+              .limit(1);
+          }
+
           const activeAI = aiSetting?.[0];
           if (activeAI && activeAI.apiKey) {
             finalApiKey = activeAI.apiKey;
@@ -4424,7 +5596,8 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
             contactPhone: getContact.phone,
             last_message: incomingMessageText,
           },
-          status: "running"
+          status: "running",
+          triggerData: {}
         };
         await this.sendOutgoingResponse(responseText, nodeData, getContact, channelId, mockContext, null);
       }
@@ -4433,6 +5606,251 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       console.error("[Inbox AI Takeover] Error executing AI Agent takeover:", err);
       return false;
     }
+  }
+
+  private async executeRouteCrmRoundRobin(node: any, context: ExecutionContext) {
+    if (!context.conversationId) {
+      throw new Error("No conversationId provided in context");
+    }
+
+    // 1. Fetch conversation details to get channelId and contactId
+    const conversation = await storage.getConversation(context.conversationId);
+    if (!conversation) {
+      throw new Error("Conversation not found for CRM round-robin routing");
+    }
+
+    const channelId = conversation.channelId;
+    if (!channelId) {
+      throw new Error("No channelId linked to conversation");
+    }
+
+    // 2. Fetch channel details to find the owner/creator
+    const [channel] = await db
+      .select()
+      .from(channels)
+      .where(eq(channels.id, channelId))
+      .limit(1);
+
+    if (!channel) {
+      throw new Error("Channel not found for CRM round-robin routing");
+    }
+
+    const ownerUserId = channel.createdBy || "";
+
+    // 3. Find candidates (active & online team members under same tenant)
+    const candidates = await db
+      .select()
+      .from(users)
+      .where(and(
+        eq(users.status, "active"),
+        eq(users.crmStatus, "online"),
+        or(
+          eq(users.id, ownerUserId),
+          eq(users.createdBy, ownerUserId)
+        )
+      ));
+
+    let assignedUserId = ownerUserId;
+
+    if (candidates.length > 0) {
+      const candidateIds = candidates.map((c) => c.id);
+
+      // Query the latest conversation assigned to each candidate in this channel
+      const latestAssignments = await db
+        .select({
+          userId: conversations.assignedTo,
+          latestTime: sql<Date>`max(${conversations.createdAt})`
+        })
+        .from(conversations)
+        .where(and(
+          eq(conversations.channelId, channelId),
+          sql`${conversations.assignedTo} in ${candidateIds}`
+        ))
+        .groupBy(conversations.assignedTo);
+
+      const timeMap = new Map(
+        latestAssignments.map((a) => [
+          a.userId,
+          a.latestTime ? new Date(a.latestTime).getTime() : 0
+        ])
+      );
+
+      // Sort candidates by their last assignment timestamp ascending
+      candidates.sort((a, b) => {
+        const timeA = timeMap.get(a.id) || 0;
+        const timeB = timeMap.get(b.id) || 0;
+        return timeA - timeB;
+      });
+
+      assignedUserId = candidates[0].id;
+    }
+
+    console.log(`👤 CRM Round Robin: Assigning conversation ${context.conversationId} to user ${assignedUserId}`);
+
+    // 4. Update the conversation status and assignment
+    const updatedConv = await storage.updateConversation(context.conversationId, {
+      assignedTo: assignedUserId,
+      status: "assigned",
+    });
+
+    if (updatedConv && (global as any).broadcastToConversation) {
+      (global as any).broadcastToConversation(context.conversationId, {
+        type: "conversation-updated",
+        conversation: updatedConv,
+      });
+    }
+
+    // 5. CRM Deal Registration
+    let pipelineId = node.data?.crmPipelineId;
+    let stageId = node.data?.crmStageId;
+
+    // Resolve Pipeline if not specified or default
+    if (!pipelineId || pipelineId === "default" || pipelineId === "") {
+      let [pipeline] = await db
+        .select()
+        .from(crmPipelines)
+        .where(eq(crmPipelines.channelId, channelId))
+        .limit(1);
+
+      if (!pipeline) {
+        [pipeline] = await db
+          .insert(crmPipelines)
+          .values({
+            channelId,
+            name: "Sales Pipeline",
+          })
+          .returning();
+      }
+      pipelineId = pipeline.id;
+    }
+
+    // Resolve Stage if not specified or default
+    if (!stageId || stageId === "default" || stageId === "") {
+      let [stage] = await db
+        .select()
+        .from(crmStages)
+        .where(eq(crmStages.pipelineId, pipelineId))
+        .orderBy(asc(crmStages.position))
+        .limit(1);
+
+      if (!stage) {
+        // Auto seed stages if none exist
+        const defaultStages = [
+          { name: "Lead", position: 0, color: "#94a3b8" },
+          { name: "Contacted", position: 1, color: "#60a5fa" },
+          { name: "Qualified", position: 2, color: "#34d399" },
+          { name: "Proposal", position: 3, color: "#f59e0b" },
+          { name: "Won", position: 4, color: "#10b981" },
+          { name: "Lost", position: 5, color: "#ef4444" },
+        ];
+
+        const insertedStages = [];
+        for (const s of defaultStages) {
+          const [inserted] = await db
+            .insert(crmStages)
+            .values({
+              pipelineId,
+              name: s.name,
+              position: s.position,
+              color: s.color,
+            })
+            .returning();
+          insertedStages.push(inserted);
+        }
+        stage = insertedStages[0];
+      }
+      stageId = stage.id;
+    }
+
+    // Fetch contact details for deal title
+    const contact = await db.query.contacts.findFirst({
+      where: eq(contacts.id, conversation.contactId),
+    });
+
+    // Check if an open deal already exists for this contact in this channel
+    const [existingDeal] = await db
+      .select()
+      .from(crmDeals)
+      .where(and(
+        eq(crmDeals.contactId, conversation.contactId),
+        eq(crmDeals.channelId, channelId),
+        eq(crmDeals.status, "open")
+      ))
+      .limit(1);
+
+    if (existingDeal) {
+      console.log(`👤 CRM Deal already exists for contact ${conversation.contactId} (Deal ID: ${existingDeal.id}). Skipping duplicate creation.`);
+      
+      // Update conversation to match the existing deal's assignment
+      if (existingDeal.assignedTo && conversation.assignedTo !== existingDeal.assignedTo) {
+        const updatedConv = await storage.updateConversation(context.conversationId, {
+          assignedTo: existingDeal.assignedTo,
+          status: "assigned",
+        });
+        if (updatedConv && (global as any).broadcastToConversation) {
+          (global as any).broadcastToConversation(context.conversationId, {
+            type: "conversation-updated",
+            conversation: updatedConv,
+          });
+        }
+      }
+
+      return {
+        action: "crm_round_robin_routed",
+        assignedTo: existingDeal.assignedTo || assignedUserId,
+        dealId: existingDeal.id,
+        conversationId: context.conversationId,
+      };
+    }
+
+    // Create the deal
+    const dealTitle = `${contact?.name || "New Lead"} Deal`;
+    const [deal] = await db
+      .insert(crmDeals)
+      .values({
+        contactId: conversation.contactId,
+        channelId,
+        stageId,
+        title: dealTitle,
+        value: "0.00",
+        currency: "USD",
+        assignedTo: assignedUserId,
+        status: "open",
+      })
+      .returning();
+
+    console.log(`✅ CRM Deal registered: ${deal.title} assigned to ${assignedUserId}`);
+
+    // Fetch assigned user details to send assignment email
+    if (assignedUserId) {
+      try {
+        const [assignedUser] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, assignedUserId))
+          .limit(1);
+
+        if (assignedUser && assignedUser.email) {
+          const { sendLeadAssignmentEmail } = await import("./email.service");
+          sendLeadAssignmentEmail(
+            assignedUser.email,
+            assignedUser.firstName || assignedUser.username,
+            contact?.name || "New Lead",
+            deal.title,
+            deal.value || undefined
+          ).catch((e) => console.error("Failed to send lead email in round robin", e));
+        }
+      } catch (err) {
+        console.error("Failed to fetch user for round robin lead assignment email", err);
+      }
+    }
+
+    return {
+      action: "crm_round_robin_routed",
+      assignedTo: assignedUserId,
+      dealId: deal.id,
+      conversationId: context.conversationId,
+    };
   }
 }
 

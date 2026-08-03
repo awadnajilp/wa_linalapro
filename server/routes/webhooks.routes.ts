@@ -59,4 +59,13 @@ export function registerWebhookRoutes(app: Express) {
 
   // Mercado Pago Webhook
   app.post('/webhooks/mercadopago', webhooksController.mercadopagoWebhook);
+
+  // Instamojo Webhook
+  app.post('/webhooks/instamojo', webhooksController.instamojoWebhook);
+
+  // Tap Payments Webhook
+  app.post('/webhooks/tap', webhooksController.tapWebhook);
+
+  // Noon Payments Webhook
+  app.post('/webhooks/noonpayments', webhooksController.noonWebhook);
 } 

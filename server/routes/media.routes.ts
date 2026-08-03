@@ -39,8 +39,8 @@ export function registerMediaRoutes(app: Express) {
     // Check WhatsApp media upload limits
     const maxSizes: Record<string, number> = {
       image: 5 * 1024 * 1024,      // 5MB
-      video: 16 * 1024 * 1024,     // 16MB
-      audio: 16 * 1024 * 1024,     // 16MB
+      video: 100 * 1024 * 1024,    // 100MB
+      audio: 100 * 1024 * 1024,    // 100MB
       document: 100 * 1024 * 1024, // 100MB
     };
     let mediaType = "document";

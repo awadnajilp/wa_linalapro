@@ -44,6 +44,10 @@ import {
   Copy,
   Bot,
   Calendar,
+  Shuffle,
+  CreditCard,
+  ShieldCheck,
+  Zap,
 } from "lucide-react";
 import { BuilderNodeData } from "./types";
 
@@ -380,6 +384,27 @@ export function AssignUserNode({ data }: { data: BuilderNodeData }) {
         ) : (
           <div className="text-gray-400 italic text-[11px]">No agent selected</div>
         )}
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} className="!bg-indigo-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+    </div>
+  );
+}
+
+export function RouteCrmRoundRobinNode({ data }: { data: BuilderNodeData }) {
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-indigo-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<Shuffle className="w-4 h-4" />}
+        title="CRM Round Robin"
+        color="text-indigo-700"
+        bgColor="bg-indigo-50"
+        borderColor="border-indigo-100"
+      >
+        <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-2 border border-gray-100">
+          <Shuffle className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+          <span className="text-[11px] text-gray-600 font-medium">Automatic Routing</span>
+        </div>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-indigo-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
     </div>
@@ -898,6 +923,217 @@ const withNodeActions = (WrappedComponent: any) => {
   };
 };
 
+export function RazorpayGenerateNode({ data }: { data: BuilderNodeData }) {
+  const isSendAndWait = data?.razorpayMode === "send_and_wait";
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-blue-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<CreditCard className="w-4 h-4" />}
+        title="RZP Generate"
+        color="text-blue-700"
+        bgColor="bg-blue-50"
+        borderColor="border-blue-100"
+      >
+        {data?.razorpayAmount ? (
+          <div className="space-y-1">
+            <div className="text-xs font-semibold text-blue-700">
+              {data?.razorpayAmount} {data?.razorpayCurrency || "INR"}
+            </div>
+            <div className="text-[10px] text-gray-500">
+              Mode: <span className="font-semibold text-blue-600">{isSendAndWait ? "Send & Wait" : "Generate Only"}</span>
+            </div>
+            {data?.razorpayVarUrl && !isSendAndWait && (
+              <div className="text-[9px] text-gray-500 truncate">
+                Url: <span className="font-mono text-gray-600">${data?.razorpayVarUrl}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-gray-400 italic text-[11px]">No amount set</div>
+        )}
+      </NodeShell>
+      {isSendAndWait ? (
+        <>
+          <Handle type="source" position={Position.Bottom} id="payment-paid" className="!bg-green-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" style={{ left: '35%' }} />
+          <Handle type="source" position={Position.Bottom} id="payment-unpaid" className="!bg-red-400 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" style={{ left: '65%' }} />
+          <div className="flex justify-between px-4 -mt-0.5">
+            <span className="text-[8px] font-semibold text-green-600 uppercase">Paid</span>
+            <span className="text-[8px] font-semibold text-red-400 uppercase">Unpaid</span>
+          </div>
+        </>
+      ) : (
+        <Handle type="source" position={Position.Bottom} className="!bg-blue-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+      )}
+    </div>
+  );
+}
+
+export function RazorpayVerifyNode({ data }: { data: BuilderNodeData }) {
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<ShieldCheck className="w-4 h-4" />}
+        title="RZP Verify"
+        color="text-emerald-700"
+        bgColor="bg-emerald-50"
+        borderColor="border-emerald-100"
+      >
+        {data?.razorpayRefId ? (
+          <div className="space-y-1">
+            <div className="text-[10px] text-gray-500 font-medium truncate">
+              Ref: <span className="font-mono text-emerald-600">{data?.razorpayRefId}</span>
+            </div>
+            {data?.razorpayVarStatus && (
+              <div className="text-[9px] text-gray-400">
+                Save Status: <span className="font-mono text-gray-500">${data?.razorpayVarStatus}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-gray-400 italic text-[11px]">No reference ID set</div>
+        )}
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} id="payment-paid" className="!bg-green-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" style={{ left: '35%' }} />
+      <Handle type="source" position={Position.Bottom} id="payment-unpaid" className="!bg-red-400 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" style={{ left: '65%' }} />
+      <div className="flex justify-between px-4 -mt-0.5">
+        <span className="text-[8px] font-semibold text-green-600 uppercase">Paid</span>
+        <span className="text-[8px] font-semibold text-red-400 uppercase">Unpaid</span>
+      </div>
+    </div>
+  );
+}
+
+export function InstamojoPaymentNode({ data }: { data: BuilderNodeData }) {
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-purple-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<CreditCard className="w-4 h-4" />}
+        title="Instamojo Pay"
+        color="text-purple-700"
+        bgColor="bg-purple-50"
+        borderColor="border-purple-100"
+      >
+        {data?.instamojoAmount ? (
+          <div className="space-y-1">
+            <div className="text-xs font-semibold text-purple-700">
+              {data?.instamojoAmount} INR
+            </div>
+            <div className="text-[10px] text-gray-500">
+              Purpose: <span className="font-semibold text-purple-600 truncate max-w-[100px] inline-block">{data?.instamojoPurpose || "Payment"}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-gray-400 italic text-[11px]">No amount set</div>
+        )}
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} id="payment-paid" className="!bg-green-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" style={{ left: '35%' }} />
+      <Handle type="source" position={Position.Bottom} id="payment-unpaid" className="!bg-red-400 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" style={{ left: '65%' }} />
+      <div className="flex justify-between px-4 -mt-0.5">
+        <span className="text-[8px] font-semibold text-green-600 uppercase">Paid</span>
+        <span className="text-[8px] font-semibold text-red-400 uppercase">Unpaid</span>
+      </div>
+    </div>
+  );
+}
+
+export function ZapierNode({ data }: { data: BuilderNodeData }) {
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-orange-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<Zap className="w-4 h-4 text-orange-600 fill-orange-600" />}
+        title="Zapier Integration"
+        color="text-orange-700"
+        bgColor="bg-orange-50"
+        borderColor="border-orange-100"
+      >
+        <div className="space-y-1">
+          <div className="text-[10px] font-semibold text-orange-700 truncate max-w-[150px]">
+            {data?.zapierWebhookUrl ? "Webhook Configured" : "No Webhook Set"}
+          </div>
+          <div className="text-[9px] text-gray-500">
+            Mode: <span className="font-semibold text-orange-600">
+              {data?.zapierPayloadMode === "custom" ? "Custom JSON" : "All Variables"}
+            </span>
+          </div>
+        </div>
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} className="!bg-orange-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+    </div>
+  );
+}
+
+export function TapPaymentNode({ data }: { data: BuilderNodeData }) {
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-rose-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<CreditCard className="w-4 h-4 text-rose-600" />}
+        title="Tap Payment"
+        color="text-rose-700"
+        bgColor="bg-rose-50"
+        borderColor="border-rose-100"
+      >
+        {data?.tapAmount ? (
+          <div className="space-y-1">
+            <div className="text-xs font-semibold text-rose-700">
+              {data?.tapAmount} {data?.tapCurrency || "SAR"}
+            </div>
+            <div className="text-[10px] text-gray-500">
+              Purpose: <span className="font-semibold text-rose-600 truncate max-w-[100px] inline-block">{data?.tapDescription || "Payment Request"}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-gray-400 italic text-[11px]">No amount set</div>
+        )}
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} id="payment-paid" className="!bg-green-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" style={{ left: '35%' }} />
+      <Handle type="source" position={Position.Bottom} id="payment-unpaid" className="!bg-red-400 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" style={{ left: '65%' }} />
+      <div className="flex justify-between px-4 -mt-0.5">
+        <span className="text-[8px] font-semibold text-green-600 uppercase">Paid</span>
+        <span className="text-[8px] font-semibold text-red-400 uppercase">Unpaid</span>
+      </div>
+    </div>
+  );
+}
+
+export function NoonPaymentNode({ data }: { data: BuilderNodeData }) {
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-yellow-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<CreditCard className="w-4 h-4 text-yellow-600" />}
+        title="Noon Pay"
+        color="text-yellow-700"
+        bgColor="bg-yellow-50"
+        borderColor="border-yellow-100"
+      >
+        {data?.noonAmount ? (
+          <div className="space-y-1">
+            <div className="text-xs font-semibold text-yellow-700">
+              {data?.noonAmount} {data?.noonCurrency || "SAR"}
+            </div>
+            <div className="text-[10px] text-gray-500">
+              Purpose: <span className="font-semibold text-yellow-600 truncate max-w-[100px] inline-block">{data?.noonDescription || "Payment Request"}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-gray-400 italic text-[11px]">No amount set</div>
+        )}
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} id="payment-paid" className="!bg-green-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" style={{ left: '35%' }} />
+      <Handle type="source" position={Position.Bottom} id="payment-unpaid" className="!bg-red-400 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" style={{ left: '65%' }} />
+      <div className="flex justify-between px-4 -mt-0.5">
+        <span className="text-[8px] font-semibold text-green-600 uppercase">Paid</span>
+        <span className="text-[8px] font-semibold text-red-400 uppercase">Unpaid</span>
+      </div>
+    </div>
+  );
+}
+
 export const nodeTypes = {
   start: StartNode,
   conditions: withNodeActions(ConditionsNode),
@@ -906,6 +1142,7 @@ export const nodeTypes = {
   time_gap: withNodeActions(TimeGapNode),
   send_template: withNodeActions(SendTemplateNode),
   assign_user: withNodeActions(AssignUserNode),
+  route_crm_round_robin: withNodeActions(RouteCrmRoundRobinNode),
   webhook: withNodeActions(WebhookNode),
   mysql: withNodeActions(MySQLNode),
   end: withNodeActions(EndNode),
@@ -922,4 +1159,10 @@ export const nodeTypes = {
   ai_agent: withNodeActions(AIAgentNode),
   send_contact_message: withNodeActions(SendContactMessageNode),
   scheduler: withNodeActions(SchedulerNode),
+  razorpay_generate: withNodeActions(RazorpayGenerateNode),
+  razorpay_verify: withNodeActions(RazorpayVerifyNode),
+  instamojo_payment: withNodeActions(InstamojoPaymentNode),
+  zapier: withNodeActions(ZapierNode),
+  tap_payment: withNodeActions(TapPaymentNode),
+  noon_payment: withNodeActions(NoonPaymentNode),
 };

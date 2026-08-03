@@ -129,7 +129,7 @@ const fetchTeamMembers = async (page: number = 1, limit: number = 10, search: st
 export default function TeamPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { toast } = useToast();
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [editingMember, setEditingMember] = useState<User | null>(null);
+  const [editingMember, setEditingMember] = useState<any | null>(null);
   const [search, setSearch] = useState("");
 
   const { user } = useAuth();
@@ -242,7 +242,35 @@ export default function TeamPage({ embedded = false }: { embedded?: boolean } = 
     },
   });
 
-  const handleOpenDialog = (member?: User) => {
+  const updateCrmStatusMutation = useMutation({
+    mutationFn: async ({
+      memberId,
+      crmStatus,
+    }: {
+      memberId: string;
+      crmStatus: string;
+    }) => {
+      return apiRequest("PATCH", `/api/team/members/${memberId}/crm-status`, {
+        crmStatus,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teamMembers"] });
+      toast({
+        title: "CRM Status updated",
+        description: "Team member CRM status has been updated.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleOpenDialog = (member?: any) => {
     if (member) {
       setEditingMember(member);
     }
@@ -388,6 +416,7 @@ export default function TeamPage({ embedded = false }: { embedded?: boolean } = 
                             <TableHead>Role</TableHead>
                             <TableHead>Permissions</TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead>CRM Status</TableHead>
                             <TableHead>Last Active</TableHead>
                             <TableHead className="text-right">
                               Actions
@@ -474,6 +503,30 @@ export default function TeamPage({ embedded = false }: { embedded?: boolean } = 
                                 >
                                   {member.status}
                                 </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Select
+                                  value={member.crmStatus || "online"}
+                                  onValueChange={(val) => {
+                                    updateCrmStatusMutation.mutate({
+                                      memberId: member.id,
+                                      crmStatus: val,
+                                    });
+                                  }}
+                                  disabled={updateCrmStatusMutation.isPending}
+                                >
+                                  <SelectTrigger className="w-[100px] h-8 text-xs font-semibold">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="online" className="text-xs text-green-600 font-semibold">
+                                      Online
+                                    </SelectItem>
+                                    <SelectItem value="offline" className="text-xs text-gray-500 font-semibold">
+                                      Offline
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-1">
@@ -644,7 +697,7 @@ export default function TeamPage({ embedded = false }: { embedded?: boolean } = 
                             </div>
 
                             {/* Badges */}
-                            <div className="flex flex-wrap gap-2 mb-4">
+                            <div className="flex flex-wrap gap-2 mb-4 items-center">
                               <Badge variant={getRoleBadgeVariant(member.role)}>
                                 {member.role}
                               </Badge>
@@ -656,6 +709,28 @@ export default function TeamPage({ embedded = false }: { embedded?: boolean } = 
                               >
                                 {member.status}
                               </Badge>
+                              <Select
+                                value={member.crmStatus || "online"}
+                                onValueChange={(val) => {
+                                  updateCrmStatusMutation.mutate({
+                                    memberId: member.id,
+                                    crmStatus: val,
+                                  });
+                                }}
+                                disabled={updateCrmStatusMutation.isPending}
+                              >
+                                <SelectTrigger className="w-[100px] h-7 text-xs font-semibold">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="online" className="text-xs text-green-600 font-semibold">
+                                    Online
+                                  </SelectItem>
+                                  <SelectItem value="offline" className="text-xs text-gray-500 font-semibold">
+                                    Offline
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
                             </div>
 
                             {/* Last Active */}
@@ -967,6 +1042,16 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: "contacts:delete", label: "Delete" },
       { key: "contacts:import", label: "Import" },
       { key: "contacts:export", label: "Export" },
+    ],
+  },
+  {
+    title: "groups",
+    label: "Manage Groups",
+    permissions: [
+      { key: "groups:view", label: "View" },
+      { key: "groups:create", label: "Create" },
+      { key: "groups:edit", label: "Edit" },
+      { key: "groups:delete", label: "Delete" },
     ],
   },
   {

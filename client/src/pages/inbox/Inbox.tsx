@@ -31,6 +31,7 @@ import { normalizeTime } from "./utils";
 import ConversationList from "./ConversationList";
 import MessageThread from "./MessageThread";
 import { AISettingsDialog } from "./AISettingsDialog";
+import InboxDealSidebar from "./InboxDealSidebar";
 import type { Message, ConversationWithContact } from "./types";
 import type { Conversation, Contact } from "@shared/schema";
 
@@ -1170,6 +1171,7 @@ export default function Inbox() {
   });
 
   const is24HourWindowExpired =
+    activeChannel?.connectionMethod !== "qr_code" &&
     selectedConversation?.type === "whatsapp" &&
     normalizeTime((selectedConversation as any)?.lastIncomingMessageAt || selectedConversation?.lastMessageAt) > 0
       ? Date.now() -
@@ -1219,48 +1221,55 @@ export default function Inbox() {
         />
 
         {selectedConversation ? (
-          <MessageThread
-            selectedConversation={selectedConversation}
-            messages={messages}
-            messagesLoading={messagesLoading}
-            isTyping={isTyping}
-            typingUser={typingUser}
-            user={user}
-            messageText={messageText}
-            onTyping={handleTyping}
-            onSendMessage={handleSendMessage}
-            onFileAttachment={handleFileAttachment}
-            onFileChange={handleFileChange}
-            onSelectMediaUrl={handleSelectMediaUrl}
-            onSendVoiceNote={handleSendVoiceNote}
-            onSelectTemplate={handleSelectTemplate}
-            is24HourWindowExpired={is24HourWindowExpired}
-            activeChannelId={activeChannel?.id}
-            sendMessagePending={sendMessageMutation.isPending}
-            fileInputRef={fileInputRef}
-            messagesEndRef={messagesEndRef}
-            onBack={() => setSelectedConversation(null)}
-            onUpdateStatus={updateConversationStatus}
-            onViewContact={handleViewContact}
-            onArchiveChat={handleArchiveChat}
-            onBlockContact={handleBlockContact}
-            onDeleteChat={handleDeleteChat}
-            onAssignConversation={handleAssignConversation}
-            hasMoreMessages={hasMoreMessages}
-            onLoadMoreMessages={loadOlderMessages}
-            loadingMoreMessages={loadingOlderMessages}
-            replyToMessage={replyToMessage}
-            onReply={setReplyToMessage}
-            onCancelReply={() => setReplyToMessage(null)}
-            onSelectLocalTemplate={(text) => setMessageText(text)}
-            onOpenContactAiSettings={handleOpenContactAiSettings}
-            aiEnabled={currentConversationAiEnabled}
-            onToggleAi={handleToggleAi}
-            channelTags={channelTags}
-            onUpdateConversationTags={onUpdateConversationTags}
-            onCreateTag={onCreateTag}
-            tagsColorMap={tagsColorMap}
-          />
+          <div className="flex-1 flex overflow-hidden">
+            <MessageThread
+              selectedConversation={selectedConversation}
+              messages={messages}
+              messagesLoading={messagesLoading}
+              isTyping={isTyping}
+              typingUser={typingUser}
+              user={user}
+              messageText={messageText}
+              onTyping={handleTyping}
+              onSendMessage={handleSendMessage}
+              onFileAttachment={handleFileAttachment}
+              onFileChange={handleFileChange}
+              onSelectMediaUrl={handleSelectMediaUrl}
+              onSendVoiceNote={handleSendVoiceNote}
+              onSelectTemplate={handleSelectTemplate}
+              is24HourWindowExpired={is24HourWindowExpired}
+              activeChannelId={activeChannel?.id}
+              sendMessagePending={sendMessageMutation.isPending}
+              fileInputRef={fileInputRef}
+              messagesEndRef={messagesEndRef}
+              onBack={() => setSelectedConversation(null)}
+              onUpdateStatus={updateConversationStatus}
+              onViewContact={handleViewContact}
+              onArchiveChat={handleArchiveChat}
+              onBlockContact={handleBlockContact}
+              onDeleteChat={handleDeleteChat}
+              onAssignConversation={handleAssignConversation}
+              hasMoreMessages={hasMoreMessages}
+              onLoadMoreMessages={loadOlderMessages}
+              loadingMoreMessages={loadingOlderMessages}
+              replyToMessage={replyToMessage}
+              onReply={setReplyToMessage}
+              onCancelReply={() => setReplyToMessage(null)}
+              onSelectLocalTemplate={(text) => setMessageText(text)}
+              onOpenContactAiSettings={handleOpenContactAiSettings}
+              aiEnabled={currentConversationAiEnabled}
+              onToggleAi={handleToggleAi}
+              channelTags={channelTags}
+              onUpdateConversationTags={onUpdateConversationTags}
+              onCreateTag={onCreateTag}
+              tagsColorMap={tagsColorMap}
+            />
+            <InboxDealSidebar
+              contactId={selectedConversation.contactId}
+              channelId={selectedConversation.channelId}
+              contactName={(selectedConversation as any).contactName}
+            />
+          </div>
         ) : (
           <div className="hidden md:flex flex-1 items-center justify-center bg-gray-50">
             <div className="text-center">

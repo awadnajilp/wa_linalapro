@@ -55,6 +55,12 @@ const PERMISSION_KEY_MAP: Record<string, string[]> = {
     "contacts:import",
     "contacts:export",
   ],
+  canManageGroups: [
+    "groups:view",
+    "groups:create",
+    "groups:edit",
+    "groups:delete",
+  ],
   canManageCampaigns: [
     "campaigns:view",
     "campaigns:create",
@@ -776,5 +782,66 @@ requirePermission(PERMISSIONS.TEAM_PERMISSIONS), async (req, res) => {
     res.status(500).json({ error: "Failed to update permissions" });
   }
 });
+
+// Update member CRM online/offline status
+router.patch(
+  "/members/:id/crm-status",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { crmStatus } = req.body;
+
+      if (crmStatus !== "online" && crmStatus !== "offline") {
+        return res.status(400).json({ error: "Invalid crmStatus. Must be 'online' or 'offline'." });
+      }
+
+      const loggedInUser = req.user as any;
+
+      // A user can update their own status, or an admin/superadmin can update their team members' status.
+      const isSelf = loggedInUser.id === id;
+      let isAuthorized = isSelf || loggedInUser.role === "superadmin";
+
+      if (!isAuthorized) {
+        // Check if the logged-in user is the owner/creator of this team member
+        const [member] = await db.select().from(users).where(eq(users.id, id));
+        if (member) {
+          const ownerId = loggedInUser.role === "team" ? loggedInUser.createdBy : loggedInUser.id;
+          if (member.createdBy === ownerId) {
+            isAuthorized = true;
+          }
+        }
+      }
+
+      if (!isAuthorized) {
+        return res.status(403).json({ error: "Not authorized to update this member's CRM status" });
+      }
+
+      const [updatedUser] = await db
+        .update(users)
+        .set({ crmStatus, updatedAt: new Date() })
+        .where(eq(users.id, id))
+        .returning();
+
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      await db.insert(userActivityLogs).values({
+        userId: loggedInUser.id,
+        action: "crm_status_changed",
+        entityType: "user",
+        entityId: id,
+        details: { newCrmStatus: crmStatus },
+      });
+
+      const { password, ...userData } = updatedUser;
+      res.json(userData);
+    } catch (error) {
+      console.error("Error updating CRM status:", error);
+      res.status(500).json({ error: "Failed to update CRM status" });
+    }
+  }
+);
 
 export default router;

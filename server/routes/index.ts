@@ -24,6 +24,7 @@ import { registerChannelRoutes } from "./channels.routes";
 import { registerDashboardRoutes } from "./dashboard.routes";
 import { registerAnalyticsRoutes } from "./analytics.routes";
 import { registerContactRoutes } from "./contacts.routes";
+import { registerContactCampaignRoutes } from "./contact-campaigns.routes";
 import { registerCampaignRoutes } from "./campaigns.routes";
 import { registerTemplateRoutes } from "./templates.routes";
 import { registerMediaRoutes } from "./media.routes";
@@ -43,6 +44,8 @@ import teamRoutes from "./team.routes";
 import authRoutes from "./auth.routes";
 import { registerSMTPRoutes } from "./smtp.route";
 import { registerVoiceRoutes } from "./voice.routes";
+import { registerAiProfileRoutes } from "./ai-profile.routes";
+import { registerCRMRoutes } from "./crm.routes";
 
 // Import error handler middleware
 import { errorHandler } from "../middlewares/error.middleware";
@@ -82,6 +85,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   registerDashboardRoutes(app);
   registerAnalyticsRoutes(app); // Legacy - kept for compatibility
   registerContactRoutes(app);
+  registerContactCampaignRoutes(app);
   registerCampaignRoutes(app);
   registerTemplateRoutes(app);
   registerMediaRoutes(app);
@@ -102,6 +106,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   registerClientApiRoutes(app);
   registerRestApiV1Routes(app);
   registerTagsRoutes(app);
+  registerAiProfileRoutes(app);
+  registerCRMRoutes(app);
   
   // Team management routes
   app.use("/api/team", teamRoutes);

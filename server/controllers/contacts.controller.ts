@@ -18,7 +18,7 @@
 import type { Request, Response } from "express";
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { storage } from "../storage";
-import { contacts, users, insertContactSchema, groups } from "@shared/schema";
+import { contacts, users, insertContactSchema, groups, contactCampaigns } from "@shared/schema";
 import { AppError, asyncHandler } from "../middlewares/error.middleware";
 import { db, dbRead } from "server/db";
 import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
@@ -94,6 +94,39 @@ export const getContacts = asyncHandler(
       contacts = contacts.filter((contact: any) => 
         contact.tags && Array.isArray(contact.tags) && tagList.every(t => contact.tags.includes(t))
       );
+    }
+
+    // Map active contact campaign name and next schedule date
+    if (contacts.length > 0) {
+      const contactIds = contacts.map((c: any) => c.id);
+      const contactCampaignsList = await dbRead
+        .select({
+          id: contactCampaigns.id,
+          contactId: contactCampaigns.contactId,
+          name: contactCampaigns.name,
+          nextSendAt: contactCampaigns.nextSendAt,
+        })
+        .from(contactCampaigns)
+        .where(
+          and(
+            inArray(contactCampaigns.contactId, contactIds),
+            eq(contactCampaigns.status, "active")
+          )
+        )
+        .orderBy(contactCampaigns.nextSendAt);
+
+      const campaignMap = new Map<string, any>();
+      for (const cc of contactCampaignsList) {
+        if (!campaignMap.has(cc.contactId)) {
+          campaignMap.set(cc.contactId, cc);
+        }
+      }
+
+      contacts = contacts.map((c: any) => ({
+        ...c,
+        activeCampaignName: campaignMap.get(c.id)?.name || null,
+        nextScheduleDate: campaignMap.get(c.id)?.nextSendAt || null,
+      }));
     }
 
     res.json(contacts);
@@ -368,6 +401,38 @@ export const getContactsWithPagination = asyncHandler(
         }
       }
       data = Array.from(phoneMap.values());
+    }
+
+    if (data.length > 0) {
+      const contactIds = data.map((c: any) => c.id);
+      const contactCampaignsList = await dbRead
+        .select({
+          id: contactCampaigns.id,
+          contactId: contactCampaigns.contactId,
+          name: contactCampaigns.name,
+          nextSendAt: contactCampaigns.nextSendAt,
+        })
+        .from(contactCampaigns)
+        .where(
+          and(
+            inArray(contactCampaigns.contactId, contactIds),
+            eq(contactCampaigns.status, "active")
+          )
+        )
+        .orderBy(contactCampaigns.nextSendAt);
+
+      const campaignMap = new Map<string, any>();
+      for (const cc of contactCampaignsList) {
+        if (!campaignMap.has(cc.contactId)) {
+          campaignMap.set(cc.contactId, cc);
+        }
+      }
+
+      data = data.map((c: any) => ({
+        ...c,
+        activeCampaignName: campaignMap.get(c.id)?.name || null,
+        nextScheduleDate: campaignMap.get(c.id)?.nextSendAt || null,
+      }));
     }
 
     res.json({

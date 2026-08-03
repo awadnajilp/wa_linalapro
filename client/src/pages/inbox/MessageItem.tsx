@@ -953,15 +953,15 @@ const MessageItem = ({
   const getMessageStatusIcon = (status: string) => {
     switch (status) {
       case "sent":
-        return <Check className="w-3 h-3 text-gray-400" />;
+        return <Check className="w-3.5 h-3.5 text-[#8696a0]" />;
       case "delivered":
-        return <CheckCheck className="w-3 h-3 text-gray-400" />;
+        return <CheckCheck className="w-3.5 h-3.5 text-[#8696a0]" />;
       case "read":
-        return <CheckCheck className="w-3 h-3 text-blue-500" />;
+        return <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />;
       case "failed":
-        return <AlertCircle className="w-3 h-3 text-red-500" />;
+        return <AlertCircle className="w-3.5 h-3.5 text-red-500" />;
       default:
-        return <Clock className="w-3 h-3 text-gray-400" />;
+        return <Clock className="w-3.5 h-3.5 text-gray-400" />;
     }
   };
 

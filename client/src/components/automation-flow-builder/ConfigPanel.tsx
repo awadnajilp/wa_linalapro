@@ -58,6 +58,10 @@ import {
   Brain,
   Bot,
   Calendar,
+  Shuffle,
+  CreditCard,
+  ShieldCheck,
+  Zap,
 } from "lucide-react";
 import { BuilderNodeData, NodeKind, Template, Member, ListSection } from "./types";
 import { FileUploadButton } from "./FileUploadButton";
@@ -88,6 +92,7 @@ const kindMeta: Record<NodeKind, { icon: any; label: string; color: string; bgTi
   scheduler: { icon: Calendar, label: "Scheduler", color: "text-rose-600", bgTint: "bg-rose-50" },
   send_template: { icon: FileText, label: "Send Template", color: "text-teal-600", bgTint: "bg-teal-50" },
   assign_user: { icon: Users, label: "Assign Agent", color: "text-indigo-600", bgTint: "bg-indigo-50" },
+  route_crm_round_robin: { icon: Shuffle, label: "CRM Round Robin", color: "text-indigo-600", bgTint: "bg-indigo-50" },
   webhook: { icon: Globe, label: "Webhook", color: "text-orange-600", bgTint: "bg-orange-50" },
   mysql: { icon: Database, label: "MySQL Query", color: "text-teal-600", bgTint: "bg-teal-50" },
   end: { icon: CircleStop, label: "End", color: "text-red-600", bgTint: "bg-red-50" },
@@ -103,6 +108,12 @@ const kindMeta: Record<NodeKind, { icon: any; label: string; color: string; bgTi
   ai_answer: { icon: Brain, label: "AI Answer", color: "text-purple-600", bgTint: "bg-purple-50" },
   ai_agent: { icon: Bot, label: "AI Agent", color: "text-fuchsia-600", bgTint: "bg-fuchsia-50" },
   send_contact_message: { icon: Users, label: "Send to Contacts", color: "text-indigo-600", bgTint: "bg-indigo-50" },
+  razorpay_generate: { icon: CreditCard, label: "RZP Generate", color: "text-blue-600", bgTint: "bg-blue-50" },
+  razorpay_verify: { icon: ShieldCheck, label: "RZP Verify", color: "text-emerald-600", bgTint: "bg-emerald-50" },
+  instamojo_payment: { icon: CreditCard, label: "Instamojo Pay", color: "text-purple-600", bgTint: "bg-purple-50" },
+  zapier: { icon: Zap, label: "Zapier", color: "text-orange-600", bgTint: "bg-orange-50" },
+  tap_payment: { icon: CreditCard, label: "Tap Payment", color: "text-rose-600", bgTint: "bg-rose-50" },
+  noon_payment: { icon: CreditCard, label: "Noon Pay", color: "text-yellow-600", bgTint: "bg-yellow-50" },
 };
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -153,6 +164,30 @@ export function ConfigPanel({
       if (!res.ok) return [];
       return await res.json();
     },
+  });
+
+  const { data: pipelines = [] } = useQuery<any[]>({
+    queryKey: ["/api/crm/pipelines", channelId],
+    queryFn: async () => {
+      if (!channelId) return [];
+      const res = await apiRequest("GET", `/api/crm/pipelines?channelId=${channelId}`);
+      if (!res.ok) return [];
+      return await res.json();
+    },
+    enabled: !!channelId,
+  });
+
+  const selectedPipelineId = selected?.data?.crmPipelineId || (pipelines.length > 0 ? pipelines[0].id : "");
+
+  const { data: stages = [] } = useQuery<any[]>({
+    queryKey: ["/api/crm/stages", selectedPipelineId],
+    queryFn: async () => {
+      if (!selectedPipelineId || selectedPipelineId === "default") return [];
+      const res = await apiRequest("GET", `/api/crm/stages?pipelineId=${selectedPipelineId}`);
+      if (!res.ok) return [];
+      return await res.json();
+    },
+    enabled: !!selectedPipelineId && selectedPipelineId !== "default",
   });
 
   const contactsList = Array.isArray(contacts)
@@ -804,6 +839,808 @@ export function ConfigPanel({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+            </>
+          )}
+
+          {d.kind === "route_crm_round_robin" && (
+            <>
+              <SectionHeader>CRM Round Robin Assignment</SectionHeader>
+              <div className="space-y-4 bg-indigo-50/50 rounded-xl p-4 border border-indigo-100">
+                <p className="text-[11px] text-gray-500 leading-normal">
+                  Routes this lead to a pipeline stage and automatically assigns the conversation to the next online team member in rotation.
+                </p>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Select Pipeline</Label>
+                  <Select 
+                    value={(d.crmPipelineId as string) || (pipelines.length > 0 ? pipelines[0].id : "default")} 
+                    onValueChange={(v) => onChange({ crmPipelineId: v === "default" ? "" : v, crmStageId: "" })}
+                  >
+                    <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
+                      <SelectValue placeholder="Select Pipeline" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pipelines.length === 0 ? (
+                        <SelectItem value="default" disabled>No pipelines found</SelectItem>
+                      ) : (
+                        pipelines.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Select Initial Stage</Label>
+                  <Select 
+                    value={(d.crmStageId as string) || (stages.length > 0 ? stages[0].id : "default")} 
+                    onValueChange={(v) => onChange({ crmStageId: v === "default" ? "" : v })}
+                  >
+                    <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
+                      <SelectValue placeholder="Select Stage" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stages.length === 0 ? (
+                        <SelectItem value="default" disabled>No stages found</SelectItem>
+                      ) : (
+                        stages.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </>
+          )}
+
+          {d.kind === "razorpay_generate" && (
+            <>
+              <SectionHeader>Razorpay Credentials</SectionHeader>
+              <div className="space-y-3 bg-gray-50/50 rounded-xl p-4 border border-gray-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Key ID (Optional if in .env)</Label>
+                  <Input
+                    value={d.razorpayKeyId || ""}
+                    onChange={(e) => onChange({ razorpayKeyId: e.target.value })}
+                    placeholder="E.g., rzp_live_xxxxxxxxxxxx"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Key Secret (Optional if in .env)</Label>
+                  <Input
+                    value={d.razorpayKeySecret || ""}
+                    onChange={(e) => onChange({ razorpayKeySecret: e.target.value })}
+                    placeholder="E.g., xxxxxxxxxxxxxxxxxxxxxxxx"
+                    type="password"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <SectionHeader>Execution Mode</SectionHeader>
+              <div className="space-y-3 bg-blue-50/50 rounded-xl p-4 border border-blue-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Mode</Label>
+                  <Select
+                    value={d.razorpayMode || "generate_only"}
+                    onValueChange={(v) => onChange({ razorpayMode: v as any })}
+                  >
+                    <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="generate_only">Generate Link Only</SelectItem>
+                      <SelectItem value="send_and_wait">Send & Wait for Payment</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="text-[10px] text-gray-400">
+                    {d.razorpayMode === "send_and_wait" 
+                      ? "Automatically sends the payment link via WhatsApp and pauses execution until paid." 
+                      : "Generates the link and saves it in a variable to let you manually design checkout routing."}
+                  </div>
+                </div>
+              </div>
+
+              {d.razorpayMode === "send_and_wait" && (
+                <>
+                  <SectionHeader>Auto Message Settings</SectionHeader>
+                  <div className="space-y-3 bg-blue-50/50 rounded-xl p-4 border border-blue-100 mb-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-gray-700">WhatsApp Message Template</Label>
+                      <Textarea
+                        value={d.razorpayMessage || ""}
+                        onChange={(e) => onChange({ razorpayMessage: e.target.value })}
+                        placeholder="Please pay by clicking this link: {{payment_url}}"
+                        className="min-h-[80px] text-sm bg-white rounded-lg"
+                      />
+                      <div className="text-[10px] text-gray-400">{"Message to send automatically. You must include {{payment_url}} so the customer receives the link."}</div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <SectionHeader>Payment Details</SectionHeader>
+              <div className="space-y-3 bg-blue-50/50 rounded-xl p-4 border border-blue-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Amount</Label>
+                  <Input
+                    value={d.razorpayAmount || ""}
+                    onChange={(e) => onChange({ razorpayAmount: e.target.value })}
+                    placeholder="e.g., 499.00 or {{amount}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Specify amount. Variables like {{amount}} are supported."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Currency</Label>
+                  <Input
+                    value={d.razorpayCurrency || "INR"}
+                    onChange={(e) => onChange({ razorpayCurrency: e.target.value })}
+                    placeholder="e.g., INR"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"E.g., INR. Variables like {{currency}} are supported."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Description</Label>
+                  <Input
+                    value={d.razorpayDescription || ""}
+                    onChange={(e) => onChange({ razorpayDescription: e.target.value })}
+                    placeholder="e.g., Order Payment"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Payment details description. Variables like {{desc}} are supported."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Receipt / Reference ID (Optional)</Label>
+                  <Input
+                    value={d.razorpayReceipt || ""}
+                    onChange={(e) => onChange({ razorpayReceipt: e.target.value })}
+                    placeholder="e.g., rcpt_12345 or {{receipt_id}}"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Custom identifier. Variables like {{receipt_id}} are supported."}</div>
+                </div>
+              </div>
+
+              <SectionHeader>Customer Details</SectionHeader>
+              <div className="space-y-3 bg-gray-50/50 rounded-xl p-4 border border-gray-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Customer Name</Label>
+                  <Input
+                    value={d.razorpayCustomerName || ""}
+                    onChange={(e) => onChange({ razorpayCustomerName: e.target.value })}
+                    placeholder="{{contact_name}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Customer's name. Variables like {{contact_name}} are supported."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Customer Email</Label>
+                  <Input
+                    value={d.razorpayCustomerEmail || ""}
+                    onChange={(e) => onChange({ razorpayCustomerEmail: e.target.value })}
+                    placeholder="{{contact_email}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Customer's email address. Variables like {{contact_email}} are supported."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Customer Phone</Label>
+                  <Input
+                    value={d.razorpayCustomerPhone || ""}
+                    onChange={(e) => onChange({ razorpayCustomerPhone: e.target.value })}
+                    placeholder="{{contact_phone}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Customer's contact number. Variables like {{contact_phone}} are supported."}</div>
+                </div>
+              </div>
+
+              <SectionHeader>Output Variables</SectionHeader>
+              <div className="space-y-3 bg-violet-50/50 rounded-xl p-4 border border-violet-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Payment URL To</Label>
+                  <Input
+                    value={d.razorpayVarUrl || "payment_url"}
+                    onChange={(e) => onChange({ razorpayVarUrl: e.target.value })}
+                    placeholder="payment_url"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Reference ID To</Label>
+                  <Input
+                    value={d.razorpayVarRefId || "payment_ref_id"}
+                    onChange={(e) => onChange({ razorpayVarRefId: e.target.value })}
+                    placeholder="payment_ref_id"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                {d.razorpayMode === "send_and_wait" && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-gray-700">Save Status To</Label>
+                      <Input
+                        value={d.razorpayVarStatus || "payment_status"}
+                        onChange={(e) => onChange({ razorpayVarStatus: e.target.value })}
+                        placeholder="payment_status"
+                        className="h-9 text-sm rounded-lg bg-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-gray-700">Save Payment ID To (Optional)</Label>
+                      <Input
+                        value={d.razorpayVarPaymentId || "payment_id"}
+                        onChange={(e) => onChange({ razorpayVarPaymentId: e.target.value })}
+                        placeholder="payment_id"
+                        className="h-9 text-sm rounded-lg bg-white font-mono"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+
+          {d.kind === "razorpay_verify" && (
+            <>
+              <SectionHeader>Razorpay Credentials</SectionHeader>
+              <div className="space-y-3 bg-gray-50/50 rounded-xl p-4 border border-gray-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Key ID (Optional if in .env)</Label>
+                  <Input
+                    value={d.razorpayKeyId || ""}
+                    onChange={(e) => onChange({ razorpayKeyId: e.target.value })}
+                    placeholder="E.g., rzp_live_xxxxxxxxxxxx"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Key Secret (Optional if in .env)</Label>
+                  <Input
+                    value={d.razorpayKeySecret || ""}
+                    onChange={(e) => onChange({ razorpayKeySecret: e.target.value })}
+                    placeholder="E.g., xxxxxxxxxxxxxxxxxxxxxxxx"
+                    type="password"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <SectionHeader>Verification Settings</SectionHeader>
+              <div className="space-y-3 bg-emerald-50/50 rounded-xl p-4 border border-emerald-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Reference / Payment Link ID</Label>
+                  <Input
+                    value={d.razorpayRefId || ""}
+                    onChange={(e) => onChange({ razorpayRefId: e.target.value })}
+                    placeholder="e.g., {{payment_ref_id}}"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                  <div className="text-[10px] text-gray-400">Pass the variable name or ID to verify.</div>
+                </div>
+              </div>
+
+              <SectionHeader>Output Variables</SectionHeader>
+              <div className="space-y-3 bg-violet-50/50 rounded-xl p-4 border border-violet-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Status To</Label>
+                  <Input
+                    value={d.razorpayVarStatus || "payment_status"}
+                    onChange={(e) => onChange({ razorpayVarStatus: e.target.value })}
+                    placeholder="payment_status"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                  <div className="text-[10px] text-gray-400">Stores: "paid", "created", "expired", "cancelled" etc.</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Payment ID To (Optional)</Label>
+                  <Input
+                    value={d.razorpayVarPaymentId || "payment_id"}
+                    onChange={(e) => onChange({ razorpayVarPaymentId: e.target.value })}
+                    placeholder="payment_id"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {d.kind === "instamojo_payment" && (
+            <>
+              <SectionHeader>Instamojo Credentials</SectionHeader>
+              <div className="space-y-3 bg-purple-50/50 rounded-xl p-4 border border-purple-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">API Key (Optional if in .env)</Label>
+                  <Input
+                    value={d.instamojoApiKey || ""}
+                    onChange={(e) => onChange({ instamojoApiKey: e.target.value })}
+                    placeholder="E.g., api_xxxxxxxxxxxx"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Auth Token (Optional if in .env)</Label>
+                  <Input
+                    value={d.instamojoAuthToken || ""}
+                    onChange={(e) => onChange({ instamojoAuthToken: e.target.value })}
+                    placeholder="E.g., auth_xxxxxxxxxxxx"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="flex items-center space-x-2 py-1">
+                  <Checkbox
+                    id="instamojoSandbox"
+                    checked={d.instamojoSandbox || false}
+                    onCheckedChange={(checked) => onChange({ instamojoSandbox: !!checked })}
+                  />
+                  <Label htmlFor="instamojoSandbox" className="text-xs font-semibold text-gray-700 cursor-pointer">
+                    Enable Test Mode (Sandbox environment)
+                  </Label>
+                </div>
+              </div>
+
+              <SectionHeader>Payment Details</SectionHeader>
+              <div className="space-y-3 bg-blue-50/50 rounded-xl p-4 border border-blue-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Amount (INR)</Label>
+                  <Input
+                    value={d.instamojoAmount || ""}
+                    onChange={(e) => onChange({ instamojoAmount: e.target.value })}
+                    placeholder="e.g., 499.00 or {{amount}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Specify amount. Variables like {{amount}} are supported."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Purpose</Label>
+                  <Input
+                    value={d.instamojoPurpose || "Payment Request"}
+                    onChange={(e) => onChange({ instamojoPurpose: e.target.value })}
+                    placeholder="e.g., Order #{{order_id}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Payment context. Variables like {{order_id}} are supported."}</div>
+                </div>
+              </div>
+
+              <SectionHeader>Auto Message Settings</SectionHeader>
+              <div className="space-y-3 bg-blue-50/50 rounded-xl p-4 border border-blue-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">WhatsApp Message Template</Label>
+                  <Textarea
+                    value={d.instamojoMessage || ""}
+                    onChange={(e) => onChange({ instamojoMessage: e.target.value })}
+                    placeholder="Hello {{contact_name}}, please pay by clicking this link: {{payment_url}}"
+                    className="min-h-[80px] text-sm bg-white rounded-lg"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Message to send automatically. You must include {{payment_url}} so the customer receives the link."}</div>
+                </div>
+              </div>
+
+              <SectionHeader>Customer Details</SectionHeader>
+              <div className="space-y-3 bg-gray-50/50 rounded-xl p-4 border border-gray-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Customer Name</Label>
+                  <Input
+                    value={d.instamojoCustomerName || ""}
+                    onChange={(e) => onChange({ instamojoCustomerName: e.target.value })}
+                    placeholder="{{contact_name}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Customer's name. Variables like {{contact_name}} are supported."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Customer Email</Label>
+                  <Input
+                    value={d.instamojoCustomerEmail || ""}
+                    onChange={(e) => onChange({ instamojoCustomerEmail: e.target.value })}
+                    placeholder="{{contact_email}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Customer's email address. Variables like {{contact_email}} are supported."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Customer Phone</Label>
+                  <Input
+                    value={d.instamojoCustomerPhone || ""}
+                    onChange={(e) => onChange({ instamojoCustomerPhone: e.target.value })}
+                    placeholder="{{contact_phone}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Customer's contact number. Variables like {{contact_phone}} are supported."}</div>
+                </div>
+              </div>
+
+              <SectionHeader>Output Variables</SectionHeader>
+              <div className="space-y-3 bg-violet-50/50 rounded-xl p-4 border border-violet-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Payment URL To</Label>
+                  <Input
+                    value={d.instamojoVarUrl || "payment_url"}
+                    onChange={(e) => onChange({ instamojoVarUrl: e.target.value })}
+                    placeholder="payment_url"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Reference ID To</Label>
+                  <Input
+                    value={d.instamojoVarRefId || "payment_ref_id"}
+                    onChange={(e) => onChange({ instamojoVarRefId: e.target.value })}
+                    placeholder="payment_ref_id"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Status To</Label>
+                  <Input
+                    value={d.instamojoVarStatus || "payment_status"}
+                    onChange={(e) => onChange({ instamojoVarStatus: e.target.value })}
+                    placeholder="payment_status"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Payment ID To (Optional)</Label>
+                  <Input
+                    value={d.instamojoVarPaymentId || "payment_id"}
+                    onChange={(e) => onChange({ instamojoVarPaymentId: e.target.value })}
+                    placeholder="payment_id"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {d.kind === "zapier" && (
+            <>
+              <SectionHeader>Zapier Webhook</SectionHeader>
+              <div className="space-y-3 bg-orange-50/50 rounded-xl p-4 border border-orange-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Zapier Webhook URL</Label>
+                  <Input
+                    value={d.zapierWebhookUrl || ""}
+                    onChange={(e) => onChange({ zapierWebhookUrl: e.target.value })}
+                    placeholder="https://hooks.zapier.com/hooks/catch/..."
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">
+                    Paste the Catch Hook URL generated in your Zapier trigger configuration.
+                  </div>
+                </div>
+              </div>
+
+              <SectionHeader>Payload Configuration</SectionHeader>
+              <div className="space-y-3 bg-gray-50/50 rounded-xl p-4 border border-gray-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Payload Mode</Label>
+                  <Select
+                    value={d.zapierPayloadMode || "all_variables"}
+                    onValueChange={(v) => onChange({ zapierPayloadMode: v as any })}
+                  >
+                    <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all_variables">Send All Flow Variables</SelectItem>
+                      <SelectItem value="custom">Send Custom JSON Payload</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="text-[10px] text-gray-400">
+                    {d.zapierPayloadMode === "all_variables"
+                      ? "Automatically compiles and transmits all contact and conversation variables as a JSON object."
+                      : "Manually construct a custom JSON payload to transmit specific fields."}
+                  </div>
+                </div>
+
+                {d.zapierPayloadMode === "custom" && (
+                  <div className="space-y-1.5 pt-1">
+                    <Label className="text-xs font-semibold text-gray-700">Custom JSON Payload</Label>
+                    <Textarea
+                      value={d.zapierCustomPayload || ""}
+                      onChange={(e) => onChange({ zapierCustomPayload: e.target.value })}
+                      placeholder={'{\n  "contact_name": "{{contact_name}}",\n  "custom_field": "some_value"\n}'}
+                      className="min-h-[120px] text-xs font-mono bg-white rounded-lg"
+                    />
+                    <div className="text-[10px] text-gray-400">
+                      {"Enter a valid JSON string. Variables like {{contact_name}} are supported."}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {d.kind === "tap_payment" && (
+            <>
+              <SectionHeader>Tap Payments Credentials</SectionHeader>
+              <div className="space-y-3 bg-rose-50/50 rounded-xl p-4 border border-rose-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Secret Key (Optional if in .env)</Label>
+                  <Input
+                    value={d.tapSecretKey || ""}
+                    onChange={(e) => onChange({ tapSecretKey: e.target.value })}
+                    placeholder="E.g., Tap Secret Key"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                    type="password"
+                  />
+                </div>
+              </div>
+
+              <SectionHeader>Payment Details</SectionHeader>
+              <div className="space-y-3 bg-blue-50/50 rounded-xl p-4 border border-blue-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Amount</Label>
+                  <Input
+                    value={d.tapAmount || ""}
+                    onChange={(e) => onChange({ tapAmount: e.target.value })}
+                    placeholder="e.g., 50.00 or {{amount}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Specify amount. Variables like {{amount}} are supported."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Currency</Label>
+                  <Input
+                    value={d.tapCurrency || "SAR"}
+                    onChange={(e) => onChange({ tapCurrency: e.target.value })}
+                    placeholder="e.g., SAR, KWD, AED, USD"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Currency code. E.g., SAR, KWD, AED, BHD, OMR, QAR, USD."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Description / Purpose</Label>
+                  <Input
+                    value={d.tapDescription || "Payment Request"}
+                    onChange={(e) => onChange({ tapDescription: e.target.value })}
+                    placeholder="e.g., Order #{{order_id}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Payment context. Variables like {{order_id}} are supported."}</div>
+                </div>
+              </div>
+
+              <SectionHeader>Auto Message Settings</SectionHeader>
+              <div className="space-y-3 bg-blue-50/50 rounded-xl p-4 border border-blue-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">WhatsApp Message Template</Label>
+                  <Textarea
+                    value={d.tapMessage || ""}
+                    onChange={(e) => onChange({ tapMessage: e.target.value })}
+                    placeholder="Hello {{contact_name}}, please complete your payment of {{amount}} {{currency}} here: {{payment_url}}"
+                    className="min-h-[80px] text-sm bg-white rounded-lg"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Message to send automatically. You must include {{payment_url}} so the customer receives the link."}</div>
+                </div>
+              </div>
+
+              <SectionHeader>Customer Details</SectionHeader>
+              <div className="space-y-3 bg-gray-50/50 rounded-xl p-4 border border-gray-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Customer Name</Label>
+                  <Input
+                    value={d.tapCustomerName || ""}
+                    onChange={(e) => onChange({ tapCustomerName: e.target.value })}
+                    placeholder="{{contact_name}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Customer's name. Variables like {{contact_name}} are supported."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Customer Email</Label>
+                  <Input
+                    value={d.tapCustomerEmail || ""}
+                    onChange={(e) => onChange({ tapCustomerEmail: e.target.value })}
+                    placeholder="{{contact_email}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Customer's email address. Variables like {{contact_email}} are supported."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Customer Phone</Label>
+                  <Input
+                    value={d.tapCustomerPhone || ""}
+                    onChange={(e) => onChange({ tapCustomerPhone: e.target.value })}
+                    placeholder="{{contact_phone}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Customer's contact number. Variables like {{contact_phone}} are supported."}</div>
+                </div>
+              </div>
+
+              <SectionHeader>Output Variables</SectionHeader>
+              <div className="space-y-3 bg-violet-50/50 rounded-xl p-4 border border-violet-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Payment URL To</Label>
+                  <Input
+                    value={d.tapVarUrl || "payment_url"}
+                    onChange={(e) => onChange({ tapVarUrl: e.target.value })}
+                    placeholder="payment_url"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Reference ID To</Label>
+                  <Input
+                    value={d.tapVarRefId || "payment_ref_id"}
+                    onChange={(e) => onChange({ tapVarRefId: e.target.value })}
+                    placeholder="payment_ref_id"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Status To</Label>
+                  <Input
+                    value={d.tapVarStatus || "payment_status"}
+                    onChange={(e) => onChange({ tapVarStatus: e.target.value })}
+                    placeholder="payment_status"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Payment ID To (Optional)</Label>
+                  <Input
+                    value={d.tapVarPaymentId || "payment_id"}
+                    onChange={(e) => onChange({ tapVarPaymentId: e.target.value })}
+                    placeholder="payment_id"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {d.kind === "noon_payment" && (
+            <>
+              <SectionHeader>Noon Payments Credentials</SectionHeader>
+              <div className="space-y-3 bg-yellow-50/50 rounded-xl p-4 border border-yellow-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Business ID (Optional if in .env)</Label>
+                  <Input
+                    value={d.noonBusinessId || ""}
+                    onChange={(e) => onChange({ noonBusinessId: e.target.value })}
+                    placeholder="E.g., 123456"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Application ID (Optional if in .env)</Label>
+                  <Input
+                    value={d.noonAppId || ""}
+                    onChange={(e) => onChange({ noonAppId: e.target.value })}
+                    placeholder="E.g., app_xxxxxx"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Application Key (Optional if in .env)</Label>
+                  <Input
+                    value={d.noonAppKey || ""}
+                    onChange={(e) => onChange({ noonAppKey: e.target.value })}
+                    placeholder="E.g., key_xxxxxx"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                    type="password"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Route Category</Label>
+                  <Input
+                    value={d.noonCategory || "pay_by_link"}
+                    onChange={(e) => onChange({ noonCategory: e.target.value })}
+                    placeholder="pay_by_link"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="flex items-center space-x-2 py-1">
+                  <Checkbox
+                    id="noonSandbox"
+                    checked={d.noonSandbox || false}
+                    onCheckedChange={(checked) => onChange({ noonSandbox: !!checked })}
+                  />
+                  <Label htmlFor="noonSandbox" className="text-xs font-semibold text-gray-700 cursor-pointer">
+                    Enable Test Mode (Sandbox environment)
+                  </Label>
+                </div>
+              </div>
+
+              <SectionHeader>Payment Details</SectionHeader>
+              <div className="space-y-3 bg-blue-50/50 rounded-xl p-4 border border-blue-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Amount</Label>
+                  <Input
+                    value={d.noonAmount || ""}
+                    onChange={(e) => onChange({ noonAmount: e.target.value })}
+                    placeholder="e.g., 50.00 or {{amount}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Specify amount. Variables like {{amount}} are supported."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Currency</Label>
+                  <Input
+                    value={d.noonCurrency || "SAR"}
+                    onChange={(e) => onChange({ noonCurrency: e.target.value })}
+                    placeholder="e.g., SAR, AED, EGP, USD"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Currency code. E.g., SAR, AED, EGP, USD."}</div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Description / Purpose</Label>
+                  <Input
+                    value={d.noonDescription || "Payment Request"}
+                    onChange={(e) => onChange({ noonDescription: e.target.value })}
+                    placeholder="e.g., Order #{{order_id}}"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Payment context. Variables like {{order_id}} are supported."}</div>
+                </div>
+              </div>
+
+              <SectionHeader>Auto Message Settings</SectionHeader>
+              <div className="space-y-3 bg-blue-50/50 rounded-xl p-4 border border-blue-100 mb-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">WhatsApp Message Template</Label>
+                  <Textarea
+                    value={d.noonMessage || ""}
+                    onChange={(e) => onChange({ noonMessage: e.target.value })}
+                    placeholder="Hello {{contact_name}}, please complete your payment of {{amount}} {{currency}} here: {{payment_url}}"
+                    className="min-h-[80px] text-sm bg-white rounded-lg"
+                  />
+                  <div className="text-[10px] text-gray-400">{"Message to send automatically. You must include {{payment_url}} so the customer receives the link."}</div>
+                </div>
+              </div>
+
+              <SectionHeader>Output Variables</SectionHeader>
+              <div className="space-y-3 bg-violet-50/50 rounded-xl p-4 border border-violet-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Payment URL To</Label>
+                  <Input
+                    value={d.noonVarUrl || "payment_url"}
+                    onChange={(e) => onChange({ noonVarUrl: e.target.value })}
+                    placeholder="payment_url"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Reference ID To</Label>
+                  <Input
+                    value={d.noonVarRefId || "payment_ref_id"}
+                    onChange={(e) => onChange({ noonVarRefId: e.target.value })}
+                    placeholder="payment_ref_id"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Status To</Label>
+                  <Input
+                    value={d.noonVarStatus || "payment_status"}
+                    onChange={(e) => onChange({ noonVarStatus: e.target.value })}
+                    placeholder="payment_status"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Payment ID To (Optional)</Label>
+                  <Input
+                    value={d.noonVarPaymentId || "payment_id"}
+                    onChange={(e) => onChange({ noonVarPaymentId: e.target.value })}
+                    placeholder="payment_id"
+                    className="h-9 text-sm rounded-lg bg-white font-mono"
+                  />
                 </div>
               </div>
             </>

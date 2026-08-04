@@ -4,7 +4,7 @@
  * ============================================================
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,86 @@ import { type Contact } from "./types";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { TemplatePickerDialog } from "@/components/shared/TemplatePickerDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+
+function DateTimePicker({
+  value,
+  onChange,
+}: {
+  value: Date | undefined;
+  onChange: (d: Date) => void;
+}) {
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(value);
+  const [time, setTime] = useState<string>(value ? format(value, "HH:mm") : "10:00");
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    setSelectedDate(date);
+    const [hours, minutes] = time.split(":").map(Number);
+    const updated = new Date(date);
+    updated.setHours(hours);
+    updated.setMinutes(minutes);
+    updated.setSeconds(0);
+    onChange(updated);
+  };
+
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const timeVal = e.target.value;
+    setTime(timeVal);
+    if (selectedDate) {
+      const [hours, minutes] = timeVal.split(":").map(Number);
+      const updated = new Date(selectedDate);
+      updated.setHours(hours);
+      updated.setMinutes(minutes);
+      updated.setSeconds(0);
+      onChange(updated);
+    }
+  };
+
+  useEffect(() => {
+    setSelectedDate(value);
+    if (value) {
+      setTime(format(value, "HH:mm"));
+    }
+  }, [value]);
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <div className="relative cursor-pointer w-full">
+          <Input
+            type="text"
+            readOnly
+            placeholder="DD/MM/YYYY HH:mm"
+            value={selectedDate ? format(selectedDate, "dd/MM/yyyy") + " " + time : ""}
+            className="bg-white border-gray-200 focus:border-blue-500 text-xs h-10 pr-10 cursor-pointer w-full text-left"
+          />
+          <Calendar className="absolute right-3 top-3 h-4 w-4 text-gray-400 pointer-events-none" />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0 z-[100]" align="start">
+        <CalendarComponent
+          mode="single"
+          selected={selectedDate}
+          onSelect={handleDateSelect}
+          initialFocus
+        />
+        <div className="p-3 border-t border-gray-100 flex items-center justify-between gap-4">
+          <span className="text-xs font-semibold text-gray-600">Time:</span>
+          <Input
+            type="time"
+            value={time}
+            onChange={handleTimeChange}
+            className="w-28 text-xs h-8"
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 interface ContactCampaignsDialogProps {
   open: boolean;
@@ -61,7 +141,7 @@ export function ContactCampaignsDialog({
   const [messageType, setMessageType] = useState<"custom" | "template">("custom");
   const [customMessage, setCustomMessage] = useState("");
   const [frequency, setFrequency] = useState("yearly");
-  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledDateVal, setScheduledDateVal] = useState<Date | undefined>(undefined);
   
   // Template state
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
@@ -157,7 +237,7 @@ export function ContactCampaignsDialog({
     setMessageType("custom");
     setCustomMessage("");
     setFrequency("yearly");
-    setScheduledDate("");
+    setScheduledDateVal(undefined);
     setSelectedTemplate(null);
     setTemplateVariables([]);
     setHeaderMediaId(undefined);
@@ -187,7 +267,7 @@ export function ContactCampaignsDialog({
       toast({ title: "Name is required", variant: "destructive" });
       return;
     }
-    if (!scheduledDate) {
+    if (!scheduledDateVal) {
       toast({ title: "Start date is required", variant: "destructive" });
       return;
     }
@@ -195,7 +275,7 @@ export function ContactCampaignsDialog({
     const payload: any = {
       name,
       frequency,
-      scheduledDate: new Date(scheduledDate).toISOString(),
+      scheduledDate: scheduledDateVal.toISOString(),
     };
 
     if (messageType === "custom") {
@@ -284,12 +364,9 @@ export function ContactCampaignsDialog({
 
                   <div>
                     <label className="text-xs font-semibold text-gray-600 block mb-1">First Scheduled Date</label>
-                    <Input
-                      type="datetime-local"
-                      value={scheduledDate}
-                      onChange={(e) => setScheduledDate(e.target.value)}
-                      required
-                      className="bg-white border-gray-200 focus:border-blue-500"
+                    <DateTimePicker
+                      value={scheduledDateVal}
+                      onChange={(d) => setScheduledDateVal(d)}
                     />
                   </div>
                 </div>

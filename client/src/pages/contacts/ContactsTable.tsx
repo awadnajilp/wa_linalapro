@@ -377,6 +377,18 @@ export function ContactsTable({
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => {
+                              setSelectedContact(contact);
+                              setShowSchedulerDialog(true);
+                            }}
+                            title="Recurring Campaigns"
+                            className="h-8 w-8 p-0 hidden lg:flex text-indigo-600 hover:text-indigo-800"
+                          >
+                            <Calendar className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleDeleteContact(contact.id)}
                             disabled={
                               user?.username === "demouser"

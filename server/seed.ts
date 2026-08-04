@@ -88,6 +88,7 @@ async function seed() {
       'campaigns:view', 'campaigns:create', 'campaigns:edit', 'campaigns:delete', 'campaigns:export',
       'templates:view', 'templates:create', 'templates:edit', 'templates:delete', 'templates:export',
       'contacts:view', 'contacts:create', 'contacts:edit', 'contacts:delete', 'contacts:export',
+      'groups:view', 'groups:create', 'groups:edit', 'groups:delete',
       'chathub:view', 'chathub:send', 'chathub:assign', 'chathub:delete',
       'botflow:view', 'botflow:create', 'botflow:edit', 'botflow:delete',
       'workflows:view', 'workflows:create', 'workflows:edit', 'workflows:delete',
@@ -111,6 +112,7 @@ async function seed() {
 
     const defaultPermissions = [
       'contacts:view', 'contacts:create', 'contacts:edit', 'contacts:delete', 'contacts:export',
+      'groups:view', 'groups:create', 'groups:edit', 'groups:delete',
       'campaigns:view', 'campaigns:create', 'campaigns:edit', 'campaigns:delete',
       'templates:view', 'templates:create', 'templates:edit', 'templates:delete', 'templates:sync',
       'analytics:view',

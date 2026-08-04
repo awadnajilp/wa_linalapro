@@ -464,8 +464,13 @@ export default function Sidebar() {
 
     const role = user.role as Role;
 
-    // SUPERADMIN sees everything
-    if (role === "superadmin") return true;
+    // SUPERADMIN / ADMIN sees everything they are allowed to see
+    if (role === "superadmin" || role === "admin") {
+      if (item.allowedRoles && !item.allowedRoles.includes(role)) {
+        return false;
+      }
+      return true;
+    }
 
     // TEAM role must ONLY use permissions — but allow alwaysVisible items
     if (role === "team") {

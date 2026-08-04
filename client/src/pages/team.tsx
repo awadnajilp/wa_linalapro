@@ -1223,6 +1223,16 @@ const findGroupByPermission = (
   );
 };
 
+const defaultTeamPermissions = [
+  'contacts:view', 'contacts:create', 'contacts:edit', 'contacts:delete',
+  'groups:view', 'groups:create', 'groups:edit', 'groups:delete',
+  'campaigns:view', 'campaigns:create', 'campaigns:edit', 'campaigns:delete',
+  'templates:view', 'templates:create', 'templates:edit', 'templates:delete',
+  'inbox:view', 'inbox:send', 'inbox:assign',
+  'automations:view', 'automations:create', 'automations:edit', 'automations:delete',
+  'analytics:view'
+];
+
 function TeamMemberDialog({
   open,
   onOpenChange,
@@ -1247,7 +1257,7 @@ function TeamMemberDialog({
     role: (member?.role as "team") || "team",
     permissions: member?.permissions
       ? mapApiPermissionsToForm(member.permissions as string[])
-      : {},
+      : mapApiPermissionsToForm(defaultTeamPermissions),
     channelId: (member as any)?.channelId || channelId || "",
     showOnlyAssigned: !!(member as any)?.showOnlyAssigned,
     isAdminMember: !!(member as any)?.isAdminMember,
@@ -1273,7 +1283,7 @@ function TeamMemberDialog({
       role: (member?.role as "team") || "team",
       permissions: member?.permissions
         ? mapApiPermissionsToForm(member.permissions as string[])
-        : {},
+        : mapApiPermissionsToForm(defaultTeamPermissions),
       channelId: (member as any)?.channelId || channelId || "",
       showOnlyAssigned: !!(member as any)?.showOnlyAssigned,
       isAdminMember: !!(member as any)?.isAdminMember,

@@ -35,6 +35,12 @@ import { sendOTPEmailVerify, sendPasswordResetEmail } from "../services/email.se
       'contacts:delete',
       'contacts:export',
 
+      // Groups
+      'groups:view',
+      'groups:create',
+      'groups:edit',
+      'groups:delete',
+
       // Campaigns
       'campaigns:view',
       'campaigns:create',

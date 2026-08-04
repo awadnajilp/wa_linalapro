@@ -152,7 +152,7 @@ function PermissionRoute({
   const hasPermission = (permission?: string) => {
     if (!permission) return true;
     if (!user?.permissions) return false;
-    if (user.role === "superadmin") return true;
+    if (user.role === "superadmin" || user.role === "admin") return true;
 
     const perms = Array.isArray(user.permissions)
       ? user.permissions
@@ -447,6 +447,7 @@ export function usePermissions() {
   const { user } = useAuth();
 
   const hasPermission = (permission: string) => {
+    if (user?.role === "superadmin" || user?.role === "admin") return true;
     if (!user?.permissions) return false;
 
     const perms = Array.isArray(user.permissions)

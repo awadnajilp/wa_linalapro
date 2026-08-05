@@ -84,8 +84,8 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   registerChannelRoutes(app);
   registerDashboardRoutes(app);
   registerAnalyticsRoutes(app); // Legacy - kept for compatibility
-  registerContactRoutes(app);
   registerContactCampaignRoutes(app);
+  registerContactRoutes(app);
   registerCampaignRoutes(app);
   registerTemplateRoutes(app);
   registerMediaRoutes(app);

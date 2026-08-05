@@ -10,6 +10,7 @@ import {
   crmCadences,
   crmCadenceSteps,
   crmDealFollowups,
+  crmAgentTargets,
   insertCrmPipelineSchema,
   insertCrmStageSchema,
   insertCrmDealSchema,
@@ -17,7 +18,7 @@ import {
   users,
   contacts
 } from "@shared/schema";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, or } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth.middleware";
 
 export function registerCRMRoutes(app: Express) {
@@ -437,9 +438,12 @@ export function registerCRMRoutes(app: Express) {
         followUpTemplateLanguage,
         followUpTemplateVariables,
         followUpStatus,
+        stageId,
+        contactId,
+        preferredContactMethod,
       } = req.body;
 
-      // Get existing deal assignee
+      // Get existing deal assignee and stage
       const [existingDeal] = await db
         .select()
         .from(crmDeals)
@@ -465,6 +469,9 @@ export function registerCRMRoutes(app: Express) {
           followUpTemplateLanguage: followUpTemplateLanguage !== undefined ? followUpTemplateLanguage : undefined,
           followUpTemplateVariables: followUpTemplateVariables !== undefined ? followUpTemplateVariables : undefined,
           followUpStatus: followUpStatus !== undefined ? followUpStatus : (customFollowUpDate !== undefined ? "pending" : undefined),
+          stageId: stageId !== undefined ? stageId : undefined,
+          contactId: contactId !== undefined ? contactId : undefined,
+          preferredContactMethod: preferredContactMethod !== undefined ? preferredContactMethod : undefined,
           updatedAt: new Date(),
         })
         .where(eq(crmDeals.id, id))
@@ -472,6 +479,11 @@ export function registerCRMRoutes(app: Express) {
 
       if (!updated) {
         return res.status(404).json({ error: "Deal not found" });
+      }
+
+      // Trigger follow-up scheduler updates if stage has changed
+      if (stageId !== undefined && stageId !== null && stageId !== existingDeal?.stageId) {
+        await scheduleFollowupsForDeal(id, stageId);
       }
 
       // Send email if assignee has changed and is set

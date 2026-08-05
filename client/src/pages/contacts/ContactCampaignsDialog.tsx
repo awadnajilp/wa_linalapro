@@ -93,10 +93,14 @@ export function ContactCampaignsDialog({
   const [headerMediaId, setHeaderMediaId] = useState<string | undefined>(undefined);
 
   // Fetch custom campaign templates
+  // Fetch custom campaign templates
   const { data: campaignTemplates = [], refetch: refetchTemplates } = useQuery({
-    queryKey: ["/api/contacts/campaign-templates", activeChannel?.id],
+    queryKey: ["/api/contacts/campaign-templates", contact?.channelId],
     queryFn: async () => {
-      let channelId = activeChannel?.id;
+      let channelId = contact?.channelId;
+      if (!channelId) {
+        channelId = activeChannel?.id;
+      }
       if (!channelId) {
         try {
           const chanRes = await fetch("/api/channels/active");
@@ -182,7 +186,7 @@ export function ContactCampaignsDialog({
       // Invalidate contacts queries to refresh columns in table
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/contacts"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts/campaign-templates", activeChannel?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts/campaign-templates", contact?.channelId] });
       refetchTemplates();
       refetch();
       resetForm();
@@ -398,6 +402,21 @@ export function ContactCampaignsDialog({
                       />
                     </div>
 
+                    {/* Variables Usage Label Guide */}
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-left text-[11px] text-blue-800 space-y-1 mb-2">
+                      <span className="font-semibold block">💡 Variables Usage Guide:</span>
+                      <p className="leading-relaxed">
+                        Type double curly braces in your message content to insert dynamic parameters. Default variables (`name`, `phone`) pre-populate automatically:
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mt-1 font-mono text-[10px]">
+                        <code className="bg-blue-100 px-1 py-0.5 rounded">{"{{name}}"}</code> (Full Name)
+                        <code className="bg-blue-100 px-1 py-0.5 rounded">{"{{phone}}"}</code> (Phone Number)
+                        {customVariables.map((cVar: string) => (
+                          <code key={cVar} className="bg-blue-100 px-1 py-0.5 rounded">{"{{" + cVar + "}}"}</code>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* Image Attachment (Optional) */}
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-gray-600 block">Attached Image (Optional)</label>
@@ -489,20 +508,6 @@ export function ContactCampaignsDialog({
                   </div>
                 </div>
 
-                {/* Variables Usage Label Guide */}
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-left text-[11px] text-blue-800 space-y-1">
-                  <span className="font-semibold block">💡 Variables Usage Guide:</span>
-                  <p className="leading-relaxed">
-                    Type double curly braces in your message content to insert dynamic parameters. Default variables (`name`, `phone`) pre-populate automatically:
-                  </p>
-                  <div className="flex flex-wrap gap-1.5 mt-1 font-mono text-[10px]">
-                    <code className="bg-blue-100 px-1 py-0.5 rounded">{"{{name}}"}</code> (Full Name)
-                    <code className="bg-blue-100 px-1 py-0.5 rounded">{"{{phone}}"}</code> (Phone Number)
-                    {customVariables.map((cVar: string) => (
-                      <code key={cVar} className="bg-blue-100 px-1 py-0.5 rounded">{"{{" + cVar + "}}"}</code>
-                    ))}
-                  </div>
-                </div>
 
                 {/* Template Variable Settings (Asked when variables exist in the loaded message) */}
                 {parsedVariables.length > 0 && (

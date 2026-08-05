@@ -96,11 +96,23 @@ export function ContactCampaignsDialog({
   const { data: campaignTemplates = [], refetch: refetchTemplates } = useQuery({
     queryKey: ["/api/contacts/campaign-templates", activeChannel?.id],
     queryFn: async () => {
-      if (!activeChannel?.id) return [];
-      const res = await apiRequest("GET", `/api/contacts/campaign-templates?channelId=${activeChannel.id}`);
+      let channelId = activeChannel?.id;
+      if (!channelId) {
+        try {
+          const chanRes = await fetch("/api/channels/active");
+          if (chanRes.ok) {
+            const chanData = await chanRes.json();
+            channelId = chanData?.id;
+          }
+        } catch (e) {
+          console.error("Error fetching active channel fallback:", e);
+        }
+      }
+      if (!channelId) return [];
+      const res = await apiRequest("GET", `/api/contacts/campaign-templates?channelId=${channelId}`);
       return res.json();
     },
-    enabled: !!activeChannel?.id && open,
+    enabled: open,
   });
 
   // Fetch campaigns for this contact
@@ -258,7 +270,10 @@ export function ContactCampaignsDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
+    const foundTemplate = campaignTemplates.find((t: any) => t.id === selectedContentTemplateId);
+    const campaignName = foundTemplate ? foundTemplate.name : name;
+
+    if (!selectedContentTemplateId && !name.trim()) {
       toast({ title: "Name is required", variant: "destructive" });
       return;
     }
@@ -268,7 +283,7 @@ export function ContactCampaignsDialog({
     }
 
     const payload: any = {
-      name,
+      name: campaignName,
       frequency,
       scheduledDate: new Date(scheduledDate).toISOString(),
       saveAsTemplate,
@@ -312,16 +327,139 @@ export function ContactCampaignsDialog({
               </div>
 
               <div className="space-y-4 text-left">
+                {/* Template Selection Dropdown (Always visible at the top) */}
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Campaign Name</label>
-                  <Input
-                    placeholder="e.g. Insurance Renewal Alert"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    className="bg-white border-gray-300 focus:border-blue-500 font-medium"
-                  />
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Load Saved Campaign Template (Optional)</label>
+                  <select
+                    value={selectedContentTemplateId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedContentTemplateId(val);
+                      const found = campaignTemplates.find((t: any) => t.id === val);
+                      if (found) {
+                        setCustomMessage(found.customMessage || "");
+                        setMediaUrl(found.mediaUrl || null);
+                        setMediaName(found.mediaName || null);
+                        setMediaMimeType(found.mediaMimeType || null);
+                      } else {
+                        setCustomMessage("");
+                        setMediaUrl(null);
+                        setMediaName(null);
+                        setMediaMimeType(null);
+                      }
+                    }}
+                    className="w-full bg-white border border-gray-300 focus:border-blue-500 rounded-lg text-xs font-medium h-10 px-3 cursor-pointer"
+                  >
+                    <option value="">-- Load from Saved Template --</option>
+                    {campaignTemplates.map((t: any) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
+                {selectedContentTemplateId ? (
+                  /* Template Preview Card when loaded */
+                  <div className="p-4 bg-white border border-gray-350 rounded-lg space-y-2.5 shadow-sm">
+                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Template Preview Details</span>
+                    <div className="bg-gray-50 p-3 rounded border border-gray-300 text-xs text-gray-800 whitespace-pre-wrap leading-relaxed">
+                      {customMessage || <em className="text-gray-400">No message content text.</em>}
+                    </div>
+                    {mediaUrl && (
+                      <div className="mt-2 border border-gray-350 rounded bg-white p-2 inline-block">
+                        <img src={mediaUrl} alt="Template Media" className="max-h-40 rounded object-contain" />
+                        <span className="text-[10px] text-gray-500 block mt-1.5 truncate max-w-[250px] font-semibold">{mediaName || "Image Attachment"}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Editor Fields shown only when creating new/custom */
+                  <>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 block mb-1">Campaign Name</label>
+                      <Input
+                        placeholder="e.g. Insurance Renewal Alert"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required
+                        className="bg-white border-gray-300 focus:border-blue-500 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 block mb-1">Message Content</label>
+                      <Textarea
+                        placeholder="Write the message text to be sent..."
+                        value={customMessage}
+                        onChange={(e) => setCustomMessage(e.target.value)}
+                        rows={4}
+                        className="bg-white border-gray-300 focus:border-blue-500 resize-none font-medium mb-1.5"
+                      />
+                    </div>
+
+                    {/* Image Attachment (Optional) */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-gray-600 block">Attached Image (Optional)</label>
+                      {mediaUrl ? (
+                        <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <img src={mediaUrl} alt="Preview" className="w-10 h-10 object-cover rounded border border-gray-250" />
+                            <span className="text-xs font-semibold text-gray-700 truncate max-w-[200px]">{mediaName || "Attached Image"}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setMediaUrl(null);
+                              setMediaName(null);
+                              setMediaMimeType(null);
+                            }}
+                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="relative border border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              setIsUploading(true);
+                              try {
+                                const formData = new FormData();
+                                formData.append("file", file);
+                                const res = await fetch("/api/media/upload", {
+                                                      method: "POST",
+                                                      body: formData,
+                                });
+                                if (!res.ok) throw new Error("Upload failed");
+                                const data = await res.json();
+                                setMediaUrl(data.url);
+                                setMediaName(data.name);
+                                setMediaMimeType(data.mimeType);
+                                toast({ title: "Image uploaded successfully" });
+                              } catch (err: any) {
+                                toast({ title: "Image upload failed", description: err.message, variant: "destructive" });
+                              } finally {
+                                setIsUploading(false);
+                              }
+                            }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            disabled={isUploading}
+                          />
+                          <p className="text-xs text-gray-500">
+                            {isUploading ? "Uploading image..." : "Click or drag image file here to attach"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -351,155 +489,52 @@ export function ContactCampaignsDialog({
                   </div>
                 </div>
 
-                <div className="border-t border-gray-250 pt-3 space-y-4">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1">Load Saved Campaign Template (Optional)</label>
-                    <select
-                      value={selectedContentTemplateId}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSelectedContentTemplateId(val);
-                        const found = campaignTemplates.find((t: any) => t.id === val);
-                        if (found) {
-                          setCustomMessage(found.customMessage || "");
-                          setMediaUrl(found.mediaUrl || null);
-                          setMediaName(found.mediaName || null);
-                          setMediaMimeType(found.mediaMimeType || null);
-                        } else {
-                          setCustomMessage("");
-                          setMediaUrl(null);
-                          setMediaName(null);
-                          setMediaMimeType(null);
-                        }
-                      }}
-                      className="w-full bg-white border border-gray-300 focus:border-blue-500 rounded-lg text-xs font-medium h-10 px-3 cursor-pointer"
-                    >
-                      <option value="">-- Load from Saved Template --</option>
-                      {campaignTemplates.map((t: any) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </select>
+                {/* Variables Usage Label Guide */}
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-left text-[11px] text-blue-800 space-y-1">
+                  <span className="font-semibold block">💡 Variables Usage Guide:</span>
+                  <p className="leading-relaxed">
+                    Type double curly braces in your message content to insert dynamic parameters. Default variables (`name`, `phone`) pre-populate automatically:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mt-1 font-mono text-[10px]">
+                    <code className="bg-blue-100 px-1 py-0.5 rounded">{"{{name}}"}</code> (Full Name)
+                    <code className="bg-blue-100 px-1 py-0.5 rounded">{"{{phone}}"}</code> (Phone Number)
+                    {customVariables.map((cVar: string) => (
+                      <code key={cVar} className="bg-blue-100 px-1 py-0.5 rounded">{"{{" + cVar + "}}"}</code>
+                    ))}
                   </div>
+                </div>
 
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1">Message Content</label>
-                    <Textarea
-                      placeholder="Write the message text to be sent..."
-                      value={customMessage}
-                      onChange={(e) => setCustomMessage(e.target.value)}
-                      rows={4}
-                      className="bg-white border-gray-300 focus:border-blue-500 resize-none font-medium mb-1.5"
-                    />
-                  </div>
-
-                  {/* Variables Usage Label Guide */}
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-left text-[11px] text-blue-800 space-y-1">
-                    <span className="font-semibold block">💡 Variables Usage Guide:</span>
-                    <p className="leading-relaxed">
-                      Type double curly braces in your message content to insert dynamic parameters. Default variables (`name`, `phone`) pre-populate automatically:
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 mt-1 font-mono text-[10px]">
-                      <code className="bg-blue-100 px-1 py-0.5 rounded">{"{{name}}"}</code> (Full Name)
-                      <code className="bg-blue-100 px-1 py-0.5 rounded">{"{{phone}}"}</code> (Phone Number)
-                      {customVariables.map((cVar: string) => (
-                        <code key={cVar} className="bg-blue-100 px-1 py-0.5 rounded">{"{{" + cVar + "}}"}</code>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Image Attachment (Optional) */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-gray-600 block">Attached Image (Optional)</label>
-                    {mediaUrl ? (
-                      <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <img src={mediaUrl} alt="Preview" className="w-10 h-10 object-cover rounded border border-gray-250" />
-                          <span className="text-xs font-semibold text-gray-700 truncate max-w-[200px]">{mediaName || "Attached Image"}</span>
+                {/* Template Variable Settings (Asked when variables exist in the loaded message) */}
+                {parsedVariables.length > 0 && (
+                  <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-300">
+                    <span className="text-xs font-bold text-gray-700 block mb-1">
+                      Configure Campaign Content Variables ({parsedVariables.length})
+                    </span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {parsedVariables.map((v) => (
+                        <div key={v} className="space-y-1">
+                          <label className="text-xs font-semibold text-gray-600 block capitalize">
+                            {v}
+                          </label>
+                          <Input
+                            placeholder={`Value for {{${v}}}`}
+                            value={contactVariablesInput[v] || ""}
+                            onChange={(e) => {
+                              setContactVariablesInput(prev => ({
+                                ...prev,
+                                [v]: e.target.value
+                              }));
+                            }}
+                            className="bg-white border-gray-300 focus:border-blue-500 font-medium text-xs h-9"
+                          />
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setMediaUrl(null);
-                            setMediaName(null);
-                            setMediaMimeType(null);
-                          }}
-                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="relative border border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            setIsUploading(true);
-                            try {
-                              const formData = new FormData();
-                              formData.append("file", file);
-                              const res = await fetch("/api/media/upload", {
-                                                    method: "POST",
-                                                    body: formData,
-                              });
-                              if (!res.ok) throw new Error("Upload failed");
-                              const data = await res.json();
-                              setMediaUrl(data.url);
-                              setMediaName(data.name);
-                              setMediaMimeType(data.mimeType);
-                              toast({ title: "Image uploaded successfully" });
-                            } catch (err: any) {
-                              toast({ title: "Image upload failed", description: err.message, variant: "destructive" });
-                            } finally {
-                              setIsUploading(false);
-                            }
-                          }}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          disabled={isUploading}
-                        />
-                        <p className="text-xs text-gray-500">
-                          {isUploading ? "Uploading image..." : "Click or drag image file here to attach"}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Template Variable Settings (Asked when variables exist in the loaded message) */}
-                  {parsedVariables.length > 0 && (
-                    <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-300">
-                      <span className="text-xs font-bold text-gray-700 block mb-1">
-                        Configure Campaign Content Variables ({parsedVariables.length})
-                      </span>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {parsedVariables.map((v) => (
-                          <div key={v} className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-600 block capitalize">
-                              {v}
-                            </label>
-                            <Input
-                              placeholder={`Value for {{${v}}}`}
-                              value={contactVariablesInput[v] || ""}
-                              onChange={(e) => {
-                                setContactVariablesInput(prev => ({
-                                  ...prev,
-                                  [v]: e.target.value
-                                }));
-                              }}
-                              className="bg-white border-gray-300 focus:border-blue-500 font-medium text-xs h-9"
-                            />
-                          </div>
-                        ))}
-                      </div>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {/* Save As Content Template Section */}
+                {/* Save As Content Template Section */}
+                {!selectedContentTemplateId && (
                   <div className="space-y-2 p-3 bg-blue-50 border border-blue-250 rounded-lg">
                     <div className="flex items-center space-x-2">
                       <input
@@ -526,7 +561,7 @@ export function ContactCampaignsDialog({
                       </div>
                     )}
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

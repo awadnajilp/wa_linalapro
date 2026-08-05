@@ -279,35 +279,11 @@ export function ContactCampaignsDialog({
       contactVariables: contactVariablesInput,
     };
 
-    if (messageType === "custom") {
-      if (!customMessage.trim()) {
-        toast({ title: "Message body is required", variant: "destructive" });
-        return;
-      }
-      payload.customMessage = customMessage;
-    } else {
-      if (!selectedTemplate) {
-        toast({ title: "Please select a template", variant: "destructive" });
-        return;
-      }
-      // Reformat variableMapping to match the schema record
-      const variableMapping: Record<string, any> = {};
-      templateVariables.forEach((v, index) => {
-        variableMapping[(index + 1).toString()] = {
-          type: v.type || "custom",
-          value: v.value || "",
-        };
-      });
-
-      payload.templateId = selectedTemplate.id;
-      payload.templateName = selectedTemplate.name;
-      payload.templateLanguage = selectedTemplate.language || "en_US";
-      payload.variableMapping = variableMapping;
-      if (headerMediaId) {
-        payload.mediaUrl = headerMediaId;
-        payload.variableMapping.uploadedMediaId = headerMediaId;
-      }
+    if (!customMessage.trim()) {
+      toast({ title: "Message body is required", variant: "destructive" });
+      return;
     }
+    payload.customMessage = customMessage;
 
     createMutation.mutate(payload);
   };
@@ -335,43 +311,7 @@ export function ContactCampaignsDialog({
                 </Button>
               </div>
 
-              <div className="space-y-3 text-left">
-                {messageType === "custom" && (
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1">Load Saved Campaign Template (Optional)</label>
-                    <Select
-                      value={selectedContentTemplateId}
-                      onValueChange={(val) => {
-                        setSelectedContentTemplateId(val);
-                        const found = campaignTemplates.find((t: any) => t.id === val);
-                        if (found) {
-                          setCustomMessage(found.customMessage || "");
-                          setMediaUrl(found.mediaUrl || null);
-                          setMediaName(found.mediaName || null);
-                          setMediaMimeType(found.mediaMimeType || null);
-                        } else {
-                          setCustomMessage("");
-                          setMediaUrl(null);
-                          setMediaName(null);
-                          setMediaMimeType(null);
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="bg-white border-gray-300 text-xs font-medium h-10">
-                        <SelectValue placeholder="Select a saved template..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">-- Select Template --</SelectItem>
-                        {campaignTemplates.map((t: any) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
+              <div className="space-y-4 text-left">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">Campaign Name</label>
                   <Input
@@ -411,268 +351,182 @@ export function ContactCampaignsDialog({
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Message Type</label>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant={messageType === "custom" ? "default" : "outline"}
-                      className="flex-1"
-                      onClick={() => setMessageType("custom")}
+                <div className="border-t border-gray-250 pt-3 space-y-4">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">Load Saved Campaign Template (Optional)</label>
+                    <select
+                      value={selectedContentTemplateId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedContentTemplateId(val);
+                        const found = campaignTemplates.find((t: any) => t.id === val);
+                        if (found) {
+                          setCustomMessage(found.customMessage || "");
+                          setMediaUrl(found.mediaUrl || null);
+                          setMediaName(found.mediaName || null);
+                          setMediaMimeType(found.mediaMimeType || null);
+                        } else {
+                          setCustomMessage("");
+                          setMediaUrl(null);
+                          setMediaName(null);
+                          setMediaMimeType(null);
+                        }
+                      }}
+                      className="w-full bg-white border border-gray-300 focus:border-blue-500 rounded-lg text-xs font-medium h-10 px-3 cursor-pointer"
                     >
-                      Custom Text Message
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={messageType === "template" ? "default" : "outline"}
-                      className="flex-1"
-                      onClick={() => setMessageType("template")}
-                    >
-                      WhatsApp Template
-                    </Button>
+                      <option value="">-- Load from Saved Template --</option>
+                      {campaignTemplates.map((t: any) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                </div>
 
-                {messageType === "custom" ? (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-xs font-semibold text-gray-600 block mb-1">Message Content</label>
-                      <Textarea
-                        placeholder="Write the message text to be sent..."
-                        value={customMessage}
-                        onChange={(e) => setCustomMessage(e.target.value)}
-                        rows={3}
-                        className="bg-white border-gray-300 focus:border-blue-500 resize-none font-medium mb-1.5"
-                      />
-                    </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">Message Content</label>
+                    <Textarea
+                      placeholder="Write the message text to be sent..."
+                      value={customMessage}
+                      onChange={(e) => setCustomMessage(e.target.value)}
+                      rows={4}
+                      className="bg-white border-gray-300 focus:border-blue-500 resize-none font-medium mb-1.5"
+                    />
+                  </div>
 
-                    {/* Image / Media Upload Section */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-gray-600 block">Attached Image (Optional)</label>
-                      {mediaUrl ? (
-                        <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <img src={mediaUrl} alt="Preview" className="w-10 h-10 object-cover rounded border border-gray-250" />
-                            <span className="text-xs font-semibold text-gray-700 truncate max-w-[200px]">{mediaName || "Attached Image"}</span>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setMediaUrl(null);
-                              setMediaName(null);
-                              setMediaMimeType(null);
-                            }}
-                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="relative border border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              setIsUploading(true);
-                              try {
-                                const formData = new FormData();
-                                formData.append("file", file);
-                                const res = await fetch("/api/media/upload", {
-                                  method: "POST",
-                                  body: formData,
-                                });
-                                if (!res.ok) throw new Error("Upload failed");
-                                const data = await res.json();
-                                setMediaUrl(data.url);
-                                setMediaName(data.name);
-                                setMediaMimeType(data.mimeType);
-                                toast({ title: "Image uploaded successfully" });
-                              } catch (err: any) {
-                                toast({ title: "Image upload failed", description: err.message, variant: "destructive" });
-                              } finally {
-                                setIsUploading(false);
-                              }
-                            }}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            disabled={isUploading}
-                          />
-                          <p className="text-xs text-gray-500">
-                            {isUploading ? "Uploading image..." : "Click or drag image file here to attach"}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Template Variable Settings (Asked when variables exist in the loaded message) */}
-                    {parsedVariables.length > 0 && (
-                      <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-300">
-                        <span className="text-xs font-bold text-gray-700 block mb-1">
-                          Configure Campaign Content Variables ({parsedVariables.length})
-                        </span>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {parsedVariables.map((v) => (
-                            <div key={v} className="space-y-1">
-                              <label className="text-xs font-semibold text-gray-600 block capitalize">
-                                {v}
-                              </label>
-                              <Input
-                                placeholder={`Value for {{${v}}}`}
-                                value={contactVariablesInput[v] || ""}
-                                onChange={(e) => {
-                                  setContactVariablesInput(prev => ({
-                                    ...prev,
-                                    [v]: e.target.value
-                                  }));
-                                }}
-                                className="bg-white border-gray-300 focus:border-blue-500 font-medium text-xs h-9"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Save As Content Template Section */}
-                    <div className="space-y-2 p-3 bg-blue-50 border border-blue-250 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="saveAsTemplate"
-                          checked={saveAsTemplate}
-                          onChange={(e) => setSaveAsTemplate(e.target.checked)}
-                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <label htmlFor="saveAsTemplate" className="text-xs font-semibold text-gray-700 cursor-pointer">
-                          Save this message content as a template for future use
-                        </label>
-                      </div>
-                      {saveAsTemplate && (
-                        <div className="mt-2">
-                          <label className="text-xs font-semibold text-gray-600 block mb-1">Template Name</label>
-                          <Input
-                            placeholder="e.g. Followup Template"
-                            value={templateNameInput}
-                            onChange={(e) => setTemplateNameInput(e.target.value)}
-                            className="bg-white border-gray-300 focus:border-blue-500 font-medium text-xs h-9"
-                            required
-                          />
-                        </div>
-                      )}
+                  {/* Variables Usage Label Guide */}
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-left text-[11px] text-blue-800 space-y-1">
+                    <span className="font-semibold block">💡 Variables Usage Guide:</span>
+                    <p className="leading-relaxed">
+                      Type double curly braces in your message content to insert dynamic parameters. Default variables (`name`, `phone`) pre-populate automatically:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-1 font-mono text-[10px]">
+                      <code className="bg-blue-100 px-1 py-0.5 rounded">{"{{name}}"}</code> (Full Name)
+                      <code className="bg-blue-100 px-1 py-0.5 rounded">{"{{phone}}"}</code> (Phone Number)
+                      {customVariables.map((cVar: string) => (
+                        <code key={cVar} className="bg-blue-100 px-1 py-0.5 rounded">{"{{" + cVar + "}}"}</code>
+                      ))}
                     </div>
                   </div>
-                ) : (
-                  <div className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg space-y-4">
-                    {selectedTemplate ? (
-                      <div className="w-full space-y-4">
-                        <div className="flex justify-between items-center border-b border-gray-100 pb-2">
-                          <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full text-xs font-medium">
-                            <FileText className="w-4 h-4" />
-                            Template: {selectedTemplate.name}
-                          </div>
-                          <TemplatePickerDialog
-                            channelId={activeChannel?.id}
-                            onSelectTemplate={handleSelectTemplate}
-                            submitLabel="Change Template"
-                            trigger={
-                              <Button type="button" variant="outline" size="sm" className="h-8">
-                                Change Template
-                              </Button>
-                            }
-                          />
+
+                  {/* Image Attachment (Optional) */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-600 block">Attached Image (Optional)</label>
+                    {mediaUrl ? (
+                      <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <img src={mediaUrl} alt="Preview" className="w-10 h-10 object-cover rounded border border-gray-250" />
+                          <span className="text-xs font-semibold text-gray-700 truncate max-w-[200px]">{mediaName || "Attached Image"}</span>
                         </div>
-
-                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-left text-[11px] text-blue-800 space-y-1">
-                          <span className="font-semibold block">💡 Variable Setup Instructions:</span>
-                          <ul className="list-disc pl-4 space-y-0.5">
-                            <li>Select <strong>Full Name</strong> or <strong>First Name</strong> to automatically resolve contact names.</li>
-                            <li>Select <strong>Phone</strong> to insert the contact's phone number.</li>
-                            <li>Select <strong>Custom Text Input</strong> to enter fixed text, or write dynamic contact parameters like <code>{"{{name}}"}</code>, <code>{"{{phone}}"}</code>, or <code>{"{{variable_name}}"}</code>.</li>
-                          </ul>
-                        </div>
-
-                        {templateVariables.length > 0 ? (
-                          <div className="space-y-3 text-left w-full">
-                            <span className="text-xs font-semibold text-gray-600 block">Configure Template Variables ({templateVariables.length})</span>
-                            {templateVariables.map((v: any, index: number) => (
-                              <div key={index} className="space-y-1">
-                                <label className="text-xs font-semibold text-gray-700 block">
-                                  Variable {"{{" + (index + 1) + "}}"}
-                                </label>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <Select
-                                    value={v.type || ""}
-                                    onValueChange={(val) => {
-                                      const updated = [...templateVariables];
-                                      updated[index] = { type: val, value: "" };
-                                      setTemplateVariables(updated);
-                                    }}
-                                  >
-                                    <SelectTrigger className="bg-white border-gray-300 text-xs h-9 font-medium">
-                                      <SelectValue placeholder="Select type" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="fullName">Full Name</SelectItem>
-                                      <SelectItem value="firstName">First Name</SelectItem>
-                                      <SelectItem value="phone">Phone Number</SelectItem>
-                                      <SelectItem value="custom">Custom Text Input</SelectItem>
-                                      {customVariables.length > 0 &&
-                                        customVariables.map((cVar: string) => (
-                                          <SelectItem key={cVar} value={cVar}>
-                                            {cVar}
-                                          </SelectItem>
-                                        ))
-                                      }
-                                    </SelectContent>
-                                  </Select>
-
-                                  {v.type === "custom" && (
-                                    <Input
-                                      placeholder="Value or {{placeholders}}"
-                                      value={v.value || ""}
-                                      onChange={(e) => {
-                                        const updated = [...templateVariables];
-                                        updated[index] = { ...updated[index], value: e.target.value };
-                                        setTemplateVariables(updated);
-                                      }}
-                                      className="bg-white border-gray-300 text-xs h-9 font-medium"
-                                    />
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-gray-500 text-center">No variables required for this template.</p>
-                        )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setMediaUrl(null);
+                            setMediaName(null);
+                            setMediaMimeType(null);
+                          }}
+                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
                       </div>
                     ) : (
-                      <div className="text-center space-y-3 w-full py-2">
-                        <p className="text-xs text-gray-500">Select a pre-approved template and configure variables</p>
-                        <div className="flex gap-2 justify-center">
-                          <TemplatePickerDialog
-                            channelId={activeChannel?.id}
-                            onSelectTemplate={handleSelectTemplate}
-                            submitLabel="Select Template"
-                            trigger={
-                              <Button type="button" variant="outline" size="sm" className="gap-1.5" disabled={!activeChannel}>
-                                <Plus className="w-3.5 h-3.5" /> Choose Template
-                              </Button>
+                      <div className="relative border border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setIsUploading(true);
+                            try {
+                              const formData = new FormData();
+                              formData.append("file", file);
+                              const res = await fetch("/api/media/upload", {
+                                                    method: "POST",
+                                                    body: formData,
+                              });
+                              if (!res.ok) throw new Error("Upload failed");
+                              const data = await res.json();
+                              setMediaUrl(data.url);
+                              setMediaName(data.name);
+                              setMediaMimeType(data.mimeType);
+                              toast({ title: "Image uploaded successfully" });
+                            } catch (err: any) {
+                              toast({ title: "Image upload failed", description: err.message, variant: "destructive" });
+                            } finally {
+                              setIsUploading(false);
                             }
-                          />
-                          <a href="/templates" target="_blank" rel="noopener noreferrer">
-                            <Button type="button" variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 font-semibold gap-1 text-xs">
-                              <Plus className="w-3 h-3" /> Create New Template
-                            </Button>
-                          </a>
-                        </div>
+                          }}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          disabled={isUploading}
+                        />
+                        <p className="text-xs text-gray-500">
+                          {isUploading ? "Uploading image..." : "Click or drag image file here to attach"}
+                        </p>
                       </div>
                     )}
                   </div>
-                )}
+
+                  {/* Template Variable Settings (Asked when variables exist in the loaded message) */}
+                  {parsedVariables.length > 0 && (
+                    <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-300">
+                      <span className="text-xs font-bold text-gray-700 block mb-1">
+                        Configure Campaign Content Variables ({parsedVariables.length})
+                      </span>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {parsedVariables.map((v) => (
+                          <div key={v} className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-600 block capitalize">
+                              {v}
+                            </label>
+                            <Input
+                              placeholder={`Value for {{${v}}}`}
+                              value={contactVariablesInput[v] || ""}
+                              onChange={(e) => {
+                                setContactVariablesInput(prev => ({
+                                  ...prev,
+                                  [v]: e.target.value
+                                }));
+                              }}
+                              className="bg-white border-gray-300 focus:border-blue-500 font-medium text-xs h-9"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Save As Content Template Section */}
+                  <div className="space-y-2 p-3 bg-blue-50 border border-blue-250 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="saveAsTemplate"
+                        checked={saveAsTemplate}
+                        onChange={(e) => setSaveAsTemplate(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <label htmlFor="saveAsTemplate" className="text-xs font-semibold text-gray-700 cursor-pointer">
+                        Save this message content as a template for future use
+                      </label>
+                    </div>
+                    {saveAsTemplate && (
+                      <div className="mt-2">
+                        <label className="text-xs font-semibold text-gray-600 block mb-1">Template Name</label>
+                        <Input
+                          placeholder="e.g. Followup Template"
+                          value={templateNameInput}
+                          onChange={(e) => setTemplateNameInput(e.target.value)}
+                          className="bg-white border-gray-300 focus:border-blue-500 font-medium text-xs h-9"
+                          required
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

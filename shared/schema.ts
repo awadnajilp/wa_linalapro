@@ -493,7 +493,7 @@ export const userNotificationPreferences = pgTable("user_notification_preference
   userId: varchar("user_id").notNull(),
   eventType: varchar("event_type").notNull(),
   inAppEnabled: boolean("in_app_enabled").default(true),
-  emailEnabled: boolean("email_enabled").default(true),
+  emailEnabled: boolean("email_enabled").default(false),
   soundEnabled: boolean("sound_enabled").default(true),
 });
 

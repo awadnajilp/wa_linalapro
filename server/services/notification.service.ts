@@ -142,7 +142,7 @@ export async function getUserNotificationPreferences(userId: string) {
     for (const event of Object.values(NOTIFICATION_EVENTS)) {
       defaults[event] = {
         inAppEnabled: true,
-        emailEnabled: true,
+        emailEnabled: false,
         soundEnabled: true,
       };
     }
@@ -153,7 +153,7 @@ export async function getUserNotificationPreferences(userId: string) {
   for (const pref of prefs) {
     result[pref.eventType] = {
       inAppEnabled: pref.inAppEnabled ?? true,
-      emailEnabled: pref.emailEnabled ?? true,
+      emailEnabled: pref.emailEnabled ?? false,
       soundEnabled: pref.soundEnabled ?? true,
     };
   }
@@ -162,7 +162,7 @@ export async function getUserNotificationPreferences(userId: string) {
     if (!result[event]) {
       result[event] = {
         inAppEnabled: true,
-        emailEnabled: true,
+        emailEnabled: false,
         soundEnabled: true,
       };
     }
@@ -331,8 +331,9 @@ async function flushDigest(key: string) {
       const userRows = await db.select().from(users).where(eq(users.id, userId));
       if (userRows.length > 0 && userRows[0].email) {
         const userPrefs = await getUserNotificationPreferences(userId);
-        const eventPrefs = userPrefs[NOTIFICATION_EVENTS.NEW_MESSAGE] || { emailEnabled: true };
-        if (eventPrefs.emailEnabled) {
+        const eventPrefs = userPrefs[NOTIFICATION_EVENTS.NEW_MESSAGE] || { emailEnabled: false };
+        const digestPrefs = userPrefs[NOTIFICATION_EVENTS.NEW_MESSAGE_DIGEST] || { emailEnabled: false };
+        if (eventPrefs.emailEnabled && digestPrefs.emailEnabled) {
           const [digestTemplate] = await db
             .select()
             .from(notificationTemplates)
@@ -448,7 +449,7 @@ export async function triggerNotification(
 
     for (const user of filteredUsers) {
       const userPrefs = await getUserNotificationPreferences(user.id);
-      const eventPrefs = userPrefs[eventType] || { inAppEnabled: true, emailEnabled: true, soundEnabled: true };
+      const eventPrefs = userPrefs[eventType] || { inAppEnabled: true, emailEnabled: false, soundEnabled: true };
 
       const userVariables = { ...variables, userName: user.username || user.email || "User" };
       const userResolvedTitle = replaceVariables(template.subject, userVariables);

@@ -23,4 +23,10 @@ export function registerContactCampaignRoutes(app: Express) {
 
   // Delete a contact campaign
   app.delete("/api/contacts/campaigns/:id", requireAuth, controller.deleteContactCampaign);
+
+  // Get campaign templates for a channel
+  app.get("/api/contacts/campaign-templates", requireAuth, controller.getContactCampaignTemplates);
+
+  // Delete campaign template
+  app.delete("/api/contacts/campaign-templates/:id", requireAuth, controller.deleteContactCampaignTemplate);
 }

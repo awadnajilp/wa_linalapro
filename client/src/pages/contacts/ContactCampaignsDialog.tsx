@@ -4,7 +4,7 @@
  * ============================================================
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,80 +45,12 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
-function DateTimePicker({
-  value,
-  onChange,
-}: {
-  value: Date | undefined;
-  onChange: (d: Date) => void;
-}) {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(value);
-  const [time, setTime] = useState<string>(value ? format(value, "HH:mm") : "10:00");
-
-  const handleDateSelect = (date: Date | undefined) => {
-    if (!date) return;
-    setSelectedDate(date);
-    const [hours, minutes] = time.split(":").map(Number);
-    const updated = new Date(date);
-    updated.setHours(hours);
-    updated.setMinutes(minutes);
-    updated.setSeconds(0);
-    onChange(updated);
-  };
-
-  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const timeVal = e.target.value;
-    setTime(timeVal);
-    if (selectedDate) {
-      const [hours, minutes] = timeVal.split(":").map(Number);
-      const updated = new Date(selectedDate);
-      updated.setHours(hours);
-      updated.setMinutes(minutes);
-      updated.setSeconds(0);
-      onChange(updated);
-    }
-  };
-
-  useEffect(() => {
-    setSelectedDate(value);
-    if (value) {
-      setTime(format(value, "HH:mm"));
-    }
-  }, [value]);
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <div className="relative cursor-pointer w-full">
-          <Input
-            type="text"
-            readOnly
-            placeholder="DD/MM/YYYY HH:mm"
-            value={selectedDate ? format(selectedDate, "dd/MM/yyyy") + " " + time : ""}
-            className="bg-white border-gray-200 focus:border-blue-500 text-xs h-10 pr-10 cursor-pointer w-full text-left"
-          />
-          <Calendar className="absolute right-3 top-3 h-4 w-4 text-gray-400 pointer-events-none" />
-        </div>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0 z-[100]" align="start">
-        <CalendarComponent
-          mode="single"
-          selected={selectedDate}
-          onSelect={handleDateSelect}
-          initialFocus
-        />
-        <div className="p-3 border-t border-gray-100 flex items-center justify-between gap-4">
-          <span className="text-xs font-semibold text-gray-600">Time:</span>
-          <Input
-            type="time"
-            value={time}
-            onChange={handleTimeChange}
-            className="w-28 text-xs h-8"
-          />
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
+function parsePlaceholders(text: string): string[] {
+  if (!text) return [];
+  const matches = text.match(/\{\{\s*([a-zA-Z0-9_\u0080-\uFFFF\s-]+?)\s*\}\}/g);
+  if (!matches) return [];
+  const unique = new Set(matches.map(m => m.replace(/\{\{\s*|\s*\}\}/g, "").trim()));
+  return Array.from(unique);
 }
 
 interface ContactCampaignsDialogProps {
@@ -141,12 +73,35 @@ export function ContactCampaignsDialog({
   const [messageType, setMessageType] = useState<"custom" | "template">("custom");
   const [customMessage, setCustomMessage] = useState("");
   const [frequency, setFrequency] = useState("yearly");
-  const [scheduledDateVal, setScheduledDateVal] = useState<Date | undefined>(undefined);
-  
-  // Template state
+  const [scheduledDate, setScheduledDate] = useState("");
+
+  // Media / Image States
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [mediaName, setMediaName] = useState<string | null>(null);
+  const [mediaMimeType, setMediaMimeType] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Template States
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+  const [templateNameInput, setTemplateNameInput] = useState("");
+  const [selectedContentTemplateId, setSelectedContentTemplateId] = useState<string>("");
+  const [contactVariablesInput, setContactVariablesInput] = useState<Record<string, string>>({});
+
+  // WhatsApp Official Template state
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [templateVariables, setTemplateVariables] = useState<any[]>([]);
   const [headerMediaId, setHeaderMediaId] = useState<string | undefined>(undefined);
+
+  // Fetch custom campaign templates
+  const { data: campaignTemplates = [], refetch: refetchTemplates } = useQuery({
+    queryKey: ["/api/contacts/campaign-templates", activeChannel?.id],
+    queryFn: async () => {
+      if (!activeChannel?.id) return [];
+      const res = await apiRequest("GET", `/api/contacts/campaign-templates?channelId=${activeChannel.id}`);
+      return res.json();
+    },
+    enabled: !!activeChannel?.id && open,
+  });
 
   // Fetch campaigns for this contact
   const { data: campaigns = [], isLoading, refetch } = useQuery({
@@ -171,6 +126,36 @@ export function ContactCampaignsDialog({
     enabled: open,
   });
 
+  // Parse dynamic variables from customMessage in real-time
+  const parsedVariables = useMemo(() => {
+    return parsePlaceholders(customMessage);
+  }, [customMessage]);
+
+  // Sync / Pre-populate placeholder variables inputs for the current contact
+  useEffect(() => {
+    if (!contact) return;
+    const initial: Record<string, string> = {};
+    parsedVariables.forEach(v => {
+      const lower = v.toLowerCase();
+      if (lower === "name") {
+        initial[v] = contact.name || "";
+      } else if (lower === "phone") {
+        initial[v] = contact.phone || "";
+      } else if (contact.variables && typeof contact.variables === "object") {
+        initial[v] = (contact.variables as Record<string, string>)[v] || "";
+      }
+    });
+    setContactVariablesInput(prev => {
+      const updated = { ...initial };
+      Object.keys(prev).forEach(k => {
+        if (prev[k] !== undefined && prev[k] !== "") {
+          updated[k] = prev[k];
+        }
+      });
+      return updated;
+    });
+  }, [parsedVariables, contact]);
+
   // Create mutation
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -185,6 +170,8 @@ export function ContactCampaignsDialog({
       // Invalidate contacts queries to refresh columns in table
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts/campaign-templates", activeChannel?.id] });
+      refetchTemplates();
       refetch();
       resetForm();
     },
@@ -237,7 +224,15 @@ export function ContactCampaignsDialog({
     setMessageType("custom");
     setCustomMessage("");
     setFrequency("yearly");
-    setScheduledDateVal(undefined);
+    setScheduledDate("");
+    setMediaUrl(null);
+    setMediaName(null);
+    setMediaMimeType(null);
+    setIsUploading(false);
+    setSaveAsTemplate(false);
+    setTemplateNameInput("");
+    setSelectedContentTemplateId("");
+    setContactVariablesInput({});
     setSelectedTemplate(null);
     setTemplateVariables([]);
     setHeaderMediaId(undefined);
@@ -267,7 +262,7 @@ export function ContactCampaignsDialog({
       toast({ title: "Name is required", variant: "destructive" });
       return;
     }
-    if (!scheduledDateVal) {
+    if (!scheduledDate) {
       toast({ title: "Start date is required", variant: "destructive" });
       return;
     }
@@ -275,7 +270,13 @@ export function ContactCampaignsDialog({
     const payload: any = {
       name,
       frequency,
-      scheduledDate: scheduledDateVal.toISOString(),
+      scheduledDate: new Date(scheduledDate).toISOString(),
+      saveAsTemplate,
+      templateName: saveAsTemplate ? (templateNameInput.trim() || name) : undefined,
+      mediaUrl,
+      mediaMimeType,
+      mediaName,
+      contactVariables: contactVariablesInput,
     };
 
     if (messageType === "custom") {
@@ -334,7 +335,43 @@ export function ContactCampaignsDialog({
                 </Button>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-3 text-left">
+                {messageType === "custom" && (
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">Load Saved Campaign Template (Optional)</label>
+                    <Select
+                      value={selectedContentTemplateId}
+                      onValueChange={(val) => {
+                        setSelectedContentTemplateId(val);
+                        const found = campaignTemplates.find((t: any) => t.id === val);
+                        if (found) {
+                          setCustomMessage(found.customMessage || "");
+                          setMediaUrl(found.mediaUrl || null);
+                          setMediaName(found.mediaName || null);
+                          setMediaMimeType(found.mediaMimeType || null);
+                        } else {
+                          setCustomMessage("");
+                          setMediaUrl(null);
+                          setMediaName(null);
+                          setMediaMimeType(null);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="bg-white border-gray-300 text-xs font-medium h-10">
+                        <SelectValue placeholder="Select a saved template..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">-- Select Template --</SelectItem>
+                        {campaignTemplates.map((t: any) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 <div>
                   <label className="text-xs font-semibold text-gray-600 block mb-1">Campaign Name</label>
                   <Input
@@ -342,7 +379,7 @@ export function ContactCampaignsDialog({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
-                    className="bg-white border-gray-200 focus:border-blue-500"
+                    className="bg-white border-gray-300 focus:border-blue-500 font-medium"
                   />
                 </div>
 
@@ -350,7 +387,7 @@ export function ContactCampaignsDialog({
                   <div>
                     <label className="text-xs font-semibold text-gray-600 block mb-1">Frequency</label>
                     <Select value={frequency} onValueChange={setFrequency}>
-                      <SelectTrigger className="bg-white border-gray-200">
+                      <SelectTrigger className="bg-white border-gray-300 font-medium">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -364,9 +401,12 @@ export function ContactCampaignsDialog({
 
                   <div>
                     <label className="text-xs font-semibold text-gray-600 block mb-1">First Scheduled Date</label>
-                    <DateTimePicker
-                      value={scheduledDateVal}
-                      onChange={(d) => setScheduledDateVal(d)}
+                    <Input
+                      type="datetime-local"
+                      value={scheduledDate}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      required
+                      className="bg-white border-gray-300 focus:border-blue-500 font-medium"
                     />
                   </div>
                 </div>
@@ -394,15 +434,135 @@ export function ContactCampaignsDialog({
                 </div>
 
                 {messageType === "custom" ? (
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1">Message Content</label>
-                    <Textarea
-                      placeholder="Write the message text to be sent..."
-                      value={customMessage}
-                      onChange={(e) => setCustomMessage(e.target.value)}
-                      rows={3}
-                      className="bg-white border-gray-200 focus:border-blue-500 resize-none"
-                    />
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 block mb-1">Message Content</label>
+                      <Textarea
+                        placeholder="Write the message text to be sent..."
+                        value={customMessage}
+                        onChange={(e) => setCustomMessage(e.target.value)}
+                        rows={3}
+                        className="bg-white border-gray-300 focus:border-blue-500 resize-none font-medium mb-1.5"
+                      />
+                    </div>
+
+                    {/* Image / Media Upload Section */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-gray-600 block">Attached Image (Optional)</label>
+                      {mediaUrl ? (
+                        <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <img src={mediaUrl} alt="Preview" className="w-10 h-10 object-cover rounded border border-gray-250" />
+                            <span className="text-xs font-semibold text-gray-700 truncate max-w-[200px]">{mediaName || "Attached Image"}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setMediaUrl(null);
+                              setMediaName(null);
+                              setMediaMimeType(null);
+                            }}
+                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="relative border border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              setIsUploading(true);
+                              try {
+                                const formData = new FormData();
+                                formData.append("file", file);
+                                const res = await fetch("/api/media/upload", {
+                                  method: "POST",
+                                  body: formData,
+                                });
+                                if (!res.ok) throw new Error("Upload failed");
+                                const data = await res.json();
+                                setMediaUrl(data.url);
+                                setMediaName(data.name);
+                                setMediaMimeType(data.mimeType);
+                                toast({ title: "Image uploaded successfully" });
+                              } catch (err: any) {
+                                toast({ title: "Image upload failed", description: err.message, variant: "destructive" });
+                              } finally {
+                                setIsUploading(false);
+                              }
+                            }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            disabled={isUploading}
+                          />
+                          <p className="text-xs text-gray-500">
+                            {isUploading ? "Uploading image..." : "Click or drag image file here to attach"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Template Variable Settings (Asked when variables exist in the loaded message) */}
+                    {parsedVariables.length > 0 && (
+                      <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-300">
+                        <span className="text-xs font-bold text-gray-700 block mb-1">
+                          Configure Campaign Content Variables ({parsedVariables.length})
+                        </span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {parsedVariables.map((v) => (
+                            <div key={v} className="space-y-1">
+                              <label className="text-xs font-semibold text-gray-600 block capitalize">
+                                {v}
+                              </label>
+                              <Input
+                                placeholder={`Value for {{${v}}}`}
+                                value={contactVariablesInput[v] || ""}
+                                onChange={(e) => {
+                                  setContactVariablesInput(prev => ({
+                                    ...prev,
+                                    [v]: e.target.value
+                                  }));
+                                }}
+                                className="bg-white border-gray-300 focus:border-blue-500 font-medium text-xs h-9"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Save As Content Template Section */}
+                    <div className="space-y-2 p-3 bg-blue-50 border border-blue-250 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="saveAsTemplate"
+                          checked={saveAsTemplate}
+                          onChange={(e) => setSaveAsTemplate(e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <label htmlFor="saveAsTemplate" className="text-xs font-semibold text-gray-700 cursor-pointer">
+                          Save this message content as a template for future use
+                        </label>
+                      </div>
+                      {saveAsTemplate && (
+                        <div className="mt-2">
+                          <label className="text-xs font-semibold text-gray-600 block mb-1">Template Name</label>
+                          <Input
+                            placeholder="e.g. Followup Template"
+                            value={templateNameInput}
+                            onChange={(e) => setTemplateNameInput(e.target.value)}
+                            className="bg-white border-gray-300 focus:border-blue-500 font-medium text-xs h-9"
+                            required
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg space-y-4">
@@ -451,7 +611,7 @@ export function ContactCampaignsDialog({
                                       setTemplateVariables(updated);
                                     }}
                                   >
-                                    <SelectTrigger className="bg-white border-gray-200 text-xs h-9">
+                                    <SelectTrigger className="bg-white border-gray-300 text-xs h-9 font-medium">
                                       <SelectValue placeholder="Select type" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -478,7 +638,7 @@ export function ContactCampaignsDialog({
                                         updated[index] = { ...updated[index], value: e.target.value };
                                         setTemplateVariables(updated);
                                       }}
-                                      className="bg-white border-gray-200 text-xs h-9"
+                                      className="bg-white border-gray-300 text-xs h-9 font-medium"
                                     />
                                   )}
                                 </div>

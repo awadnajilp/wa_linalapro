@@ -2171,9 +2171,39 @@ export const insertContactCampaignSchema = z.object({
   status: z.string().optional(),
 });
 
+export const contactCampaignTemplates = pgTable(
+  "contact_campaign_templates",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    channelId: varchar("channel_id")
+      .notNull()
+      .references(() => channels.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    customMessage: text("custom_message"),
+    mediaUrl: text("media_url"),
+    mediaMimeType: text("media_mime_type"),
+    mediaName: text("media_name"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  }
+);
+
+export const insertContactCampaignTemplateSchema = z.object({
+  channelId: z.string(),
+  name: z.string().min(1, "Template name is required"),
+  customMessage: z.string().nullable().optional(),
+  mediaUrl: z.string().nullable().optional(),
+  mediaMimeType: z.string().nullable().optional(),
+  mediaName: z.string().nullable().optional(),
+});
+
 // Types
 export type ContactCampaign = typeof contactCampaigns.$inferSelect;
 export type InsertContactCampaign = typeof contactCampaigns.$inferInsert;
+export type ContactCampaignTemplate = typeof contactCampaignTemplates.$inferSelect;
+export type InsertContactCampaignTemplate = typeof contactCampaignTemplates.$inferInsert;
 export type CrmPipeline = typeof crmPipelines.$inferSelect;
 export type InsertCrmPipeline = typeof crmPipelines.$inferInsert;
 export type CrmStage = typeof crmStages.$inferSelect;

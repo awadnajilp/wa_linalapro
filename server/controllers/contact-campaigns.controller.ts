@@ -8,7 +8,7 @@ import type { Request, Response } from "express";
 import { asyncHandler } from "../middlewares/error.middleware";
 import { storage } from "../storage";
 import { db } from "../db";
-import { contactCampaigns, insertContactCampaignSchema, contacts } from "@shared/schema";
+import { contactCampaigns, insertContactCampaignSchema, contacts, contactCampaignTemplates, insertContactCampaignTemplateSchema } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 
 export function calculateNextSendAt(currentNextSendAt: Date, frequency: string): Date {
@@ -67,6 +67,28 @@ export const createContactCampaign = asyncHandler(async (req: Request, res: Resp
     scheduledDate,
     nextSendAt,
   });
+
+  // Save as custom template if requested
+  if (req.body.saveAsTemplate) {
+    const templateName = req.body.templateName || parsed.data.name;
+    await storage.createContactCampaignTemplate({
+      channelId: contact.channelId,
+      name: templateName,
+      customMessage: parsed.data.customMessage || null,
+      mediaUrl: parsed.data.mediaUrl || null,
+      mediaMimeType: parsed.data.mediaMimeType || null,
+      mediaName: parsed.data.mediaName || null,
+    });
+  }
+
+  // Save contact variables if provided
+  if (req.body.contactVariables) {
+    const updatedVariables = {
+      ...(contact.variables || {}),
+      ...req.body.contactVariables,
+    };
+    await storage.updateContact(contact.id, { variables: updatedVariables });
+  }
 
   res.status(201).json(campaign);
 });
@@ -141,4 +163,22 @@ export const getChannelContactCampaigns = asyncHandler(async (req: Request, res:
     .orderBy(desc(contactCampaigns.createdAt));
 
   res.json(results);
+});
+
+export const getContactCampaignTemplates = asyncHandler(async (req: Request, res: Response) => {
+  const channelId = req.query.channelId as string;
+  if (!channelId) {
+    return res.status(400).json({ error: "Channel ID is required" });
+  }
+  const templates = await storage.getContactCampaignTemplates(channelId);
+  res.json(templates);
+});
+
+export const deleteContactCampaignTemplate = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ error: "Template ID is required" });
+  }
+  const success = await storage.deleteContactCampaignTemplate(id);
+  res.json({ success });
 });

@@ -71,6 +71,9 @@ import {
   type ContactCampaign,
   type InsertContactCampaign,
   contactCampaigns,
+  type ContactCampaignTemplate,
+  type InsertContactCampaignTemplate,
+  contactCampaignTemplates,
 } from "@shared/schema";
 import { db } from "./db";
 import { desc, eq, and, lte } from "drizzle-orm";
@@ -947,5 +950,25 @@ const totalChannels = await this.channelRepo.getAll()
 
   async getDueContactCampaigns(now: Date): Promise<ContactCampaign[]> {
     return await db.select().from(contactCampaigns).where(and(eq(contactCampaigns.status, "active"), lte(contactCampaigns.nextSendAt, now)));
+  }
+
+  // Contact Campaign Templates
+  async getContactCampaignTemplates(channelId: string): Promise<ContactCampaignTemplate[]> {
+    return await db.select().from(contactCampaignTemplates).where(eq(contactCampaignTemplates.channelId, channelId)).orderBy(desc(contactCampaignTemplates.createdAt));
+  }
+
+  async getContactCampaignTemplate(id: string): Promise<ContactCampaignTemplate | undefined> {
+    const [template] = await db.select().from(contactCampaignTemplates).where(eq(contactCampaignTemplates.id, id));
+    return template || undefined;
+  }
+
+  async createContactCampaignTemplate(template: InsertContactCampaignTemplate): Promise<ContactCampaignTemplate> {
+    const [created] = await db.insert(contactCampaignTemplates).values(template).returning();
+    return created;
+  }
+
+  async deleteContactCampaignTemplate(id: string): Promise<boolean> {
+    const result = await db.delete(contactCampaignTemplates).where(eq(contactCampaignTemplates.id, id)).returning();
+    return result.length > 0;
   }
 }

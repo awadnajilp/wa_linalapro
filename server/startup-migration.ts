@@ -380,6 +380,23 @@ const steps: MigrationStep[] = [
       CREATE INDEX IF NOT EXISTS contact_campaigns_status_idx ON contact_campaigns (status);
     `,
   },
+  {
+    description: "Create table contact_campaign_templates (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS contact_campaign_templates (
+        id                 VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        channel_id         VARCHAR NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+        name               TEXT NOT NULL,
+        custom_message     TEXT,
+        media_url          TEXT,
+        media_mime_type    TEXT,
+        media_name         TEXT,
+        created_at         TIMESTAMP DEFAULT NOW(),
+        updated_at         TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS contact_campaign_templates_channel_idx ON contact_campaign_templates (channel_id);
+    `,
+  },
 ];
 
 /**

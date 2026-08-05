@@ -49,6 +49,8 @@ import {
   type InsertWarmerMessage,
   type ContactCampaign,
   type InsertContactCampaign,
+  type ContactCampaignTemplate,
+  type InsertContactCampaignTemplate,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -195,6 +197,12 @@ deleteConversation(id: string): Promise<boolean>;
   updateContactCampaign(id: string, campaign: Partial<ContactCampaign>): Promise<ContactCampaign | undefined>;
   deleteContactCampaign(id: string): Promise<boolean>;
   getDueContactCampaigns(now: Date): Promise<ContactCampaign[]>;
+
+  // Contact Campaign Templates
+  getContactCampaignTemplates(channelId: string): Promise<ContactCampaignTemplate[]>;
+  getContactCampaignTemplate(id: string): Promise<ContactCampaignTemplate | undefined>;
+  createContactCampaignTemplate(template: InsertContactCampaignTemplate): Promise<ContactCampaignTemplate>;
+  deleteContactCampaignTemplate(id: string): Promise<boolean>;
 
   // Warmer Configurations & Messages
   getWarmerConfig(channelId: string): Promise<WarmerConfig | undefined>;

@@ -65,6 +65,7 @@ import {
 } from "lucide-react";
 import { BuilderNodeData, NodeKind, Template, Member, ListSection } from "./types";
 import { FileUploadButton } from "./FileUploadButton";
+import { MediaGalleryDialog } from "@/components/media/MediaGalleryDialog";
 import { uid } from "./utils";
 import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -134,6 +135,7 @@ export function ConfigPanel({
 }: ConfigPanelProps) {
   const [templateMeta, setTemplateMeta] = useState<any>(null);
   const [mediaUploading, setMediaUploading] = useState(false);
+  const [showMediaGallery, setShowMediaGallery] = useState(false);
   const [localHeaders, setLocalHeaders] = useState<{ id: string; key: string; value: string }[]>([]);
   const { toast } = useToast();
   const [searchContactQuery, setSearchContactQuery] = useState("");
@@ -295,9 +297,9 @@ export function ConfigPanel({
 
   const handleFileUpload = (type: "image" | "video" | "audio" | "document") => (file: File) => {
     const maxSizes: Record<string, number> = {
-      image: 5 * 1024 * 1024,      // 5MB
-      video: 16 * 1024 * 1024,     // 16MB
-      audio: 16 * 1024 * 1024,     // 16MB
+      image: 40 * 1024 * 1024,      // 40MB
+      video: 40 * 1024 * 1024,     // 40MB
+      audio: 40 * 1024 * 1024,     // 40MB
       document: 100 * 1024 * 1024, // 100MB
     };
     const maxSize = maxSizes[type];
@@ -2885,13 +2887,24 @@ export function ConfigPanel({
                 {(d.mediaSourceType || "url") === "url" ? (
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-gray-700">Media URL</Label>
-                    <Input
-                      value={d.mediaUrl || ""}
-                      onChange={(e) => onChange({ mediaUrl: e.target.value })}
-                      placeholder="https://example.com/image.jpg"
-                      className="h-9 text-sm rounded-lg bg-white"
-                    />
-                    <div className="text-[10px] text-gray-400">Direct link to the media file</div>
+                    <div className="flex gap-2">
+                      <Input
+                        value={d.mediaUrl || ""}
+                        onChange={(e) => onChange({ mediaUrl: e.target.value })}
+                        placeholder="https://example.com/image.jpg"
+                        className="h-9 text-sm rounded-lg bg-white flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 text-xs font-semibold border-pink-200 hover:border-pink-300 hover:bg-pink-50 text-pink-700 rounded-lg shrink-0 px-3"
+                        onClick={() => setShowMediaGallery(true)}
+                      >
+                        <Image className="w-3.5 h-3.5 text-pink-500 mr-1" /> Gallery
+                      </Button>
+                    </div>
+                    <div className="text-[10px] text-gray-400">Direct link to the media file or choose from library</div>
                   </div>
                 ) : (
                   <div className="space-y-1.5">
@@ -2910,89 +2923,100 @@ export function ConfigPanel({
                         </Button>
                       </div>
                     ) : (
-                      <div className="relative">
-                        <input
-                          type="file"
-                          accept={
-                            d.mediaType === "image" ? "image/jpeg,image/png,image/webp" :
-                            d.mediaType === "video" ? "video/mp4,video/3gpp" :
-                            d.mediaType === "audio" ? "audio/aac,audio/mp4,audio/mpeg,audio/ogg,audio/opus" :
-                            ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
-                          }
-                          className="hidden"
-                          id="media-upload-input"
-                          disabled={mediaUploading}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file || !channelId) return;
-
-                            const maxSizes: Record<string, number> = {
-                              image: 5 * 1024 * 1024,      // 5MB
-                              video: 16 * 1024 * 1024,     // 16MB
-                              audio: 16 * 1024 * 1024,     // 16MB
-                              document: 100 * 1024 * 1024, // 100MB
-                            };
-                            const mediaType = d.mediaType || "image";
-                            const maxSize = maxSizes[mediaType] || 16 * 1024 * 1024;
-                            if (file.size > maxSize) {
-                              const maxSizeMB = maxSize / (1024 * 1024);
-                              const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-                              toast({
-                                title: "File too large",
-                                description: `The maximum file size allowed for ${mediaType} is ${maxSizeMB}MB. Selected file is ${fileSizeMB}MB.`,
-                                variant: "destructive",
-                              });
-                              e.target.value = "";
-                              return;
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <input
+                            type="file"
+                            accept={
+                              d.mediaType === "image" ? "image/jpeg,image/png,image/webp" :
+                              d.mediaType === "video" ? "video/mp4,video/3gpp" :
+                              d.mediaType === "audio" ? "audio/aac,audio/mp4,audio/mpeg,audio/ogg,audio/opus" :
+                              ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
                             }
+                            className="hidden"
+                            id="media-upload-input"
+                            disabled={mediaUploading}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file || !channelId) return;
 
-                            setMediaUploading(true);
-                            try {
-                              const formData = new FormData();
-                              formData.append("mediaFile", file);
-                              formData.append("mediaType", d.mediaType || "image");
-                              const res = await fetch(`/api/whatsapp/channels/${channelId}/upload-media`, {
-                                method: "POST",
-                                body: formData,
-                                credentials: "include",
-                              });
-                              const data = await res.json();
-                              if (data.success && data.mediaId) {
-                                onChange({ mediaId: data.mediaId, mediaFileName: file.name });
-                                toast({ title: "File uploaded successfully" });
-                              } else {
-                                toast({ title: "Upload failed", description: data.message || "Please try again", variant: "destructive" });
+                              const maxSizes: Record<string, number> = {
+                                image: 40 * 1024 * 1024,      // 40MB
+                                video: 40 * 1024 * 1024,     // 40MB
+                                audio: 40 * 1024 * 1024,     // 40MB
+                                document: 100 * 1024 * 1024, // 100MB
+                              };
+                              const mediaType = d.mediaType || "image";
+                              const maxSize = maxSizes[mediaType] || 16 * 1024 * 1024;
+                              if (file.size > maxSize) {
+                                const maxSizeMB = maxSize / (1024 * 1024);
+                                const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                                toast({
+                                  title: "File too large",
+                                  description: `The maximum file size allowed for ${mediaType} is ${maxSizeMB}MB. Selected file is ${fileSizeMB}MB.`,
+                                  variant: "destructive",
+                                });
+                                e.target.value = "";
+                                return;
                               }
-                            } catch {
-                              toast({ title: "Upload failed", description: "Network error", variant: "destructive" });
-                            } finally {
-                              setMediaUploading(false);
-                              e.target.value = "";
-                            }
-                          }}
-                        />
-                        <label
-                          htmlFor="media-upload-input"
-                          className={`flex items-center justify-center gap-2 p-3 border-2 border-dashed border-pink-200 rounded-lg cursor-pointer hover:border-pink-400 hover:bg-pink-50/50 transition-all ${mediaUploading ? "opacity-50 pointer-events-none" : ""}`}
+
+                              setMediaUploading(true);
+                              try {
+                                const formData = new FormData();
+                                formData.append("mediaFile", file);
+                                formData.append("mediaType", d.mediaType || "image");
+                                const res = await fetch(`/api/whatsapp/channels/${channelId}/upload-media`, {
+                                  method: "POST",
+                                  body: formData,
+                                  credentials: "include",
+                                });
+                                const data = await res.json();
+                                if (data.success && data.mediaId) {
+                                  onChange({ mediaId: data.mediaId, mediaFileName: file.name });
+                                  toast({ title: "File uploaded successfully" });
+                                } else {
+                                  toast({ title: "Upload failed", description: data.message || "Please try again", variant: "destructive" });
+                                }
+                              } catch {
+                                toast({ title: "Upload failed", description: "Network error", variant: "destructive" });
+                              } finally {
+                                setMediaUploading(false);
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor="media-upload-input"
+                            className={`flex items-center justify-center gap-2 p-3 border-2 border-dashed border-pink-200 rounded-lg cursor-pointer hover:border-pink-400 hover:bg-pink-50/50 transition-all ${mediaUploading ? "opacity-50 pointer-events-none" : ""}`}
+                          >
+                            {mediaUploading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 text-pink-500 animate-spin" />
+                                <span className="text-xs text-gray-500">Uploading...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-4 h-4 text-pink-500" />
+                                <span className="text-xs text-gray-500">Click to upload {d.mediaType || "image"}</span>
+                              </>
+                            )}
+                          </label>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full h-9 text-xs font-semibold border-pink-200 hover:border-pink-300 hover:bg-pink-50 text-pink-700 rounded-lg"
+                          onClick={() => setShowMediaGallery(true)}
                         >
-                          {mediaUploading ? (
-                            <>
-                              <Loader2 className="w-4 h-4 text-pink-500 animate-spin" />
-                              <span className="text-xs text-gray-500">Uploading...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="w-4 h-4 text-pink-500" />
-                              <span className="text-xs text-gray-500">Click to upload {d.mediaType || "image"}</span>
-                            </>
-                          )}
-                        </label>
+                          <Image className="w-3.5 h-3.5 mr-1.5 text-pink-500" /> Choose from Gallery
+                        </Button>
                       </div>
                     )}
-                    <div className="text-[10px] text-gray-400">
-                      {d.mediaType === "image" ? "JPG, PNG, WebP (max 5MB)" :
-                       d.mediaType === "video" ? "MP4, 3GPP (max 16MB)" :
-                       d.mediaType === "audio" ? "AAC, MP4, MPEG, OGG, Opus (max 16MB)" :
+                    <div className="text-[10px] text-gray-400 mt-1">
+                      {d.mediaType === "image" ? "JPG, PNG, WebP (max 40MB)" :
+                       d.mediaType === "video" ? "MP4, 3GPP (max 40MB)" :
+                       d.mediaType === "audio" ? "AAC, MP4, MPEG, OGG, Opus (max 40MB)" :
                        "PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT (max 100MB)"}
                     </div>
                   </div>
@@ -3189,6 +3213,25 @@ export function ConfigPanel({
           <div className="h-10" />
         </div>
       </ScrollArea>
+      <MediaGalleryDialog
+        open={showMediaGallery}
+        onOpenChange={setShowMediaGallery}
+        onSelect={(url, name) => {
+          onChange({
+            mediaUrl: url,
+            mediaFileName: name,
+            mediaSourceType: "url",
+          });
+          setShowMediaGallery(false);
+        }}
+        allowedTypes={
+          d.mediaType === "image" ? ["image"] :
+          d.mediaType === "video" ? ["video"] :
+          d.mediaType === "audio" ? ["audio"] :
+          d.mediaType === "document" ? ["document"] :
+          undefined
+        }
+      />
     </div>
   );
 }

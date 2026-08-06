@@ -49,6 +49,11 @@ import { useAuth } from "@/contexts/auth-context";
 import { isDemoUser, maskContent, maskName, maskPhone, maskEmail } from "@/utils/maskUtils";
 import { formatErrorForDisplay } from "@shared/whatsapp-error-codes";
 
+const getYoutubeId = (url: string) => {
+  const match = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
+};
+
 function MediaLightbox({
   src,
   type,
@@ -59,7 +64,7 @@ function MediaLightbox({
   src: string;
   type: "image" | "video";
   mimeType?: string;
-  downloadUrl: string;
+  downloadUrl?: string;
   onClose: () => void;
 }) {
   const [rotation, setRotation] = useState(0);
@@ -71,34 +76,24 @@ function MediaLightbox({
 
   return (
     <div
-      className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 cursor-zoom-out"
       onClick={onClose}
     >
-      <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+      <div className="absolute top-4 right-4 flex items-center gap-2">
         {type === "image" && (
           <button
             onClick={handleRotate}
-            className="p-2 bg-white/20 hover:bg-white/30 rounded-full transition-colors"
-            title="Rotate 90°"
+            className="p-2 text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+            title="Rotate 90 degrees"
           >
-            <RotateCw className="w-5 h-5 text-white" />
+            <RotateCw className="w-5 h-5" />
           </button>
         )}
-        <a
-          href={downloadUrl}
-          download
-          onClick={(e) => e.stopPropagation()}
-          className="p-2 bg-white/20 hover:bg-white/30 rounded-full transition-colors"
-          title="Download"
-        >
-          <Download className="w-5 h-5 text-white" />
-        </a>
         <button
           onClick={onClose}
-          className="p-2 bg-white/20 hover:bg-white/30 rounded-full transition-colors"
-          title="Close"
+          className="p-2 text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
         >
-          <X className="w-5 h-5 text-white" />
+          <X className="w-6 h-6" />
         </button>
       </div>
       <div
@@ -111,6 +106,14 @@ function MediaLightbox({
             alt=""
             className="max-w-full max-h-[90vh] object-contain rounded-lg transition-transform duration-300"
             style={{ transform: `rotate(${rotation}deg)` }}
+          />
+        ) : getYoutubeId(src) ? (
+          <iframe
+            className="w-[80vw] h-[60vh] rounded-lg max-w-4xl border-0"
+            src={`https://www.youtube.com/embed/${getYoutubeId(src)}?autoplay=1`}
+            title="YouTube video player"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
           />
         ) : (
           <video
@@ -289,6 +292,23 @@ const MessageItem = ({
       ) {
         return null;
       }
+
+      const ytId = getYoutubeId(message.content);
+      if (ytId) {
+        return (
+          <div className="space-y-2">
+            <p className="text-sm whitespace-pre-wrap break-words">{demo ? maskContent(message.content) : message.content}</p>
+            <iframe
+              className="w-full max-w-[280px] aspect-video rounded-lg border-0 shadow-sm"
+              src={`https://www.youtube.com/embed/${ytId}`}
+              title="YouTube video player"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          </div>
+        );
+      }
+
       return <p className="text-sm whitespace-pre-wrap break-words">{demo ? maskContent(message.content) : message.content}</p>;
     };
 
@@ -348,32 +368,47 @@ const MessageItem = ({
       </div>
     );
 
-    const renderVideoBlock = (mUrl: string | null, dlUrl: string | null, mime?: string) => (
-      <div className="space-y-2">
-        {hasMedia && mUrl && (
-          <div className="relative group">
-            <video
-              controls
-              className="max-w-[250px] max-h-[300px] rounded-lg"
-              preload="metadata"
-            >
-              <source src={`${mUrl}#t=0.1`} type={mime || message.mediaMimeType} />
-            </video>
-            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={() => openLightbox(mUrl, "video", dlUrl || mUrl, mime || message.mediaMimeType)}
-                className="p-1.5 bg-black/50 hover:bg-black/70 rounded-full transition-colors"
-                title="View full screen"
-              >
-                <Maximize2 className="w-3.5 h-3.5 text-white" />
-              </button>
-              {renderDownloadButton(dlUrl, true)}
+    const renderVideoBlock = (mUrl: string | null, dlUrl: string | null, mime?: string) => {
+      const ytId = mUrl ? getYoutubeId(mUrl) : null;
+      return (
+        <div className="space-y-2">
+          {hasMedia && mUrl && (
+            <div className="relative group">
+              {ytId ? (
+                <iframe
+                  className="w-full max-w-[280px] aspect-video rounded-lg border-0 shadow-sm"
+                  src={`https://www.youtube.com/embed/${ytId}`}
+                  title="YouTube video player"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              ) : (
+                <>
+                  <video
+                    controls
+                    className="max-w-[250px] max-h-[300px] rounded-lg"
+                    preload="metadata"
+                  >
+                    <source src={`${mUrl}#t=0.1`} type={mime || message.mediaMimeType} />
+                  </video>
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => openLightbox(mUrl, "video", dlUrl || mUrl, mime || message.mediaMimeType)}
+                      className="p-1.5 bg-black/50 hover:bg-black/70 rounded-full transition-colors"
+                      title="View full screen"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5 text-white" />
+                    </button>
+                    {renderDownloadButton(dlUrl, true)}
+                  </div>
+                </>
+              )}
             </div>
-          </div>
-        )}
-        {renderTextContent()}
-      </div>
-    );
+          )}
+          {renderTextContent()}
+        </div>
+      );
+    };
 
     const renderAudioBlock = (mUrl: string | null, dlUrl: string | null, mime?: string) => (
       <div className="space-y-2">

@@ -114,6 +114,14 @@ interface PendingExecution {
 export class AutomationExecutionService {
   private pendingExecutions = new Map<string, PendingExecution>();
 
+  constructor() {
+    setInterval(() => {
+      this.checkWaitReadTimeouts().catch(err => {
+        console.error("[AutomationExecutionService] Error in checkWaitReadTimeouts:", err);
+      });
+    }, 60 * 1000); // Every 1 minute
+  }
+
   /**
    * Start automation execution (called from your controller)
    */
@@ -1774,6 +1782,12 @@ private async executeUserReply(node: any, context: ExecutionContext) {
 
     this.pendingExecutions.set(pendingId, pendingExecution);
 
+    const timeoutMinutes = parseInt(node.data?.timeoutMinutes, 10) || 0;
+    const timeoutOnlyAfterDelivered = !!node.data?.timeoutOnlyAfterDelivered;
+
+    // Check if it's already delivered to initialize deliveredAt
+    const isDelivered = lastOutbound.status === 'delivered';
+
     await db.update(automationExecutions)
       .set({
         status: 'paused',
@@ -1784,6 +1798,10 @@ private async executeUserReply(node: any, context: ExecutionContext) {
           _waitRead_messageId: lastOutbound.whatsappMessageId,
           _waitRead_nodeId: node.nodeId,
           _waitRead_nodeType: 'wait_read',
+          _waitRead_timeoutMinutes: timeoutMinutes,
+          _waitRead_timeoutOnlyAfterDelivered: timeoutOnlyAfterDelivered,
+          _waitRead_startedAt: new Date().toISOString(),
+          _waitRead_deliveredAt: isDelivered ? new Date().toISOString() : null,
         },
         result: `Waiting for message ${lastOutbound.whatsappMessageId} to be read`
       })
@@ -1845,6 +1863,10 @@ private async executeUserReply(node: any, context: ExecutionContext) {
         delete cleanVars._waitRead_messageId;
         delete cleanVars._waitRead_nodeId;
         delete cleanVars._waitRead_nodeType;
+        delete cleanVars._waitRead_timeoutMinutes;
+        delete cleanVars._waitRead_timeoutOnlyAfterDelivered;
+        delete cleanVars._waitRead_startedAt;
+        delete cleanVars._waitRead_deliveredAt;
 
         const context: ExecutionContext = {
           executionId: dbExec.id,
@@ -1930,6 +1952,138 @@ private async executeUserReply(node: any, context: ExecutionContext) {
         'failed',
         `Failed to resume wait_read: ${(error as Error).message}`
       );
+    }
+  }
+
+  async handleMessageDelivered(whatsappMessageId: string) {
+    console.log(`📨 Received delivered status for message: ${whatsappMessageId}. Checking for waiting flows...`);
+
+    const dbExecs = await db.query.automationExecutions.findMany({
+      where: and(
+        eq(automationExecutions.status, 'paused'),
+        sql`variables->>'_waitRead_waiting' = 'true'`,
+        sql`variables->>'_waitRead_messageId' = ${whatsappMessageId}`
+      ),
+    });
+
+    for (const exec of dbExecs) {
+      try {
+        const vars = (exec.variables as Record<string, any>) || {};
+        if (vars._waitRead_timeoutOnlyAfterDelivered && !vars._waitRead_deliveredAt) {
+          console.log(`⏰ [Wait Read] Message ${whatsappMessageId} delivered. Starting timeout clock for execution ${exec.id}.`);
+          
+          const updatedVars = {
+            ...vars,
+            _waitRead_deliveredAt: new Date().toISOString()
+          };
+
+          await db.update(automationExecutions)
+            .set({ variables: updatedVars })
+            .where(eq(automationExecutions.id, exec.id));
+        }
+      } catch (err) {
+        console.error(`Error updating wait_read delivered timestamp for execution ${exec.id}:`, err);
+      }
+    }
+  }
+
+  async checkWaitReadTimeouts() {
+    const pausedExecs = await db.query.automationExecutions.findMany({
+      where: and(
+        eq(automationExecutions.status, 'paused'),
+        sql`variables->>'_waitRead_waiting' = 'true'`
+      )
+    });
+
+    if (pausedExecs.length === 0) return;
+
+    const now = new Date();
+
+    for (const exec of pausedExecs) {
+      try {
+        const vars = (exec.variables as Record<string, any>) || {};
+        const timeoutMinutes = parseInt(vars._waitRead_timeoutMinutes, 10);
+        if (isNaN(timeoutMinutes) || timeoutMinutes <= 0) continue;
+
+        const timeoutOnlyAfterDelivered = !!vars._waitRead_timeoutOnlyAfterDelivered;
+        const startedAtStr = vars._waitRead_startedAt as string;
+        const deliveredAtStr = vars._waitRead_deliveredAt as string;
+
+        let baseTime: Date | null = null;
+
+        if (timeoutOnlyAfterDelivered) {
+          if (deliveredAtStr) {
+            baseTime = new Date(deliveredAtStr);
+          } else {
+            continue;
+          }
+        } else {
+          if (startedAtStr) {
+            baseTime = new Date(startedAtStr);
+          }
+        }
+
+        if (!baseTime) continue;
+
+        const diffMinutes = (now.getTime() - baseTime.getTime()) / (60 * 1000);
+        if (diffMinutes >= timeoutMinutes) {
+          console.log(`⏰ [Wait Read Timeout] Execution ${exec.id} has timed out (elapsed: ${diffMinutes.toFixed(1)}m, limit: ${timeoutMinutes}m). Resuming...`);
+
+          const cleanVars = { ...vars };
+          delete cleanVars._waitRead_waiting;
+          delete cleanVars._waitRead_messageId;
+          delete cleanVars._waitRead_nodeId;
+          delete cleanVars._waitRead_nodeType;
+          delete cleanVars._waitRead_timeoutMinutes;
+          delete cleanVars._waitRead_timeoutOnlyAfterDelivered;
+          delete cleanVars._waitRead_startedAt;
+          delete cleanVars._waitRead_deliveredAt;
+
+          const context: ExecutionContext = {
+            executionId: exec.id,
+            automationId: exec.automationId,
+            contactId: exec.contactId ?? undefined,
+            conversationId: exec.conversationId ?? undefined,
+            variables: cleanVars,
+            triggerData: exec.triggerData,
+            lastUserMessage: (cleanVars._lastUserMessage as string) || '',
+          };
+
+          const automation = await this.getAutomationWithFlow(exec.automationId);
+          if (!automation || automation.status !== 'active') {
+            console.log(`⚠️ Blocked resuming execution ${exec.id} because automation is inactive`);
+            await this.completeExecution(exec.id, 'failed', 'Automation flow disabled or deleted');
+            continue;
+          }
+
+          await db.update(automationExecutions)
+            .set({
+              status: 'running',
+              result: null,
+              variables: context.variables,
+            })
+            .where(eq(automationExecutions.id, exec.id));
+
+          await this.logNodeExecution(
+            context.executionId,
+            vars._waitRead_nodeId,
+            'wait_read',
+            'completed',
+            { timeoutMinutes, timeoutOnlyAfterDelivered, elapsedMinutes: diffMinutes },
+            { action: 'wait_read_timed_out' },
+            null
+          );
+
+          const currentNode = automation.nodes.find((n: any) => n.nodeId === vars._waitRead_nodeId);
+          if (currentNode) {
+            await this.continueToNextNode(currentNode, automation, context);
+          } else {
+            console.error(`Node ${vars._waitRead_nodeId} not found in automation ${exec.automationId}`);
+          }
+        }
+      } catch (err) {
+        console.error(`Error processing wait_read timeout for execution ${exec.id}:`, err);
+      }
     }
   }
 

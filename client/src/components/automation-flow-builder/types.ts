@@ -177,6 +177,8 @@ export interface BuilderNodeData {
   noonVarRefId?: string;
   noonVarStatus?: string;
   noonVarPaymentId?: string;
+  timeoutMinutes?: number;
+  timeoutOnlyAfterDelivered?: boolean;
   [key: string]: unknown;
 }
 

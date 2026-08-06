@@ -1256,6 +1256,16 @@ export class BaileysManager {
               console.error(`[BaileysManager] Error triggering wait_read resumption for ${whatsappMessageId}:`, err);
             }
           }
+
+          if (updatedStatus === 'delivered') {
+            try {
+              const { triggerService } = await import("./trigger-service");
+              const executionService = triggerService.getExecutionService();
+              await executionService.handleMessageDelivered(whatsappMessageId);
+            } catch (err) {
+              console.error(`[BaileysManager] Error triggering wait_read delivery check for ${whatsappMessageId}:`, err);
+            }
+          }
         }
       }
     } catch (err) {

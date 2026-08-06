@@ -1539,6 +1539,15 @@ async function handleMessageStatuses(statuses: any[], metadata: any) {
       }
     }
 
+    if (messageStatus === "delivered") {
+      try {
+        const executionService = triggerService.getExecutionService();
+        await executionService.handleMessageDelivered(whatsappMessageId);
+      } catch (err) {
+        console.error(`[Webhook Status] Error triggering wait_read delivery check for ${whatsappMessageId}:`, err);
+      }
+    }
+
     // Broadcast status update
     // if ((global as any).broadcastToConversation && message.conversationId) {
     //   (global as any).broadcastToConversation(message.conversationId, {

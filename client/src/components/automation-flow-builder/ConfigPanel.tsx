@@ -1925,11 +1925,47 @@ export function ConfigPanel({
           {d.kind === "wait_read" && (
             <>
               <SectionHeader>Wait Configuration</SectionHeader>
-              <div className="space-y-3 bg-blue-50/50 rounded-xl p-4 border border-blue-100">
-                <div className="text-xs text-blue-700 leading-relaxed">
+              <div className="space-y-4 bg-blue-50/50 rounded-xl p-4 border border-blue-100">
+                <div className="text-xs text-blue-700 leading-relaxed bg-white/60 p-3 rounded-lg border border-blue-100/50">
                   This node will pause the automation flow until the previous outbound message sent is marked as <strong>read</strong> by the customer.
                 </div>
-                <div className="text-[10px] text-gray-400 leading-relaxed">
+
+                <div className="space-y-4 pt-2 border-t border-blue-100/50">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">Timeout / Delay (Minutes)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={d.timeoutMinutes !== undefined ? d.timeoutMinutes : ""}
+                      onChange={(e) => {
+                        const val = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
+                        onChange({ timeoutMinutes: isNaN(val) ? 0 : val });
+                      }}
+                      placeholder="Optional (e.g. 60 for 1 hour)"
+                      className="h-9 text-sm rounded-lg bg-white"
+                    />
+                    <div className="text-[10px] text-gray-400 leading-relaxed mt-1">
+                      Optional. If the customer does not read the message within this period, the flow will automatically proceed anyway. Leave blank or set to 0 to wait indefinitely.
+                    </div>
+                  </div>
+
+                  {(d.timeoutMinutes !== undefined && Number(d.timeoutMinutes) > 0) && (
+                    <div className="flex items-center justify-between bg-white/40 p-3 rounded-lg border border-blue-100/35">
+                      <div className="flex flex-col gap-0.5">
+                        <Label className="text-xs font-semibold text-gray-700">Start clock only after delivery</Label>
+                        <p className="text-[10px] text-gray-500 leading-snug max-w-[200px]">
+                          If enabled, the timeout countdown starts only when the message is successfully delivered to the customer.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={!!d.timeoutOnlyAfterDelivered}
+                        onCheckedChange={(checked) => onChange({ timeoutOnlyAfterDelivered: checked })}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-[10px] text-gray-400 leading-relaxed border-t border-blue-100/50 pt-3">
                   If there is no previous outbound message in this flow execution, or if it is already read, the automation will continue immediately without pausing.
                 </div>
               </div>

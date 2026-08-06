@@ -144,6 +144,8 @@ export const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
   wait_read: {
     kind: "wait_read",
     label: "Wait for Read",
+    timeoutMinutes: 0,
+    timeoutOnlyAfterDelivered: false,
   },
   wait_reply: {
     kind: "wait_reply",

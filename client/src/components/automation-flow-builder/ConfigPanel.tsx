@@ -72,6 +72,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Upload, Link as LinkIcon, Loader2 } from "lucide-react";
 
 interface ConfigPanelProps {

@@ -325,6 +325,10 @@ export class AutomationExecutionService {
           result = await this.executeMarkAsRead(node, context);
           break;
 
+        case 'wait_read':
+          result = await this.executeWaitRead(node, context);
+          break;
+
         case 'webhook':
           result = await this.executeWebhook(node, context);
           break;
@@ -1725,6 +1729,208 @@ private async executeUserReply(node: any, context: ExecutionContext) {
       pendingId,
       saveAs: node.data?.saveAs
     };
+  }
+
+  private async executeWaitRead(node: any, context: ExecutionContext) {
+    if (!context.conversationId) {
+      throw new Error('conversationId is required to wait for message read status');
+    }
+
+    // 1. Find the last outbound message in this conversation
+    const lastOutbound = await db.query.messages.findFirst({
+      where: and(
+        eq(messages.conversationId, context.conversationId),
+        eq(messages.direction, 'outbound')
+      ),
+      orderBy: desc(messages.createdAt),
+    });
+
+    if (!lastOutbound || !lastOutbound.whatsappMessageId) {
+      console.log(`⚠️ No previous outbound message found in conversation ${context.conversationId} to wait for read status. Proceeding immediately.`);
+      return { action: 'proceed_immediately' };
+    }
+
+    // 2. If it is already read, we proceed immediately
+    if (lastOutbound.status === 'read') {
+      console.log(`✅ Previous outbound message ${lastOutbound.whatsappMessageId} is already read. Proceeding immediately.`);
+      return { action: 'proceed_immediately' };
+    }
+
+    // 3. Otherwise, pause execution and wait for the read status update
+    const pendingId = `${context.executionId}_${node.nodeId}_${Date.now()}`;
+
+    const pendingExecution: PendingExecution = {
+      executionId: context.executionId,
+      automationId: context.automationId,
+      nodeId: node.nodeId,
+      nodeType: 'wait_read',
+      conversationId: context.conversationId,
+      contactId: context.contactId,
+      context: { ...context },
+      timestamp: new Date(),
+      status: 'waiting_for_response',
+      expectedButtons: []
+    };
+
+    this.pendingExecutions.set(pendingId, pendingExecution);
+
+    await db.update(automationExecutions)
+      .set({
+        status: 'paused',
+        currentNodeId: node.nodeId,
+        variables: {
+          ...context.variables,
+          _waitRead_waiting: true,
+          _waitRead_messageId: lastOutbound.whatsappMessageId,
+          _waitRead_nodeId: node.nodeId,
+          _waitRead_nodeType: 'wait_read',
+        },
+        result: `Waiting for message ${lastOutbound.whatsappMessageId} to be read`
+      })
+      .where(eq(automationExecutions.id, context.executionId));
+
+    // Log that we're waiting
+    await this.logNodeExecution(
+      context.executionId,
+      node.nodeId,
+      node.type,
+      'waiting_for_response',
+      { ...node.data },
+      { pendingId, whatsappMessageId: lastOutbound.whatsappMessageId, action: 'wait_read_activated' },
+      null
+    );
+
+    console.log(`⏸️  Execution paused. Waiting for message ${lastOutbound.whatsappMessageId} to be read (pending ID: ${pendingId})`);
+
+    return {
+      action: 'execution_paused',
+      conversationId: context.conversationId,
+      pendingId,
+      whatsappMessageId: lastOutbound.whatsappMessageId
+    };
+  }
+
+  async handleMessageRead(whatsappMessageId: string) {
+    console.log(`📨 Received read status for message: ${whatsappMessageId}. Checking for waiting flows...`);
+
+    // 1. Find if there is a pending execution in memory
+    let pendingIdToResume: string | null = null;
+    let pendingExec: PendingExecution | null = null;
+
+    for (const [pendingId, execution] of this.pendingExecutions.entries()) {
+      const vars = execution.context.variables || {};
+      if (vars._waitRead_waiting && vars._waitRead_messageId === whatsappMessageId) {
+        pendingIdToResume = pendingId;
+        pendingExec = execution;
+        break;
+      }
+    }
+
+    // 2. If not in memory, query the DB
+    if (!pendingExec) {
+      const dbExec = await db.query.automationExecutions.findFirst({
+        where: and(
+          eq(automationExecutions.status, 'paused'),
+          sql`variables->>'_waitRead_waiting' = 'true'`,
+          sql`variables->>'_waitRead_messageId' = ${whatsappMessageId}`
+        ),
+      });
+
+      if (dbExec) {
+        const vars = (dbExec.variables as Record<string, any>) || {};
+        const nodeId = vars._waitRead_nodeId as string;
+        
+        const cleanVars = { ...vars };
+        delete cleanVars._waitRead_waiting;
+        delete cleanVars._waitRead_messageId;
+        delete cleanVars._waitRead_nodeId;
+        delete cleanVars._waitRead_nodeType;
+
+        const context: ExecutionContext = {
+          executionId: dbExec.id,
+          automationId: dbExec.automationId,
+          contactId: dbExec.contactId ?? undefined,
+          conversationId: dbExec.conversationId ?? undefined,
+          variables: cleanVars,
+          triggerData: dbExec.triggerData,
+          lastUserMessage: (cleanVars._lastUserMessage as string) || '',
+        };
+
+        pendingExec = {
+          executionId: dbExec.id,
+          automationId: dbExec.automationId,
+          nodeId,
+          nodeType: 'wait_read',
+          conversationId: dbExec.conversationId || '',
+          contactId: dbExec.contactId || '',
+          context,
+          timestamp: new Date(),
+          status: 'waiting_for_response',
+          expectedButtons: []
+        };
+      }
+    }
+
+    if (!pendingExec) {
+      console.log(`No paused execution found waiting for message ${whatsappMessageId} to be read.`);
+      return;
+    }
+
+    if (pendingIdToResume) {
+      this.pendingExecutions.delete(pendingIdToResume);
+    }
+
+    const automation = await this.getAutomationWithFlow(pendingExec.automationId);
+    if (!automation || automation.status !== 'active') {
+      console.log(`⚠️ Blocked resuming execution ${pendingExec.executionId} because automation is inactive`);
+      await this.completeExecution(
+        pendingExec.executionId,
+        'failed',
+        'Automation flow disabled or deleted'
+      );
+      return;
+    }
+
+    try {
+      const context = pendingExec.context;
+      
+      // Update variables in DB
+      await db.update(automationExecutions)
+        .set({
+          status: 'running',
+          result: null,
+          variables: context.variables,
+        })
+        .where(eq(automationExecutions.id, context.executionId));
+
+      console.log(`▶️ Resuming execution ${context.executionId} because message was read`);
+
+      // Log success of wait_read node
+      await this.logNodeExecution(
+        context.executionId,
+        pendingExec.nodeId,
+        'wait_read',
+        'completed',
+        { messageId: whatsappMessageId },
+        { action: 'message_read' },
+        null
+      );
+
+      // Find node in automation
+      const currentNode = automation.nodes.find((n: any) => n.nodeId === pendingExec.nodeId);
+      if (currentNode) {
+        await this.continueToNextNode(currentNode, automation, context);
+      } else {
+        throw new Error(`Node ${pendingExec.nodeId} not found during resume`);
+      }
+    } catch (error) {
+      console.error(`Error resuming wait_read for execution ${pendingExec.executionId}:`, error);
+      await this.completeExecution(
+        pendingExec.executionId,
+        'failed',
+        `Failed to resume wait_read: ${(error as Error).message}`
+      );
+    }
   }
 
 /**

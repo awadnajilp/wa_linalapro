@@ -770,6 +770,27 @@ export function MarkAsReadNode() {
   );
 }
 
+export function WaitReadNode({ data, selected }: { data: BuilderNodeData; selected?: boolean }) {
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-blue-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<CheckCheck className="w-4 h-4" />}
+        title="Wait for Read"
+        color="text-blue-700"
+        bgColor="bg-blue-50"
+        borderColor="border-blue-100"
+        selected={selected}
+      >
+        <div className="text-gray-500 text-[11px] leading-relaxed">
+          Pause until the last sent message is read by the contact.
+        </div>
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} className="!bg-blue-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+    </div>
+  );
+}
+
 export function WaitReplyNode({ data, selected }: { data: BuilderNodeData; selected?: boolean }) {
   return (
     <div className="relative">
@@ -1154,6 +1175,7 @@ export const nodeTypes = {
   send_list_message: withNodeActions(SendListMessageNode),
   send_media: withNodeActions(SendMediaNode),
   mark_as_read: withNodeActions(MarkAsReadNode),
+  wait_read: withNodeActions(WaitReadNode),
   wait_reply: withNodeActions(WaitReplyNode),
   ai_answer: withNodeActions(AIAnswerNode),
   ai_agent: withNodeActions(AIAgentNode),

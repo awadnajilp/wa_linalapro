@@ -1530,6 +1530,15 @@ async function handleMessageStatuses(statuses: any[], metadata: any) {
       updatedAt: new Date(),
     });
 
+    if (messageStatus === "read") {
+      try {
+        const executionService = triggerService.getExecutionService();
+        await executionService.handleMessageRead(whatsappMessageId);
+      } catch (err) {
+        console.error(`[Webhook Status] Error triggering wait_read resumption for ${whatsappMessageId}:`, err);
+      }
+    }
+
     // Broadcast status update
     // if ((global as any).broadcastToConversation && message.conversationId) {
     //   (global as any).broadcastToConversation(message.conversationId, {

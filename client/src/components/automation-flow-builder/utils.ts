@@ -141,6 +141,10 @@ export const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
     kind: "mark_as_read",
     label: "Mark as Read",
   },
+  wait_read: {
+    kind: "wait_read",
+    label: "Wait for Read",
+  },
   wait_reply: {
     kind: "wait_reply",
     label: "Wait Reply",

@@ -1240,7 +1240,22 @@ export class BaileysManager {
         // Update messages table if it exists
         const message = await storage.getMessageByWhatsAppId(whatsappMessageId);
         if (message) {
-          await storage.updateMessageStatus(message.id, status);
+          const updatedStatus = status === 'read' ? 'read' : status === 'delivered' ? 'delivered' : 'sent';
+          await storage.updateMessage(message.id, {
+            status: updatedStatus,
+            ...(updatedStatus === 'read' ? { readAt: new Date() } : {}),
+            ...(updatedStatus === 'delivered' ? { deliveredAt: new Date() } : {})
+          });
+
+          if (updatedStatus === 'read') {
+            try {
+              const { triggerService } = await import("./trigger-service");
+              const executionService = triggerService.getExecutionService();
+              await executionService.handleMessageRead(whatsappMessageId);
+            } catch (err) {
+              console.error(`[BaileysManager] Error triggering wait_read resumption for ${whatsappMessageId}:`, err);
+            }
+          }
         }
       }
     } catch (err) {

@@ -45,7 +45,8 @@ export type NodeKind =
   | "instamojo_payment"
   | "zapier"
   | "tap_payment"
-  | "noon_payment";
+  | "noon_payment"
+  | "wait_read";
 
 export interface ListSection {
   title: string;

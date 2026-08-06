@@ -104,6 +104,7 @@ const kindMeta: Record<NodeKind, { icon: any; label: string; color: string; bgTi
   send_list_message: { icon: List, label: "List Message", color: "text-sky-600", bgTint: "bg-sky-50" },
   send_media: { icon: Paperclip, label: "Send Media", color: "text-pink-600", bgTint: "bg-pink-50" },
   mark_as_read: { icon: CheckCheck, label: "Mark as Read", color: "text-lime-600", bgTint: "bg-lime-50" },
+  wait_read: { icon: CheckCheck, label: "Wait for Read", color: "text-blue-600", bgTint: "bg-blue-50" },
   wait_reply: { icon: MessageSquare, label: "Wait for Reply", color: "text-amber-600", bgTint: "bg-amber-50" },
   ai_answer: { icon: Brain, label: "AI Answer", color: "text-purple-600", bgTint: "bg-purple-50" },
   ai_agent: { icon: Bot, label: "AI Agent", color: "text-fuchsia-600", bgTint: "bg-fuchsia-50" },
@@ -1916,6 +1917,20 @@ export function ConfigPanel({
                 </div>
                 <div className="text-[10px] text-gray-400 mt-1">
                   Flow variables set by "Set Variable" nodes are also available using {"{{your_variable_name}}"} syntax.
+                </div>
+              </div>
+            </>
+          )}
+
+          {d.kind === "wait_read" && (
+            <>
+              <SectionHeader>Wait Configuration</SectionHeader>
+              <div className="space-y-3 bg-blue-50/50 rounded-xl p-4 border border-blue-100">
+                <div className="text-xs text-blue-700 leading-relaxed">
+                  This node will pause the automation flow until the previous outbound message sent is marked as <strong>read</strong> by the customer.
+                </div>
+                <div className="text-[10px] text-gray-400 leading-relaxed">
+                  If there is no previous outbound message in this flow execution, or if it is already read, the automation will continue immediately without pausing.
                 </div>
               </div>
             </>

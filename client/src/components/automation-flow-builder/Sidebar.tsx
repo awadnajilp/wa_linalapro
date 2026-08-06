@@ -176,6 +176,15 @@ const nodeCategories = [
         tip: "Pause the flow until the customer sends a new message. You can optionally save their reply into a custom variable.",
       },
       {
+        kind: "wait_read" as NodeKind,
+        name: "Wait for Read",
+        icon: CheckCheck,
+        color: "text-blue-500",
+        bg: "bg-blue-50",
+        border: "border-blue-200",
+        tip: "Pause the flow until the customer reads the previous message sent.",
+      },
+      {
         kind: "ai_answer" as NodeKind,
         name: "AI Answer",
         icon: Sparkles,

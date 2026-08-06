@@ -1302,6 +1302,12 @@ export const PERMISSIONS = {
   GROUPS_CREATE: "groups:create",
   GROUPS_EDIT: "groups:edit",
   GROUPS_DELETE: "groups:delete",
+
+  // CRM permissions
+  CRM_VIEW: "crm:view",
+  CRM_CREATE: "crm:create",
+  CRM_EDIT: "crm:edit",
+  CRM_DELETE: "crm:delete",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -1340,6 +1346,10 @@ export const DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.GROUPS_CREATE,
     PERMISSIONS.GROUPS_EDIT,
     PERMISSIONS.GROUPS_DELETE,
+    PERMISSIONS.CRM_VIEW,
+    PERMISSIONS.CRM_CREATE,
+    PERMISSIONS.CRM_EDIT,
+    PERMISSIONS.CRM_DELETE,
   ],
   agent: [
     PERMISSIONS.DASHBOARD_VIEW,
@@ -1350,6 +1360,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.INBOX_SEND_MESSAGE,
     PERMISSIONS.ANALYTICS_VIEW,
     PERMISSIONS.GROUPS_VIEW,
+    PERMISSIONS.CRM_VIEW,
   ],
 };
 

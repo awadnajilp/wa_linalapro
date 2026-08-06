@@ -1108,6 +1108,16 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    title: "crm",
+    label: "Manage CRM Pipeline",
+    permissions: [
+      { key: "crm:view", label: "View" },
+      { key: "crm:create", label: "Create Deals" },
+      { key: "crm:edit", label: "Edit Deals" },
+      { key: "crm:delete", label: "Delete Deals" },
+    ],
+  },
+  {
     title: "settings",
     label: "Manage Settings",
     permissions: [

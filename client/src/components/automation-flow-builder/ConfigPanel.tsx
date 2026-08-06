@@ -2902,7 +2902,7 @@ export function ConfigPanel({
                         className="h-9 text-xs font-semibold border-pink-200 hover:border-pink-300 hover:bg-pink-50 text-pink-700 rounded-lg shrink-0 px-3"
                         onClick={() => setShowMediaGallery(true)}
                       >
-                        <Image className="w-3.5 h-3.5 text-pink-500 mr-1" /> Gallery
+                        <ImageIcon className="w-3.5 h-3.5 text-pink-500 mr-1" /> Gallery
                       </Button>
                     </div>
                     <div className="text-[10px] text-gray-400">Direct link to the media file or choose from library</div>
@@ -3010,7 +3010,7 @@ export function ConfigPanel({
                           className="w-full h-9 text-xs font-semibold border-pink-200 hover:border-pink-300 hover:bg-pink-50 text-pink-700 rounded-lg"
                           onClick={() => setShowMediaGallery(true)}
                         >
-                          <Image className="w-3.5 h-3.5 mr-1.5 text-pink-500" /> Choose from Gallery
+                          <ImageIcon className="w-3.5 h-3.5 mr-1.5 text-pink-500" /> Choose from Gallery
                         </Button>
                       </div>
                     )}

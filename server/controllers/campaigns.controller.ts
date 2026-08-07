@@ -646,9 +646,9 @@ export const campaignsController = {
       const messageId = response.messages?.[0]?.id || `msg_${randomUUID()}`;
       const sentVia = response._sentVia || "cloud_api";
 
-      let conversation = await storage.getConversationByPhone(phone);
+      let conversation = await storage.getConversationByPhoneAndChannel(phone, channel.id);
       if (!conversation) {
-        let contact = await storage.getContactByPhone(phone);
+        let contact = await storage.getContactByPhoneAndChannel(phone, channel.id);
         if (!contact) {
           contact = await storage.createContact({
             name: phone,

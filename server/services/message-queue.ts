@@ -519,9 +519,6 @@ export class MessageQueueService {
 
         // Interpolate variables in text
         let contact = await storage.getContactByPhoneAndChannel(message.recipientPhone, channel.id);
-        if (!contact) {
-          contact = await storage.getContactByPhone(message.recipientPhone);
-        }
         let contactName = contact ? contact.name : message.recipientPhone;
 
         text = text.replace(/\{\{\s*name\s*\}\}/gi, contactName);

@@ -2286,7 +2286,7 @@ private async sendInteractiveMessage(
     // Find conversation
     const conversation = conversationId
       ? await storage.getConversation(conversationId)
-      : await storage.getConversationByPhone(to);
+      : await storage.getConversationByPhoneAndChannel(to, channel.id);
 
     if (conversation) {
       // Save message

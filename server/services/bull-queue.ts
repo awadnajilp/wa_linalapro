@@ -211,9 +211,6 @@ async function processMessageJob(job: Job) {
 
       // Interpolate variables in customMessage (e.g. {{name}}, {{phone}}, etc.)
       let contact = await storage.getContactByPhoneAndChannel(recipientPhone, channel.id);
-      if (!contact) {
-        contact = await storage.getContactByPhone(recipientPhone);
-      }
       let contactName = contact ? contact.name : recipientPhone;
 
       text = text.replace(/\{\{\s*name\s*\}\}/gi, contactName);

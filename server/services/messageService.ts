@@ -265,10 +265,10 @@ export async function sendBusinessMessage({
   /* ───── Conversation handling ───── */
   let conversation = conversationId
     ? await storage.getConversation(conversationId)
-    : await storage.getConversationByPhone(to);
+    : await storage.getConversationByPhoneAndChannel(to, channelId);
 
   if (!conversation) {
-    let contact = await storage.getContactByPhone(to);
+    let contact = await storage.getContactByPhoneAndChannel(to, channelId);
     if (!contact) {
       contact = await storage.createContact({
         name: to,

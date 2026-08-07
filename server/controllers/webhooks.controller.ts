@@ -442,6 +442,14 @@ async function handleMessageChange(value: any) {
       continue;
     }
 
+    if (whatsappMessageId) {
+      const existingDbMsg = await storage.getMessageByWhatsAppId(whatsappMessageId);
+      if (existingDbMsg) {
+        console.log(`[Webhook DB Dedup] Skipping already stored inbound message: ${whatsappMessageId}`);
+        continue;
+      }
+    }
+
     // Handle reaction messages before any other processing
     if (type === 'reaction' && message.reaction) {
       const emoji = message.reaction.emoji || '';

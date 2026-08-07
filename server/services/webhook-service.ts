@@ -220,7 +220,7 @@ export class WebhookService {
       }
 
       // Find or create conversation
-      let conversation = await storage.getConversationByPhone(message.from);
+      let conversation = await storage.getConversationByPhoneAndChannel(message.from, channelId);
       
       if (!conversation) {
         // Create new conversation
@@ -231,6 +231,7 @@ export class WebhookService {
           lastMessageAt: new Date(parseInt(message.timestamp) * 1000),
           lastMessageText:message.text?.body || "",
           unreadCount: 1,
+          channelId,
         });
       } else {
         // Update conversation

@@ -1073,18 +1073,19 @@ if (type === "template") {
     const messageId = result.messages?.[0]?.id;
 
     // ================= CONTACT =================
-    let contact =
-      (await storage.searchContacts(to)).find((c) => c.phone === to) ||
-      (await storage.createContact({
+    let contact = await storage.getContactByPhoneAndChannel(to, channel.id);
+    if (!contact) {
+      contact = await storage.createContact({
         name: to,
         phone: to,
         email: "",
         channelId: channel.id,
         status: "active",
-      } as any));
+      } as any);
+    }
 
     // ================= CONVERSATION =================
-    let conversation = await storage.getConversationByPhone(to);
+    let conversation = await storage.getConversationByPhoneAndChannel(to, channel.id);
 
     if (!conversation) {
       conversation = await storage.createConversation({

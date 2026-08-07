@@ -67,6 +67,7 @@ export default function CRM() {
   const [newDealValue, setNewDealValue] = useState("0.00");
   const [newDealCurrency, setNewDealCurrency] = useState("USD");
   const [newDealContactId, setNewDealContactId] = useState("");
+  const [contactSearchQuery, setContactSearchQuery] = useState("");
   const [newDealAgentId, setNewDealAgentId] = useState<string | null>(null);
 
   // New Pipeline Form states
@@ -148,17 +149,19 @@ export default function CRM() {
     enabled: !!channelId,
   });
 
-  // Query: contacts for deal creation selector
-  const { data: contacts = [] } = useQuery<any[]>({
-    queryKey: ["/api/contacts-all", channelId],
+  // Query: contacts for deal creation selector (on-demand)
+  const { data: contactsData } = useQuery<any>({
+    queryKey: ["/api/contacts", channelId, contactSearchQuery],
     queryFn: async () => {
-      if (!channelId) return [];
-      const res = await apiRequest("GET", `/api/contacts-all?channelId=${channelId}`);
-      if (!res.ok) return [];
+      if (!channelId) return { data: [] };
+      const res = await apiRequest("GET", `/api/contacts?channelId=${channelId}&limit=50&search=${encodeURIComponent(contactSearchQuery)}`);
+      if (!res.ok) return { data: [] };
       return res.json();
     },
     enabled: !!channelId,
   });
+
+  const contacts = contactsData?.data || [];
 
   // Query: automations for qualification select dropdown
   const { data: automations = [] } = useQuery<any[]>({
@@ -1047,13 +1050,23 @@ export default function CRM() {
 
           <div className="space-y-4 py-3 text-xs">
             <div className="space-y-1.5">
+              <Label className="font-semibold text-slate-700">Search Lead Contact</Label>
+              <Input
+                placeholder="Type name or phone to search..."
+                value={contactSearchQuery}
+                onChange={(e) => setContactSearchQuery(e.target.value)}
+                className="border-slate-200 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
               <Label className="font-semibold text-slate-700">Select Contact</Label>
               <Select value={newDealContactId} onValueChange={setNewDealContactId}>
                 <SelectTrigger className="w-full bg-white border-slate-200 text-xs">
                   <SelectValue placeholder="Select active lead contact" />
                 </SelectTrigger>
                 <SelectContent>
-                  {contacts.map((c) => (
+                  {contacts.map((c: any) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name} ({c.phone})
                     </SelectItem>

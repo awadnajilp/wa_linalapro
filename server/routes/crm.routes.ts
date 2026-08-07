@@ -343,8 +343,37 @@ export function registerCRMRoutes(app: Express) {
       }
 
       const list = await db
-        .select()
+        .select({
+          id: crmDeals.id,
+          contactId: crmDeals.contactId,
+          channelId: crmDeals.channelId,
+          stageId: crmDeals.stageId,
+          title: crmDeals.title,
+          value: crmDeals.value,
+          currency: crmDeals.currency,
+          assignedTo: crmDeals.assignedTo,
+          status: crmDeals.status,
+          lostReason: crmDeals.lostReason,
+          expectedCloseDate: crmDeals.expectedCloseDate,
+          notes: crmDeals.notes,
+          tags: crmDeals.tags,
+          customFollowUpDate: crmDeals.customFollowUpDate,
+          isAutomatedFollowUpEnabled: crmDeals.isAutomatedFollowUpEnabled,
+          followUpMessage: crmDeals.followUpMessage,
+          followUpTemplateName: crmDeals.followUpTemplateName,
+          followUpTemplateLanguage: crmDeals.followUpTemplateLanguage,
+          followUpTemplateVariables: crmDeals.followUpTemplateVariables,
+          followUpStatus: crmDeals.followUpStatus,
+          preferredContactMethod: crmDeals.preferredContactMethod,
+          contactedCount: crmDeals.contactedCount,
+          createdAt: crmDeals.createdAt,
+          updatedAt: crmDeals.updatedAt,
+          contactName: contacts.name,
+          contactPhone: contacts.phone,
+          contactEmail: contacts.email,
+        })
         .from(crmDeals)
+        .leftJoin(contacts, eq(crmDeals.contactId, contacts.id))
         .where(and(...conditions));
 
       res.json(list);

@@ -269,4 +269,10 @@ Deletes a scheduled campaign.
 *   **Flexible Credentials:** Supports tenant-scoped Business ID, Application ID, and Application Key in node settings (falling back to global environment variables), allowing different tenants to collect payments to their own noon merchant accounts directly.
 *   **Webhook JWS Decoding & Verification:** Integrates a robust JWS payload decoder in the webhook handler to support both v1 (plain JSON) and v2 (JSON Web Signature - JWS) noon payments webhook notifications securely. The endpoint resolves the paused flow and double-verifies status via a direct GET order call.
 
+### 15. Multi-Tenant Inbox Isolation & Database Deduplication (August 2026)
+*   **Multi-Tenant Inbox Isolation:** Updated backend database queries and helper methods to query and resolve contacts and conversations scoped by `channelId` (instead of searching by recipient phone number globally). This enforces strict tenant isolation and prevents cross-tenant thread pollution.
+*   **Database Webhook Deduplication:** Integrated a database-backed uniqueness check (`storage.getMessageByWhatsAppId`) inside incoming webhook handlers. Any duplicate webhook retry payloads sent by Meta's Graph API are automatically discarded to prevent inserting duplicate message rows.
+*   **Production Database Cleanup:** Executed data migration and cleanup scripts directly on the production database, deleting 3,846 duplicate webhook retry rows (retaining the original records) and successfully relocating 17 misplaced automated outbound chat messages back to their correct tenant conversation threads.
+
+
 

@@ -1179,92 +1179,89 @@ export class BaileysManager {
         .where(eq(messageQueue.whatsappMessageId, whatsappMessageId))
         .limit(1);
 
-      if (!queueEntry) {
-        console.log(`[BaileysManager] Queue entry not found for WhatsApp ID: ${whatsappMessageId}`);
-        return;
-      }
+      if (queueEntry) {
+        const alreadyDelivered = !!queueEntry.deliveredAt;
+        const alreadyRead = !!queueEntry.readAt;
 
-      const alreadyDelivered = !!queueEntry.deliveredAt;
-      const alreadyRead = !!queueEntry.readAt;
+        const updateFields: Record<string, any> = {};
+        let shouldIncrementDelivered = false;
+        let shouldIncrementRead = false;
+        const now = new Date();
 
-      const updateFields: Record<string, any> = {};
-      let shouldIncrementDelivered = false;
-      let shouldIncrementRead = false;
-      const now = new Date();
-
-      if (status === "delivered" && !alreadyDelivered && !alreadyRead) {
-        updateFields.status = "delivered";
-        updateFields.deliveredAt = now;
-        shouldIncrementDelivered = true;
-      } else if (status === "read" && !alreadyRead) {
-        updateFields.status = "read";
-        updateFields.readAt = now;
-        shouldIncrementRead = true;
-        if (!alreadyDelivered) {
+        if (status === "delivered" && !alreadyDelivered && !alreadyRead) {
+          updateFields.status = "delivered";
           updateFields.deliveredAt = now;
           shouldIncrementDelivered = true;
+        } else if (status === "read" && !alreadyRead) {
+          updateFields.status = "read";
+          updateFields.readAt = now;
+          shouldIncrementRead = true;
+          if (!alreadyDelivered) {
+            updateFields.deliveredAt = now;
+            shouldIncrementDelivered = true;
+          }
+        }
+
+        const campaignId = queueEntry.campaignId;
+
+        if (Object.keys(updateFields).length > 0) {
+          await db
+            .update(messageQueue)
+            .set(updateFields)
+            .where(eq(messageQueue.id, queueEntry.id));
+
+          if (campaignId) {
+            await db
+              .update(campaignRecipients)
+              .set(updateFields)
+              .where(
+                and(
+                  eq(campaignRecipients.campaignId, campaignId),
+                  eq(campaignRecipients.phone, queueEntry.recipientPhone)
+                )
+              );
+
+            const counterUpdate: Record<string, any> = {};
+            if (shouldIncrementDelivered) {
+              counterUpdate.deliveredCount = sql`COALESCE(${campaigns.deliveredCount}, 0) + 1`;
+            }
+            if (shouldIncrementRead) {
+              counterUpdate.readCount = sql`COALESCE(${campaigns.readCount}, 0) + 1`;
+            }
+            if (Object.keys(counterUpdate).length > 0) {
+              await db.update(campaigns).set(counterUpdate).where(eq(campaigns.id, campaignId));
+            }
+          }
         }
       }
 
-      const campaignId = queueEntry.campaignId;
+      // Update messages table if it exists
+      const message = await storage.getMessageByWhatsAppId(whatsappMessageId);
+      if (message) {
+        const updatedStatus = status === 'read' ? 'read' : status === 'delivered' ? 'delivered' : 'sent';
+        await storage.updateMessage(message.id, {
+          status: updatedStatus,
+          ...(updatedStatus === 'read' ? { readAt: new Date() } : {}),
+          ...(updatedStatus === 'delivered' ? { deliveredAt: new Date() } : {})
+        });
 
-      if (Object.keys(updateFields).length > 0) {
-        await db
-          .update(messageQueue)
-          .set(updateFields)
-          .where(eq(messageQueue.id, queueEntry.id));
-
-        if (campaignId) {
-          await db
-            .update(campaignRecipients)
-            .set(updateFields)
-            .where(
-              and(
-                eq(campaignRecipients.campaignId, campaignId),
-                eq(campaignRecipients.phone, queueEntry.recipientPhone)
-              )
-            );
-
-          const counterUpdate: Record<string, any> = {};
-          if (shouldIncrementDelivered) {
-            counterUpdate.deliveredCount = sql`COALESCE(${campaigns.deliveredCount}, 0) + 1`;
-          }
-          if (shouldIncrementRead) {
-            counterUpdate.readCount = sql`COALESCE(${campaigns.readCount}, 0) + 1`;
-          }
-          if (Object.keys(counterUpdate).length > 0) {
-            await db.update(campaigns).set(counterUpdate).where(eq(campaigns.id, campaignId));
+        if (updatedStatus === 'read') {
+          try {
+            const { triggerService } = await import("./trigger-service");
+            const executionService = triggerService.getExecutionService();
+            await executionService.handleMessageRead(whatsappMessageId);
+          } catch (err) {
+            console.error(`[BaileysManager] Error triggering wait_read resumption for ${whatsappMessageId}:`, err);
           }
         }
 
-        // Update messages table if it exists
-        const message = await storage.getMessageByWhatsAppId(whatsappMessageId);
-        if (message) {
-          const updatedStatus = status === 'read' ? 'read' : status === 'delivered' ? 'delivered' : 'sent';
-          await storage.updateMessage(message.id, {
-            status: updatedStatus,
-            ...(updatedStatus === 'read' ? { readAt: new Date() } : {}),
-            ...(updatedStatus === 'delivered' ? { deliveredAt: new Date() } : {})
-          });
-
-          if (updatedStatus === 'read') {
-            try {
-              const { triggerService } = await import("./trigger-service");
-              const executionService = triggerService.getExecutionService();
-              await executionService.handleMessageRead(whatsappMessageId);
-            } catch (err) {
-              console.error(`[BaileysManager] Error triggering wait_read resumption for ${whatsappMessageId}:`, err);
-            }
-          }
-
-          if (updatedStatus === 'delivered') {
-            try {
-              const { triggerService } = await import("./trigger-service");
-              const executionService = triggerService.getExecutionService();
-              await executionService.handleMessageDelivered(whatsappMessageId);
-            } catch (err) {
-              console.error(`[BaileysManager] Error triggering wait_read delivery check for ${whatsappMessageId}:`, err);
-            }
+        if (updatedStatus === 'delivered') {
+          try {
+            const { triggerService } = await import("./trigger-service");
+            const executionService = triggerService.getExecutionService();
+            await executionService.handleMessageDelivered(whatsappMessageId);
+          } catch (err) {
+            console.error(`[BaileysManager] Error triggering wait_read delivery check for ${whatsappMessageId}:`, err);
           }
         }
       }

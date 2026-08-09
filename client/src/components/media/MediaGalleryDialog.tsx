@@ -36,7 +36,7 @@ interface MediaAsset {
 interface MediaGalleryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (url: string, name: string) => void;
+  onSelect: (url: string, name: string, mimeType?: string) => void;
   allowedTypes?: ("image" | "video" | "audio" | "document")[];
 }
 
@@ -77,7 +77,7 @@ export function MediaGalleryDialog({
         description: "File uploaded successfully and saved to Media Library.",
       });
       if (data.url) {
-        onSelect(data.url, data.fileName || "Uploaded File");
+        onSelect(data.url, data.fileName || "Uploaded File", data.mimeType);
         onOpenChange(false);
       }
     },
@@ -271,7 +271,7 @@ export function MediaGalleryDialog({
                   key={item.id}
                   className="group relative bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex flex-col h-40 cursor-pointer"
                   onClick={() => {
-                    onSelect(item.url, item.fileName);
+                    onSelect(item.url, item.fileName, item.mimeType);
                     onOpenChange(false);
                   }}
                 >

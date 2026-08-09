@@ -189,7 +189,10 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
               messageType as any,
               caption || forwardedMessage.content || "",
               replyToWaId,
-              isVoiceNote
+              isVoiceNote,
+              mediaUrl || undefined,
+              forwardedMessage.metadata?.originalName || undefined,
+              mediaMimeType || undefined
             );
             msgBody = caption || forwardedMessage.content || `[${messageType}]`;
           } else if (forwardedMessage.mediaUrl) {
@@ -224,7 +227,10 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
                 messageType as any,
                 caption || forwardedMessage.content || "",
                 replyToWaId,
-                isVoiceNote
+                isVoiceNote,
+                mediaUrl || undefined,
+                originalname || undefined,
+                mimeType || undefined
               );
               msgBody = caption || forwardedMessage.content || `[${messageType}]`;
             } catch (err: any) {
@@ -323,7 +329,10 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
           messageType as any,
           caption || content,
           replyToWaId,
-          isVoiceNote
+          isVoiceNote,
+          mediaUrl || undefined,
+          originalName || undefined,
+          mediaMimeType || undefined
         );
         msgBody = caption || `[${messageType}]`;
 
@@ -448,7 +457,10 @@ if (file.size > MAX_SIZE_MB * 1024 * 1024) {
           messageType as any,
           caption || content,
           replyToWaId,
-          isVoiceNote
+          isVoiceNote,
+          mediaUrl || undefined,
+          file.originalname || undefined,
+          mimeType || undefined
         );
         msgBody = caption || `[${messageType}]`;
 
@@ -585,7 +597,7 @@ export const createMessagennn = asyncHandler(async (req: Request, res: Response)
           } else {
             // Upload from local file
             console.log("📁 Uploading local file to WhatsApp...");
-            mediaId = await whatsappApi.uploadMedia(file.path, mimeType);
+            mediaId = await whatsappApi.uploadMedia(file.path, mimeType, file.originalname);
             console.log("✅ Media uploaded to WhatsApp, ID:", mediaId);
           }
 
@@ -614,7 +626,11 @@ export const createMessagennn = asyncHandler(async (req: Request, res: Response)
             mediaId,
             messageType as any,
             caption || content || `[${messageType}]`,
-            replyToWaId
+            replyToWaId,
+            undefined,
+            mediaUrl || undefined,
+            file?.originalname || undefined,
+            mimeType || undefined
           );
           msgBody = caption || `[${messageType}]`;
 
@@ -779,7 +795,7 @@ let messageStatus: "sent" | "failed" = "sent";
         } else {
           // Upload from local file (fallback)
           console.log("📁 Uploading local file to WhatsApp...");
-          mediaId = await whatsappApi.uploadMedia(file.path, mimeType);
+          mediaId = await whatsappApi.uploadMedia(file.path, mimeType, file.originalname);
           console.log("✅ Media uploaded to WhatsApp, ID:", mediaId);
         }
 
@@ -805,7 +821,11 @@ let messageStatus: "sent" | "failed" = "sent";
           mediaId!,
           messageType as any,
           caption || content,
-          replyToWaId
+          replyToWaId,
+          undefined,
+          mediaUrl || undefined,
+          file?.originalname || undefined,
+          mimeType || undefined
         );
         msgBody = caption || `[${messageType}]`;
       } else {
@@ -1208,7 +1228,7 @@ export const sendMessageOODLL = asyncHandler(async (req: RequestWithChannel, res
   } else if (file) {
     // Handle media upload + send
     const mimeType = file.mimetype;
-    const mediaId = await whatsappApi.uploadMedia(file.path, mimeType);
+    const mediaId = await whatsappApi.uploadMedia(file.path, mimeType, file.originalname);
 
     // detect type automatically from mimetype
     if (mimeType.startsWith("image")) messageType = "image";
@@ -1216,7 +1236,17 @@ export const sendMessageOODLL = asyncHandler(async (req: RequestWithChannel, res
     else if (mimeType.startsWith("audio")) messageType = "audio";
     else messageType = "document";
 
-    result = await whatsappApi.sendMediaMessagee(to, mediaId, messageType as any, caption || message);
+    result = await whatsappApi.sendMediaMessagee(
+      to,
+      mediaId,
+      messageType as any,
+      caption || message,
+      undefined,
+      undefined,
+      undefined,
+      file?.originalname || (file?.path ? path.basename(file.path) : undefined),
+      mimeType || undefined
+    );
     msgBody = caption || `[${messageType}]`;
   } else {
     // Text
@@ -1447,6 +1477,11 @@ export const sendMessage = asyncHandler(async (req: RequestWithChannel, res: Res
       mediaId,
       messageType as any,
       caption || message,
+      undefined,
+      undefined,
+      undefined,
+      file?.originalname || (file?.path ? path.basename(file.path) : undefined),
+      mimeType || undefined
     );
 
     msgBody = caption || `[${messageType}]`;

@@ -399,14 +399,17 @@ const MessageComposer = ({
       <MediaGalleryDialog
         open={showMediaGallery}
         onOpenChange={setShowMediaGallery}
-        onSelect={(url, name) => {
+        onSelect={(url, name, selectedMimeType) => {
           if (onSelectMediaUrl) {
-            const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
-            let mimeType = "image/jpeg";
-            if (ext === "png") mimeType = "image/png";
-            else if (ext === "gif") mimeType = "image/gif";
-            else if (ext === "mp4") mimeType = "video/mp4";
-            else if (ext === "pdf") mimeType = "application/pdf";
+            let mimeType = selectedMimeType;
+            if (!mimeType) {
+              const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
+              mimeType = "image/jpeg";
+              if (ext === "png") mimeType = "image/png";
+              else if (ext === "gif") mimeType = "image/gif";
+              else if (ext === "mp4") mimeType = "video/mp4";
+              else if (ext === "pdf") mimeType = "application/pdf";
+            }
             onSelectMediaUrl(url, name, mimeType);
           }
         }}

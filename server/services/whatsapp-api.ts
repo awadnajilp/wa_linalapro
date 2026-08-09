@@ -1102,10 +1102,11 @@ async uploadTemplateMedia(
   return headerHandle; // ✅ "4::xxxx"
 }
 
-  async uploadMedia(filePath: string, mimeType: string): Promise<string> {
+  async uploadMedia(filePath: string, mimeType: string, filename?: string): Promise<string> {
     if (this.channel.connectionMethod === "qr_code") {
       const fakeId = `qr_media_${randomUUID()}`;
-      WhatsAppApiService.mediaCache.set(fakeId, { url: filePath, mimeType });
+      const name = filename || path.basename(filePath);
+      WhatsAppApiService.mediaCache.set(fakeId, { url: filePath, mimeType, filename: name });
       return fakeId;
     }
     const resolvedPath = path.resolve(filePath);
@@ -1697,7 +1698,10 @@ async sendMediaMessagee(
   mediaType: "image" | "video" | "audio" | "document",
   caption?: string,
   replyToWaId?: string,
-  isVoiceNote?: boolean
+  isVoiceNote?: boolean,
+  mediaUrl?: string,
+  mediaFileName?: string,
+  mediaMimeType?: string
 ) {
   const formattedPhone = this.formatPhoneNumber(to);
 
@@ -1706,7 +1710,10 @@ async sendMediaMessagee(
     to: formattedPhone,
     type: mediaType,
     [mediaType]: {
-      id: mediaId,
+      id: mediaId || undefined,
+      link: mediaUrl || undefined,
+      filename: mediaFileName || undefined,
+      mime_type: mediaMimeType || undefined
     },
   };
 
@@ -1828,8 +1835,14 @@ async sendMediaMessagee(
         if (!mediaData) {
           const link = mediaObj?.link;
           if (link) {
-            mediaData = { url: link, mimeType: type === "image" ? "image/jpeg" : type === "video" ? "video/mp4" : "application/octet-stream" };
+            mediaData = { 
+              url: link, 
+              mimeType: mediaObj?.mime_type || (type === "image" ? "image/jpeg" : type === "video" ? "video/mp4" : "application/octet-stream"),
+              filename: mediaObj?.filename || undefined
+            };
           }
+        } else if (mediaObj?.filename && mediaData) {
+          mediaData = { ...mediaData, filename: mediaObj.filename };
         }
         
         if (mediaData) {

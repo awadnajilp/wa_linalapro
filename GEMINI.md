@@ -274,5 +274,7 @@ Deletes a scheduled campaign.
 *   **Database Webhook Deduplication:** Integrated a database-backed uniqueness check (`storage.getMessageByWhatsAppId`) inside incoming webhook handlers. Any duplicate webhook retry payloads sent by Meta's Graph API are automatically discarded to prevent inserting duplicate message rows.
 *   **Production Database Cleanup:** Executed data migration and cleanup scripts directly on the production database, deleting 3,846 duplicate webhook retry rows (retaining the original records) and successfully relocating 17 misplaced automated outbound chat messages back to their correct tenant conversation threads.
 
-
-
+### 16. Media Gallery & Flow Builder Wait-Read Bug Fixes (August 2026)
+*   **Media Gallery File Names & MIME Types:** Updated frontend `MediaGalleryDialog` to forward MIME types on select, and backend `sendMediaMessage` / `sendDirectMessage` to accept and pass the original file name and MIME type. This prevents documents sent via QR Code/Baileys from defaulting to extension-less `.bin` files and crashing when opened on the recipient's phone.
+*   **QR Media Gallery URL Support:** Fixed the "Media not found in cache or payload for QR message" error by automatically constructing media downloader configurations using the provided resource URL when direct media cache hits are missed.
+*   **Wait-for-Read Node Resumption:** Patched Baileys status update callback in `baileys-manager.ts` to trigger the `handleMessageRead` / `handleMessageDelivered` flow resumptions even when a status update does not correspond to a master campaign (`messageQueue` entry), such as chatbot/flow execution triggers.

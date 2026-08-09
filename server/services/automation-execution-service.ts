@@ -400,10 +400,12 @@ export class AutomationExecutionService {
         null
       );
 
-      // Save execution variables to the database
-      await db.update(automationExecutions)
-        .set({ variables: context.variables })
-        .where(eq(automationExecutions.id, context.executionId));
+      // Save execution variables to the database (only if not paused)
+      if (result?.action !== 'execution_paused') {
+        await db.update(automationExecutions)
+          .set({ variables: context.variables })
+          .where(eq(automationExecutions.id, context.executionId));
+      }
 
       if (result?.action === 'contact_deleted') {
         console.log(`🗑️ Contact ${context.contactId} deleted, ending flow.`);
@@ -1718,18 +1720,18 @@ private async executeUserReply(node: any, context: ExecutionContext) {
     
     this.pendingExecutions.set(pendingId, pendingExecution);
     
+    // Mutate in-memory variables to keep execution context in sync
+    context.variables._userReply_waiting = true;
+    context.variables._userReply_nodeId = node.nodeId;
+    context.variables._userReply_nodeType = 'wait_reply';
+    context.variables._userReply_saveAs = node.data?.saveAs || null;
+    context.variables._userReply_expectedButtons = [];
+
     await db.update(automationExecutions)
       .set({
         status: 'paused',
         currentNodeId: node.nodeId,
-        variables: {
-          ...context.variables,
-          _userReply_waiting: true,
-          _userReply_nodeId: node.nodeId,
-          _userReply_nodeType: 'wait_reply',
-          _userReply_saveAs: node.data?.saveAs || null,
-          _userReply_expectedButtons: [],
-        },
+        variables: context.variables,
         result: `Waiting for user reply`
       })
       .where(eq(automationExecutions.id, context.executionId));
@@ -1806,21 +1808,21 @@ private async executeUserReply(node: any, context: ExecutionContext) {
     // Check if it's already delivered to initialize deliveredAt
     const isDelivered = lastOutbound.status === 'delivered';
 
+    // Mutate in-memory variables to keep execution context in sync
+    context.variables._waitRead_waiting = true;
+    context.variables._waitRead_messageId = lastOutbound.whatsappMessageId;
+    context.variables._waitRead_nodeId = node.nodeId;
+    context.variables._waitRead_nodeType = 'wait_read';
+    context.variables._waitRead_timeoutMinutes = timeoutMinutes;
+    context.variables._waitRead_timeoutOnlyAfterDelivered = timeoutOnlyAfterDelivered;
+    context.variables._waitRead_startedAt = new Date().toISOString();
+    context.variables._waitRead_deliveredAt = isDelivered ? new Date().toISOString() : null;
+
     await db.update(automationExecutions)
       .set({
         status: 'paused',
         currentNodeId: node.nodeId,
-        variables: {
-          ...context.variables,
-          _waitRead_waiting: true,
-          _waitRead_messageId: lastOutbound.whatsappMessageId,
-          _waitRead_nodeId: node.nodeId,
-          _waitRead_nodeType: 'wait_read',
-          _waitRead_timeoutMinutes: timeoutMinutes,
-          _waitRead_timeoutOnlyAfterDelivered: timeoutOnlyAfterDelivered,
-          _waitRead_startedAt: new Date().toISOString(),
-          _waitRead_deliveredAt: isDelivered ? new Date().toISOString() : null,
-        },
+        variables: context.variables,
         result: `Waiting for message ${lastOutbound.whatsappMessageId} to be read`
       })
       .where(eq(automationExecutions.id, context.executionId));
@@ -2420,8 +2422,11 @@ private async sendInteractiveMessage(
     return undefined;
   }
 
-  private findPendingExecutionByConversation(conversationId: string, contactId?: string) {
+  private findPendingExecutionByConversation(conversationId: string, contactId?: string, includeAllNodeTypes: boolean = false) {
     for (const [pendingId, execution] of this.pendingExecutions.entries()) {
+      if (!includeAllNodeTypes && (execution.nodeType === 'wait_read' || execution.nodeType === 'time_gap')) {
+        continue;
+      }
       if (
         (conversationId && execution.conversationId === conversationId) ||
         (contactId && execution.contactId === contactId)
@@ -2447,6 +2452,7 @@ private async sendInteractiveMessage(
     const exec = await db.query.automationExecutions.findFirst({
       where: and(
         eq(automationExecutions.status, 'paused'),
+        sql`variables->>'_userReply_waiting' = 'true'`,
         contactId 
           ? or(
               eq(automationExecutions.conversationId, conversationId),
@@ -2508,15 +2514,15 @@ private async sendInteractiveMessage(
 
     console.log(`⏳ Delaying execution by ${delay} seconds (until ${resumeAt.toISOString()})`);
 
+    // Mutate in-memory variables to keep execution context in sync
+    context.variables._timeGap_waitingUntil = resumeAt.toISOString();
+    context.variables._timeGap_waitingNodeId = node.nodeId;
+
     await db.update(automationExecutions)
       .set({
         status: 'paused',
         currentNodeId: node.nodeId,
-        variables: {
-          ...context.variables,
-          _timeGap_waitingUntil: resumeAt.toISOString(),
-          _timeGap_waitingNodeId: node.nodeId,
-        },
+        variables: context.variables,
         result: `time_gap: waiting ${delay}s until ${resumeAt.toISOString()}`,
       })
       .where(eq(automationExecutions.id, context.executionId));
@@ -5482,7 +5488,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       }
     }
 
-    const pending = this.findPendingExecutionByConversation(conversationId, contactId);
+    const pending = this.findPendingExecutionByConversation(conversationId, contactId, true);
     if (pending) {
       this.pendingExecutions.delete(pending.pendingId);
       await this.completeExecution(pending.executionId, 'failed', 'Execution cancelled by user');
@@ -5503,7 +5509,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       }
     }
 
-    const pending = this.findPendingExecutionByConversation(conversationId, contactId);
+    const pending = this.findPendingExecutionByConversation(conversationId, contactId, true);
     if (pending) {
       this.pendingExecutions.delete(pending.pendingId);
       console.log(`⏸️ Suspended execution from memory for conversation: ${conversationId}`);

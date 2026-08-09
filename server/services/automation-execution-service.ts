@@ -44,7 +44,7 @@ import {
 import OpenAI from "openai";
 import { searchTrainingData } from "./training.service";
 import { VoiceManager } from "./voice";
-import { eq, and, or, asc } from "drizzle-orm";
+import { eq, and, or, asc, desc } from "drizzle-orm";
 import { sendBusinessMessage } from "../services/messageService";
 import { WhatsAppApiService } from "./whatsapp-api";
 import { getRazorpay } from "./payment-gateway.service";

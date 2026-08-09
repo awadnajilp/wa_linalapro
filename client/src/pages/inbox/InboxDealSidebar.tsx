@@ -8,17 +8,81 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loading } from "@/components/ui/loading";
-import { DollarSign, Briefcase, Plus, Shuffle, TrendingUp, User, Trash2, Calendar, AlertCircle, Minimize2 } from "lucide-react";
+import { DollarSign, Briefcase, Plus, Shuffle, TrendingUp, User, Trash2, Calendar, AlertCircle, Minimize2, Cpu, Play, Pause, RotateCcw } from "lucide-react";
 
 interface InboxDealSidebarProps {
   contactId: string;
   channelId: string;
   contactName?: string;
+  conversationId?: string;
 }
 
-export default function InboxDealSidebar({ contactId, channelId, contactName }: InboxDealSidebarProps) {
+export default function InboxDealSidebar({ contactId, channelId, contactName, conversationId }: InboxDealSidebarProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Active Execution Type
+  interface ActiveExecution {
+    executionId: string;
+    startedAt: string;
+    status: string;
+    flowName: string;
+    flowId: string;
+    currentNodeId: string;
+  }
+
+  // Query: get active executions for this conversation
+  const { data: activeExecutions = [], refetch: refetchExecutions, isLoading: isLoadingExecutions } = useQuery<ActiveExecution[]>({
+    queryKey: ["/api/automations/executions/active/conversation", conversationId],
+    queryFn: async () => {
+      if (!conversationId) return [];
+      const res = await apiRequest("GET", `/api/automations/executions/active/conversation/${conversationId}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!conversationId,
+  });
+
+  // Mutations for execution controls
+  const pauseMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/automations/executions/conversation/${conversationId}/pause`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Automation Paused",
+        description: "The running flow has been successfully paused.",
+      });
+      refetchExecutions();
+    }
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/automations/executions/conversation/${conversationId}/resume`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Automation Resumed",
+        description: "The flow execution has been resumed.",
+      });
+      refetchExecutions();
+    }
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/automations/executions/conversation/${conversationId}/reset`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Automation Reset",
+        description: "The flow execution has been stopped/cancelled.",
+      });
+      refetchExecutions();
+    }
+  });
+
   const [isEditing, setIsEditing] = useState(false);
   const [isMinimized, setIsMinimized] = useState(() => {
     try {
@@ -507,6 +571,88 @@ export default function InboxDealSidebar({ contactId, channelId, contactName }: 
                     </Button>
                   )}
                 </div>
+              </div>
+            )}
+
+            {conversationId && (
+              <div className="border-t border-gray-200 pt-4 mt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-gray-650 uppercase tracking-wider flex items-center gap-1">
+                    <Cpu className="w-3.5 h-3.5 text-indigo-500 animate-pulse" /> Active Automations
+                  </Label>
+                  {activeExecutions.length > 0 && (
+                    <span className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                      {activeExecutions.length}
+                    </span>
+                  )}
+                </div>
+
+                {isLoadingExecutions ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loading />
+                  </div>
+                ) : activeExecutions.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">No running automation flows for this contact.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {activeExecutions.map((exec) => {
+                      const isSuspended = exec.status === "suspended";
+                      return (
+                        <div key={exec.executionId} className="bg-slate-50 border border-slate-100 rounded-lg p-3 space-y-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="space-y-0.5">
+                              <p className="text-xs font-bold text-gray-800 leading-snug">{exec.flowName}</p>
+                              <p className="text-[10px] text-gray-400">
+                                Started: {new Date(exec.startedAt).toLocaleString()}
+                              </p>
+                            </div>
+                            <span className={`px-1.5 py-0.5 rounded font-semibold text-[9px] uppercase tracking-wide border ${
+                              isSuspended ? "bg-amber-100 text-amber-800 border-amber-250" :
+                              exec.status === "paused" ? "bg-indigo-100 text-indigo-800 border-indigo-200" :
+                              "bg-emerald-100 text-emerald-800 border-emerald-200"
+                            }`}>
+                              {exec.status}
+                            </span>
+                          </div>
+
+                          <div className="flex gap-2 pt-1">
+                            {isSuspended ? (
+                              <Button
+                                onClick={() => resumeMutation.mutate()}
+                                disabled={resumeMutation.isPending}
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 h-7 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 border-emerald-200 hover:bg-emerald-50 bg-white"
+                              >
+                                <Play className="w-3 h-3 mr-1 shrink-0" /> Resume
+                              </Button>
+                            ) : (
+                              <Button
+                                onClick={() => pauseMutation.mutate()}
+                                disabled={pauseMutation.isPending}
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 h-7 text-[11px] font-semibold text-amber-700 hover:text-amber-800 border-amber-200 hover:bg-amber-50 bg-white"
+                              >
+                                <Pause className="w-3 h-3 mr-1 shrink-0" /> Pause
+                              </Button>
+                            )}
+
+                            <Button
+                              onClick={() => resetMutation.mutate()}
+                              disabled={resetMutation.isPending}
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 h-7 text-[11px] font-semibold text-rose-700 hover:text-rose-800 border-rose-200 hover:bg-rose-50 bg-white"
+                            >
+                              <RotateCcw className="w-3 h-3 mr-1 shrink-0" /> Reset Flow
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>

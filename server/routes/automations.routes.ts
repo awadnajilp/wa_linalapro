@@ -52,6 +52,26 @@ export function registerAutomationsRoutes(app: Express) {
     automationsController.clearContactExecutions
   );
 
+  // Get active executions for a conversation
+  app.get("/api/automations/executions/active/conversation/:conversationId",
+    automationsController.getActiveConversationExecutions
+  );
+
+  // Pause active executions for a conversation
+  app.post("/api/automations/executions/conversation/:conversationId/pause",
+    automationsController.pauseConversationExecutions
+  );
+
+  // Resume suspended executions for a conversation
+  app.post("/api/automations/executions/conversation/:conversationId/resume",
+    automationsController.resumeConversationExecutions
+  );
+
+  // Reset/Cancel all executions for a conversation
+  app.post("/api/automations/executions/conversation/:conversationId/reset",
+    automationsController.resetConversationExecutions
+  );
+
   // Get single automation
   app.get("/api/automations/:id", automationsController.getAutomation);
 

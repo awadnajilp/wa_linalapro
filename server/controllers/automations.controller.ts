@@ -220,3 +220,112 @@ export const clearContactExecutions = asyncHandler(async (req: Request, res: Res
 
   res.json({ success: true, clearedCount: result.length });
 });
+
+export const getActiveConversationExecutions = asyncHandler(async (req: Request, res: Response) => {
+  const { conversationId } = req.params;
+
+  const query = db
+    .select({
+      executionId: automationExecutions.id,
+      startedAt: automationExecutions.startedAt,
+      status: automationExecutions.status,
+      flowName: automations.name,
+      flowId: automations.id,
+      currentNodeId: automationExecutions.currentNodeId,
+    })
+    .from(automationExecutions)
+    .innerJoin(automations, eq(automationExecutions.automationId, automations.id))
+    .where(
+      and(
+        eq(automationExecutions.conversationId, conversationId),
+        or(
+          eq(automationExecutions.status, 'running'),
+          eq(automationExecutions.status, 'paused'),
+          eq(automationExecutions.status, 'suspended')
+        )
+      )
+    )
+    .orderBy(desc(automationExecutions.startedAt));
+
+  const results = await query;
+  res.json(results);
+});
+
+export const pauseConversationExecutions = asyncHandler(async (req: Request, res: Response) => {
+  const { conversationId } = req.params;
+
+  // Suspend from memory
+  const { executionService } = await import("../services/automation-execution-service");
+  await executionService.suspendExecution(conversationId);
+
+  // Set active executions to suspended
+  const result = await db
+    .update(automationExecutions)
+    .set({
+      status: 'suspended',
+      result: 'Suspended by user in Inbox'
+    })
+    .where(
+      and(
+        eq(automationExecutions.conversationId, conversationId),
+        or(
+          eq(automationExecutions.status, 'running'),
+          eq(automationExecutions.status, 'paused')
+        )
+      )
+    )
+    .returning();
+
+  res.json({ success: true, count: result.length });
+});
+
+export const resumeConversationExecutions = asyncHandler(async (req: Request, res: Response) => {
+  const { conversationId } = req.params;
+
+  // Set suspended executions back to paused/running
+  const result = await db
+    .update(automationExecutions)
+    .set({
+      status: 'paused',
+      result: 'Resumed by user in Inbox'
+    })
+    .where(
+      and(
+        eq(automationExecutions.conversationId, conversationId),
+        eq(automationExecutions.status, 'suspended')
+      )
+    )
+    .returning();
+
+  res.json({ success: true, count: result.length });
+});
+
+export const resetConversationExecutions = asyncHandler(async (req: Request, res: Response) => {
+  const { conversationId } = req.params;
+
+  // Cancel from memory
+  const { executionService } = await import("../services/automation-execution-service");
+  await executionService.cancelExecution(conversationId);
+
+  // Fail/Cancel all in DB
+  const result = await db
+    .update(automationExecutions)
+    .set({
+      status: 'failed',
+      completedAt: new Date(),
+      result: 'Cancelled by user in Inbox'
+    })
+    .where(
+      and(
+        eq(automationExecutions.conversationId, conversationId),
+        or(
+          eq(automationExecutions.status, 'running'),
+          eq(automationExecutions.status, 'paused'),
+          eq(automationExecutions.status, 'suspended')
+        )
+      )
+    )
+    .returning();
+
+  res.json({ success: true, count: result.length });
+});

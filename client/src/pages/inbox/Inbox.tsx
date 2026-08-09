@@ -1268,6 +1268,7 @@ export default function Inbox() {
               contactId={selectedConversation.contactId}
               channelId={selectedConversation.channelId}
               contactName={(selectedConversation as any).contactName}
+              conversationId={selectedConversation.id}
             />
           </div>
         ) : (

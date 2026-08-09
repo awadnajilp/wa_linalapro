@@ -5427,6 +5427,16 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     return false;
   }
 
+  async suspendExecution(conversationId: string): Promise<boolean> {
+    const pending = this.findPendingExecutionByConversation(conversationId);
+    if (pending) {
+      this.pendingExecutions.delete(pending.pendingId);
+      console.log(`⏸️ Suspended execution from memory for conversation: ${conversationId}`);
+      return true;
+    }
+    return false;
+  }
+
   private async completeExecution(executionId: string, status: 'completed' | 'failed', result: string) {
     await db.update(automationExecutions)
       .set({

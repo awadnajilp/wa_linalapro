@@ -346,14 +346,15 @@ export class BaileysManager {
 
       // Listen for message receipts/delivery/read updates!
       sock.ev.on("message-receipt.update", async (updates: any) => {
+        console.log(`[BaileysManager] message-receipt.update received:`, JSON.stringify(updates));
         for (const update of updates) {
           if (update.key && update.key.id) {
             const msgId = update.key.id;
             const type = update.receipt?.type;
             let status: "delivered" | "read" | null = null;
-            if (type === "read" || type === "read-self") {
+            if (type === "read" || type === "read-self" || update.receipt?.readTimestamp) {
               status = "read";
-            } else if (type === "delivered") {
+            } else if (type === "delivered" || update.receipt?.receiptTimestamp) {
               status = "delivered";
             }
             if (status) {
@@ -365,13 +366,16 @@ export class BaileysManager {
 
       // Also listen to messages.update for status updates
       sock.ev.on("messages.update", async (updates: any) => {
+        console.log(`[BaileysManager] messages.update received:`, JSON.stringify(updates));
         for (const update of updates) {
-          if (update.key && update.key.id && update.status) {
+          // Note: In Baileys, status and other fields are inside update.update object
+          const statusValue = update.update?.status;
+          if (update.key && update.key.id && statusValue !== undefined) {
             const msgId = update.key.id;
             let status: "delivered" | "read" | null = null;
-            if (update.status === 3) {
+            if (statusValue === 3) {
               status = "delivered";
-            } else if (update.status === 4 || update.status === 5) {
+            } else if (statusValue === 4 || statusValue === 5) {
               status = "read";
             }
             if (status) {

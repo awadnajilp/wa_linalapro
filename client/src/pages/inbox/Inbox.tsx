@@ -62,6 +62,7 @@ export default function Inbox() {
   const { socket } = useSocket();
   const [isTyping, setIsTyping] = useState(false);
   const [typingUser, setTypingUser] = useState<string>("");
+  const [isMediaSending, setIsMediaSending] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const selectedConversationRef = useRef(selectedConversation);
   const activeChannelRef = useRef<any>(null);
@@ -493,6 +494,20 @@ export default function Inbox() {
             const exists = messagesList.some((m: any) => m.id === incomingMsg.id);
             if (exists) return old;
 
+            // Optimistic matching: if this is an outbound message and we have a temporary sending message, replace it
+            if (incomingMsg.direction === "outbound") {
+              const tempIndex = messagesList.findIndex(
+                (m: any) => (m.id && m.id.toString().startsWith("temp_")) && m.content === incomingMsg.content
+              );
+              if (tempIndex !== -1) {
+                const updatedMessages = [...messagesList];
+                updatedMessages[tempIndex] = incomingMsg;
+                return Array.isArray(old)
+                  ? updatedMessages
+                  : { messages: updatedMessages, hasMore };
+              }
+            }
+
             const updatedMessages = [...messagesList, incomingMsg];
             return Array.isArray(old)
               ? updatedMessages
@@ -641,22 +656,41 @@ export default function Inbox() {
 
       return response.json();
     },
-    onSuccess: (data: any) => {
-      if (socket && selectedConversation) {
-        socket.emit("agent_send_message", {
-          conversationId: selectedConversation.id,
-          content: messageText,
-          agentId: user?.id,
-          agentName:
-            `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
-            user?.username,
-        });
-      }
-
-      queryClient.invalidateQueries({
+    onMutate: async (newMsgData) => {
+      await queryClient.cancelQueries({
         queryKey: ["/api/conversations", selectedConversation?.id, "messages"],
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+
+      const previousMessages = queryClient.getQueryData<any>([
+        "/api/conversations",
+        selectedConversation?.id,
+        "messages",
+      ]);
+
+      const tempId = `temp_${Date.now()}`;
+      const optimisticMsg = {
+        id: tempId,
+        conversationId: newMsgData.conversationId,
+        content: newMsgData.content,
+        fromUser: true,
+        direction: "outbound",
+        messageType: "text",
+        createdAt: new Date().toISOString(),
+        status: "sending",
+      };
+
+      queryClient.setQueryData(
+        ["/api/conversations", selectedConversation?.id, "messages"],
+        (old: any) => {
+          if (!old) return old;
+          const messagesList = Array.isArray(old) ? old : (old.messages || []);
+          const hasMore = old.hasMore ?? false;
+          const updatedMessages = [...messagesList, optimisticMsg];
+          return Array.isArray(old)
+            ? updatedMessages
+            : { messages: updatedMessages, hasMore };
+        }
+      );
 
       setMessageText("");
       setReplyToMessage(null);
@@ -666,13 +700,46 @@ export default function Inbox() {
           conversationId: selectedConversation.id,
         });
       }
+
+      return { previousMessages, tempId };
     },
-    onError: (error: Error) => {
+    onSuccess: (data: any, variables, context) => {
+      if (context?.tempId) {
+        queryClient.setQueryData(
+          ["/api/conversations", selectedConversation?.id, "messages"],
+          (old: any) => {
+            if (!old) return old;
+            const messagesList = Array.isArray(old) ? old : (old.messages || []);
+            const hasMore = old.hasMore ?? false;
+            
+            const updatedMessages = messagesList.map((m: any) =>
+              m.id === context.tempId ? data : m
+            );
+            return Array.isArray(old)
+              ? updatedMessages
+              : { messages: updatedMessages, hasMore };
+          }
+        );
+      }
+
+      queryClient.invalidateQueries({
+        queryKey: ["/api/conversations", selectedConversation?.id, "messages"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    },
+    onError: (error: Error, variables, context) => {
       toast({
         title: "Error",
         description: error.message,
         variant: "destructive",
       });
+
+      if (context?.previousMessages) {
+        queryClient.setQueryData(
+          ["/api/conversations", selectedConversation?.id, "messages"],
+          context.previousMessages
+        );
+      }
     },
   });
 
@@ -868,6 +935,35 @@ export default function Inbox() {
     const file = event.target.files?.[0];
     if (!file || !selectedConversation) return;
 
+    setIsMediaSending(true);
+    const tempId = `temp_${Date.now()}`;
+    const fileType = file.type.split("/")[0];
+    const normalizedType = ["image", "video", "audio"].includes(fileType) ? fileType : "document";
+
+    const optimisticMsg = {
+      id: tempId,
+      conversationId: selectedConversation.id,
+      content: file.name,
+      fromUser: true,
+      direction: "outbound",
+      messageType: normalizedType,
+      createdAt: new Date().toISOString(),
+      status: "sending",
+    };
+
+    queryClient.setQueryData(
+      ["/api/conversations", selectedConversation.id, "messages"],
+      (old: any) => {
+        if (!old) return old;
+        const messagesList = Array.isArray(old) ? old : (old.messages || []);
+        const hasMore = old.hasMore ?? false;
+        const updatedMessages = [...messagesList, optimisticMsg];
+        return Array.isArray(old)
+          ? updatedMessages
+          : { messages: updatedMessages, hasMore };
+      }
+    );
+
     const formData = new FormData();
     formData.append("media", file);
     formData.append("fromUser", "true");
@@ -888,6 +984,23 @@ export default function Inbox() {
         throw new Error(error.message || "Failed to send media");
       }
 
+      const savedMsg = await response.json();
+
+      queryClient.setQueryData(
+        ["/api/conversations", selectedConversation.id, "messages"],
+        (old: any) => {
+          if (!old) return old;
+          const messagesList = Array.isArray(old) ? old : (old.messages || []);
+          const hasMore = old.hasMore ?? false;
+          const updatedMessages = messagesList.map((m: any) =>
+            m.id === tempId ? savedMsg : m
+          );
+          return Array.isArray(old)
+            ? updatedMessages
+            : { messages: updatedMessages, hasMore };
+        }
+      );
+
       toast({
         title: "Success",
         description: "Media sent successfully",
@@ -896,6 +1009,7 @@ export default function Inbox() {
       queryClient.invalidateQueries({
         queryKey: ["/api/conversations", selectedConversation.id, "messages"],
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       setMessageText("");
     } catch (error: any) {
       toast({
@@ -903,6 +1017,21 @@ export default function Inbox() {
         description: error.message,
         variant: "destructive",
       });
+
+      queryClient.setQueryData(
+        ["/api/conversations", selectedConversation.id, "messages"],
+        (old: any) => {
+          if (!old) return old;
+          const messagesList = Array.isArray(old) ? old : (old.messages || []);
+          const hasMore = old.hasMore ?? false;
+          const updatedMessages = messagesList.filter((m: any) => m.id !== tempId);
+          return Array.isArray(old)
+            ? updatedMessages
+            : { messages: updatedMessages, hasMore };
+        }
+      );
+    } finally {
+      setIsMediaSending(false);
     }
 
     event.target.value = "";
@@ -910,6 +1039,35 @@ export default function Inbox() {
 
   const handleSelectMediaUrl = async (url: string, name: string, mimeType: string) => {
     if (!selectedConversation) return;
+
+    setIsMediaSending(true);
+    const tempId = `temp_${Date.now()}`;
+    const fileType = mimeType.split("/")[0];
+    const normalizedType = ["image", "video", "audio"].includes(fileType) ? fileType : "document";
+
+    const optimisticMsg = {
+      id: tempId,
+      conversationId: selectedConversation.id,
+      content: name,
+      fromUser: true,
+      direction: "outbound",
+      messageType: normalizedType,
+      createdAt: new Date().toISOString(),
+      status: "sending",
+    };
+
+    queryClient.setQueryData(
+      ["/api/conversations", selectedConversation.id, "messages"],
+      (old: any) => {
+        if (!old) return old;
+        const messagesList = Array.isArray(old) ? old : (old.messages || []);
+        const hasMore = old.hasMore ?? false;
+        const updatedMessages = [...messagesList, optimisticMsg];
+        return Array.isArray(old)
+          ? updatedMessages
+          : { messages: updatedMessages, hasMore };
+      }
+    );
 
     try {
       const response = await fetch(
@@ -935,6 +1093,23 @@ export default function Inbox() {
         throw new Error(error.message || "Failed to send media");
       }
 
+      const savedMsg = await response.json();
+
+      queryClient.setQueryData(
+        ["/api/conversations", selectedConversation.id, "messages"],
+        (old: any) => {
+          if (!old) return old;
+          const messagesList = Array.isArray(old) ? old : (old.messages || []);
+          const hasMore = old.hasMore ?? false;
+          const updatedMessages = messagesList.map((m: any) =>
+            m.id === tempId ? savedMsg : m
+          );
+          return Array.isArray(old)
+            ? updatedMessages
+            : { messages: updatedMessages, hasMore };
+        }
+      );
+
       toast({
         title: "Success",
         description: "Media sent successfully",
@@ -943,6 +1118,7 @@ export default function Inbox() {
       queryClient.invalidateQueries({
         queryKey: ["/api/conversations", selectedConversation.id, "messages"],
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       setMessageText("");
     } catch (error: any) {
       toast({
@@ -950,11 +1126,53 @@ export default function Inbox() {
         description: error.message,
         variant: "destructive",
       });
+
+      queryClient.setQueryData(
+        ["/api/conversations", selectedConversation.id, "messages"],
+        (old: any) => {
+          if (!old) return old;
+          const messagesList = Array.isArray(old) ? old : (old.messages || []);
+          const hasMore = old.hasMore ?? false;
+          const updatedMessages = messagesList.filter((m: any) => m.id !== tempId);
+          return Array.isArray(old)
+            ? updatedMessages
+            : { messages: updatedMessages, hasMore };
+        }
+      );
+    } finally {
+      setIsMediaSending(false);
     }
   };
 
   const handleSendVoiceNote = async (file: File) => {
     if (!selectedConversation) return;
+
+    setIsMediaSending(true);
+    const tempId = `temp_${Date.now()}`;
+
+    const optimisticMsg = {
+      id: tempId,
+      conversationId: selectedConversation.id,
+      content: "[Voice Note]",
+      fromUser: true,
+      direction: "outbound",
+      messageType: "audio",
+      createdAt: new Date().toISOString(),
+      status: "sending",
+    };
+
+    queryClient.setQueryData(
+      ["/api/conversations", selectedConversation.id, "messages"],
+      (old: any) => {
+        if (!old) return old;
+        const messagesList = Array.isArray(old) ? old : (old.messages || []);
+        const hasMore = old.hasMore ?? false;
+        const updatedMessages = [...messagesList, optimisticMsg];
+        return Array.isArray(old)
+          ? updatedMessages
+          : { messages: updatedMessages, hasMore };
+      }
+    );
 
     const formData = new FormData();
     formData.append("media", file);
@@ -977,6 +1195,23 @@ export default function Inbox() {
         throw new Error(error.message || "Failed to send voice note");
       }
 
+      const savedMsg = await response.json();
+
+      queryClient.setQueryData(
+        ["/api/conversations", selectedConversation.id, "messages"],
+        (old: any) => {
+          if (!old) return old;
+          const messagesList = Array.isArray(old) ? old : (old.messages || []);
+          const hasMore = old.hasMore ?? false;
+          const updatedMessages = messagesList.map((m: any) =>
+            m.id === tempId ? savedMsg : m
+          );
+          return Array.isArray(old)
+            ? updatedMessages
+            : { messages: updatedMessages, hasMore };
+        }
+      );
+
       toast({
         title: "Success",
         description: "Voice note sent successfully",
@@ -985,12 +1220,28 @@ export default function Inbox() {
       queryClient.invalidateQueries({
         queryKey: ["/api/conversations", selectedConversation.id, "messages"],
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message,
         variant: "destructive",
       });
+
+      queryClient.setQueryData(
+        ["/api/conversations", selectedConversation.id, "messages"],
+        (old: any) => {
+          if (!old) return old;
+          const messagesList = Array.isArray(old) ? old : (old.messages || []);
+          const hasMore = old.hasMore ?? false;
+          const updatedMessages = messagesList.filter((m: any) => m.id !== tempId);
+          return Array.isArray(old)
+            ? updatedMessages
+            : { messages: updatedMessages, hasMore };
+        }
+      );
+    } finally {
+      setIsMediaSending(false);
     }
   };
 
@@ -1239,7 +1490,7 @@ export default function Inbox() {
               onSelectTemplate={handleSelectTemplate}
               is24HourWindowExpired={is24HourWindowExpired}
               activeChannelId={activeChannel?.id}
-              sendMessagePending={sendMessageMutation.isPending}
+              sendMessagePending={sendMessageMutation.isPending || isMediaSending}
               fileInputRef={fileInputRef}
               messagesEndRef={messagesEndRef}
               onBack={() => setSelectedConversation(null)}

@@ -26,6 +26,7 @@ import {
   Volume2,
   Mic,
   Download,
+  Loader2,
   X,
   Maximize2,
   RotateCw,
@@ -217,6 +218,43 @@ const MessageItem = ({
   const renderMediaContent = () => {
     const hasMedia = message.mediaId || message.mediaUrl;
     const { mediaUrl, downloadUrl } = resolveMediaUrls(message);
+
+    if (message.status === "sending" && (messageType === "image" || messageType === "video" || messageType === "audio" || messageType === "document")) {
+      const getMediaInfo = () => {
+        switch (messageType) {
+          case "image":
+            return { label: "Sending Image...", icon: Image, color: "text-blue-500", bg: "bg-blue-50" };
+          case "video":
+            return { label: "Sending Video...", icon: Video, color: "text-amber-500", bg: "bg-amber-50" };
+          case "audio":
+            return { label: "Sending Audio...", icon: Mic, color: "text-purple-500", bg: "bg-purple-50" };
+          default:
+            return { label: "Sending Document...", icon: FileText, color: "text-emerald-500", bg: "bg-emerald-50" };
+        }
+      };
+
+      const info = getMediaInfo();
+      const Icon = info.icon;
+
+      return (
+        <div className="bg-white/90 border border-gray-150 rounded-xl p-3 flex items-center justify-between gap-4 min-w-[200px] shadow-sm my-1">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className={cn("p-2 rounded-xl flex-shrink-0 animate-pulse", info.bg)}>
+              <Icon className={cn("w-4 h-4", info.color)} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-gray-800 truncate">
+                {info.label}
+              </p>
+              <p className="text-[10px] text-gray-400">
+                Uploading to secure storage...
+              </p>
+            </div>
+          </div>
+          <Loader2 className="w-4 h-4 text-emerald-500 animate-spin flex-shrink-0" />
+        </div>
+      );
+    }
 
     if (shouldConfirmLoad && !mediaLoaded) {
       const getMediaInfo = () => {
@@ -987,6 +1025,8 @@ const MessageItem = ({
 
   const getMessageStatusIcon = (status: string) => {
     switch (status) {
+      case "sending":
+        return <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />;
       case "sent":
         return <Check className="w-3.5 h-3.5 text-[#8696a0]" />;
       case "delivered":

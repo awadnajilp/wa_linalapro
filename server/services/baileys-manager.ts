@@ -17,6 +17,7 @@ import { WebhookHandler } from "./webhook-handler";
 import { randomUUID } from "crypto";
 import { storage } from "../storage";
 import { WhatsAppApiService } from "./whatsapp-api";
+import { triggerService } from "./automation-execution-service";
 
 export class BaileysManager {
   private static activeSockets = new Map<string, any>();
@@ -1251,7 +1252,6 @@ export class BaileysManager {
 
         if (updatedStatus === 'read') {
           try {
-            const { triggerService } = await import("./trigger-service");
             const executionService = triggerService.getExecutionService();
             await executionService.handleMessageRead(whatsappMessageId);
           } catch (err) {
@@ -1261,7 +1261,6 @@ export class BaileysManager {
 
         if (updatedStatus === 'delivered') {
           try {
-            const { triggerService } = await import("./trigger-service");
             const executionService = triggerService.getExecutionService();
             await executionService.handleMessageDelivered(whatsappMessageId);
           } catch (err) {

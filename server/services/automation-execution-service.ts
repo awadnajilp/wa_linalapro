@@ -801,8 +801,19 @@ private stemWord(word: string = ""): string {
   async handleUserResponse(conversationId: string, userResponse: string, interactiveData?: any) {
     console.log(`📨 Received user response for conversation ${conversationId}: "${userResponse}"`);
     
+    // Lookup contactId
+    let contactId = undefined;
+    if (conversationId) {
+      const conv = await db.query.conversations.findFirst({
+        where: eq(conversations.id, conversationId)
+      });
+      if (conv) {
+        contactId = conv.contactId;
+      }
+    }
+
     // Find pending execution for this conversation
-    let pendingExecution = this.findPendingExecutionByConversation(conversationId);
+    let pendingExecution = this.findPendingExecutionByConversation(conversationId, contactId);
     if (!pendingExecution) {
       console.log(`No pending execution found in memory for conversation ${conversationId}. Trying DB recovery...`);
       pendingExecution = await this.findPendingExecutionByConversationFromDb(conversationId);
@@ -888,6 +899,7 @@ private stemWord(word: string = ""): string {
         .set({
           status: 'running',
           result: null,
+          conversationId: context.conversationId || null,
           variables: context.variables,
         })
         .where(eq(automationExecutions.id, context.executionId));
@@ -1146,9 +1158,7 @@ private async executeCustomReply(node: any, context: ExecutionContext) {
   if (buttons.length > 0) {
     const pendingId = `${context.executionId}_${node.nodeId}_${Date.now()}`;
 
-    if (!context.conversationId) {
-      throw new Error('conversationId is required to wait for user response');
-    }
+    await this.resolveConversationId(context);
 
     const pendingExecution: PendingExecution = {
       executionId: context.executionId,
@@ -1617,9 +1627,7 @@ private async executeUserReply(node: any, context: ExecutionContext) {
   // Create a unique pending execution ID
   const pendingId = `${context.executionId}_${node.nodeId}_${Date.now()}`;
   
-  if (!context.conversationId) {
-    throw new Error('conversationId is required to wait for user response');
-  }
+  await this.resolveConversationId(context);
   // Store the execution state for resumption
   const pendingExecution: PendingExecution = {
     executionId: context.executionId,
@@ -1681,8 +1689,16 @@ private async executeUserReply(node: any, context: ExecutionContext) {
   private async executeWaitReply(node: any, context: ExecutionContext) {
     const pendingId = `${context.executionId}_${node.nodeId}_${Date.now()}`;
     
-    if (!context.conversationId) {
-      throw new Error('conversationId is required to wait for user response');
+    if (!context.conversationId && context.contactId) {
+      const contactRow = await db.query.contacts.findFirst({
+        where: eq(contacts.id, context.contactId)
+      });
+      if (contactRow) {
+        const conversation = await storage.getConversationByPhoneAndChannel(contactRow.phone, contactRow.channelId || "");
+        if (conversation) {
+          context.conversationId = conversation.id;
+        }
+      }
     }
 
     // Store the execution state for resumption
@@ -1740,8 +1756,10 @@ private async executeUserReply(node: any, context: ExecutionContext) {
   }
 
   private async executeWaitRead(node: any, context: ExecutionContext) {
+    await this.resolveConversationId(context);
     if (!context.conversationId) {
-      throw new Error('conversationId is required to wait for message read status');
+      console.log(`⚠️ No conversation found to wait for message read status. Proceeding immediately.`);
+      return { action: 'proceed_immediately' };
     }
 
     // 1. Find the last outbound message in this conversation
@@ -2385,9 +2403,29 @@ private async sendInteractiveMessage(
     return cleaned;
   }
 
-  private findPendingExecutionByConversation(conversationId: string) {
+  private async resolveConversationId(context: ExecutionContext): Promise<string | undefined> {
+    if (context.conversationId) return context.conversationId;
+    if (context.contactId) {
+      const contactRow = await db.query.contacts.findFirst({
+        where: eq(contacts.id, context.contactId)
+      });
+      if (contactRow) {
+        const conversation = await storage.getConversationByPhoneAndChannel(contactRow.phone, contactRow.channelId || "");
+        if (conversation) {
+          context.conversationId = conversation.id;
+          return conversation.id;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  private findPendingExecutionByConversation(conversationId: string, contactId?: string) {
     for (const [pendingId, execution] of this.pendingExecutions.entries()) {
-      if (execution.conversationId === conversationId) {
+      if (
+        (conversationId && execution.conversationId === conversationId) ||
+        (contactId && execution.contactId === contactId)
+      ) {
         return { pendingId, ...execution };
       }
     }
@@ -2396,10 +2434,25 @@ private async sendInteractiveMessage(
   }
 
   async findPendingExecutionByConversationFromDb(conversationId: string) {
+    let contactId = null;
+    if (conversationId) {
+      const conv = await db.query.conversations.findFirst({
+        where: eq(conversations.id, conversationId)
+      });
+      if (conv) {
+        contactId = conv.contactId;
+      }
+    }
+
     const exec = await db.query.automationExecutions.findFirst({
       where: and(
         eq(automationExecutions.status, 'paused'),
-        eq(automationExecutions.conversationId, conversationId),
+        contactId 
+          ? or(
+              eq(automationExecutions.conversationId, conversationId),
+              eq(automationExecutions.contactId, contactId)
+            )
+          : eq(automationExecutions.conversationId, conversationId),
       ),
     });
 
@@ -2423,7 +2476,7 @@ private async sendInteractiveMessage(
       executionId: exec.id,
       automationId: exec.automationId,
       contactId: exec.contactId ?? undefined,
-      conversationId: exec.conversationId ?? undefined,
+      conversationId: conversationId,
       variables: cleanVars,
       triggerData: exec.triggerData,
       lastUserMessage: (cleanVars._lastUserMessage as string) || '',
@@ -3639,9 +3692,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
 
     const isSendAndWait = node.data?.razorpayMode === 'send_and_wait';
     if (isSendAndWait) {
-      if (!context.conversationId) {
-        throw new Error('conversationId is required to pause flow for payment');
-      }
+      await this.resolveConversationId(context);
       if (!context.contactId) {
         throw new Error('contactId is required to send auto-message');
       }
@@ -3893,9 +3944,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     const longUrl = pr.longurl;
     const refId = pr.id;
 
-    if (!context.conversationId) {
-      throw new Error('conversationId is required to pause flow for Instamojo payment');
-    }
+    await this.resolveConversationId(context);
     if (!context.contactId) {
       throw new Error('contactId is required to send auto-message');
     }
@@ -4020,9 +4069,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       throw new Error(`Invalid Tap payment amount: ${amountText}`);
     }
 
-    if (!context.conversationId) {
-      throw new Error('conversationId is required to pause flow for Tap payment');
-    }
+    await this.resolveConversationId(context);
     if (!context.contactId) {
       throw new Error('contactId is required to send auto-message');
     }
@@ -4241,9 +4288,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       throw new Error(`Invalid Noon payment amount: ${amountText}`);
     }
 
-    if (!context.conversationId) {
-      throw new Error('conversationId is required to pause flow for Noon payment');
-    }
+    await this.resolveConversationId(context);
     if (!context.contactId) {
       throw new Error('contactId is required to send auto-message');
     }
@@ -5380,12 +5425,22 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     }));
   }
 
-  hasPendingExecution(conversationId: string): boolean {
-    return this.findPendingExecutionByConversation(conversationId) !== null;
+  hasPendingExecution(conversationId: string, contactId?: string): boolean {
+    return this.findPendingExecutionByConversation(conversationId, contactId) !== null;
   }
 
   async hasPendingExecutionAsync(conversationId: string): Promise<boolean> {
-    if (this.findPendingExecutionByConversation(conversationId)) return true;
+    let contactId = undefined;
+    if (conversationId) {
+      const conv = await db.query.conversations.findFirst({
+        where: eq(conversations.id, conversationId)
+      });
+      if (conv) {
+        contactId = conv.contactId;
+      }
+    }
+
+    if (this.findPendingExecutionByConversation(conversationId, contactId)) return true;
     const dbResult = await this.findPendingExecutionByConversationFromDb(conversationId);
     return dbResult !== null;
   }
@@ -5417,7 +5472,17 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
   }
 
   async cancelExecution(conversationId: string): Promise<boolean> {
-    const pending = this.findPendingExecutionByConversation(conversationId);
+    let contactId = undefined;
+    if (conversationId) {
+      const conv = await db.query.conversations.findFirst({
+        where: eq(conversations.id, conversationId)
+      });
+      if (conv) {
+        contactId = conv.contactId;
+      }
+    }
+
+    const pending = this.findPendingExecutionByConversation(conversationId, contactId);
     if (pending) {
       this.pendingExecutions.delete(pending.pendingId);
       await this.completeExecution(pending.executionId, 'failed', 'Execution cancelled by user');
@@ -5428,7 +5493,17 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
   }
 
   async suspendExecution(conversationId: string): Promise<boolean> {
-    const pending = this.findPendingExecutionByConversation(conversationId);
+    let contactId = undefined;
+    if (conversationId) {
+      const conv = await db.query.conversations.findFirst({
+        where: eq(conversations.id, conversationId)
+      });
+      if (conv) {
+        contactId = conv.contactId;
+      }
+    }
+
+    const pending = this.findPendingExecutionByConversation(conversationId, contactId);
     if (pending) {
       this.pendingExecutions.delete(pending.pendingId);
       console.log(`⏸️ Suspended execution from memory for conversation: ${conversationId}`);

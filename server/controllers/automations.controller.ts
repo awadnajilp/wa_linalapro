@@ -224,6 +224,16 @@ export const clearContactExecutions = asyncHandler(async (req: Request, res: Res
 export const getActiveConversationExecutions = asyncHandler(async (req: Request, res: Response) => {
   const { conversationId } = req.params;
 
+  let contactId = null;
+  if (conversationId) {
+    const conv = await db.query.conversations.findFirst({
+      where: eq(conversations.id, conversationId)
+    });
+    if (conv) {
+      contactId = conv.contactId;
+    }
+  }
+
   const query = db
     .select({
       executionId: automationExecutions.id,
@@ -237,7 +247,12 @@ export const getActiveConversationExecutions = asyncHandler(async (req: Request,
     .innerJoin(automations, eq(automationExecutions.automationId, automations.id))
     .where(
       and(
-        eq(automationExecutions.conversationId, conversationId),
+        contactId 
+          ? or(
+              eq(automationExecutions.conversationId, conversationId),
+              eq(automationExecutions.contactId, contactId)
+            )
+          : eq(automationExecutions.conversationId, conversationId),
         or(
           eq(automationExecutions.status, 'running'),
           eq(automationExecutions.status, 'paused'),
@@ -254,6 +269,16 @@ export const getActiveConversationExecutions = asyncHandler(async (req: Request,
 export const pauseConversationExecutions = asyncHandler(async (req: Request, res: Response) => {
   const { conversationId } = req.params;
 
+  let contactId = null;
+  if (conversationId) {
+    const conv = await db.query.conversations.findFirst({
+      where: eq(conversations.id, conversationId)
+    });
+    if (conv) {
+      contactId = conv.contactId;
+    }
+  }
+
   // Suspend from memory
   const { executionService } = await import("../services/automation-execution-service");
   await executionService.suspendExecution(conversationId);
@@ -267,7 +292,12 @@ export const pauseConversationExecutions = asyncHandler(async (req: Request, res
     })
     .where(
       and(
-        eq(automationExecutions.conversationId, conversationId),
+        contactId 
+          ? or(
+              eq(automationExecutions.conversationId, conversationId),
+              eq(automationExecutions.contactId, contactId)
+            )
+          : eq(automationExecutions.conversationId, conversationId),
         or(
           eq(automationExecutions.status, 'running'),
           eq(automationExecutions.status, 'paused')
@@ -282,6 +312,16 @@ export const pauseConversationExecutions = asyncHandler(async (req: Request, res
 export const resumeConversationExecutions = asyncHandler(async (req: Request, res: Response) => {
   const { conversationId } = req.params;
 
+  let contactId = null;
+  if (conversationId) {
+    const conv = await db.query.conversations.findFirst({
+      where: eq(conversations.id, conversationId)
+    });
+    if (conv) {
+      contactId = conv.contactId;
+    }
+  }
+
   // Set suspended executions back to paused/running
   const result = await db
     .update(automationExecutions)
@@ -291,7 +331,12 @@ export const resumeConversationExecutions = asyncHandler(async (req: Request, re
     })
     .where(
       and(
-        eq(automationExecutions.conversationId, conversationId),
+        contactId 
+          ? or(
+              eq(automationExecutions.conversationId, conversationId),
+              eq(automationExecutions.contactId, contactId)
+            )
+          : eq(automationExecutions.conversationId, conversationId),
         eq(automationExecutions.status, 'suspended')
       )
     )
@@ -302,6 +347,16 @@ export const resumeConversationExecutions = asyncHandler(async (req: Request, re
 
 export const resetConversationExecutions = asyncHandler(async (req: Request, res: Response) => {
   const { conversationId } = req.params;
+
+  let contactId = null;
+  if (conversationId) {
+    const conv = await db.query.conversations.findFirst({
+      where: eq(conversations.id, conversationId)
+    });
+    if (conv) {
+      contactId = conv.contactId;
+    }
+  }
 
   // Cancel from memory
   const { executionService } = await import("../services/automation-execution-service");
@@ -317,7 +372,12 @@ export const resetConversationExecutions = asyncHandler(async (req: Request, res
     })
     .where(
       and(
-        eq(automationExecutions.conversationId, conversationId),
+        contactId 
+          ? or(
+              eq(automationExecutions.conversationId, conversationId),
+              eq(automationExecutions.contactId, contactId)
+            )
+          : eq(automationExecutions.conversationId, conversationId),
         or(
           eq(automationExecutions.status, 'running'),
           eq(automationExecutions.status, 'paused'),

@@ -378,8 +378,8 @@ async function seed() {
       },
       {
         eventType: "new_message_digest",
-        label: "New Messages Digest",
-        description: "Sent as a batched summary when multiple messages are received within a short period",
+        label: "Inbox Summary Notifications",
+        description: "Sent as an email summary when customer messages are unreplied or multiple messages are received",
         subject: "{{messageCount}} new messages on {{channelName}}",
         htmlBody: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f9fafb;border-radius:8px">
   <div style="background:#25D366;padding:16px 24px;border-radius:8px 8px 0 0">
@@ -396,6 +396,27 @@ async function seed() {
   </div>
 </div>`,
         variables: ["messageCount", "contactCount", "contactSummary", "channelName", "userName", "appUrl"],
+      },
+      {
+        eventType: "lead_assigned",
+        label: "Lead Assigned",
+        description: "Sent when a new lead/deal is assigned to you in the CRM",
+        subject: "[CRM] New Lead Assigned: {{leadName}}",
+        htmlBody: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f9fafb;border-radius:8px">
+  <div style="background:#10b981;padding:16px 24px;border-radius:8px 8px 0 0">
+    <h2 style="color:#fff;margin:0;font-size:18px">👤 New Lead Assigned</h2>
+  </div>
+  <div style="background:#fff;padding:24px;border-radius:0 0 8px 8px;border:1px solid #e5e7eb">
+    <p style="color:#374151;font-size:14px;line-height:1.6">Hello <strong>{{userName}}</strong>,</p>
+    <p style="color:#374151;font-size:14px;line-height:1.6">A new lead/deal has been assigned to you in the CRM:</p>
+    <div style="background:#f3f4f6;padding:15px;border-radius:6px;margin:20px 0;border-left:4px solid #10b981">
+      <p style="margin:4px 0;font-size:14px;color:#1f2937"><strong>Lead Name:</strong> {{leadName}}</p>
+      <p style="margin:4px 0;font-size:14px;color:#1f2937"><strong>Deal Title:</strong> {{dealTitle}}</p>
+    </div>
+    <p style="color:#6b7280;font-size:13px">Log in to your dashboard to view the lead and start follow-ups.</p>
+  </div>
+</div>`,
+        variables: ["leadName", "dealTitle", "userName"],
       },
     ];
 

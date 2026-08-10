@@ -505,6 +505,41 @@ export async function sendLeadAssignmentEmail(
   dealTitle: string,
   dealValue?: string
 ) {
+  // Check if lead assignment email notification is disabled for this user
+  try {
+    const { db } = await import("server/db");
+    const { users, userNotificationPreferences } = await import("@shared/schema");
+    const { eq, and } = await import("drizzle-orm");
+
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, toEmail))
+      .limit(1);
+
+    if (user) {
+      const [pref] = await db
+        .select()
+        .from(userNotificationPreferences)
+        .where(
+          and(
+            eq(userNotificationPreferences.userId, user.id),
+            eq(userNotificationPreferences.eventType, "lead_assigned")
+          )
+        )
+        .limit(1);
+
+      // lead_assigned email notifications should be OFF by default
+      const userEmailEnabled = pref ? (pref.emailEnabled ?? false) : false;
+      if (!userEmailEnabled) {
+        console.log(`[Email] Skipping lead assignment email to ${toEmail} because 'lead_assigned' email notification is disabled.`);
+        return { success: false, reason: "Notification disabled by preference" };
+      }
+    }
+  } catch (prefErr) {
+    console.error("[Email] Error checking user preferences for lead assignment email:", prefErr);
+  }
+
   const config = await getConfig();
   const configs = await getPanelConfig();
   const mailer = await getTransporter();

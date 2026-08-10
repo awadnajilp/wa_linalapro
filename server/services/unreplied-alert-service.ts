@@ -11,6 +11,7 @@ import { eq, ne, and, isNull, or, gt, lte, sql } from "drizzle-orm";
 import { sendUnrepliedAlertEmail } from "./email.service";
 import { BaileysManager } from "./baileys-manager";
 import { diployLogger } from "@diploy/core";
+import { getUserNotificationPreferences, NOTIFICATION_EVENTS } from "./notification.service";
 
 export function startUnrepliedAlertService() {
   // Run checks every 2 minutes
@@ -113,19 +114,10 @@ async function checkAndAlertUnrepliedMessages() {
       let emailSent = false;
       let whatsappSent = false;
 
-      // Fetch user's notification preferences for new_message
-      const [pref] = await dbRead
-        .select()
-        .from(userNotificationPreferences)
-        .where(
-          and(
-            eq(userNotificationPreferences.userId, userId),
-            eq(userNotificationPreferences.eventType, "new_message")
-          )
-        )
-        .limit(1);
-
-      const userEmailEnabled = pref ? pref.emailEnabled : true;
+      // Fetch user's notification preferences for inbox summary alerts (new_message_digest)
+      const userPrefs = await getUserNotificationPreferences(userId);
+      const digestPrefs = userPrefs[NOTIFICATION_EVENTS.NEW_MESSAGE_DIGEST] || { emailEnabled: false };
+      const userEmailEnabled = digestPrefs.emailEnabled;
 
       // A. Send Email Notification
       if (emailEnabled && userEmailEnabled && user.email) {

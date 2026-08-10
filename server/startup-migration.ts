@@ -442,6 +442,58 @@ export async function runStartupMigration(pool: Pool): Promise<void> {
       }
     }
 
+    // A. Ensure "new_message_digest" template has the updated label
+    try {
+      await client.query(`
+        UPDATE notification_templates 
+        SET label = 'Inbox Summary Notifications', 
+            description = 'Sent as an email summary when customer messages are unreplied or multiple messages are received'
+        WHERE event_type = 'new_message_digest' AND (label = 'New Messages Digest' OR label = 'New Message Digest');
+      `);
+    } catch (err: any) {
+      console.error("[startup-migration] Error updating new_message_digest template:", err.message);
+    }
+
+    // B. Ensure "lead_assigned" template exists
+    try {
+      const leadTmplCheck = await client.query(`
+        SELECT id FROM notification_templates WHERE event_type = 'lead_assigned';
+      `);
+
+      if (leadTmplCheck.rows.length === 0) {
+        console.log("[startup-migration] Seeding missing 'lead_assigned' notification template...");
+        await client.query(`
+          INSERT INTO notification_templates (event_type, label, description, subject, html_body, is_email_enabled, is_in_app_enabled, variables, updated_at)
+          VALUES (
+            'lead_assigned',
+            'Lead Assigned',
+            'Sent when a new lead/deal is assigned to you in the CRM',
+            '[CRM] New Lead Assigned: {{leadName}}',
+            '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f9fafb;border-radius:8px">
+  <div style="background:#10b981;padding:16px 24px;border-radius:8px 8px 0 0">
+    <h2 style="color:#fff;margin:0;font-size:18px">👤 New Lead Assigned</h2>
+  </div>
+  <div style="background:#fff;padding:24px;border-radius:0 0 8px 8px;border:1px solid #e5e7eb">
+    <p style="color:#374151;font-size:14px;line-height:1.6">Hello <strong>{{userName}}</strong>,</p>
+    <p style="color:#374151;font-size:14px;line-height:1.6">A new lead/deal has been assigned to you in the CRM:</p>
+    <div style="background:#f3f4f6;padding:15px;border-radius:6px;margin:20px 0;border-left:4px solid #10b981">
+      <p style="margin:4px 0;font-size:14px;color:#1f2937"><strong>Lead Name:</strong> {{leadName}}</p>
+      <p style="margin:4px 0;font-size:14px;color:#1f2937"><strong>Deal Title:</strong> {{dealTitle}}</p>
+    </div>
+    <p style="color:#6b7280;font-size:13px">Log in to your dashboard to view the lead and start follow-ups.</p>
+  </div>
+</div>',
+            false,
+            true,
+            ARRAY['leadName', 'dealTitle', 'userName'],
+            NOW()
+          );
+        `);
+      }
+    } catch (err: any) {
+      console.error("[startup-migration] Error ensuring lead_assigned template:", err.message);
+    }
+
     if (errors.length > 0) {
       for (const e of errors) {
         console.error(e);

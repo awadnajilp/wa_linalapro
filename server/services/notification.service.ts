@@ -37,6 +37,7 @@ export const NOTIFICATION_EVENTS = {
   CAMPAIGN_FAILED: 'campaign_failed',
   CHANNEL_HEALTH_WARNING: 'channel_health_warning',
   TICKET_REPLY: 'ticket_reply',
+  LEAD_ASSIGNED: 'lead_assigned',
 } as const;
 
 function replaceVariables(text: string, variables: Record<string, string>): string {
@@ -137,34 +138,47 @@ export async function getUserNotificationPreferences(userId: string) {
     .from(userNotificationPreferences)
     .where(eq(userNotificationPreferences.userId, userId));
 
+  const defaults: Record<string, { inAppEnabled: boolean; emailEnabled: boolean; soundEnabled: boolean }> = {};
+  for (const event of Object.values(NOTIFICATION_EVENTS)) {
+    const isEmailDefaultOn = [
+      NOTIFICATION_EVENTS.CHANNEL_HEALTH_WARNING,
+      NOTIFICATION_EVENTS.CAMPAIGN_COMPLETED,
+      NOTIFICATION_EVENTS.CAMPAIGN_FAILED,
+      NOTIFICATION_EVENTS.TEMPLATE_APPROVED,
+      NOTIFICATION_EVENTS.TEMPLATE_REJECTED
+    ].includes(event as any);
+
+    defaults[event] = {
+      inAppEnabled: true,
+      emailEnabled: isEmailDefaultOn,
+      soundEnabled: true,
+    };
+  }
+
   if (prefs.length === 0) {
-    const defaults: Record<string, { inAppEnabled: boolean; emailEnabled: boolean; soundEnabled: boolean }> = {};
-    for (const event of Object.values(NOTIFICATION_EVENTS)) {
-      defaults[event] = {
-        inAppEnabled: true,
-        emailEnabled: false,
-        soundEnabled: true,
-      };
-    }
     return defaults;
   }
 
   const result: Record<string, { inAppEnabled: boolean; emailEnabled: boolean; soundEnabled: boolean }> = {};
   for (const pref of prefs) {
+    const isEmailDefaultOn = [
+      NOTIFICATION_EVENTS.CHANNEL_HEALTH_WARNING,
+      NOTIFICATION_EVENTS.CAMPAIGN_COMPLETED,
+      NOTIFICATION_EVENTS.CAMPAIGN_FAILED,
+      NOTIFICATION_EVENTS.TEMPLATE_APPROVED,
+      NOTIFICATION_EVENTS.TEMPLATE_REJECTED
+    ].includes(pref.eventType as any);
+
     result[pref.eventType] = {
       inAppEnabled: pref.inAppEnabled ?? true,
-      emailEnabled: pref.emailEnabled ?? false,
+      emailEnabled: pref.emailEnabled ?? isEmailDefaultOn,
       soundEnabled: pref.soundEnabled ?? true,
     };
   }
 
   for (const event of Object.values(NOTIFICATION_EVENTS)) {
     if (!result[event]) {
-      result[event] = {
-        inAppEnabled: true,
-        emailEnabled: false,
-        soundEnabled: true,
-      };
+      result[event] = defaults[event];
     }
   }
 
@@ -199,13 +213,21 @@ export async function updateUserNotificationPreference(
       .returning();
     return updated;
   } else {
+    const isEmailDefaultOn = [
+      NOTIFICATION_EVENTS.CHANNEL_HEALTH_WARNING,
+      NOTIFICATION_EVENTS.CAMPAIGN_COMPLETED,
+      NOTIFICATION_EVENTS.CAMPAIGN_FAILED,
+      NOTIFICATION_EVENTS.TEMPLATE_APPROVED,
+      NOTIFICATION_EVENTS.TEMPLATE_REJECTED
+    ].includes(eventType as any);
+
     const [inserted] = await db
       .insert(userNotificationPreferences)
       .values({
         userId,
         eventType,
         inAppEnabled: prefs.inAppEnabled ?? true,
-        emailEnabled: prefs.emailEnabled ?? true,
+        emailEnabled: prefs.emailEnabled ?? isEmailDefaultOn,
         soundEnabled: prefs.soundEnabled ?? true,
       })
       .returning();
@@ -331,9 +353,8 @@ async function flushDigest(key: string) {
       const userRows = await db.select().from(users).where(eq(users.id, userId));
       if (userRows.length > 0 && userRows[0].email) {
         const userPrefs = await getUserNotificationPreferences(userId);
-        const eventPrefs = userPrefs[NOTIFICATION_EVENTS.NEW_MESSAGE] || { emailEnabled: false };
         const digestPrefs = userPrefs[NOTIFICATION_EVENTS.NEW_MESSAGE_DIGEST] || { emailEnabled: false };
-        if (eventPrefs.emailEnabled && digestPrefs.emailEnabled) {
+        if (digestPrefs.emailEnabled) {
           const [digestTemplate] = await db
             .select()
             .from(notificationTemplates)

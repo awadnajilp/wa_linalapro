@@ -21,7 +21,7 @@ import { storage } from '../storage';
 import { AppError, asyncHandler } from '../middlewares/error.middleware';
 import type { RequestWithChannel } from '../middlewares/channel.middleware';
 import { conversations, messages, users , contacts , conversationAssignments , insertConversationAssignmentSchema, insertConversationSchema } from "@shared/schema";
-import { eq,desc,and, sql } from "drizzle-orm";
+import { eq, desc, and, or, gt, ilike, sql } from "drizzle-orm";
 import { db, dbRead } from "../db";
 import { triggerService } from "../services/automation-execution-service";
 
@@ -56,6 +56,7 @@ export async function getConversations(req: Request, res: Response) {
       conditions.push(eq(conversations.assignedTo, user.id));
     }
 
+    // 1. Tag Filter
     if (req.query.tag && typeof req.query.tag === "string") {
       const tagList = req.query.tag.split(',').map(t => t.trim());
       if (tagList.length > 0) {
@@ -65,6 +66,44 @@ export async function getConversations(req: Request, res: Response) {
         );
       }
     }
+
+    // 2. Status/Filter Tab
+    const filterTab = req.query.filterTab as string | undefined;
+    if (filterTab) {
+      if (filterTab === "unread") {
+        conditions.push(gt(conversations.unreadCount, 0));
+      } else if (filterTab === "open") {
+        conditions.push(eq(conversations.status, "open"));
+      } else if (filterTab === "resolved") {
+        conditions.push(eq(conversations.status, "resolved"));
+      } else if (filterTab === "whatsapp") {
+        conditions.push(eq(conversations.type, "whatsapp"));
+      } else if (filterTab === "chatbot") {
+        conditions.push(eq(conversations.type, "chatbot"));
+      } else if (filterTab === "assigned") {
+        conditions.push(eq(conversations.status, "assigned"));
+        if (user && user.role === 'team') {
+          conditions.push(eq(conversations.assignedTo, user.id));
+        }
+      }
+    }
+
+    // 3. Search Filter
+    const search = req.query.search as string | undefined;
+    if (search && search.trim()) {
+      const searchPattern = `%${search.trim().toLowerCase()}%`;
+      conditions.push(
+        or(
+          ilike(contacts.name, searchPattern),
+          ilike(conversations.contactPhone, searchPattern),
+          ilike(conversations.contactName, searchPattern)
+        )
+      );
+    }
+
+    // 4. Pagination
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
 
     const rows = await dbRead
       .select({
@@ -76,9 +115,14 @@ export async function getConversations(req: Request, res: Response) {
       .leftJoin(contacts, eq(conversations.contactId, contacts.id))
       .leftJoin(users, eq(conversations.assignedTo, users.id))
       .where(and(...conditions))
-      .orderBy(desc(conversations.lastMessageAt));
+      .orderBy(desc(conversations.lastMessageAt))
+      .limit(limit + 1)
+      .offset(offset);
 
-    const formatted = rows.map((row) => ({
+    const hasMore = rows.length > limit;
+    const slice = hasMore ? rows.slice(0, limit) : rows;
+
+    const formatted = slice.map((row) => ({
       ...row.conversation,
       lastMessageAt: row.conversation.lastMessageAt || null,
       lastMessageText: row.conversation.lastMessageText || null,
@@ -86,6 +130,7 @@ export async function getConversations(req: Request, res: Response) {
       contact: row.contact || null,
     }));
 
+    res.setHeader("X-Has-More", hasMore ? "true" : "false");
     res.json(formatted);
   } catch (err) {
     console.error("Error fetching conversations:", err);

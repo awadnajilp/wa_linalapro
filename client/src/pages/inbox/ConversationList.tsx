@@ -51,6 +51,9 @@ interface ConversationListProps {
   channelTags?: any[];
   selectedTag?: string | null;
   onSelectTag?: (tag: string | null) => void;
+  hasMoreConversations?: boolean;
+  loadingMoreConversations?: boolean;
+  onLoadMoreConversations?: () => void;
 }
 
 const ConversationList = ({
@@ -69,6 +72,9 @@ const ConversationList = ({
   channelTags = [],
   selectedTag = null,
   onSelectTag,
+  hasMoreConversations = false,
+  loadingMoreConversations = false,
+  onLoadMoreConversations,
 }: ConversationListProps) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [phoneInput, setPhoneInput] = useState("");
@@ -223,8 +229,21 @@ const ConversationList = ({
         </Tabs>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-1">
-        {conversationsLoading ? (
+      <div
+        className="flex-1 overflow-y-auto pr-1"
+        onScroll={(e) => {
+          const target = e.currentTarget;
+          if (
+            target.scrollHeight - target.scrollTop <= target.clientHeight + 100 &&
+            hasMoreConversations &&
+            !loadingMoreConversations &&
+            onLoadMoreConversations
+          ) {
+            onLoadMoreConversations();
+          }
+        }}
+      >
+        {conversationsLoading && conversations.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <Loading />
           </div>
@@ -233,18 +252,25 @@ const ConversationList = ({
             No conversations found
           </div>
         ) : (
-          conversations.map(
-            (conversation: ConversationWithContact) => (
-              <ConversationListItem
-                key={conversation.id}
-                conversation={conversation}
-                isSelected={selectedConversation?.id === conversation.id}
-                onClick={() => onSelectConversation(conversation)}
-                user={user}
-                tagsColorMap={tagsColorMap}
-              />
-            )
-          )
+          <>
+            {conversations.map(
+              (conversation: ConversationWithContact) => (
+                <ConversationListItem
+                  key={conversation.id}
+                  conversation={conversation}
+                  isSelected={selectedConversation?.id === conversation.id}
+                  onClick={() => onSelectConversation(conversation)}
+                  user={user}
+                  tagsColorMap={tagsColorMap}
+                />
+              )
+            )}
+            {loadingMoreConversations && (
+              <div className="flex items-center justify-center py-4 border-t border-gray-100">
+                <Loading />
+              </div>
+            )}
+          </>
         )}
       </div>
 

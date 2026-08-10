@@ -134,10 +134,20 @@ getAllContacts: (
   deleteTemplate: (id: string) => apiRequest("DELETE", `/api/templates/${id}`),
 
   // Conversations
-  getConversations: (channelId?: string, tag?: string) => {
+  getConversations: (channelIdOrParams?: string | { channelId?: string; tag?: string; filterTab?: string; search?: string; limit?: number; offset?: number }, tag?: string) => {
     const params = new URLSearchParams();
-    if (channelId) params.append("channelId", channelId);
-    if (tag) params.append("tag", tag);
+    if (typeof channelIdOrParams === "string" || !channelIdOrParams) {
+      if (channelIdOrParams) params.append("channelId", channelIdOrParams);
+      if (tag) params.append("tag", tag);
+    } else {
+      const options = channelIdOrParams;
+      if (options.channelId) params.append("channelId", options.channelId);
+      if (options.tag) params.append("tag", options.tag);
+      if (options.filterTab) params.append("filterTab", options.filterTab);
+      if (options.search) params.append("search", options.search);
+      if (options.limit !== undefined) params.append("limit", String(options.limit));
+      if (options.offset !== undefined) params.append("offset", String(options.offset));
+    }
     const qs = params.toString();
     return apiRequest("GET", `/api/conversations${qs ? `?${qs}` : ""}`);
   },

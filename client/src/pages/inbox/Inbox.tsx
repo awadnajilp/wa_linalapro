@@ -16,7 +16,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import Header from "@/components/layout/header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -144,23 +144,50 @@ export default function Inbox() {
     });
   };
 
-  const { data: conversations = [], isLoading: conversationsLoading } =
-    useQuery({
-      queryKey: ["/api/conversations", activeChannel?.id, selectedTag],
-      queryFn: async () => {
-        const response = await api.getConversations(activeChannel?.id, selectedTag || undefined);
-        if (!response.ok) {
-          throw new Error(`Failed to load conversations: ${response.status}`);
-        }
-        return await response.json();
-      },
-      enabled: !!activeChannel,
-      refetchOnWindowFocus: true,
-      staleTime: 0,
-      retry: 1,
-      retryDelay: 2000,
-      throwOnError: false,
-    });
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  const {
+    data: conversationsInfiniteData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: conversationsLoading,
+  } = useInfiniteQuery({
+    queryKey: ["/api/conversations", activeChannel?.id, selectedTag, filterTab, debouncedSearchQuery],
+    queryFn: async ({ pageParam = 0 }) => {
+      const response = await api.getConversations({
+        channelId: activeChannel?.id,
+        tag: selectedTag || undefined,
+        filterTab: filterTab || undefined,
+        search: debouncedSearchQuery || undefined,
+        limit: 50,
+        offset: pageParam,
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to load conversations: ${response.status}`);
+      }
+      const conversationsData = await response.json();
+      const hasMore = response.headers.get("x-has-more") === "true";
+      return { conversations: conversationsData, hasMore, nextOffset: pageParam + 50 };
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextOffset : undefined,
+    enabled: !!activeChannel,
+    staleTime: 0,
+    retry: 1,
+    retryDelay: 2000,
+  });
+
+  const conversations = useMemo(() => {
+    return conversationsInfiniteData?.pages.flatMap((page) => page.conversations) ?? [];
+  }, [conversationsInfiniteData]);
 
   const { data: messagesPage, isLoading: messagesLoading } = useQuery({
     queryKey: ["/api/conversations", selectedConversation?.id, "messages"],
@@ -202,13 +229,19 @@ export default function Inbox() {
       
       // Mark as read if there are unread messages
       if (selectedConversation.unreadCount && selectedConversation.unreadCount > 0) {
-        queryClient.setQueryData(
-          ["/api/conversations", activeChannel?.id, selectedTag],
-          (old: any[]) => {
-            if (!Array.isArray(old)) return [];
-            return old.map((conv) =>
-              conv.id === selectedConversation.id ? { ...conv, unreadCount: 0 } : conv
-            );
+        queryClient.setQueriesData(
+          { queryKey: ["/api/conversations"] },
+          (old: any) => {
+            if (!old || !old.pages) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page: any) => ({
+                ...page,
+                conversations: page.conversations.map((conv: any) =>
+                  conv.id === selectedConversation.id ? { ...conv, unreadCount: 0 } : conv
+                ),
+              })),
+            };
           }
         );
         
@@ -433,30 +466,34 @@ export default function Inbox() {
           : Date.now();
 
       if (channelId) {
-        queryClient.setQueryData(
-          ["/api/conversations", channelId],
-          (old: any[]) => {
-            if (!Array.isArray(old)) return [];
-
-            return old
-              .map((conv) =>
-                conv.id === conversationId
-                  ? {
-                      ...conv,
-                      lastMessageText,
-                      lastMessageAt,
-                      unreadCount:
-                        selectedConversationRef.current?.id === conversationId
-                          ? 0
-                          : (conv.unreadCount || 0) + 1,
-                    }
-                  : conv
-              )
-              .sort(
-                (a, b) =>
-                  normalizeTime(b.lastMessageAt) -
-                  normalizeTime(a.lastMessageAt)
-              );
+        queryClient.setQueriesData(
+          { queryKey: ["/api/conversations"] },
+          (old: any) => {
+            if (!old || !old.pages) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page: any) => {
+                const conversations = page.conversations.map((conv: any) =>
+                  conv.id === conversationId
+                    ? {
+                        ...conv,
+                        lastMessageText,
+                        lastMessageAt,
+                        unreadCount:
+                          selectedConversationRef.current?.id === conversationId
+                            ? 0
+                            : (conv.unreadCount || 0) + 1,
+                      }
+                    : conv
+                );
+                conversations.sort(
+                  (a: any, b: any) =>
+                    normalizeTime(b.lastMessageAt) -
+                    normalizeTime(a.lastMessageAt)
+                );
+                return { ...page, conversations };
+              }),
+            };
           }
         );
       }
@@ -537,13 +574,22 @@ export default function Inbox() {
       console.log("🔥 [Inbox] conversation_created event received", data);
       const channelId = activeChannelRef.current?.id;
       if (data?.conversation && channelId) {
-        queryClient.setQueryData(
-          ["/api/conversations", channelId],
-          (old: any[]) => {
-            const list = Array.isArray(old) ? old : [];
-            const exists = list.some((c) => c.id === data.conversation.id);
-            if (exists) return list;
-            return [data.conversation, ...list];
+        queryClient.setQueriesData(
+          { queryKey: ["/api/conversations"] },
+          (old: any) => {
+            if (!old || !old.pages) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page: any, idx: number) => {
+                if (idx !== 0) return page;
+                const conversations = [...page.conversations];
+                const exists = conversations.some((c) => c.id === data.conversation.id);
+                if (!exists) {
+                  conversations.unshift(data.conversation);
+                }
+                return { ...page, conversations };
+              }),
+            };
           }
         );
       }
@@ -1389,37 +1435,14 @@ export default function Inbox() {
     });
   };
 
-  const filteredConversations = conversations.filter((conv: any) => {
-    if (user?.showOnlyAssigned && conv.assignedTo !== user?.id) {
-      return false;
-    }
-
-    const matchesSearch =
-      conv.contact?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.contactPhone?.includes(searchQuery) ||
-      conv.contactName?.toLowerCase().includes(searchQuery.toLowerCase());
-
-    switch (filterTab) {
-      case "unread":
-        return matchesSearch && (conv.unreadCount || 0) > 0;
-      case "open":
-        return matchesSearch && conv.status === "open";
-      case "resolved":
-        return matchesSearch && conv.status === "resolved";
-      case "whatsapp":
-        return matchesSearch && conv.type === "whatsapp";
-      case "chatbot":
-        return matchesSearch && conv.type === "chatbot";
-      case "assigned":
-        return (
-          matchesSearch &&
-          conv.status === "assigned" &&
-          (user?.role === "admin" || conv.assignedTo === user?.id)
-        );
-      default:
-        return matchesSearch;
-    }
-  });
+  const filteredConversations = useMemo(() => {
+    return conversations.filter((conv: any) => {
+      if (user?.showOnlyAssigned && conv.assignedTo !== user?.id) {
+        return false;
+      }
+      return true;
+    });
+  }, [conversations, user]);
 
   const is24HourWindowExpired =
     activeChannel?.connectionMethod !== "qr_code" &&
@@ -1469,6 +1492,9 @@ export default function Inbox() {
           channelTags={channelTags}
           selectedTag={selectedTag}
           onSelectTag={setSelectedTag}
+          hasMoreConversations={hasNextPage}
+          loadingMoreConversations={isFetchingNextPage}
+          onLoadMoreConversations={fetchNextPage}
         />
 
         {selectedConversation ? (

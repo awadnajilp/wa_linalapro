@@ -150,6 +150,15 @@ export default function CRM() {
     enabled: !!channelId,
   });
 
+  const filteredDeals = useMemo(() => {
+    return (deals || []).filter((deal: any) => {
+      if (selectedAgentId !== "all" && deal.assignedTo !== selectedAgentId) {
+        return false;
+      }
+      return true;
+    });
+  }, [deals, selectedAgentId]);
+
   // Query: contacts for deal creation selector (on-demand)
   const { data: contactsData } = useQuery<any>({
     queryKey: ["/api/contacts", channelId, contactSearchQuery],
@@ -596,15 +605,6 @@ export default function CRM() {
       </div>
     );
   }
-
-  const filteredDeals = useMemo(() => {
-    return deals.filter((deal: any) => {
-      if (selectedAgentId !== "all" && deal.assignedTo !== selectedAgentId) {
-        return false;
-      }
-      return true;
-    });
-  }, [deals, selectedAgentId]);
 
   // Calculate Pipeline statistics
   const totalPipelineValue = filteredDeals

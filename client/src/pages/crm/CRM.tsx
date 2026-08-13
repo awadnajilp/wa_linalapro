@@ -176,7 +176,7 @@ export default function CRM() {
   });
 
   // Query: team members
-  const { data: teamMembers = [] } = useQuery<any[]>({
+  const { data: teamMembers = [] } = useQuery<any>({
     queryKey: ["/api/team/members"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/team/members?limit=1000");
@@ -185,6 +185,10 @@ export default function CRM() {
       return data.data || [];
     },
   });
+
+  const membersArray = useMemo(() => {
+    return Array.isArray(teamMembers) ? teamMembers : ((teamMembers as any)?.data || []);
+  }, [teamMembers]);
 
   // Load CRM settings to state
   useEffect(() => {
@@ -679,7 +683,7 @@ export default function CRM() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Agents</SelectItem>
-                {teamMembers.map((m: any) => (
+                {membersArray.map((m: any) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.firstName || m.username}
                   </SelectItem>
@@ -945,7 +949,7 @@ export default function CRM() {
                     </div>
                   ) : (
                     stageDeals.map((deal) => {
-                      const agent = teamMembers.find((m: any) => m.id === deal.assignedTo);
+                      const agent = membersArray.find((m: any) => m.id === deal.assignedTo);
                       return (
                         <div
                           key={deal.id}
@@ -1146,7 +1150,7 @@ export default function CRM() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="_empty">Unassigned</SelectItem>
-                  {teamMembers.map((m) => (
+                  {membersArray.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
                       {m.name || m.username}
                     </SelectItem>
@@ -1313,7 +1317,7 @@ export default function CRM() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="_empty">Unassigned</SelectItem>
-                      {teamMembers.map((m: any) => (
+                      {membersArray.map((m: any) => (
                         <SelectItem key={m.id} value={m.id}>
                           {m.firstName ? `${m.firstName} (${m.username})` : m.username}
                         </SelectItem>
@@ -1687,7 +1691,7 @@ export default function CRM() {
                   <SelectValue placeholder="Select team member..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {teamMembers.map((m: any) => (
+                  {membersArray.map((m: any) => (
                     <SelectItem key={m.id} value={m.id}>
                       {m.firstName ? `${m.firstName} (${m.username})` : m.username}
                     </SelectItem>

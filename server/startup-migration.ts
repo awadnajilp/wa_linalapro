@@ -397,6 +397,11 @@ const steps: MigrationStep[] = [
       CREATE INDEX IF NOT EXISTS contact_campaign_templates_channel_idx ON contact_campaign_templates (channel_id);
     `,
   },
+  addColumnIfNotExists(
+    "users",
+    "round_robin_capacity",
+    "INTEGER DEFAULT 0"
+  ),
 ];
 
 /**

@@ -479,6 +479,25 @@ export function registerCRMRoutes(app: Express) {
         .where(eq(crmDeals.id, id))
         .limit(1);
 
+      let statusUpdate = status;
+      if (stageId !== undefined && stageId !== null && status === undefined) {
+        const [stage] = await db
+          .select()
+          .from(crmStages)
+          .where(eq(crmStages.id, stageId))
+          .limit(1);
+        if (stage) {
+          const nameLower = stage.name.trim().toLowerCase();
+          if (nameLower === "won") {
+            statusUpdate = "won";
+          } else if (nameLower === "lost") {
+            statusUpdate = "lost";
+          } else {
+            statusUpdate = "open";
+          }
+        }
+      }
+
       const [updated] = await db
         .update(crmDeals)
         .set({
@@ -486,7 +505,7 @@ export function registerCRMRoutes(app: Express) {
           value: value !== undefined ? value : undefined,
           currency: currency !== undefined ? currency : undefined,
           assignedTo: assignedTo !== undefined ? assignedTo : undefined,
-          status: status !== undefined ? status : undefined,
+          status: statusUpdate !== undefined ? statusUpdate : undefined,
           lostReason: lostReason !== undefined ? lostReason : undefined,
           expectedCloseDate: expectedCloseDate !== undefined ? (expectedCloseDate ? new Date(expectedCloseDate) : null) : undefined,
           notes: notes !== undefined ? notes : undefined,
@@ -571,14 +590,27 @@ export function registerCRMRoutes(app: Express) {
       const { id } = req.params;
       const { stageId } = req.body;
 
-      if (!stageId) {
-        return res.status(400).json({ error: "stageId is required" });
+      const [stage] = await db
+        .select()
+        .from(crmStages)
+        .where(eq(crmStages.id, stageId))
+        .limit(1);
+
+      let status = "open";
+      if (stage) {
+        const nameLower = stage.name.trim().toLowerCase();
+        if (nameLower === "won") {
+          status = "won";
+        } else if (nameLower === "lost") {
+          status = "lost";
+        }
       }
 
       const [updated] = await db
         .update(crmDeals)
         .set({
           stageId,
+          status,
           updatedAt: new Date(),
         })
         .where(eq(crmDeals.id, id))

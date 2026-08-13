@@ -99,6 +99,7 @@ interface TeamMemberFormData {
   channelId?: string;
   showOnlyAssigned?: boolean;
   isAdminMember?: boolean;
+  roundRobinCapacity?: number;
 }
 
 type TeamMemberFormState = {
@@ -113,6 +114,7 @@ type TeamMemberFormState = {
   channelId?: string;
   showOnlyAssigned: boolean;
   isAdminMember: boolean;
+  roundRobinCapacity?: number;
 };
 
 const fetchTeamMembers = async (page: number = 1, limit: number = 10, search: string = "", channelId?: string) => {
@@ -1271,6 +1273,7 @@ function TeamMemberDialog({
     channelId: (member as any)?.channelId || channelId || "",
     showOnlyAssigned: !!(member as any)?.showOnlyAssigned,
     isAdminMember: !!(member as any)?.isAdminMember,
+    roundRobinCapacity: (member as any)?.roundRobinCapacity || 0,
   });
 
   const [expandedSections, setExpandedSections] = useState<
@@ -1297,6 +1300,7 @@ function TeamMemberDialog({
       channelId: (member as any)?.channelId || channelId || "",
       showOnlyAssigned: !!(member as any)?.showOnlyAssigned,
       isAdminMember: !!(member as any)?.isAdminMember,
+      roundRobinCapacity: (member as any)?.roundRobinCapacity || 0,
     });
   }, [member, channelId]);
 
@@ -1604,6 +1608,28 @@ function TeamMemberDialog({
                 <Label htmlFor="isAdminMember" className="text-xs font-normal cursor-pointer">
                   Admin Member (If checked, they can switch between all channels. If unchecked, they are locked to their assigned channel).
                 </Label>
+              </div>
+              <div className="space-y-1.5 pt-1">
+                <Label htmlFor="roundRobinCapacity" className="text-xs font-semibold">
+                  Round Robin Capacity (Open Deals Limit)
+                </Label>
+                <Input
+                  id="roundRobinCapacity"
+                  type="number"
+                  min="0"
+                  placeholder="0 (unlimited)"
+                  value={formData.roundRobinCapacity ?? ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      roundRobinCapacity: e.target.value ? parseInt(e.target.value, 10) : 0,
+                    })
+                  }
+                  className="max-w-[200px] h-9 text-sm rounded-lg"
+                />
+                <span className="text-[10px] text-gray-500 block">
+                  The maximum number of open CRM deals this agent can hold at one time. Round robin routing skips agents who are at capacity. Set to 0 for unlimited.
+                </span>
               </div>
             </div>
 

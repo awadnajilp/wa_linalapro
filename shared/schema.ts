@@ -70,6 +70,7 @@ export const users = pgTable("users", {
   showOnlyAssigned: boolean("show_only_assigned").default(false),
   isAdminMember: boolean("is_admin_member").default(false),
   crmStatus: text("crm_status").default("online"),
+  roundRobinCapacity: integer("round_robin_capacity").default(0),
 });
 
 // Conversation assignments to users

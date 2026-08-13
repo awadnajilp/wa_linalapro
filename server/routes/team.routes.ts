@@ -91,6 +91,7 @@ const createUserSchema = z.object({
   channelId: z.string().optional(),
   showOnlyAssigned: z.boolean().optional(),
   isAdminMember: z.boolean().optional(),
+  roundRobinCapacity: z.number().int().nonnegative().optional(),
   permissions: z
     .union([z.array(z.string()), z.record(z.boolean())])
     .optional()
@@ -389,6 +390,7 @@ requirePermission(PERMISSIONS.TEAM_CREATE), validateRequest(createUserSchema), a
       channelId,
       showOnlyAssigned,
       isAdminMember,
+      roundRobinCapacity,
     } = req.body;
 
     if (channelId) {
@@ -434,6 +436,7 @@ requirePermission(PERMISSIONS.TEAM_CREATE), validateRequest(createUserSchema), a
         channelId: channelId || null,
         showOnlyAssigned: showOnlyAssigned ?? false,
         isAdminMember: isAdminMember ?? false,
+        roundRobinCapacity: roundRobinCapacity || 0,
       })
       .returning();
 

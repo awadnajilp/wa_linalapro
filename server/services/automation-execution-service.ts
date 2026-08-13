@@ -18,7 +18,7 @@
 // automation-execution.service.ts - Enhanced with Conditions Support
 import { db } from "../db";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
-import { sql } from "drizzle-orm";
+import { sql, inArray } from "drizzle-orm";
 import {
   automations,
   automationNodes,
@@ -40,6 +40,7 @@ import {
   crmStages,
   crmDeals,
   crmSettings,
+  conversationAssignments,
 } from "@shared/schema";
 import OpenAI from "openai";
 import { searchTrainingData } from "./training.service";
@@ -6106,34 +6107,75 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     if (candidates.length > 0) {
       const candidateIds = candidates.map((c) => c.id);
 
-      // Query the latest conversation assigned to each candidate in this channel
-      const latestAssignments = await db
+      // Query active deals count per candidate to check capacity
+      const activeDealsCount = await db
         .select({
-          userId: conversations.assignedTo,
-          latestTime: sql<Date>`max(${conversations.createdAt})`
+          userId: crmDeals.assignedTo,
+          count: sql<number>`count(${crmDeals.id})`
         })
-        .from(conversations)
+        .from(crmDeals)
         .where(and(
-          eq(conversations.channelId, channelId),
-          sql`${conversations.assignedTo} in ${candidateIds}`
+          eq(crmDeals.status, "open"),
+          inArray(crmDeals.assignedTo, candidateIds)
         ))
-        .groupBy(conversations.assignedTo);
+        .groupBy(crmDeals.assignedTo);
 
-      const timeMap = new Map(
-        latestAssignments.map((a) => [
-          a.userId,
-          a.latestTime ? new Date(a.latestTime).getTime() : 0
-        ])
+      const activeDealsMap = new Map(
+        activeDealsCount.map((c) => [c.userId, Number(c.count) || 0])
       );
 
-      // Sort candidates by their last assignment timestamp ascending
-      candidates.sort((a, b) => {
-        const timeA = timeMap.get(a.id) || 0;
-        const timeB = timeMap.get(b.id) || 0;
-        return timeA - timeB;
+      // Filter out candidates who are at or over capacity
+      // capacity > 0 check: if capacity is 0 or null, it means unlimited.
+      const eligibleCandidates = candidates.filter((c) => {
+        const capacity = (c as any).roundRobinCapacity || 0;
+        if (capacity > 0) {
+          const currentDeals = activeDealsMap.get(c.id) || 0;
+          return currentDeals < capacity;
+        }
+        return true;
       });
 
-      assignedUserId = candidates[0].id;
+      if (eligibleCandidates.length > 0) {
+        const eligibleIds = eligibleCandidates.map((c) => c.id);
+
+        // Query the latest conversation assigned to each eligible candidate in this channel
+        const latestAssignments = await db
+          .select({
+            userId: conversations.assignedTo,
+            latestTime: sql<Date>`max(${conversations.createdAt})`
+          })
+          .from(conversations)
+          .where(and(
+            eq(conversations.channelId, channelId),
+            inArray(conversations.assignedTo, eligibleIds)
+          ))
+          .groupBy(conversations.assignedTo);
+
+        const timeMap = new Map(
+          latestAssignments.map((a) => [
+            a.userId,
+            a.latestTime ? new Date(a.latestTime).getTime() : 0
+          ])
+        );
+
+        // Sort eligible candidates by their last assignment timestamp ascending
+        eligibleCandidates.sort((a, b) => {
+          const timeA = timeMap.get(a.id) || 0;
+          const timeB = timeMap.get(b.id) || 0;
+          return timeA - timeB;
+        });
+
+        assignedUserId = eligibleCandidates[0].id;
+      } else {
+        // Fallback to the candidate with the lowest active deals load if everyone is over capacity
+        console.log(`⚠️ CRM Round Robin: All candidates are over capacity. Falling back to candidate with lowest load.`);
+        candidates.sort((a, b) => {
+          const loadA = activeDealsMap.get(a.id) || 0;
+          const loadB = activeDealsMap.get(b.id) || 0;
+          return loadA - loadB;
+        });
+        assignedUserId = candidates[0]?.id || ownerUserId;
+      }
     }
 
     console.log(`👤 CRM Round Robin: Assigning conversation ${context.conversationId} to user ${assignedUserId}`);
@@ -6150,6 +6192,13 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         conversation: updatedConv,
       });
     }
+
+    // Also insert into conversation_assignments
+    await db.insert(conversationAssignments).values({
+      conversationId: context.conversationId,
+      userId: assignedUserId,
+      status: "active",
+    });
 
     // 5. CRM Deal Registration
     let pipelineId = node.data?.crmPipelineId;
@@ -6244,6 +6293,12 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
             conversation: updatedConv,
           });
         }
+        // Also insert into conversation_assignments
+        await db.insert(conversationAssignments).values({
+          conversationId: context.conversationId,
+          userId: existingDeal.assignedTo,
+          status: "active",
+        });
       }
 
       return {

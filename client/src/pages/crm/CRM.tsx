@@ -53,6 +53,7 @@ export default function CRM() {
   const [reportWeeklyEnabled, setReportWeeklyEnabled] = useState<boolean>(false);
 
   const [activePipelineId, setActivePipelineId] = useState<string>("");
+  const [selectedAgentId, setSelectedAgentId] = useState<string>("all");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAddDealOpen, setIsAddDealOpen] = useState(false);
   const [targetAddStageId, setTargetAddStageId] = useState("");
@@ -592,12 +593,21 @@ export default function CRM() {
     );
   }
 
+  const filteredDeals = useMemo(() => {
+    return deals.filter((deal: any) => {
+      if (selectedAgentId !== "all" && deal.assignedTo !== selectedAgentId) {
+        return false;
+      }
+      return true;
+    });
+  }, [deals, selectedAgentId]);
+
   // Calculate Pipeline statistics
-  const totalPipelineValue = deals
+  const totalPipelineValue = filteredDeals
     .filter((d) => d.status === "open" || d.status === "won")
     .reduce((sum, d) => sum + Number(d.value), 0);
 
-  const activeDealsCount = deals.filter((d) => d.status === "open").length;
+  const activeDealsCount = filteredDeals.filter((d) => d.status === "open").length;
 
   return (
     <div className="flex flex-col h-screen max-h-[100dvh] w-full max-w-full overflow-hidden bg-slate-50">
@@ -646,7 +656,6 @@ export default function CRM() {
                 ))}
               </SelectContent>
             </Select>
-
             <Button
               variant="ghost"
               size="icon"
@@ -660,6 +669,23 @@ export default function CRM() {
             >
               <Plus className="w-4 h-4" />
             </Button>
+          </div>
+
+          {/* Agent Filter Selector */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg p-0.5">
+            <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
+              <SelectTrigger className="w-[170px] bg-transparent border-0 text-slate-700 h-8 focus:ring-0 shadow-none">
+                <SelectValue placeholder="All Agents" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Agents</SelectItem>
+                {teamMembers.map((m: any) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.firstName || m.username}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* CRM Settings trigger */}
@@ -876,7 +902,7 @@ export default function CRM() {
       ) : (
         <div className="flex-1 overflow-x-auto p-6 flex gap-6 items-start select-none">
           {stages.map((stage) => {
-            const stageDeals = deals.filter((d) => d.stageId === stage.id);
+            const stageDeals = filteredDeals.filter((d) => d.stageId === stage.id);
             const stageTotalValue = stageDeals.reduce((sum, d) => sum + Number(d.value), 0);
 
             return (

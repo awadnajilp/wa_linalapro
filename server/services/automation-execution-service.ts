@@ -1861,6 +1861,17 @@ private async executeUserReply(node: any, context: ExecutionContext) {
       if (vars._waitRead_waiting && vars._waitRead_messageId === whatsappMessageId) {
         pendingIdToResume = pendingId;
         pendingExec = execution;
+        
+        // Clean variables from the memory execution context
+        delete vars._waitRead_waiting;
+        delete vars._waitRead_messageId;
+        delete vars._waitRead_nodeId;
+        delete vars._waitRead_nodeType;
+        delete vars._waitRead_timeoutMinutes;
+        delete vars._waitRead_timeoutOnlyAfterDelivered;
+        delete vars._waitRead_startedAt;
+        delete vars._waitRead_deliveredAt;
+        
         break;
       }
     }
@@ -3363,7 +3374,30 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       const mediaSource = useUpload ? mediaId : mediaUrl;
       if (!mediaSource) throw new Error('Media source is empty');
 
-      const mimeType = mediaType === 'video' ? 'video/mp4' : mediaType === 'image' ? 'image/jpeg' : mediaType === 'audio' ? 'audio/mpeg' : 'application/octet-stream';
+      let mimeType = 'application/octet-stream';
+      if (mediaType === 'video') {
+        mimeType = 'video/mp4';
+      } else if (mediaType === 'image') {
+        mimeType = 'image/jpeg';
+      } else if (mediaType === 'audio') {
+        mimeType = 'audio/mpeg';
+      } else if (mediaType === 'document') {
+        const lowerName = (mediaFileName || mediaSource || '').toLowerCase();
+        if (lowerName.endsWith('.pdf')) {
+          mimeType = 'application/pdf';
+        } else if (lowerName.endsWith('.doc') || lowerName.endsWith('.docx')) {
+          mimeType = 'application/msword';
+        } else if (lowerName.endsWith('.xls') || lowerName.endsWith('.xlsx')) {
+          mimeType = 'application/vnd.ms-excel';
+        } else if (lowerName.endsWith('.zip')) {
+          mimeType = 'application/zip';
+        } else if (lowerName.endsWith('.png')) {
+          mimeType = 'image/png';
+        } else if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) {
+          mimeType = 'image/jpeg';
+        }
+      }
+
       const mediaPayload = {
         url: mediaSource,
         mimeType,

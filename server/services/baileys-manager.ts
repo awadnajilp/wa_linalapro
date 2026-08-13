@@ -967,7 +967,10 @@ export class BaileysManager {
               const byteArray = await response.Body.transformToByteArray();
               fileBuffer = Buffer.from(byteArray);
               finalUrl = undefined;
-              console.log(`[BaileysManager] Successfully fetched buffer directly from S3 client for ${key}`);
+              if (response.ContentType) {
+                media.mimeType = response.ContentType;
+              }
+              console.log(`[BaileysManager] Successfully fetched buffer directly from S3 client for ${key}. ContentType: ${response.ContentType}`);
             }
           }
         }
@@ -1037,7 +1040,25 @@ export class BaileysManager {
       console.log(`[BaileysManager] Resolved local media path: ${finalUrl}`);
     }
     
-    const mime = media.mimeType || "";
+    let mime = media.mimeType || "";
+    if (!mime || mime === "application/octet-stream") {
+      const targetName = (media.filename || finalUrl || "").toLowerCase();
+      if (targetName.endsWith(".pdf")) {
+        mime = "application/pdf";
+      } else if (targetName.endsWith(".png")) {
+        mime = "image/png";
+      } else if (targetName.endsWith(".jpg") || targetName.endsWith(".jpeg")) {
+        mime = "image/jpeg";
+      } else if (targetName.endsWith(".mp4")) {
+        mime = "video/mp4";
+      } else if (targetName.endsWith(".mp3") || targetName.endsWith(".mpeg")) {
+        mime = "audio/mpeg";
+      } else if (targetName.endsWith(".docx") || targetName.endsWith(".doc")) {
+        mime = "application/msword";
+      } else if (targetName.endsWith(".xlsx") || targetName.endsWith(".xls")) {
+        mime = "application/vnd.ms-excel";
+      }
+    }
     let messageContent: any = {};
 
     let mediaSource = fileBuffer || { url: finalUrl };

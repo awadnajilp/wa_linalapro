@@ -43,4 +43,8 @@ export interface Message {
   createdAt: string;
 }
 
-export type ConversationWithContact = Conversation & { contact?: Contact };
+export type ConversationWithContact = Conversation & { 
+  contact?: Contact;
+  lastMessageDirection?: string | null;
+  lastMessageStatus?: string | null;
+};

@@ -110,6 +110,18 @@ export async function getConversations(req: Request, res: Response) {
         conversation: conversations,
         contact: contacts,
         assignedToName: sql`${users.firstName} || ' ' || ${users.lastName}`.as("assignedBy"),
+        lastMessageDirection: sql<string | null>`(
+          SELECT direction FROM messages 
+          WHERE messages.conversation_id = ${conversations.id} 
+          ORDER BY messages.created_at DESC 
+          LIMIT 1
+        )`,
+        lastMessageStatus: sql<string | null>`(
+          SELECT status FROM messages 
+          WHERE messages.conversation_id = ${conversations.id} 
+          ORDER BY messages.created_at DESC 
+          LIMIT 1
+        )`,
       })
       .from(conversations)
       .leftJoin(contacts, eq(conversations.contactId, contacts.id))
@@ -128,6 +140,8 @@ export async function getConversations(req: Request, res: Response) {
       lastMessageText: row.conversation.lastMessageText || null,
       assignedToName: row.assignedToName || null,
       contact: row.contact || null,
+      lastMessageDirection: row.lastMessageDirection || null,
+      lastMessageStatus: row.lastMessageStatus || null,
     }));
 
     res.setHeader("X-Has-More", hasMore ? "true" : "false");
@@ -147,6 +161,18 @@ export async function fetchConversationList(channelId: string) {
       assignedToName: sql`${users.firstName} || ' ' || ${users.lastName}`.as(
         "assignedBy"
       ),
+      lastMessageDirection: sql<string | null>`(
+        SELECT direction FROM messages 
+        WHERE messages.conversation_id = ${conversations.id} 
+        ORDER BY messages.created_at DESC 
+        LIMIT 1
+      )`,
+      lastMessageStatus: sql<string | null>`(
+        SELECT status FROM messages 
+        WHERE messages.conversation_id = ${conversations.id} 
+        ORDER BY messages.created_at DESC 
+        LIMIT 1
+      )`,
     })
     .from(conversations)
     .leftJoin(contacts, eq(conversations.contactId, contacts.id))
@@ -160,6 +186,8 @@ export async function fetchConversationList(channelId: string) {
     lastMessageText: row.conversation.lastMessageText || null,
     assignedToName: row.assignedToName || null,
     contact: row.contact || null,
+    lastMessageDirection: row.lastMessageDirection || null,
+    lastMessageStatus: row.lastMessageStatus || null,
   }));
 }
 

@@ -17,7 +17,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { MessageCircle, Bot } from "lucide-react";
+import { MessageCircle, Bot, Check, CheckCheck, Clock, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatLastSeen } from "./utils";
 import type { ConversationWithContact } from "./types";
@@ -68,6 +68,24 @@ function getMessagePreview(message: any, shouldMask: boolean): string {
     ? safeMessage.substring(0, 40) + "..."
     : safeMessage;
 }
+
+const renderStatusIcon = (status: string | null | undefined) => {
+  switch (status) {
+    case "read":
+    case "seen":
+      return <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />;
+    case "delivered":
+      return <CheckCheck className="w-3.5 h-3.5 text-[#8696a0]" />;
+    case "sent":
+      return <Check className="w-3.5 h-3.5 text-[#8696a0]" />;
+    case "failed":
+      return <AlertCircle className="w-3.5 h-3.5 text-red-500" />;
+    case "sending":
+      return <Clock className="w-3.5 h-3.5 text-gray-400 animate-pulse" />;
+    default:
+      return null;
+  }
+};
 
 const ConversationListItem = ({
   conversation,
@@ -157,9 +175,12 @@ const ConversationListItem = ({
             {conversation.type === "chatbot" && (
               <Bot className="w-3.5 h-3.5 text-green-500 inline-block mr-1.5 flex-shrink-0" />
             )}
-            <p className="text-[13px] text-gray-500 truncate leading-tight flex-1">
-              {getMessagePreview(conversation.lastMessageText, demo) ||
-                "Tap to open conversation"}
+            <p className="text-[13px] text-gray-500 truncate leading-tight flex-1 flex items-center gap-1 min-w-0">
+              {conversation.lastMessageDirection === "outbound" && renderStatusIcon(conversation.lastMessageStatus)}
+              <span className="truncate">
+                {getMessagePreview(conversation.lastMessageText, demo) ||
+                  "Tap to open conversation"}
+              </span>
             </p>
           </div>
 

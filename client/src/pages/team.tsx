@@ -1271,7 +1271,7 @@ function TeamMemberDialog({
       ? mapApiPermissionsToForm(member.permissions as string[])
       : mapApiPermissionsToForm(defaultTeamPermissions),
     channelId: (member as any)?.channelId || channelId || "",
-    showOnlyAssigned: !!(member as any)?.showOnlyAssigned,
+    showOnlyAssigned: member ? !!(member as any)?.showOnlyAssigned : true,
     isAdminMember: !!(member as any)?.isAdminMember,
     roundRobinCapacity: (member as any)?.roundRobinCapacity || 0,
   });
@@ -1298,7 +1298,7 @@ function TeamMemberDialog({
         ? mapApiPermissionsToForm(member.permissions as string[])
         : mapApiPermissionsToForm(defaultTeamPermissions),
       channelId: (member as any)?.channelId || channelId || "",
-      showOnlyAssigned: !!(member as any)?.showOnlyAssigned,
+      showOnlyAssigned: member ? !!(member as any)?.showOnlyAssigned : true,
       isAdminMember: !!(member as any)?.isAdminMember,
       roundRobinCapacity: (member as any)?.roundRobinCapacity || 0,
     });

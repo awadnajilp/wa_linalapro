@@ -67,7 +67,7 @@ export const users = pgTable("users", {
   sarvamApiKey: text("sarvam_api_key"),
   groqApiKey: text("groq_api_key"),
   elevenlabsApiKey: text("eleven_labs_api_key"),
-  showOnlyAssigned: boolean("show_only_assigned").default(false),
+  showOnlyAssigned: boolean("show_only_assigned").default(true),
   isAdminMember: boolean("is_admin_member").default(false),
   crmStatus: text("crm_status").default("online"),
   roundRobinCapacity: integer("round_robin_capacity").default(0),

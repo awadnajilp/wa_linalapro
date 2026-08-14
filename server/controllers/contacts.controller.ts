@@ -74,6 +74,22 @@ export const getContacts = asyncHandler(
       }
     }
 
+    if (user && user.role === 'team' && user.showOnlyAssigned) {
+      const assignedConvs = await dbRead
+        .select({ contactId: conversations.contactId })
+        .from(conversations)
+        .where(eq(conversations.assignedTo, user.id));
+      const assignedContactIds = assignedConvs
+        .map(c => c.contactId)
+        .filter((id): id is string => !!id);
+      
+      if (assignedContactIds.length === 0) {
+        contacts = [];
+      } else {
+        contacts = contacts.filter((c: any) => assignedContactIds.includes(c.id));
+      }
+    }
+
     if (search && typeof search === "string") {
       const searchLower = search.toLowerCase();
       contacts = contacts.filter(

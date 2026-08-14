@@ -1734,10 +1734,12 @@ async sendMediaMessagee(
 ) {
   const formattedPhone = this.formatPhoneNumber(to);
 
-  const mediaObject: any = {
-    id: mediaId || undefined,
-    link: mediaUrl || undefined,
-  };
+  const mediaObject: any = {};
+  if (mediaId) {
+    mediaObject.id = mediaId;
+  } else if (mediaUrl) {
+    mediaObject.link = mediaUrl;
+  }
 
   if (mediaType === "document" && mediaFileName) {
     mediaObject.filename = mediaFileName;

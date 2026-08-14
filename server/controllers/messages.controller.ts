@@ -431,15 +431,18 @@ if (file.size > MAX_SIZE_MB * 1024 * 1024) {
 
         // Save message attachment to media library
         try {
-          const mainUserId = req.user.role === "team" && (req.user as any).createdBy ? (req.user as any).createdBy : req.user.id;
-          await db.insert(mediaLibrary).values({
-            userId: mainUserId,
-            url: mediaUrl,
-            fileName: file.originalname,
-            mimeType: mimeType,
-            fileSize: file.size,
-          });
-          console.log("✅ Attachment successfully tracked in Media Library:", file.originalname);
+          const user = req.user || (req as any).session?.user;
+          const mainUserId = user ? (user.role === "team" && user.createdBy ? user.createdBy : user.id) : null;
+          if (mainUserId) {
+            await db.insert(mediaLibrary).values({
+              userId: mainUserId,
+              url: mediaUrl,
+              fileName: file.originalname,
+              mimeType: mimeType,
+              fileSize: file.size,
+            });
+            console.log("✅ Attachment successfully tracked in Media Library:", file.originalname);
+          }
         } catch (dbErr) {
           console.error("Failed to save message attachment to media library:", dbErr);
         }

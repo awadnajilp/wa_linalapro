@@ -604,12 +604,14 @@ async sendMessage(
     };
     const mediaType = mediaTypeMap[normalizedHeaderType];
     if (mediaType) {
+      const isUrl = typeof mediaId === "string" && mediaId.startsWith("http");
+      const mediaRef = isUrl ? { link: mediaId } : { id: mediaId };
       components.push({
         type: "header",
         parameters: [
           {
             type: mediaType,
-            [mediaType]: { id: mediaId },
+            [mediaType]: mediaRef,
           },
         ],
       });
@@ -980,7 +982,16 @@ async sendMessage(
     });
 
     // 🔥 REQUIRED FIELDS
-    form.append("type", mimeType); // 👈 MOST IMPORTANT
+    let mediaType = "document";
+    const mimeLower = mimeType.toLowerCase();
+    if (mimeLower.startsWith("image/")) {
+      mediaType = "image";
+    } else if (mimeLower.startsWith("video/")) {
+      mediaType = "video";
+    } else if (mimeLower.startsWith("audio/")) {
+      mediaType = "audio";
+    }
+    form.append("type", mediaType); // 👈 MOST IMPORTANT
     form.append("messaging_product", "whatsapp");
 
     const response = await axios.post(

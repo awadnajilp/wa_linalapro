@@ -297,7 +297,15 @@ interface MessageThreadProps {
   onSendMessage: () => void;
   onFileAttachment: () => void;
   onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onSelectTemplate: (template: any, variables: { type?: string; value?: string }[], mediaId?: string, headerType?: string | null, buttonParameters?: string[]) => void;
+  onSelectTemplate: (
+    template: any,
+    variables: { type?: string; value?: string }[],
+    mediaId?: string,
+    headerType?: string | null,
+    buttonParameters?: string[],
+    expirationTimeMs?: number,
+    carouselCardMediaIds?: Record<number, string>
+  ) => void;
   is24HourWindowExpired: boolean;
   activeChannelId?: string;
   sendMessagePending: boolean;

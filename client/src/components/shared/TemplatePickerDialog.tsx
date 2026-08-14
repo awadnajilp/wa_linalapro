@@ -221,9 +221,16 @@ export function TemplatePickerDialog({
       }))
     );
 
-    const meta = await fetchTemplateMeta(template.whatsappTemplateId);
+    let meta: any = {};
+    try {
+      if (template.whatsappTemplateId) {
+        meta = await fetchTemplateMeta(template.whatsappTemplateId);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch template meta:", err);
+    }
 
-    if (meta.hasLimitedTimeOffer) {
+    if (meta?.hasLimitedTimeOffer) {
       setHasLimitedTimeOffer(true);
       const defaultExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const localIso = new Date(defaultExpiry.getTime() - defaultExpiry.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -236,17 +243,14 @@ export function TemplatePickerDialog({
       setCarouselCards(template.carouselCards);
     }
 
-    const header = meta.headerType?.toLowerCase() ?? null;
+    const header = (meta?.headerType || template.headerType || template.mediaType)?.toLowerCase() ?? null;
     setHeaderType(header);
     setRequiresHeaderImage(
       !isCarousel && ["image", "video", "document"].includes(header)
     );
 
-    const MEDIA_HEADERS = ["IMAGE", "VIDEO", "DOCUMENT"];
-    const hasMediaHeader = template.components?.some(
-      (c: any) => c.type === "HEADER" && MEDIA_HEADERS.includes(c.format)
-    );
-    if (!hasMediaHeader) {
+    const isMediaHeader = ["image", "video", "document"].includes(header);
+    if (!isMediaHeader) {
       setUploadedMediaId(null);
     }
   };

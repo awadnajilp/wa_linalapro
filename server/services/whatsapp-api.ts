@@ -100,13 +100,16 @@ export class WhatsAppApiService {
             const mediaParam = headerComp.parameters[0];
             const mediaType = mediaParam.type;
             const mediaInfo = mediaParam[mediaType];
-            if (mediaInfo && mediaInfo.link) {
-              hasHeaderMedia = true;
-              headerMediaData = {
-                url: mediaInfo.link,
-                mimeType: mediaType === "image" ? "image/jpeg" : mediaType === "video" ? "video/mp4" : "application/pdf",
-                filename: mediaInfo.filename || "file"
-              };
+            if (mediaInfo) {
+              const resolvedUrl = mediaInfo.link || (mediaInfo.id && String(mediaInfo.id).startsWith("http") ? mediaInfo.id : null) || (mediaInfo.id ? WhatsAppApiService.mediaCache.get(String(mediaInfo.id))?.url : null);
+              if (resolvedUrl) {
+                hasHeaderMedia = true;
+                headerMediaData = {
+                  url: resolvedUrl,
+                  mimeType: mediaType === "image" ? "image/jpeg" : mediaType === "video" ? "video/mp4" : "application/pdf",
+                  filename: mediaInfo.filename || "file"
+                };
+              }
             }
           }
         }
@@ -141,7 +144,22 @@ export class WhatsAppApiService {
     "Content-Type": "application/json",
   };
 
-  if (isMarketing) {
+  // Dynamically verify template category to avoid sending non-marketing templates via mm_lite
+  let resolvedIsMarketing = isMarketing;
+  try {
+    const template = await storage.getTemplateByNameAndChannel(templateName, channel.id)
+      || (await storage.getTemplatesByName(templateName))[0];
+    if (template) {
+      const category = (template.category || "MARKETING").toUpperCase();
+      if (category !== "MARKETING") {
+        resolvedIsMarketing = false;
+      }
+    }
+  } catch (err) {
+    console.warn(`[WhatsAppApiService] Failed to query template category for ${templateName}:`, err);
+  }
+
+  if (resolvedIsMarketing) {
     const mmLiteEndpoint = `${baseUrl}/${channel.phoneNumberId}/marketing_messages`;
     const mmBody = {
       ...body,
@@ -1705,16 +1723,24 @@ async sendMediaMessagee(
 ) {
   const formattedPhone = this.formatPhoneNumber(to);
 
+  const mediaObject: any = {
+    id: mediaId || undefined,
+    link: mediaUrl || undefined,
+  };
+
+  if (mediaType === "document" && mediaFileName) {
+    mediaObject.filename = mediaFileName;
+  }
+
+  if (caption && (mediaType === "image" || mediaType === "video" || mediaType === "document")) {
+    mediaObject.caption = caption;
+  }
+
   const body: any = {
     messaging_product: "whatsapp",
     to: formattedPhone,
     type: mediaType,
-    [mediaType]: {
-      id: mediaId || undefined,
-      link: mediaUrl || undefined,
-      filename: mediaFileName || undefined,
-      mime_type: mediaMimeType || undefined
-    },
+    [mediaType]: mediaObject,
   };
 
   if (isVoiceNote && mediaType === "audio") {
@@ -1724,10 +1750,6 @@ async sendMediaMessagee(
 
   if (replyToWaId) {
     body.context = { message_id: replyToWaId };
-  }
-
-  if (caption && (mediaType === "image" || mediaType === "video" || mediaType === "document")) {
-    body[mediaType].caption = caption;
   }
 
   console.log("📤 MEDIA PAYLOAD =>", JSON.stringify(body, null, 2));

@@ -18,7 +18,7 @@
 import type { Request, Response } from "express";
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { storage } from "../storage";
-import { contacts, users, insertContactSchema, groups, contactCampaigns } from "@shared/schema";
+import { contacts, users, insertContactSchema, groups, contactCampaigns, conversations } from "@shared/schema";
 import { AppError, asyncHandler } from "../middlewares/error.middleware";
 import { db, dbRead } from "server/db";
 import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
@@ -666,7 +666,40 @@ export const updateBulkContactsTags = asyncHandler(
         } else {
           currentGroups = tags;
         }
-        await db.update(contacts).set({ groups: currentGroups }).where(eq(contacts.id, id));
+
+        // Update both groups and tags in contacts table
+        await db
+          .update(contacts)
+          .set({ groups: currentGroups, tags: currentGroups })
+          .where(eq(contacts.id, id));
+
+        // Also update conversations that belong to this contact
+        await db
+          .update(conversations)
+          .set({ tags: currentGroups })
+          .where(eq(conversations.contactId, id));
+
+        // Broadcast changes via socket if active
+        const io = (global as any).io;
+        if (io) {
+          io.emit("contact-updated", {
+            id,
+            tags: currentGroups,
+          });
+
+          // Fetch matching conversations to emit updates for them
+          const convRows = await db
+            .select({ id: conversations.id })
+            .from(conversations)
+            .where(eq(conversations.contactId, id));
+
+          for (const c of convRows) {
+            io.emit("conversation-updated", {
+              id: c.id,
+              tags: currentGroups,
+            });
+          }
+        }
       }
     }
 

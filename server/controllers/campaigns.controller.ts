@@ -549,12 +549,15 @@ export const campaignsController = {
     // HEADER media — skip for carousel templates (cards have their own headers)
     if (template.mediaUrl && !apiCarouselCards) {
       const mediaType = (template.mediaType || "image").toLowerCase();
+      const isUrl = typeof template.mediaUrl === "string" && template.mediaUrl.startsWith("http");
+      const mediaRef = isUrl ? { link: template.mediaUrl } : { id: cleanMediaId(template.mediaUrl) };
+
       if (mediaType === "image") {
-        apiComponents.push({ type: "header", parameters: [{ type: "image", image: { id: cleanMediaId(template.mediaUrl) } }] });
+        apiComponents.push({ type: "header", parameters: [{ type: "image", image: mediaRef }] });
       } else if (mediaType === "video") {
-        apiComponents.push({ type: "header", parameters: [{ type: "video", video: { id: cleanMediaId(template.mediaUrl) } }] });
+        apiComponents.push({ type: "header", parameters: [{ type: "video", video: mediaRef }] });
       } else if (mediaType === "document") {
-        apiComponents.push({ type: "header", parameters: [{ type: "document", document: { id: cleanMediaId(template.mediaUrl) } }] });
+        apiComponents.push({ type: "header", parameters: [{ type: "document", document: mediaRef }] });
       }
     }
 
@@ -641,7 +644,7 @@ export const campaignsController = {
         template.name,
         apiComponents,
         template.language || "en_US",
-        true
+        (template.category || "MARKETING").toUpperCase() === "MARKETING"
       );
       const messageId = response.messages?.[0]?.id || `msg_${randomUUID()}`;
       const sentVia = response._sentVia || "cloud_api";
@@ -757,12 +760,15 @@ export function buildContactComponents(contact: Contact, campaign: any, template
   const headerMediaId = campaign.variableMapping?.uploadedMediaId || template.mediaUrl;
   if (headerMediaId && !carouselCards) {
     const mediaType = (campaign.variableMapping?.headerType || template.mediaType || "image").toLowerCase();
+    const isUrl = typeof headerMediaId === "string" && headerMediaId.startsWith("http");
+    const mediaRef = isUrl ? { link: headerMediaId } : { id: cleanMediaId(headerMediaId) };
+
     if (mediaType === "image") {
-      components.push({ type: "header", parameters: [{ type: "image", image: { id: cleanMediaId(headerMediaId) } }] });
+      components.push({ type: "header", parameters: [{ type: "image", image: mediaRef }] });
     } else if (mediaType === "video") {
-      components.push({ type: "header", parameters: [{ type: "video", video: { id: cleanMediaId(headerMediaId) } }] });
+      components.push({ type: "header", parameters: [{ type: "video", video: mediaRef }] });
     } else if (mediaType === "document") {
-      components.push({ type: "header", parameters: [{ type: "document", document: { id: cleanMediaId(headerMediaId) } }] });
+      components.push({ type: "header", parameters: [{ type: "document", document: mediaRef }] });
     }
   }
 
@@ -1039,6 +1045,13 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
         if (!isQr && template) {
           components = buildContactComponents(contact, campaign, template, hasLimitedTimeOffer);
         }
+        const categoryLower = template ? (template.category || "MARKETING").toLowerCase() : "marketing";
+        const msgType = (categoryLower === "utility" || categoryLower === "transactional")
+          ? "utility"
+          : categoryLower === "authentication"
+            ? "authentication"
+            : "marketing";
+
         chunkRows.push({
           campaignId,
           channelId: channel.id,
@@ -1046,7 +1059,7 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
           templateName: isQr ? null : template!.name,
           templateLanguage: isQr ? null : ((campaign as any).templateLanguage || "en_US"),
           templateParams: components,
-          messageType: "marketing",
+          messageType: msgType,
           status: "queued" as const,
         });
         recipientRows.push({
@@ -1060,6 +1073,13 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
       } catch (err: any) {
         console.error(`[Campaign ${campaignId}] Failed to build components for ${contact.phone}: ${err.message}`);
         totalFailed++;
+        const categoryLower = template ? (template.category || "MARKETING").toLowerCase() : "marketing";
+        const msgType = (categoryLower === "utility" || categoryLower === "transactional")
+          ? "utility"
+          : categoryLower === "authentication"
+            ? "authentication"
+            : "marketing";
+
         chunkRows.push({
           campaignId,
           channelId: channel.id,
@@ -1067,7 +1087,7 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
           templateName: isQr ? null : template!.name,
           templateLanguage: isQr ? null : ((campaign as any).templateLanguage || "en_US"),
           templateParams: [],
-          messageType: "marketing",
+          messageType: msgType,
           status: "failed" as const,
         });
         recipientRows.push({

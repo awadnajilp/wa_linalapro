@@ -71,6 +71,7 @@ export const users = pgTable("users", {
   isAdminMember: boolean("is_admin_member").default(false),
   crmStatus: text("crm_status").default("online"),
   roundRobinCapacity: integer("round_robin_capacity").default(0),
+  notificationChannelId: varchar("notification_channel_id"),
 });
 
 // Conversation assignments to users
@@ -1990,6 +1991,7 @@ export const crmDeals = pgTable("crm_deals", {
   followUpTemplateLanguage: text("follow_up_template_language").default("en_US"),
   followUpTemplateVariables: jsonb("follow_up_template_variables"),
   followUpStatus: text("follow_up_status").default("pending"),
+  isFollowUpReminderSent: boolean("is_follow_up_reminder_sent").default(false),
   preferredContactMethod: varchar("preferred_contact_method", { length: 20 }).default("both"), // "call", "whatsapp", "both"
   contactedCount: integer("contacted_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
@@ -2094,6 +2096,7 @@ export const insertCrmDealSchema = z.object({
   followUpTemplateLanguage: z.string().optional().nullable(),
   followUpTemplateVariables: z.any().optional().nullable(),
   followUpStatus: z.string().optional(),
+  isFollowUpReminderSent: z.boolean().optional(),
   preferredContactMethod: z.string().optional(),
   contactedCount: z.number().optional(),
 });

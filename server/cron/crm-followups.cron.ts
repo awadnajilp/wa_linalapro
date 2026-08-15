@@ -8,9 +8,12 @@ import {
   contacts, 
   conversations, 
   messageQueue, 
-  channels 
+  channels,
+  users
 } from "@shared/schema";
 import { eq, and, lte, asc } from "drizzle-orm";
+import { triggerNotification, NOTIFICATION_EVENTS } from "../services/notification.service";
+import { WhatsAppApiService } from "../services/whatsapp-api";
 
 export function startCrmFollowupCron() {
   console.log("⏰ [CRM Followups] Starting background cadence follow-up job...");
@@ -272,6 +275,102 @@ export function startCrmFollowupCron() {
         } catch (stepError) {
           console.error(`❌ [CRM Followups] Error processing follow-up step ${followup.id}:`, stepError);
         }
+      }
+
+      // C. Process 1-hour upcoming deal follow-up alerts for agents
+      try {
+        const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000);
+        const upcomingDeals = await db
+          .select()
+          .from(crmDeals)
+          .where(
+            and(
+              eq(crmDeals.status, "open"),
+              eq(crmDeals.isFollowUpReminderSent, false),
+              lte(crmDeals.customFollowUpDate, oneHourFromNow)
+            )
+          );
+
+        for (const deal of upcomingDeals) {
+          if (!deal.assignedTo || !deal.customFollowUpDate) continue;
+
+          // Fetch agent
+          const [agent] = await db
+            .select()
+            .from(users)
+            .where(eq(users.id, deal.assignedTo))
+            .limit(1);
+
+          if (!agent) continue;
+
+          // Mark as sent immediately to avoid race conditions
+          await db
+            .update(crmDeals)
+            .set({ isFollowUpReminderSent: true })
+            .where(eq(crmDeals.id, deal.id));
+
+          console.log(`⏰ [CRM Followups] Triggering 1-hour follow-up reminders for Deal: ${deal.title} (Assigned to: ${agent.username})`);
+
+          // 1. Trigger Push/In-App & Email notification
+          try {
+            await triggerNotification(
+              NOTIFICATION_EVENTS.DEAL_FOLLOWUP,
+              {
+                dealTitle: deal.title,
+                followupTime: deal.customFollowUpDate.toLocaleString(),
+                contactName: deal.title,
+              },
+              [agent.id],
+              deal.channelId || undefined
+            );
+          } catch (notifErr) {
+            console.error(`❌ [CRM Followups] Error triggering push/email notification for Deal ${deal.id}:`, notifErr);
+          }
+
+          // 2. Trigger WhatsApp notification alert if agent has a phone number
+          if (agent.phoneNumber) {
+            try {
+              // Find the channel owner (admin) to find the notification channel configuration
+              const [channel] = await db
+                .select()
+                .from(channels)
+                .where(eq(channels.id, deal.channelId))
+                .limit(1);
+
+              if (channel) {
+                const [adminUser] = await db
+                  .select()
+                  .from(users)
+                  .where(eq(users.id, channel.createdBy))
+                  .limit(1);
+
+                // Use the chosen notification channel ID, falling back to the deal channel
+                const sendChannelId = adminUser?.notificationChannelId || deal.channelId;
+                const [sendChannel] = await db
+                  .select()
+                  .from(channels)
+                  .where(eq(channels.id, sendChannelId))
+                  .limit(1);
+
+                if (sendChannel) {
+                  const whatsappApi = new WhatsAppApiService(sendChannel);
+                  await whatsappApi.sendDirectMessage({
+                    to: agent.phoneNumber,
+                    type: "text",
+                    text: {
+                      body: `⏰ Deal Reminder: You have an upcoming follow-up for deal "${deal.title}" scheduled at ${deal.customFollowUpDate.toLocaleString()}.`
+                    }
+                  });
+                  console.log(`🚀 [CRM Followups] Sent WhatsApp follow-up alert to agent ${agent.username} at ${agent.phoneNumber}`);
+                }
+              }
+            } catch (waErr) {
+              console.error(`❌ [CRM Followups] Error sending WhatsApp follow-up alert for Deal ${deal.id}:`, waErr);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("❌ [CRM Followups] Error in 1-hour follow-up alert check:", err);
       }
     } catch (cronError) {
       console.error("❌ [CRM Followups] Error in follow-up cron worker loop:", cronError);

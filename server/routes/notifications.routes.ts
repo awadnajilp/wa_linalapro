@@ -18,6 +18,9 @@
 import { requireAuth, requireRole } from "server/middlewares/auth.middleware";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
 import type { Express } from "express";
+import { db } from "../db";
+import { users } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import {
   adminCreateNotification,
   adminGetNotifications,
@@ -63,5 +66,31 @@ export function registerNotificationsRoutes(app: Express) {
 
   // Delete a sent notification
   app.delete("/api/notifications/:id", requireAuth, deleteNotification);
-  
+
+  // User system notification WhatsApp channel configuration
+  app.get("/api/notification-channel", requireAuth, async (req, res) => {
+    try {
+      const [user] = await db
+        .select({ notificationChannelId: users.notificationChannelId })
+        .from(users)
+        .where(eq(users.id, req.user.id))
+        .limit(1);
+      res.json({ notificationChannelId: user?.notificationChannelId || null });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.put("/api/notification-channel", requireAuth, async (req, res) => {
+    try {
+      const { notificationChannelId } = req.body;
+      await db
+        .update(users)
+        .set({ notificationChannelId: notificationChannelId || null })
+        .where(eq(users.id, req.user.id));
+      res.json({ success: true, notificationChannelId });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
 }

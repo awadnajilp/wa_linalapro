@@ -517,6 +517,7 @@ export function registerCRMRoutes(app: Express) {
           followUpTemplateLanguage: followUpTemplateLanguage !== undefined ? followUpTemplateLanguage : undefined,
           followUpTemplateVariables: followUpTemplateVariables !== undefined ? followUpTemplateVariables : undefined,
           followUpStatus: followUpStatus !== undefined ? followUpStatus : (customFollowUpDate !== undefined ? "pending" : undefined),
+          isFollowUpReminderSent: customFollowUpDate !== undefined ? false : undefined,
           stageId: stageId !== undefined ? stageId : undefined,
           contactId: contactId !== undefined ? contactId : undefined,
           preferredContactMethod: preferredContactMethod !== undefined ? preferredContactMethod : undefined,

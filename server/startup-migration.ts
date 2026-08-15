@@ -499,6 +499,46 @@ export async function runStartupMigration(pool: Pool): Promise<void> {
       console.error("[startup-migration] Error ensuring lead_assigned template:", err.message);
     }
 
+    // C. Ensure "deal_followup" template exists
+    try {
+      const dealTmplCheck = await client.query(`
+        SELECT id FROM notification_templates WHERE event_type = 'deal_followup';
+      `);
+
+      if (dealTmplCheck.rows.length === 0) {
+        console.log("[startup-migration] Seeding missing 'deal_followup' notification template...");
+        await client.query(`
+          INSERT INTO notification_templates (event_type, label, description, subject, html_body, is_email_enabled, is_in_app_enabled, variables, updated_at)
+          VALUES (
+            'deal_followup',
+            'Deal Follow-up',
+            'Sent 1 hour before a scheduled deal follow-up',
+            '[CRM] Upcoming Follow-up: {{dealTitle}}',
+            '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f9fafb;border-radius:8px">
+  <div style="background:#3b82f6;padding:16px 24px;border-radius:8px 8px 0 0">
+    <h2 style="color:#fff;margin:0;font-size:18px">⏰ Upcoming Deal Follow-up</h2>
+  </div>
+  <div style="background:#fff;padding:24px;border-radius:0 0 8px 8px;border:1px solid #e5e7eb">
+    <p style="color:#374151;font-size:14px;line-height:1.6">Hello <strong>{{userName}}</strong>,</p>
+    <p style="color:#374151;font-size:14px;line-height:1.6">You have an upcoming follow-up scheduled in 1 hour:</p>
+    <div style="background:#f3f4f6;padding:15px;border-radius:6px;margin:20px 0;border-left:4px solid #3b82f6">
+      <p style="margin:4px 0;font-size:14px;color:#1f2937"><strong>Deal Title:</strong> {{dealTitle}}</p>
+      <p style="margin:4px 0;font-size:14px;color:#1f2937"><strong>Scheduled For:</strong> {{followupTime}}</p>
+    </div>
+    <p style="color:#6b7280;font-size:13px">Please log in to check the deal notes and contact details.</p>
+  </div>
+</div>',
+            true,
+            true,
+            ARRAY['dealTitle', 'followupTime', 'userName'],
+            NOW()
+          );
+        `);
+      }
+    } catch (err: any) {
+      console.error("[startup-migration] Error ensuring deal_followup template:", err.message);
+    }
+
     if (errors.length > 0) {
       for (const e of errors) {
         console.error(e);

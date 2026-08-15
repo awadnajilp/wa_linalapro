@@ -16,7 +16,8 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useAuth } from "@/contexts/auth-context";
 import {
   Card,
   CardContent,
@@ -78,10 +79,57 @@ const getCategoryIcon = (category?: string) => {
 
 export default function NotificationPreferences() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [optimisticUpdates, setOptimisticUpdates] = useState<
     Record<string, UpdatePayload>
   >({});
+
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const [selectedChannelId, setSelectedChannelId] = useState<string>("");
+
+  // Fetch active channels
+  const { data: channelsData } = useQuery<any[]>({
+    queryKey: ["/api/channels/active"],
+    queryFn: () => apiRequest("GET", "/api/channels/active").then((r) => r.json()),
+    enabled: isAdmin,
+  });
+
+  // Fetch current notification channel
+  const { data: notifChannelData, refetch: refetchNotifChannel } = useQuery<{ notificationChannelId: string | null }>({
+    queryKey: ["/api/notification-channel"],
+    queryFn: () => apiRequest("GET", "/api/notification-channel").then((r) => r.json()),
+    enabled: isAdmin,
+  });
+
+  useEffect(() => {
+    if (notifChannelData?.notificationChannelId) {
+      setSelectedChannelId(notifChannelData.notificationChannelId);
+    } else if (channelsData && channelsData.length === 1) {
+      const singleChannelId = channelsData[0].id;
+      setSelectedChannelId(singleChannelId);
+      void handleSaveChannel(singleChannelId);
+    }
+  }, [notifChannelData, channelsData]);
+
+  const handleSaveChannel = async (channelId: string) => {
+    try {
+      await apiRequest("PUT", "/api/notification-channel", {
+        notificationChannelId: channelId || null,
+      });
+      refetchNotifChannel();
+      toast({
+        title: "Settings saved",
+        description: "Notification channel updated successfully.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error saving setting",
+        description: err.message || "Failed to save notification channel.",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Fetch user preferences
   const {
@@ -245,6 +293,43 @@ export default function NotificationPreferences() {
           </CardDescription>
         </CardHeader>
       </Card>
+
+      {isAdmin && (
+        <Card className="border border-blue-100 bg-blue-50/10">
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-blue-500" />
+              System Notification Channel (WhatsApp)
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Select which WhatsApp channel to use for sending system alerts and agent follow-up notifications. If only one channel exists, it is selected by default.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-2 max-w-md">
+              <Label htmlFor="notification-channel-select" className="text-xs font-medium">
+                Active WhatsApp Channel
+              </Label>
+              <select
+                id="notification-channel-select"
+                value={selectedChannelId}
+                onChange={(e) => {
+                  setSelectedChannelId(e.target.value);
+                  void handleSaveChannel(e.target.value);
+                }}
+                className="w-full h-10 px-3 rounded-md border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- Select Channel --</option>
+                {channelsData?.map((channel) => (
+                  <option key={channel.id} value={channel.id}>
+                    {channel.name} ({channel.phoneNumber || "No Phone"})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {templatesByCategory.map(([category, categoryTemplates]) => (
         <Card key={category}>

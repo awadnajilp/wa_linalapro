@@ -38,6 +38,7 @@ export const NOTIFICATION_EVENTS = {
   CHANNEL_HEALTH_WARNING: 'channel_health_warning',
   TICKET_REPLY: 'ticket_reply',
   LEAD_ASSIGNED: 'lead_assigned',
+  DEAL_FOLLOWUP: 'deal_followup',
 } as const;
 
 function replaceVariables(text: string, variables: Record<string, string>): string {
@@ -251,6 +252,8 @@ function generateCleanMessage(eventType: string, variables: Record<string, strin
       return `Channel ${variables.channelName || ""} (${variables.channelPhone || ""}) health: ${variables.healthStatus || "Warning"}. Quality: ${variables.qualityRating || "Unknown"}.`;
     case NOTIFICATION_EVENTS.TICKET_REPLY:
       return `New reply on ticket "${variables.ticketTitle || ""}": ${variables.messagePreview || ""}`;
+    case NOTIFICATION_EVENTS.DEAL_FOLLOWUP:
+      return `Upcoming follow-up for deal "${variables.dealTitle || ""}" at ${variables.followupTime || ""}.`;
     default:
       return variables.messagePreview || "You have a new notification.";
   }
@@ -270,6 +273,8 @@ function getNotificationLink(eventType: string): string {
       return "/settings";
     case NOTIFICATION_EVENTS.TICKET_REPLY:
       return "/support";
+    case NOTIFICATION_EVENTS.DEAL_FOLLOWUP:
+      return "/crm";
     default:
       return "/notifications";
   }

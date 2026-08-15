@@ -1448,7 +1448,7 @@ app.post(
         fs.unlinkSync(mediaFile.path);
       }
 
-      return res.json({ success: true, mediaId });
+      return res.json({ success: true, mediaId, mediaUrl: fileUrl });
     } catch (error: any) {
       console.error("Media upload error:", error);
       return res.status(500).json({ success: false, message: error.message || "Failed to upload media" });

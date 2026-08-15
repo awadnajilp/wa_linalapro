@@ -664,7 +664,7 @@ export function SendListMessageNode({ data }: { data: BuilderNodeData }) {
 
 export function SendMediaNode({ data }: { data: BuilderNodeData }) {
   const mediaLabel = data.mediaType ? data.mediaType.charAt(0).toUpperCase() + data.mediaType.slice(1) : "Media";
-  const sourceUrl = data.mediaUrl || (data.mediaId && data.mediaId.startsWith("http") ? data.mediaId : null);
+  const sourceUrl = data.mediaUrl || (data.mediaId && (data.mediaId.startsWith("http") || data.mediaId.startsWith("/uploads")) ? data.mediaId : null);
 
   return (
     <div className="relative">

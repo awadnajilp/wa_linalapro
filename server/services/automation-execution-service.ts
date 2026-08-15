@@ -3422,9 +3422,37 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       return { action: 'media_sent', mediaType, mediaUrl: mediaSource };
     }
 
-    const mediaPayload: any = useUpload
+    let finalMediaId = mediaId;
+
+    if (!useUpload && mediaUrl) {
+      try {
+        console.log(`[Cloud API] Dynamically uploading media from URL/path to Meta: ${mediaUrl}`);
+        const whatsappApi = new WhatsAppApiService(channel);
+        
+        let mimeType = 'image/jpeg';
+        if (mediaType === 'video') mimeType = 'video/mp4';
+        else if (mediaType === 'audio') mimeType = 'audio/mpeg';
+        else if (mediaType === 'document') {
+          const lowerName = (mediaFileName || mediaUrl || '').toLowerCase();
+          if (lowerName.endsWith('.pdf')) mimeType = 'application/pdf';
+          else if (lowerName.endsWith('.doc') || lowerName.endsWith('.docx')) mimeType = 'application/msword';
+          else if (lowerName.endsWith('.xls') || lowerName.endsWith('.xlsx')) mimeType = 'application/vnd.ms-excel';
+          else if (lowerName.endsWith('.zip')) mimeType = 'application/zip';
+          else if (lowerName.endsWith('.png')) mimeType = 'image/png';
+          else if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) mimeType = 'image/jpeg';
+        }
+
+        finalMediaId = await whatsappApi.uploadMediaFromUrl(mediaUrl, mimeType);
+        console.log(`[Cloud API] Dynamically uploaded media successfully. ID: ${finalMediaId}`);
+      } catch (err: any) {
+        console.error(`❌ [Cloud API] Failed to dynamically upload media from URL:`, err);
+      }
+    }
+
+    const useMediaId = !!finalMediaId;
+    const mediaPayload: any = useMediaId
       ? {
-          id: mediaId,
+          id: finalMediaId,
           ...(mediaType === 'document' && mediaFileName ? { filename: mediaFileName } : {}),
           ...(caption && mediaType !== 'audio' ? { caption } : {}),
         }

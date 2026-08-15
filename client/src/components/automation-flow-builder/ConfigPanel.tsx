@@ -2973,7 +2973,11 @@ export function ConfigPanel({
                                 });
                                 const data = await res.json();
                                 if (data.success && data.mediaId) {
-                                  onChange({ mediaId: data.mediaId, mediaFileName: file.name });
+                                  onChange({
+                                    mediaId: data.mediaId,
+                                    mediaFileName: file.name,
+                                    mediaUrl: data.mediaUrl || "",
+                                  });
                                   toast({ title: "File uploaded successfully" });
                                 } else {
                                   toast({ title: "Upload failed", description: data.message || "Please try again", variant: "destructive" });
@@ -3037,7 +3041,7 @@ export function ConfigPanel({
                 )}
 
                 {/* Media Preview Player */}
-                {(d.mediaUrl || (d.mediaId && d.mediaId.startsWith("http"))) && (
+                {(d.mediaUrl || (d.mediaId && (d.mediaId.startsWith("http") || d.mediaId.startsWith("/uploads")))) && (
                   <div className="space-y-2 mt-2 pt-2 border-t border-pink-100">
                     <Label className="text-xs font-semibold text-gray-700">Preview</Label>
                     <div className="relative rounded-lg overflow-hidden border border-pink-200 bg-black flex items-center justify-center min-h-[150px] max-h-[250px]">

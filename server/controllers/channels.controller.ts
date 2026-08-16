@@ -195,6 +195,18 @@ function _mapMetaPhoneHealthError(apiError: any): {
   };
 }
 
+export async function fetchWabaName(wabaId: string, accessToken: string): Promise<string> {
+  try {
+    const apiVersion = process.env.WHATSAPP_API_VERSION || 'v24.0';
+    const res = await fetch(`https://graph.facebook.com/${apiVersion}/${wabaId}?fields=name&access_token=${accessToken}`);
+    const data: any = await res.json();
+    return data?.name || '';
+  } catch (err) {
+    console.error("[fetchWabaName] Error fetching WABA name:", err);
+    return '';
+  }
+}
+
 /**
  * Subscribe a WABA to receive all webhook events (delivery, read, failed, etc.)
  * from the Meta App whose credentials are registered on this channel.
@@ -268,7 +280,14 @@ export const createChannel = asyncHandler(async (req: Request, res: Response) =>
     
     if (response.ok) {
       console.log('Channel health data:', JSON.stringify(data, null, 2));
-      
+
+      let wabaName = '';
+      if ((!data.verified_name || data.name_status === 'NON_EXISTS') && channel.whatsappBusinessAccountId) {
+        wabaName = await fetchWabaName(channel.whatsappBusinessAccountId, channel.accessToken);
+      }
+
+      const verifiedName = (typeof data.verified_name === 'string' && data.verified_name) ? data.verified_name : wabaName;
+
       const healthDetails = {
         status: data.account_mode || 'UNKNOWN',
         name_status: data.name_status || 'UNKNOWN',
@@ -277,7 +296,7 @@ export const createChannel = asyncHandler(async (req: Request, res: Response) =>
         throughput_level: data.throughput?.level || 'STANDARD',
         verification_status: data.code_verification_status || 'NOT_VERIFIED',
         messaging_limit: data.messaging_limit_tier || 'UNKNOWN',
-        verified_name: typeof data.verified_name === 'string' ? data.verified_name : '',
+        verified_name: verifiedName,
         health_status: data.health_status || null,
         platform_type: data.platform_type,
         is_official_business_account: data.is_official_business_account,
@@ -289,11 +308,17 @@ export const createChannel = asyncHandler(async (req: Request, res: Response) =>
         certificate: data.certificate
       };
 
-      await storage.updateChannel(channel.id, {
+      const updatePayload: any = {
         healthStatus: 'healthy',
         lastHealthCheck: new Date(),
         healthDetails
-      });
+      };
+
+      if (verifiedName && (channel.name === 'WhatsApp Channel' || channel.name === channel.phoneNumber)) {
+        updatePayload.name = verifiedName;
+      }
+
+      await storage.updateChannel(channel.id, updatePayload);
     } else {
       const mapped = _mapMetaPhoneHealthError(data.error);
       console.warn(`[Channel Health] Error after creation for ${channel.phoneNumberId}: code=${mapped.errorCode} — ${mapped.userMessage}`);
@@ -624,6 +649,11 @@ export const embeddedSignup = asyncHandler(
 
     await updateLog({ step: "channel_creation", phoneNumber: displayPhoneNumber || null });
 
+    let wabaName = "";
+    if (wabaId) {
+      wabaName = await fetchWabaName(wabaId, longLivedToken);
+    }
+
     // 6️⃣ Handle duplicate channel (reconnection)
     let existing = await storage.getChannelByPhoneNumberId(phoneNumberId);
 
@@ -637,13 +667,20 @@ export const embeddedSignup = asyncHandler(
     }
 
     if (existing) {
-      await storage.updateChannel(existing.id, {
+      const updateData: any = {
         accessToken: longLivedToken,
         whatsappBusinessAccountId: wabaId,
         phoneNumberId,
         isActive: true,
         connectionMethod: "embedded",
-      });
+      };
+      
+      const isDefaultName = existing.name === "WhatsApp Channel" || existing.name === existing.phoneNumber || existing.name === displayPhoneNumber;
+      if (wabaName && isDefaultName) {
+        updateData.name = wabaName;
+      }
+
+      await storage.updateChannel(existing.id, updateData);
       console.log("[EmbeddedSignup] Reconnected existing channel:", existing.id, "- updated access token and phoneNumberId");
 
       if (displayPhoneNumber) {
@@ -698,8 +735,9 @@ export const embeddedSignup = asyncHandler(
     }
 
     // 7️⃣ Create channel
+    const channelName = wabaName || displayPhoneNumber || "WhatsApp Channel";
     const channel = await storage.createChannel({
-      name: displayPhoneNumber || "WhatsApp Channel",
+      name: channelName,
       phoneNumberId,
       accessToken: longLivedToken,
       whatsappBusinessAccountId: wabaId,
@@ -863,7 +901,14 @@ export const checkChannelHealth = asyncHandler(async (req: Request, res: Respons
     
     if (response.ok) {
       console.log('Channel health API response:', JSON.stringify(data, null, 2));
-      
+
+      let wabaName = '';
+      if ((!data.verified_name || data.name_status === 'NON_EXISTS') && channel.whatsappBusinessAccountId) {
+        wabaName = await fetchWabaName(channel.whatsappBusinessAccountId, channel.accessToken);
+      }
+
+      const verifiedName = (typeof data.verified_name === 'string' && data.verified_name) ? data.verified_name : wabaName;
+
       const healthDetails = {
         status: data.account_mode || 'UNKNOWN',
         name_status: data.name_status || 'UNKNOWN',
@@ -872,7 +917,7 @@ export const checkChannelHealth = asyncHandler(async (req: Request, res: Respons
         throughput_level: data.throughput?.level || 'STANDARD',
         verification_status: data.code_verification_status || 'NOT_VERIFIED',
         messaging_limit: data.messaging_limit_tier || 'UNKNOWN',
-        verified_name: typeof data.verified_name === 'string' ? data.verified_name : '',
+        verified_name: verifiedName,
         health_status: data.health_status || null,
         platform_type: data.platform_type,
         is_official_business_account: data.is_official_business_account,
@@ -884,11 +929,17 @@ export const checkChannelHealth = asyncHandler(async (req: Request, res: Respons
         certificate: data.certificate
       };
 
-      await storage.updateChannel(id, {
+      const updatePayload: any = {
         healthStatus: 'healthy',
         lastHealthCheck: new Date(),
         healthDetails
-      });
+      };
+
+      if (verifiedName && (channel.name === 'WhatsApp Channel' || channel.name === channel.phoneNumber)) {
+        updatePayload.name = verifiedName;
+      }
+
+      await storage.updateChannel(id, updatePayload);
 
       res.json({
         status: 'healthy',
@@ -965,14 +1016,26 @@ export const getDisplayName = asyncHandler(async (req: Request, res: Response) =
     }
 
     const existingHealth = (channel.healthDetails as Record<string, any>) || {};
+
+    let wabaName = '';
+    if ((!data.verified_name || data.name_status === 'NON_EXISTS') && channel.whatsappBusinessAccountId) {
+      wabaName = await fetchWabaName(channel.whatsappBusinessAccountId, channel.accessToken);
+    }
+
+    const verifiedName = (typeof data.verified_name === 'string' && data.verified_name) ? data.verified_name : (wabaName || existingHealth.verified_name || '');
+
     const healthDetails = {
       ...existingHealth,
-      verified_name: typeof data.verified_name === 'string' && data.verified_name ? data.verified_name : (existingHealth.verified_name || ''),
+      verified_name: verifiedName,
       name_status: data.name_status || 'UNKNOWN',
       new_name_status: data.new_name_status || undefined,
     };
 
-    await storage.updateChannel(id, { healthDetails });
+    const updatePayload: any = { healthDetails };
+    if (verifiedName && (channel.name === 'WhatsApp Channel' || channel.name === channel.phoneNumber)) {
+      updatePayload.name = verifiedName;
+    }
+    await storage.updateChannel(id, updatePayload);
 
     res.json({
       verified_name: healthDetails.verified_name,

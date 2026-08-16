@@ -118,6 +118,21 @@ export class ChannelHealthMonitor {
       const data = await response.json();
       
       if (response.ok) {
+        let wabaName = '';
+        if ((!data.verified_name || data.name_status === 'NON_EXISTS') && channel.whatsappBusinessAccountId) {
+          try {
+            const wabaInfoRes = await fetch(`https://graph.facebook.com/${apiVersion}/${channel.whatsappBusinessAccountId}?fields=name&access_token=${channel.accessToken}`);
+            const wabaInfo: any = await wabaInfoRes.json();
+            if (wabaInfo && wabaInfo.name) {
+              wabaName = wabaInfo.name;
+            }
+          } catch (e) {
+            console.error("[Channel Health Monitor] Failed to fetch WABA name:", e);
+          }
+        }
+
+        const verifiedName = (typeof data.verified_name === 'string' && data.verified_name) ? data.verified_name : wabaName;
+
         const healthDetails = {
           status: data.account_mode || 'UNKNOWN',
           name_status: data.name_status || 'UNKNOWN',
@@ -126,7 +141,7 @@ export class ChannelHealthMonitor {
           throughput_level: data.throughput?.level || 'STANDARD',
           verification_status: data.code_verification_status || 'NOT_VERIFIED',
           messaging_limit: data.messaging_limit_tier || 'UNKNOWN',
-          verified_name: typeof data.verified_name === 'string' ? data.verified_name : '',
+          verified_name: verifiedName,
         };
 
         const previousStatus = channel.healthStatus;
@@ -135,11 +150,17 @@ export class ChannelHealthMonitor {
         const isQualityGood = ['GREEN', 'UNKNOWN'].includes(healthDetails.quality_rating);
         const newStatus = isAccountHealthy && isQualityGood ? 'healthy' : 'warning';
 
-        await storage.updateChannel(channelId, {
+        const updatePayload: any = {
           healthStatus: newStatus,
           lastHealthCheck: new Date(),
           healthDetails
-        });
+        };
+
+        if (verifiedName && (channel.name === 'WhatsApp Channel' || channel.name === channel.phoneNumber)) {
+          updatePayload.name = verifiedName;
+        }
+
+        await storage.updateChannel(channelId, updatePayload);
 
         // Notify if status changed from healthy to unhealthy
         if (previousStatus === 'healthy' && newStatus !== 'healthy') {

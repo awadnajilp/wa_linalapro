@@ -249,8 +249,37 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
         msgBody = templateMatch?.body || `[template: ${templateName}]`;
         messageType = "template";
 
+        let parsedParams = parameters || [];
+        if (typeof parameters === "string") {
+          try {
+            parsedParams = JSON.parse(parameters);
+          } catch (e) {
+            parsedParams = [parameters];
+          }
+        }
+
+        let tMediaId = req.body.templateMediaId || req.body.mediaId;
+        const tHeaderType = req.body.templateHeaderType || req.body.headerType || templateMatch?.headerType;
+
+        // If a file is uploaded for this template, upload it to WhatsApp first to get a mediaId
+        if (file && channel.connectionMethod !== "qr_code") {
+          const buffer = file.buffer || fs.readFileSync(file.path);
+          try {
+            tMediaId = await whatsappApi.uploadMediaBuffer(buffer, file.mimetype, file.originalname);
+            console.log("✅ Template header media uploaded to WhatsApp, ID:", tMediaId);
+          } catch (uploadErr) {
+            console.error("❌ Failed to upload template header media to WhatsApp:", uploadErr);
+          }
+        }
+
         try {
-          result = await whatsappApi.sendMessage(conversation.contactPhone, templateName, parameters || []);
+          result = await whatsappApi.sendMessage(
+            conversation.contactPhone,
+            templateName,
+            parsedParams,
+            tMediaId || undefined,
+            tHeaderType || undefined
+          );
         } catch (templateErr: any) {
           console.error("❌ Template send failed (payment/billing or other):", templateErr.message);
           messageStatus = "failed";

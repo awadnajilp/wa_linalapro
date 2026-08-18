@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash, Edit, Plus, Users, Inbox, AlertCircle } from "lucide-react";
+import { Trash, Edit, Plus, Users, Inbox, AlertCircle, Tag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -37,6 +37,14 @@ import Header from "@/components/layout/header";
 import { useTranslation } from "@/lib/i18n";
 import { StateDisplay } from "@/components/StateDisplay";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 // Loading Skeleton Component
 const GroupSkeleton = () => (
@@ -176,6 +184,40 @@ export default function GroupsUI() {
       });
     } finally {
       setImportingJid(null);
+    }
+  };
+
+  const handleToggleGroupLabel = async (whatsappGroup: any, labelName: string) => {
+    const currentLabels = whatsappGroup.groups || [];
+    const isAssigned = currentLabels.includes(labelName);
+    const updatedGroups = isAssigned
+      ? currentLabels.filter((g: string) => g !== labelName)
+      : [...currentLabels, labelName];
+
+    try {
+      const res = await apiRequest("PUT", `/api/contacts/${whatsappGroup.id}`, {
+        groups: updatedGroups,
+      });
+      if (res.ok) {
+        toast({
+          title: "Labels updated",
+          description: `WhatsApp group labels updated successfully.`,
+        });
+        refetchWaGroups();
+      } else {
+        const errorData = await res.json();
+        toast({
+          title: "Error",
+          description: errorData.error || "Failed to update labels.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to update labels.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -571,8 +613,53 @@ export default function GroupsUI() {
                                 )}
                               </span>
                             </div>
+
+                            {/* Group labels display */}
+                            {group.groups && group.groups.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2.5">
+                                {group.groups.map((label: string) => (
+                                  <span
+                                    key={label}
+                                    className="inline-flex items-center text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded"
+                                  >
+                                    <Tag size={10} className="mr-1" />
+                                    {label}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          <div className="flex gap-2 self-end sm:self-start">
+                          <div className="flex items-center gap-2 self-end sm:self-start">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" className="flex items-center gap-1">
+                                  <Tag size={14} /> Assign Labels
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuLabel>CRM Label Groups</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {groups.length === 0 ? (
+                                  <div className="text-xs text-gray-500 p-2 text-center">
+                                    No CRM label groups created. Create them in the CRM Label Groups tab.
+                                  </div>
+                                ) : (
+                                  groups.map((labelGroup: any) => {
+                                    const isAssigned = (group.groups || []).includes(labelGroup.name);
+                                    return (
+                                      <DropdownMenuCheckboxItem
+                                        key={labelGroup.id}
+                                        checked={isAssigned}
+                                        onCheckedChange={() => handleToggleGroupLabel(group, labelGroup.name)}
+                                      >
+                                        {labelGroup.name}
+                                      </DropdownMenuCheckboxItem>
+                                    );
+                                  })
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+
                             <Button
                               variant="outline"
                               size="sm"

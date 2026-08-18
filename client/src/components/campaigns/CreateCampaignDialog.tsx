@@ -200,11 +200,14 @@ export function CreateCampaignDialog({
 
   const filteredGroups = (contacts || []).filter((contact: any) => {
     if (!contact.isGroup) return false;
+    const matchesGroup = selectedGroup === "all" ||
+      (Array.isArray(contact.groups) && contact.groups.includes(selectedGroup));
+
     const matchesSearch = !contactsSearchQuery ||
       contact.name?.toLowerCase().includes(contactsSearchQuery.toLowerCase()) ||
       contact.phone?.toLowerCase().includes(contactsSearchQuery.toLowerCase());
 
-    return matchesSearch;
+    return matchesGroup && matchesSearch;
   });
 
   return (
@@ -385,16 +388,38 @@ export function CreateCampaignDialog({
 
             {activeChannel?.connectionMethod === "qr_code" && (
               <TabsContent value="groups" className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Search WhatsApp Groups</Label>
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search group name..."
-                      value={contactsSearchQuery}
-                      onChange={(e) => setContactsSearchQuery(e.target.value)}
-                      className="pl-9 h-10 text-sm"
-                    />
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1">
+                    <Label className="mb-2 block">
+                      Filter by Group Label
+                    </Label>
+                    <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("campaigns.selectGroup")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">
+                          {t("campaigns.allGroup")}
+                        </SelectItem>
+                        {groups.map((group: any) => (
+                          <SelectItem key={group.id} value={group.name}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1">
+                    <Label className="mb-2 block">Search WhatsApp Groups</Label>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search group name..."
+                        value={contactsSearchQuery}
+                        onChange={(e) => setContactsSearchQuery(e.target.value)}
+                        className="pl-9 h-10 text-sm"
+                      />
+                    </div>
                   </div>
                 </div>
 

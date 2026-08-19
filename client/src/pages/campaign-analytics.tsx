@@ -175,10 +175,56 @@ export default function CampaignAnalytics() {
   const repliedCount = safeNumber(campaign.repliedCount);
   const failedCount = safeNumber(campaign.failedCount);
 
+  const recipients = Array.isArray(campaignData?.recipients) ? campaignData.recipients : [];
+
+  const isMetaEcosystemIssue = (errorCode: string | number | null | undefined) => {
+    if (!errorCode) return false;
+    const code = String(errorCode);
+    // Meta error codes for sandbox/undeliverable/unregistered numbers/account restrictions/template issues
+    return ['131026', '131030', '131047', '131051', '131056', '132018', '131042', '368', '133010'].includes(code);
+  };
+
+  const nonDeliverableCount = recipients.filter(r => r.status === "failed" && isMetaEcosystemIssue(r.errorCode)).length;
+  const actualFailedCount = Math.max(0, failedCount - nonDeliverableCount);
+
   const deliveryRate = sentCount > 0 ? Math.round((deliveredCount / sentCount) * 100) : 0;
   const readRate = deliveredCount > 0 ? (readCount / deliveredCount) * 100 : 0;
   const replyRate = readCount > 0 ? (repliedCount / readCount) * 100 : 0;
-  const failureRate = sentCount > 0 ? Math.round((failedCount / sentCount) * 100) : 0;
+  const failureRate = sentCount > 0 ? Math.round((actualFailedCount / sentCount) * 100) : 0;
+  const nonDeliverableRate = sentCount > 0 ? Math.round((nonDeliverableCount / sentCount) * 100) : 0;
+
+  // Dynamically calculate status distribution from recipients list
+  const computedStats = (() => {
+    if (recipients.length === 0) return recipientStats;
+
+    const counts: Record<string, number> = {
+      pending: 0,
+      sent: 0,
+      delivered: 0,
+      read: 0,
+      failed: 0,
+      "non-deliverable": 0,
+    };
+
+    recipients.forEach((r: any) => {
+      const status = r.status || "pending";
+      if (status === "failed") {
+        if (isMetaEcosystemIssue(r.errorCode)) {
+          counts["non-deliverable"]++;
+        } else {
+          counts["failed"]++;
+        }
+      } else if (counts[status] !== undefined) {
+        counts[status]++;
+      } else {
+        counts[status] = (counts[status] || 0) + 1;
+      }
+    });
+
+    return Object.entries(counts)
+      .map(([status, count]) => ({ status, count }))
+      .filter(s => s.count > 0);
+  })();
 
 
   // Process chart data with robust error handling
@@ -497,7 +543,7 @@ export default function CampaignAnalytics() {
         </Card>
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
           <Card className="hover-lift">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -578,9 +624,31 @@ export default function CampaignAnalytics() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
+                  <p className="text-sm text-gray-600">Non-Deliverable</p>
+                  <p className="text-2xl font-bold text-yellow-600">
+                    {nonDeliverableCount.toLocaleString()} ({nonDeliverableRate.toFixed(1)}%)
+                  </p>
+                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                    <div
+                      className="bg-yellow-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(nonDeliverableRate, 100)}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="p-2 bg-yellow-50 rounded-lg">
+                  <AlertCircle className="w-6 h-6 text-yellow-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover-lift">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
                   <p className="text-sm text-gray-600">Failure Rate</p>
                   <p className="text-2xl font-bold text-red-600">
-                    {failureRate.toFixed(1)}%
+                    {actualFailedCount.toLocaleString()} ({failureRate.toFixed(1)}%)
                   </p>
                   <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                     <div
@@ -625,10 +693,10 @@ export default function CampaignAnalytics() {
               <CardTitle>Message Status Distribution</CardTitle>
             </CardHeader>
             <CardContent>
-              {recipientStats.length > 0 ? (
+              {computedStats.length > 0 ? (
                 <div className="space-y-4">
-                  {recipientStats.map((stat: any, index: number) => {
-                    const total = recipientStats.reduce(
+                  {computedStats.map((stat: any, index: number) => {
+                    const total = computedStats.reduce(
                       (sum: number, s: any) => sum + safeNumber(s.count),
                       0
                     );
@@ -649,15 +717,17 @@ export default function CampaignAnalytics() {
                                 ? "bg-blue-500"
                                 : stat.status === "failed"
                                 ? "bg-red-500"
-                                : stat.status === "pending"
+                                : stat.status === "non-deliverable"
                                 ? "bg-yellow-500"
+                                : stat.status === "pending"
+                                ? "bg-gray-400"
                                 : stat.status === "sent"
                                 ? "bg-purple-500"
                                 : "bg-gray-500"
                             }`}
                           />
                           <span className="text-sm capitalize font-medium">
-                            {stat.status || 'Unknown'}
+                            {stat.status === "non-deliverable" ? "Non-Deliverable" : (stat.status || 'Unknown')}
                           </span>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -718,6 +788,7 @@ export default function CampaignAnalytics() {
                 <option value="delivered">Delivered</option>
                 <option value="read">Read</option>
                 <option value="failed">Failed</option>
+                <option value="non-deliverable">Non-Deliverable</option>
               </select>
             </div>
           </CardHeader>
@@ -727,7 +798,11 @@ export default function CampaignAnalytics() {
               const filteredRecipients = recipients.filter((rec) => {
                 const nameMatch = (rec.name || "").toLowerCase().includes(searchTerm.toLowerCase());
                 const phoneMatch = (rec.phone || "").toLowerCase().includes(searchTerm.toLowerCase());
-                const statusMatch = statusFilter === "all" || rec.status === statusFilter;
+                
+                const isNonDeliverable = rec.status === "failed" && isMetaEcosystemIssue(rec.errorCode);
+                const actualStatus = isNonDeliverable ? "non-deliverable" : rec.status;
+                const statusMatch = statusFilter === "all" || actualStatus === statusFilter;
+                
                 return (nameMatch || phoneMatch) && statusMatch;
               });
               const itemsPerPage = 10;
@@ -759,8 +834,14 @@ export default function CampaignAnalytics() {
                       </thead>
                       <tbody className="divide-y divide-gray-200 bg-white">
                         {paginatedRecipients.map((rec, idx) => {
-                          const getStatusBadge = (status) => {
-                            switch (status) {
+                          const isMetaIssue = rec.status === "failed" && isMetaEcosystemIssue(rec.errorCode);
+                          const displayStatus = isMetaIssue ? "non-deliverable" : rec.status;
+
+                          const getStatusBadge = () => {
+                            if (isMetaIssue) {
+                              return "bg-yellow-100 text-yellow-800 border border-yellow-200";
+                            }
+                            switch (rec.status) {
                               case "read":
                                 return "bg-blue-100 text-blue-800";
                               case "delivered":
@@ -777,7 +858,7 @@ export default function CampaignAnalytics() {
                           const getTimelineText = () => {
                             if (rec.status === "failed") {
                               return (
-                                <div className="text-xs text-red-600 font-normal">
+                                <div className={`text-xs ${isMetaIssue ? 'text-yellow-700' : 'text-red-600'} font-normal`}>
                                   <span className="font-semibold">{rec.errorCode || "Error"}: </span>
                                   {rec.errorMessage || "Unknown issue"}
                                 </div>
@@ -799,8 +880,8 @@ export default function CampaignAnalytics() {
                                 {rec.phone}
                               </td>
                               <td className="px-6 py-4">
-                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(rec.status)}`}>
-                                  {rec.status}
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${getStatusBadge()}`}>
+                                  {displayStatus}
                                 </span>
                               </td>
                               <td className="px-6 py-4 text-gray-500">

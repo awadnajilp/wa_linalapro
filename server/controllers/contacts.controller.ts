@@ -92,10 +92,12 @@ export const getContacts = asyncHandler(
 
     if (search && typeof search === "string") {
       const searchLower = search.toLowerCase();
+      const cleanSearch = search.replace(/\D/g, "");
       contacts = contacts.filter(
         (contact: any) =>
           contact.name?.toLowerCase().includes(searchLower) ||
           contact.phone?.includes(search) ||
+          (cleanSearch && contact.phone?.includes(cleanSearch)) ||
           contact.email?.toLowerCase().includes(searchLower)
       );
     }
@@ -300,13 +302,19 @@ export const getContactsWithPagination = asyncHandler(
     // Search filter
     if (search && typeof search === "string") {
       const searchTerm = `%${search.toLowerCase()}%`;
-      conditions.push(
-        or(
-          ilike(contacts.name, searchTerm),
-          ilike(contacts.email, searchTerm),
-          ilike(contacts.phone, `%${search}%`)
-        )
-      );
+      const cleanSearch = search.replace(/\D/g, "");
+      
+      const searchConditions = [
+        ilike(contacts.name, searchTerm),
+        ilike(contacts.email, searchTerm),
+        ilike(contacts.phone, `%${search}%`)
+      ];
+      
+      if (cleanSearch && cleanSearch.length > 0) {
+        searchConditions.push(ilike(contacts.phone, `%${cleanSearch}%`));
+      }
+      
+      conditions.push(or(...searchConditions));
     }
 
     // Group filter (jsonb array)
@@ -490,13 +498,19 @@ export const getContactsWithPagination = asyncHandler(
     // Search filter
     if (search && typeof search === "string") {
       const searchTerm = `%${search.toLowerCase()}%`;
-      conditions.push(
-        or(
-          ilike(contacts.name, searchTerm),
-          ilike(contacts.email, searchTerm),
-          ilike(contacts.phone, `%${search}%`)
-        )
-      );
+      const cleanSearch = search.replace(/\D/g, "");
+      
+      const searchConditions = [
+        ilike(contacts.name, searchTerm),
+        ilike(contacts.email, searchTerm),
+        ilike(contacts.phone, `%${search}%`)
+      ];
+      
+      if (cleanSearch && cleanSearch.length > 0) {
+        searchConditions.push(ilike(contacts.phone, `%${cleanSearch}%`));
+      }
+      
+      conditions.push(or(...searchConditions));
     }
 
     // Group filter (jsonb array)

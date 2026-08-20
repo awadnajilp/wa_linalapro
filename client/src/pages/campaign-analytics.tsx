@@ -179,9 +179,16 @@ export default function CampaignAnalytics() {
 
   const isMetaEcosystemIssue = (errorCode: string | number | null | undefined) => {
     if (!errorCode) return false;
-    const code = String(errorCode);
-    // Meta error codes for sandbox/undeliverable/unregistered numbers/account restrictions/template issues
-    return ['131026', '131030', '131047', '131051', '131056', '132018', '131042', '368', '133010'].includes(code);
+    const codeStr = String(errorCode).trim();
+    const codeNum = Number(codeStr);
+    if (isNaN(codeNum)) return false;
+    return (
+      codeNum === 368 ||
+      codeNum === 100 ||
+      codeNum === 190 ||
+      codeNum === 200 ||
+      (codeNum >= 130000 && codeNum <= 136000)
+    );
   };
 
   const nonDeliverableCount = campaign.nonDeliverableCount !== undefined 

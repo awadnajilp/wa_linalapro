@@ -415,13 +415,20 @@ const steps: MigrationStep[] = [
         SELECT COUNT(*)::integer FROM campaign_recipients cr
         WHERE cr.campaign_id = c.id
           AND cr.status = 'failed'
-          AND cr.error_code IN ('131026', '131030', '131047', '131051', '131056', '132018', '131042', '368', '133010')
+          AND cr.error_code ~ '^[0-9]+$'
+          AND (cr.error_code::integer BETWEEN 130000 AND 136000 OR cr.error_code::integer IN (100, 190, 200, 368))
       ), 0),
       failed_count = COALESCE((
         SELECT COUNT(*)::integer FROM campaign_recipients cr
         WHERE cr.campaign_id = c.id
           AND cr.status = 'failed'
-          AND (cr.error_code NOT IN ('131026', '131030', '131047', '131051', '131056', '132018', '131042', '368', '133010') OR cr.error_code IS NULL)
+          AND (
+            cr.error_code IS NULL 
+            OR NOT (
+              cr.error_code ~ '^[0-9]+$'
+              AND (cr.error_code::integer BETWEEN 130000 AND 136000 OR cr.error_code::integer IN (100, 190, 200, 368))
+            )
+          )
       ), 0);
     `,
   },

@@ -315,8 +315,16 @@ async function processMessageJob(job: Job) {
       const errorCode = error instanceof Error ? error.name : "UNKNOWN_ERROR";
       const isMetaEcosystemIssue = (codeStr: string | number | null | undefined) => {
         if (!codeStr) return false;
-        const code = String(codeStr);
-        return ['131026', '131030', '131047', '131051', '131056', '132018', '131042', '368', '133010'].includes(code);
+        const cleanStr = String(codeStr).trim();
+        const codeNum = Number(cleanStr);
+        if (isNaN(codeNum)) return false;
+        return (
+          codeNum === 368 ||
+          codeNum === 100 ||
+          codeNum === 190 ||
+          codeNum === 200 ||
+          (codeNum >= 130000 && codeNum <= 136000)
+        );
       };
 
       if (isMetaEcosystemIssue(errorCode)) {

@@ -532,31 +532,34 @@ router.post("/unimpersonate", async (req, res) => {
 // Account deletion route
 router.post("/delete-account", async (req, res) => {
   try {
-    const { usernameOrEmail, password, reason } = req.body;
+    const { password } = req.body;
 
-    if (!usernameOrEmail || !password) {
-      return res.status(400).json({ error: "Username/Email and Password are required" });
+    if (!password) {
+      return res.status(400).json({ error: "Password is required" });
     }
 
-    // Find user by username or email
+    const sessionUserId = (req as any).session?.user?.id;
+    if (!sessionUserId) {
+      return res.status(401).json({ error: "Unauthorized. Please log in first." });
+    }
+
+    // Find user by ID from session
     const results = await db
       .select()
       .from(users)
-      .where(
-        sql`${users.username} = ${usernameOrEmail} OR ${users.email} = ${usernameOrEmail}`
-      )
+      .where(eq(users.id, sessionUserId))
       .limit(1);
 
     const user = results[0];
 
     if (!user) {
-      return res.status(401).json({ error: "Invalid username/email or password" });
+      return res.status(401).json({ error: "User not found" });
     }
 
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      return res.status(401).json({ error: "Invalid username/email or password" });
+      return res.status(401).json({ error: "Invalid password" });
     }
 
     // Protection for last admin
@@ -575,15 +578,15 @@ router.post("/delete-account", async (req, res) => {
       return res.status(400).json({ error: "Superadmin accounts cannot be deleted directly" });
     }
 
-    // Clean up active session for this user if applicable
-    const sessionUserId = (req as any).session?.user?.id;
-    if (sessionUserId === user.id) {
-      (req as any).session.destroy(() => {});
-      res.clearCookie("connect.sid");
-    }
+    // Clean up active session for this user
+    (req as any).session.destroy(() => {});
+    res.clearCookie("connect.sid");
 
-    // Delete user from DB
-    await db.delete(users).where(eq(users.id, user.id));
+    // Soft delete user by setting status to "deleted"
+    await db
+      .update(users)
+      .set({ status: "deleted" })
+      .where(eq(users.id, user.id));
 
     res.json({ success: true, message: "Account deleted successfully" });
   } catch (error: any) {

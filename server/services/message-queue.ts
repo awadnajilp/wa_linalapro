@@ -740,18 +740,33 @@ export class MessageQueueService {
         .where(eq(messageQueue.id, message.id));
 
       if (message.campaignId && message.attempts >= 2) {
-        await db
-          .update(campaigns)
-          .set({
-            failedCount: sql`${campaigns.failedCount} + 1`
-          })
-          .where(eq(campaigns.id, message.campaignId));
-
         const rawMetaCode = err?.metaErrorCode;
         const errorCode = rawMetaCode
           ? String(rawMetaCode)
           : err instanceof Error ? err.name : "UNKNOWN_ERROR";
         const rawErrorMsg = err instanceof Error ? err.message : String(err);
+
+        const isMetaEcosystemIssue = (codeStr: string | number | null | undefined) => {
+          if (!codeStr) return false;
+          const code = String(codeStr);
+          return ['131026', '131030', '131047', '131051', '131056', '132018', '131042', '368', '133010'].includes(code);
+        };
+
+        if (isMetaEcosystemIssue(errorCode)) {
+          await db
+            .update(campaigns)
+            .set({
+              nonDeliverableCount: sql`COALESCE(${campaigns.nonDeliverableCount}, 0) + 1`
+            })
+            .where(eq(campaigns.id, message.campaignId));
+        } else {
+          await db
+            .update(campaigns)
+            .set({
+              failedCount: sql`COALESCE(${campaigns.failedCount}, 0) + 1`
+            })
+            .where(eq(campaigns.id, message.campaignId));
+        }
 
         await db
           .update(campaignRecipients)

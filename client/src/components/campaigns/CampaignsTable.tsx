@@ -46,6 +46,7 @@ import {
   MessageSquare,
   XCircle,
   Repeat,
+  AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useTranslation } from "@/lib/i18n";
@@ -63,6 +64,7 @@ interface Campaign {
   readCount?: number;
   repliedCount?: number;
   failedCount?: number;
+  nonDeliverableCount?: number;
   createdAt: string;
   completedAt?: string;
   scheduledAt?: string;
@@ -146,6 +148,8 @@ export function CampaignsTable({
               <TableHead>{t("campaigns.status")}</TableHead>
               <TableHead>{t("campaigns.template")}</TableHead>
               <TableHead>{t("campaigns.recipients")}</TableHead>
+              <TableHead>Failed</TableHead>
+              <TableHead>Non-Deliverable</TableHead>
               <TableHead>{t("campaigns.sent")}</TableHead>
               <TableHead>{t("campaigns.delivered")}</TableHead>
               <TableHead>{t("campaigns.read")}</TableHead>
@@ -193,14 +197,17 @@ export function CampaignsTable({
                   <TableCell>{campaign.templateName || "-"}</TableCell>
                   <TableCell>{campaign.recipientCount || 0}</TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span>{campaign.sentCount || 0}</span>
-                      {campaign.failedCount ? (
-                        <span className="text-xs text-destructive">
-                          ({campaign.failedCount} failed/unsupported)
-                        </span>
-                      ) : null}
-                    </div>
+                    <span className={campaign.failedCount ? "text-red-600 font-semibold" : "text-gray-500"}>
+                      {campaign.failedCount || 0}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className={campaign.nonDeliverableCount ? "text-amber-600 font-semibold" : "text-gray-500"}>
+                      {campaign.nonDeliverableCount || 0}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span>{campaign.sentCount || 0}</span>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -419,14 +426,34 @@ export function CampaignsTable({
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-2 gap-3 pt-3 border-t">
+                <div className="grid grid-cols-3 gap-3 pt-3 border-t">
                   <div className="space-y-1">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Users className="h-3 w-3" />
                       Recipients
                     </div>
-                    <div className="text-lg font-semibold">
+                    <div className="text-base font-semibold">
                       {campaign.recipientCount || 0}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1 text-xs text-red-600">
+                      <XCircle className="h-3 w-3" />
+                      Failed
+                    </div>
+                    <div className="text-base font-semibold text-red-600">
+                      {campaign.failedCount || 0}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1 text-xs text-amber-600">
+                      <AlertCircle className="h-3 w-3" />
+                      Non-Deliv.
+                    </div>
+                    <div className="text-base font-semibold text-amber-600">
+                      {campaign.nonDeliverableCount || 0}
                     </div>
                   </div>
 
@@ -435,13 +462,8 @@ export function CampaignsTable({
                       <Send className="h-3 w-3" />
                       Sent
                     </div>
-                    <div className="text-lg font-semibold">
+                    <div className="text-base font-semibold">
                       {campaign.sentCount || 0}
-                      {campaign.failedCount ? (
-                        <span className="text-xs text-destructive ml-1">
-                          ({campaign.failedCount} failed/unsupported)
-                        </span>
-                      ) : null}
                     </div>
                   </div>
 
@@ -450,13 +472,8 @@ export function CampaignsTable({
                       <CheckCircle className="h-3 w-3" />
                       Delivered
                     </div>
-                    <div className="text-lg font-semibold">
+                    <div className="text-base font-semibold">
                       {campaign.deliveredCount || 0}
-                      {deliveryRate > 0 && (
-                        <span className="text-xs text-muted-foreground ml-1">
-                          ({deliveryRate}%)
-                        </span>
-                      )}
                     </div>
                   </div>
 
@@ -465,13 +482,8 @@ export function CampaignsTable({
                       <Eye className="h-3 w-3" />
                       Read
                     </div>
-                    <div className="text-lg font-semibold">
+                    <div className="text-base font-semibold">
                       {campaign.readCount || 0}
-                      {readRate > 0 && (
-                        <span className="text-xs text-muted-foreground ml-1">
-                          ({readRate}%)
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>

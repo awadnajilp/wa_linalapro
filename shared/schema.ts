@@ -183,6 +183,7 @@ export const campaigns = pgTable(
     readCount: integer("read_count").default(0),
     repliedCount: integer("replied_count").default(0),
     failedCount: integer("failed_count").default(0),
+    nonDeliverableCount: integer("non_deliverable_count").default(0),
     completedAt: timestamp("completed_at"),
     populationStartedAt: timestamp("population_started_at"),
     customMessage: text("custom_message"),

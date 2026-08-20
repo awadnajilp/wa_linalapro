@@ -46,6 +46,7 @@ interface Campaign {
   readCount?: number;
   repliedCount?: number;
   failedCount?: number;
+  nonDeliverableCount?: number;
   createdAt: string;
   completedAt?: string;
   scheduledAt?: string;
@@ -90,8 +91,9 @@ export function CampaignDetailsDialog({ campaign: initialCampaign, onClose }: Ca
   const statusData = [
     { name: 'Delivered', value: campaign.deliveredCount || 0, color: '#10b981' },
     { name: 'Read', value: campaign.readCount || 0, color: '#3b82f6' },
-    { name: 'Failed / Unsupported', value: campaign.failedCount || 0, color: '#ef4444' },
-    { name: 'Pending', value: Math.max(0, (campaign.sentCount || 0) - (campaign.deliveredCount || 0) - (campaign.failedCount || 0)), color: '#6b7280' },
+    { name: 'Failed', value: campaign.failedCount || 0, color: '#ef4444' },
+    { name: 'Non-Deliverable', value: campaign.nonDeliverableCount || 0, color: '#eab308' },
+    { name: 'Pending', value: Math.max(0, (campaign.sentCount || 0) - (campaign.deliveredCount || 0) - (campaign.failedCount || 0) - (campaign.nonDeliverableCount || 0)), color: '#6b7280' },
   ].filter(item => item.value > 0);
 
   return (
@@ -117,7 +119,7 @@ export function CampaignDetailsDialog({ campaign: initialCampaign, onClose }: Ca
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
@@ -126,6 +128,30 @@ export function CampaignDetailsDialog({ campaign: initialCampaign, onClose }: Ca
                       <p className="text-xl font-bold">{campaign.recipientCount || 0}</p>
                     </div>
                     <Users className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Failed</p>
+                      <p className="text-xl font-bold text-destructive">{campaign.failedCount || 0}</p>
+                    </div>
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Non-Deliverable</p>
+                      <p className="text-xl font-bold text-amber-600">{campaign.nonDeliverableCount || 0}</p>
+                    </div>
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
                   </div>
                 </CardContent>
               </Card>
@@ -158,10 +184,10 @@ export function CampaignDetailsDialog({ campaign: initialCampaign, onClose }: Ca
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs text-muted-foreground">Failed / Unsupported</p>
-                      <p className="text-xl font-bold text-destructive">{campaign.failedCount || 0}</p>
+                      <p className="text-xs text-muted-foreground">Read</p>
+                      <p className="text-xl font-bold text-blue-600">{campaign.readCount || 0}</p>
                     </div>
-                    <AlertCircle className="h-4 w-4 text-destructive" />
+                    <CheckCircle className="h-4 w-4 text-blue-600" />
                   </div>
                 </CardContent>
               </Card>

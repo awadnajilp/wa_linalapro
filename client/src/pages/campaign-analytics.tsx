@@ -184,8 +184,13 @@ export default function CampaignAnalytics() {
     return ['131026', '131030', '131047', '131051', '131056', '132018', '131042', '368', '133010'].includes(code);
   };
 
-  const nonDeliverableCount = recipients.filter(r => r.status === "failed" && isMetaEcosystemIssue(r.errorCode)).length;
-  const actualFailedCount = Math.max(0, failedCount - nonDeliverableCount);
+  const nonDeliverableCount = campaign.nonDeliverableCount !== undefined 
+    ? safeNumber(campaign.nonDeliverableCount) 
+    : recipients.filter(r => r.status === "failed" && isMetaEcosystemIssue(r.errorCode)).length;
+
+  const actualFailedCount = campaign.nonDeliverableCount !== undefined
+    ? failedCount
+    : Math.max(0, failedCount - nonDeliverableCount);
 
   const deliveryRate = sentCount > 0 ? Math.round((deliveredCount / sentCount) * 100) : 0;
   const readRate = deliveredCount > 0 ? (readCount / deliveredCount) * 100 : 0;

@@ -39,6 +39,11 @@ const steps: MigrationStep[] = [
     "population_started_at",
     "TIMESTAMP"
   ),
+  addColumnIfNotExists(
+    "campaigns",
+    "non_deliverable_count",
+    "INTEGER DEFAULT 0"
+  ),
 
   // ────────────────────────────────────────────────────
   // automation_edges
@@ -402,6 +407,24 @@ const steps: MigrationStep[] = [
     "round_robin_capacity",
     "INTEGER DEFAULT 0"
   ),
+  {
+    description: "Backfill non_deliverable_count and failed_count on existing campaigns",
+    sql: `
+      UPDATE campaigns c
+      SET non_deliverable_count = COALESCE((
+        SELECT COUNT(*)::integer FROM campaign_recipients cr
+        WHERE cr.campaign_id = c.id
+          AND cr.status = 'failed'
+          AND cr.error_code IN ('131026', '131030', '131047', '131051', '131056', '132018', '131042', '368', '133010')
+      ), 0),
+      failed_count = COALESCE((
+        SELECT COUNT(*)::integer FROM campaign_recipients cr
+        WHERE cr.campaign_id = c.id
+          AND cr.status = 'failed'
+          AND (cr.error_code NOT IN ('131026', '131030', '131047', '131051', '131056', '132018', '131042', '368', '133010') OR cr.error_code IS NULL)
+      ), 0);
+    `,
+  },
 ];
 
 /**

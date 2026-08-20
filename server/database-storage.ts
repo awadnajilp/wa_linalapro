@@ -380,6 +380,10 @@ async getContactsByUser(
     return this.campaignRepo.incrementFailedCount(id);
   }
 
+  async incrementCampaignNonDeliverableCount(id: string): Promise<void> {
+    return this.campaignRepo.incrementNonDeliverableCount(id);
+  }
+
   async deleteCampaign(id: string): Promise<boolean> {
     return this.campaignRepo.delete(id);
   }

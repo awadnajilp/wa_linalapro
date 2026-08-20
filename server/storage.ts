@@ -85,6 +85,7 @@ export interface IStorage {
   updateCampaign(id: string, campaign: Partial<Campaign>): Promise<Campaign | undefined>;
   incrementCampaignSentCount(id: string): Promise<void>;
   incrementCampaignFailedCount(id: string): Promise<void>;
+  incrementCampaignNonDeliverableCount(id: string): Promise<void>;
   deleteCampaign(id: string): Promise<boolean>;
 
   // Templates
@@ -580,6 +581,14 @@ async searchContactsByChannel(channelId: string, query: string): Promise<Contact
     const campaign = this.campaigns.get(id);
     if (campaign) {
       campaign.failedCount = (campaign.failedCount || 0) + 1;
+      this.campaigns.set(id, campaign);
+    }
+  }
+
+  async incrementCampaignNonDeliverableCount(id: string): Promise<void> {
+    const campaign = this.campaigns.get(id);
+    if (campaign) {
+      campaign.nonDeliverableCount = (campaign.nonDeliverableCount || 0) + 1;
       this.campaigns.set(id, campaign);
     }
   }

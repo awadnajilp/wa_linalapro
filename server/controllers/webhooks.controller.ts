@@ -1459,7 +1459,16 @@ async function handleMessageStatuses(statuses: any[], metadata: any) {
           counterUpdate.readCount = sql`COALESCE(${campaigns.readCount}, 0) + 1`;
         }
         if (shouldIncrementFailed) {
-          counterUpdate.failedCount = sql`COALESCE(${campaigns.failedCount}, 0) + 1`;
+          const isMetaEcosystemIssue = (codeStr: string | number | null | undefined) => {
+            if (!codeStr) return false;
+            const code = String(codeStr);
+            return ['131026', '131030', '131047', '131051', '131056', '132018', '131042', '368', '133010'].includes(code);
+          };
+          if (isMetaEcosystemIssue(queueErrorCode || queueEntry.errorCode)) {
+            counterUpdate.nonDeliverableCount = sql`COALESCE(${campaigns.nonDeliverableCount}, 0) + 1`;
+          } else {
+            counterUpdate.failedCount = sql`COALESCE(${campaigns.failedCount}, 0) + 1`;
+          }
         }
         if (shouldDecrementSent) {
           counterUpdate.sentCount = sql`GREATEST(COALESCE(${campaigns.sentCount}, 0) - 1, 0)`;

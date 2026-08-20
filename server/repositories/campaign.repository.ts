@@ -232,6 +232,13 @@ async getAll(
       .where(eq(campaigns.id, id));
   }
 
+  async incrementNonDeliverableCount(id: string): Promise<void> {
+    await db
+      .update(campaigns)
+      .set({ nonDeliverableCount: sql`COALESCE(${campaigns.nonDeliverableCount}, 0) + 1` })
+      .where(eq(campaigns.id, id));
+  }
+
   async delete(id: string): Promise<boolean> {
     const result = await db.delete(campaigns).where(eq(campaigns.id, id)).returning();
     return result.length > 0;

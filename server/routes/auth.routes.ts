@@ -582,10 +582,19 @@ router.post("/delete-account", async (req, res) => {
     (req as any).session.destroy(() => {});
     res.clearCookie("connect.sid");
 
-    // Soft delete user by setting status to "deleted"
+    // Soft delete user by setting status to "deleted" and releasing username/email
+    const deletedSuffix = `_deleted_${Date.now()}`;
+    const updatedUsername = `${user.username}${deletedSuffix}`;
+    const updatedEmail = `${user.email}${deletedSuffix}`;
+
     await db
       .update(users)
-      .set({ status: "deleted" })
+      .set({
+        status: "deleted",
+        username: updatedUsername,
+        email: updatedEmail,
+        updatedAt: new Date(),
+      })
       .where(eq(users.id, user.id));
 
     res.json({ success: true, message: "Account deleted successfully" });

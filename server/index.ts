@@ -44,6 +44,7 @@ import { startScheduledCampaignCron } from "./cron/scheduledCampaigns.cron";
 import { startWhatsAppWarmerCron } from "./cron/whatsapp-warmer.cron";
 import { startCrmFollowupCron } from "./cron/crm-followups.cron";
 import { startCrmReportsCron } from "./cron/crm-reports.cron";
+import { startDeleteAccountCleanupCron } from "./cron/delete-account-cleanup.cron";
 import { startCampaignExecution } from "./controllers/campaigns.controller";
 import { startUnrepliedAlertService } from "./services/unreplied-alert-service";
 import { BaileysManager } from "./services/baileys-manager";
@@ -792,6 +793,7 @@ app.use((req, res, next) => {
       startWhatsAppWarmerCron();
       startCrmFollowupCron();
       startCrmReportsCron();
+      startDeleteAccountCleanupCron();
       startUnrepliedAlertService();
 
       const messageStatusUpdater = new MessageStatusUpdater();

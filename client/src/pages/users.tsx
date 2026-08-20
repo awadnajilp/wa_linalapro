@@ -20,7 +20,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { FaEllipsisH, FaEye, FaBan, FaSearch, FaCheck, FaCrown, FaEdit, FaFileExport, FaUserSecret } from "react-icons/fa";
+import { FaEllipsisH, FaEye, FaBan, FaSearch, FaCheck, FaCrown, FaEdit, FaFileExport, FaUserSecret, FaTrash } from "react-icons/fa";
 import EditUserModal from "@/components/modals/EditUserModal";
 import { PageNumbers } from "@/components/ui/page-numbers";
 import Header from "@/components/layout/header";
@@ -73,6 +73,7 @@ const statusColors: Record<string, string> = {
   inactive: "bg-gray-100 text-gray-800",
   pending: "bg-yellow-100 text-yellow-800",
   banned: "bg-red-100 text-red-800",
+  deleted: "bg-red-200 text-red-900 border border-red-300",
 };
 
 const User: React.FC = () => {
@@ -158,6 +159,42 @@ const User: React.FC = () => {
       toast({
         title: "Error",
         description: err.message || "Failed to contact server",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteUser = async (u: UserType) => {
+    const isFirstConfirmed = window.confirm(
+      `Are you sure you want to permanently delete user "${u.username}"? This will permanently wipe all their data, campaigns, contacts, and channels.`
+    );
+    if (!isFirstConfirmed) return;
+
+    const isSecondConfirmed = window.confirm(
+      `CONFIRM ONE LAST TIME: Do you really want to permanently delete user "${u.username}"? This action is 100% IRREVERSIBLE.`
+    );
+    if (!isSecondConfirmed) return;
+
+    try {
+      const res = await apiRequest("DELETE", `/api/admin/users/${u.id}`);
+      if (res.ok) {
+        toast({
+          title: "User Deleted",
+          description: `User "${u.username}" has been permanently deleted.`,
+        });
+        setUsers((prev) => prev.filter((item) => item.id !== u.id));
+      } else {
+        const data = await res.json();
+        toast({
+          title: "Error Deleting User",
+          description: data.message || "Failed to delete user.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while deleting the user.",
         variant: "destructive",
       });
     }
@@ -411,6 +448,7 @@ const handleExportCSV = async () => {
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="banned">Banned</option>
+            <option value="deleted">Deleted (Soft-deleted)</option>
           </select>
 
           <select
@@ -645,6 +683,13 @@ const handleExportCSV = async () => {
                             title={t("users.actions.activateUser")}
                           />
                         )}
+                        {u.role !== "superadmin" && (
+                          <FaTrash
+                            onClick={() => handleDeleteUser(u)}
+                            className="cursor-pointer text-red-500 hover:text-red-700"
+                            title="Permanently Delete User"
+                          />
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -769,6 +814,13 @@ const handleExportCSV = async () => {
                       onClick={() => handleToggleStatus(u)}
                       className="cursor-pointer hover:text-green-600"
                       title={t("users.actions.activateUser")}
+                    />
+                  )}
+                  {u.role !== "superadmin" && (
+                    <FaTrash
+                      onClick={() => handleDeleteUser(u)}
+                      className="cursor-pointer text-red-500 hover:text-red-700"
+                      title="Permanently Delete User"
                     />
                   )}
                 </div>

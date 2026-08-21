@@ -564,92 +564,94 @@ export function CreateCampaignForm({
             </CardHeader>
             <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
               {/* Media Upload Section */}
-              <div className="space-y-3">
-                <Label className="text-xs font-semibold text-gray-700 block">Header Media File (Optional)</Label>
-                <div className="flex flex-col md:flex-row gap-3 items-stretch">
-                  <div 
-                    onClick={() => setShowMediaGallery(true)}
-                    className="flex-1 flex items-center justify-center border-2 border-dashed rounded-lg p-4 bg-gray-50/50 hover:bg-purple-50/30 hover:border-purple-300 cursor-pointer transition min-h-[100px]"
-                  >
-                    <div className="flex flex-col items-center text-center gap-1.5">
-                      {isUploading ? (
-                        <>
-                          <Loader2 className="h-6 w-6 text-purple-600 animate-spin" />
-                          <span className="text-xs font-medium text-gray-600">Uploading file...</span>
-                        </>
-                      ) : mediaUrl ? (
-                        <>
-                          <Check className="h-6 w-6 text-purple-600" />
-                          <span className="text-xs font-semibold text-gray-800 max-w-[150px] truncate">{mediaName || "File uploaded"}</span>
-                          <span className="text-[10px] text-gray-500">Click to change</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="h-6 w-6 text-gray-400" />
-                          <span className="text-xs font-semibold text-purple-700">Open Media Gallery</span>
-                          <span className="text-[10px] text-gray-500">Select or upload (Max 100MB)</span>
-                        </>
+              {requiresHeaderImage && (
+                <div className="space-y-3">
+                  <Label className="text-xs font-semibold text-gray-700 block">Header Media File (Optional)</Label>
+                  <div className="flex flex-col md:flex-row gap-3 items-stretch">
+                    <div 
+                      onClick={() => setShowMediaGallery(true)}
+                      className="flex-1 flex items-center justify-center border-2 border-dashed rounded-lg p-4 bg-gray-50/50 hover:bg-purple-50/30 hover:border-purple-300 cursor-pointer transition min-h-[100px]"
+                    >
+                      <div className="flex flex-col items-center text-center gap-1.5">
+                        {isUploading ? (
+                          <>
+                            <Loader2 className="h-6 w-6 text-purple-600 animate-spin" />
+                            <span className="text-xs font-medium text-gray-600">Uploading file...</span>
+                          </>
+                        ) : mediaUrl ? (
+                          <>
+                            <Check className="h-6 w-6 text-purple-600" />
+                            <span className="text-xs font-semibold text-gray-800 max-w-[150px] truncate">{mediaName || "File uploaded"}</span>
+                            <span className="text-[10px] text-gray-500">Click to change</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-6 w-6 text-gray-400" />
+                            <span className="text-xs font-semibold text-purple-700">Open Media Gallery</span>
+                            <span className="text-[10px] text-gray-500">Select or upload (Max 100MB)</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col justify-between space-y-2">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="mediaUrlInput" className="text-[11px] font-medium text-gray-500">Or Media URL directly</Label>
+                          <Button
+                            type="button"
+                            variant="link"
+                            className="h-auto p-0 text-[10px] text-purple-600 hover:text-purple-700 font-semibold"
+                            onClick={() => setShowMediaGallery(true)}
+                          >
+                            Choose from Gallery
+                          </Button>
+                        </div>
+                        <Input
+                          id="mediaUrlInput"
+                          placeholder="https://example.com/image.jpg"
+                          value={mediaUrl}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setMediaUrl(val);
+                            if (!val) {
+                              setMediaMimeType("");
+                              setMediaName("");
+                            } else {
+                              const ext = val.split("?")[0].split(".").pop()?.toLowerCase();
+                              let guessedMime = "image/jpeg";
+                              if (ext === "png") guessedMime = "image/png";
+                              else if (ext === "gif") guessedMime = "image/gif";
+                              else if (ext === "mp4") guessedMime = "video/mp4";
+                              else if (ext === "pdf") guessedMime = "application/pdf";
+                              else if (ext === "doc" || ext === "docx") guessedMime = "application/msword";
+                              setMediaMimeType(guessedMime);
+                              setMediaName(val.substring(val.lastIndexOf("/") + 1));
+                            }
+                          }}
+                          className="mt-1 h-8 text-xs"
+                        />
+                      </div>
+                      {mediaUrl && (
+                        <div className="flex items-center justify-between text-xs text-gray-500 border rounded px-2.5 py-1 bg-gray-50">
+                          <span className="truncate max-w-[120px] font-medium">{mediaName}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMediaUrl("");
+                              setMediaName("");
+                              setMediaMimeType("");
+                            }}
+                            className="text-red-500 hover:text-red-700 font-semibold"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
-
-                  <div className="flex-1 flex flex-col justify-between space-y-2">
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="mediaUrlInput" className="text-[11px] font-medium text-gray-500">Or Media URL directly</Label>
-                        <Button
-                          type="button"
-                          variant="link"
-                          className="h-auto p-0 text-[10px] text-purple-600 hover:text-purple-700 font-semibold"
-                          onClick={() => setShowMediaGallery(true)}
-                        >
-                          Choose from Gallery
-                        </Button>
-                      </div>
-                      <Input
-                        id="mediaUrlInput"
-                        placeholder="https://example.com/image.jpg"
-                        value={mediaUrl}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setMediaUrl(val);
-                          if (!val) {
-                            setMediaMimeType("");
-                            setMediaName("");
-                          } else {
-                            const ext = val.split("?")[0].split(".").pop()?.toLowerCase();
-                            let guessedMime = "image/jpeg";
-                            if (ext === "png") guessedMime = "image/png";
-                            else if (ext === "gif") guessedMime = "image/gif";
-                            else if (ext === "mp4") guessedMime = "video/mp4";
-                            else if (ext === "pdf") guessedMime = "application/pdf";
-                            else if (ext === "doc" || ext === "docx") guessedMime = "application/msword";
-                            setMediaMimeType(guessedMime);
-                            setMediaName(val.substring(val.lastIndexOf("/") + 1));
-                          }
-                        }}
-                        className="mt-1 h-8 text-xs"
-                      />
-                    </div>
-                    {mediaUrl && (
-                      <div className="flex items-center justify-between text-xs text-gray-500 border rounded px-2.5 py-1 bg-gray-50">
-                        <span className="truncate max-w-[120px] font-medium">{mediaName}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setMediaUrl("");
-                            setMediaName("");
-                            setMediaMimeType("");
-                          }}
-                          className="text-red-500 hover:text-red-700 font-semibold"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
-                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Text composer */}
               <div className="space-y-2 mt-2">

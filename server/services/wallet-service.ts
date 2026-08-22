@@ -239,3 +239,56 @@ export async function processWalletCharge(
     newBalance,
   };
 }
+
+/**
+ * Refund a previous wallet charge if a message fails to deliver
+ */
+export async function refundWalletCharge(
+  userId: string,
+  phone: string,
+  category: string,
+  connectionMethod: string,
+  description?: string
+): Promise<void> {
+  try {
+    // Find user to check if wallet limit is enabled (only refund if they are subject to wallet settings)
+    const userList = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    const user = userList[0];
+    if (!user || !user.walletEnabled) return;
+
+    // Find wallet
+    const walletList = await db.select().from(wallets).where(eq(wallets.userId, userId)).limit(1);
+    const wallet = walletList[0];
+    if (!wallet) return;
+
+    // Calculate cost to refund
+    const costResult = await calculateMessageCost(phone, category, connectionMethod, wallet.currency, userId);
+    const cost = costResult.totalPriceWalletCurrency;
+
+    const currentBalance = parseFloat(wallet.balance);
+    const newBalance = parseFloat((currentBalance + cost).toFixed(4));
+
+    // Credit wallet
+    await db
+      .update(wallets)
+      .set({
+        balance: newBalance.toFixed(4),
+        updatedAt: new Date(),
+      })
+      .where(eq(wallets.id, wallet.id));
+
+    // Log refund transaction
+    await db.insert(walletTransactions).values({
+      userId,
+      amount: cost.toFixed(4),
+      currency: wallet.currency,
+      type: "credit",
+      paymentMethod: "manual_admin", // treated as internal auto credit / refund
+      status: "completed",
+      description: description || `Refund for failed outbound message to ${phone} (${costResult.category})`,
+      verifiedAt: new Date(),
+    });
+  } catch (error) {
+    console.error("Error refunding wallet charge:", error);
+  }
+}

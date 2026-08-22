@@ -612,6 +612,12 @@ export default function Sidebar() {
   const { selectedChannel } = useChannelContext();
   const channelId = selectedChannel?.id;
 
+  const { data: walletData } = useQuery({
+    queryKey: ["/api/wallet/my-wallet"],
+    queryFn: () => apiRequest("GET", "/api/wallet/my-wallet").then((res) => res.json()),
+    enabled: !!user && user.walletEnabled === true,
+  });
+
   const {
     data: aiData,
     isLoading,
@@ -822,6 +828,19 @@ export default function Sidebar() {
                   </button>
                 </Link>
               </div>
+            </div>
+          )}
+
+          {/* Wallet Balance Widget */}
+          {user?.walletEnabled && walletData?.success && walletData?.wallet && (
+            <div className="mx-2 mb-2 p-2.5 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between shadow-xs">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-3.5 h-3.5 text-green-600" />
+                <span className="text-[10px] font-bold text-green-800 uppercase tracking-wider">Wallet Balance</span>
+              </div>
+              <span className="text-xs font-extrabold text-green-700">
+                {parseFloat(walletData.wallet.balance).toFixed(2)} {walletData.wallet.currency}
+              </span>
             </div>
           )}
 

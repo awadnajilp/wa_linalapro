@@ -48,6 +48,7 @@ import { sendPushNotification } from "../services/fcm-service";
 import { triggerNotification, triggerThrottledNotification, NOTIFICATION_EVENTS } from "server/services/notification.service";
 import { users } from "@shared/schema";
 import axios from "axios";
+import { refundWalletCharge } from "../services/wallet-service";
 import { getStripe, getRazorpay } from "../services/payment-gateway.service";
 import { createDOClient } from "../config/digitalOceanConfig";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
@@ -1430,6 +1431,23 @@ async function handleMessageStatuses(statuses: any[], metadata: any) {
         updateFields.errorMessage = queueErrorMessage;
         shouldIncrementFailed = true;
         shouldDecrementSent = queueEntry.status === "sent";
+
+        // Refund wallet for failed campaign messages
+        try {
+          const channel = await storage.getChannel(queueEntry.channelId);
+          if (channel && channel.createdBy) {
+            const category = queueEntry.messageType || "service";
+            await refundWalletCharge(
+              channel.createdBy,
+              queueEntry.recipientPhone,
+              category,
+              channel.connectionMethod || "embedded",
+              `Refund for failed campaign message to ${queueEntry.recipientPhone} (Meta Error ${queueErrorCode}: ${queueErrorMessage})`
+            );
+          }
+        } catch (walletErr) {
+          console.error("Failed to process wallet refund for campaign message:", walletErr);
+        }
       }
 
       const campaignId = queueEntry.campaignId;
@@ -1529,6 +1547,27 @@ async function handleMessageStatuses(statuses: any[], metadata: any) {
       };
 
       console.error(`❌ Message failed with error:`, errorDetails);
+
+      // Refund wallet for failed direct inbox messages
+      try {
+        const channel = await storage.getChannel(message.channelId);
+        if (channel && channel.createdBy) {
+          // Verify if it is a template message in metadata (since we only charge templates in inbox)
+          const isTemplate = !!existingMetadata?.templateName || !!message.content?.includes("{{1}}"); // approximate template check
+          if (isTemplate) {
+            const category = existingMetadata?.category || "service";
+            await refundWalletCharge(
+              channel.createdBy,
+              message.contactPhone || recipient_id,
+              category,
+              channel.connectionMethod || "embedded",
+              `Refund for failed direct message to ${message.contactPhone || recipient_id} (Meta Error ${error.code}: ${error.message || error.details})`
+            );
+          }
+        }
+      } catch (walletErr) {
+        console.error("Failed to process wallet refund for direct message:", walletErr);
+      }
     }
 
     const pricingData = statusUpdate.pricing;

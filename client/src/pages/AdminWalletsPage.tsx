@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/lib/i18n";
+import { PageNumbers } from "@/components/ui/page-numbers";
 import { CreditCard, Settings, RefreshCw, CheckCircle, XCircle, Search, AlertCircle, PlusCircle, ArrowUpRight, ArrowDownRight, Loader2, Eye } from "lucide-react";
 
 export default function AdminWalletsPage() {
@@ -40,6 +41,10 @@ export default function AdminWalletsPage() {
   const [adjustType, setAdjustType] = useState<"credit" | "debit">("credit");
   const [adjustDescription, setAdjustDescription] = useState("");
   const [verifyDescription, setVerifyDescription] = useState("");
+  const [adjustCurrency, setAdjustCurrency] = useState("USD");
+  const [walletsPage, setWalletsPage] = useState(1);
+  const [txPage, setTxPage] = useState(1);
+  const itemsPerPage = 10;
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -186,8 +191,9 @@ export default function AdminWalletsPage() {
     adjustBalanceMutation.mutate({
       userId: selectedUserWallet.userId,
       amount: amt,
+      currency: adjustCurrency,
       type: adjustType,
-      description: adjustDescription || `Admin manual ${adjustType} adjustment`
+      description: adjustDescription || `Admin manual ${adjustType} of ${amt} ${adjustCurrency}`
     });
   };
 
@@ -248,6 +254,12 @@ export default function AdminWalletsPage() {
     );
   });
 
+  const totalWalletsPages = Math.ceil(filteredWallets.length / itemsPerPage);
+  const displayedWallets = filteredWallets.slice((walletsPage - 1) * itemsPerPage, walletsPage * itemsPerPage);
+
+  const totalTxPages = Math.ceil(transactions.length / itemsPerPage);
+  const displayedTransactions = transactions.slice((txPage - 1) * itemsPerPage, txPage * itemsPerPage);
+
   const pendingManualCount = transactions.filter((t: any) => t.status === "pending" && ["upi", "account_transfer", "cash"].includes(t.paymentMethod)).length;
 
   return (
@@ -303,7 +315,7 @@ export default function AdminWalletsPage() {
                   <div className="flex justify-center items-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-green-600" />
                   </div>
-                ) : filteredWallets.length === 0 ? (
+                ) : displayedWallets.length === 0 ? (
                   <div className="text-center py-12 text-gray-400 text-sm">
                     No matching tenant wallets found.
                   </div>
@@ -321,7 +333,7 @@ export default function AdminWalletsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredWallets.map((w: any) => {
+                        {displayedWallets.map((w: any) => {
                           const userObj = w.user || { username: "N/A", email: "N/A", walletEnabled: false };
                           return (
                             <TableRow key={w.id} className="hover:bg-gray-50/50">
@@ -358,6 +370,7 @@ export default function AdminWalletsPage() {
                                   variant="outline"
                                   onClick={() => {
                                     setSelectedUserWallet(w);
+                                    setAdjustCurrency(w.currency || "USD");
                                     setShowAdjustDialog(true);
                                   }}
                                   className="text-xs py-1.5 border-green-600 text-green-600 hover:bg-green-50"
@@ -370,6 +383,15 @@ export default function AdminWalletsPage() {
                         })}
                       </TableBody>
                     </Table>
+                  </div>
+                )}
+                {totalWalletsPages > 1 && (
+                  <div className="flex justify-center items-center py-4 border-t border-gray-100">
+                    <PageNumbers 
+                      currentPage={walletsPage} 
+                      totalPages={totalWalletsPages} 
+                      onPageChange={setWalletsPage} 
+                    />
                   </div>
                 )}
               </CardContent>
@@ -388,7 +410,7 @@ export default function AdminWalletsPage() {
                   <div className="flex justify-center items-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-green-600" />
                   </div>
-                ) : transactions.length === 0 ? (
+                ) : displayedTransactions.length === 0 ? (
                   <div className="text-center py-12 text-gray-400 text-sm">
                     No transactions logs found.
                   </div>
@@ -408,7 +430,7 @@ export default function AdminWalletsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {transactions.map((tx: any) => {
+                        {displayedTransactions.map((tx: any) => {
                           const userObj = tx.user || { username: "N/A", email: "N/A" };
                           const isManualPending = tx.status === "pending" && ["upi", "account_transfer", "cash"].includes(tx.paymentMethod);
                           return (
@@ -479,6 +501,15 @@ export default function AdminWalletsPage() {
                         })}
                       </TableBody>
                     </Table>
+                  </div>
+                )}
+                {totalTxPages > 1 && (
+                  <div className="flex justify-center items-center py-4 border-t border-gray-100">
+                    <PageNumbers 
+                      currentPage={txPage} 
+                      totalPages={totalTxPages} 
+                      onPageChange={setTxPage} 
+                    />
                   </div>
                 )}
               </CardContent>
@@ -675,78 +706,131 @@ export default function AdminWalletsPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {selectedUserWallet && (
-            <div className="space-y-4 py-3">
-              <div className="bg-gray-50 border p-3 rounded-lg text-xs space-y-1.5">
-                <p><span className="text-gray-400 font-semibold">Tenant:</span> <span className="font-bold text-gray-700">{selectedUserWallet.user?.firstName} ({selectedUserWallet.user?.email})</span></p>
-                <p><span className="text-gray-400 font-semibold">Current Balance:</span> <span className="font-extrabold text-sm text-green-600">{selectedUserWallet.balance} {selectedUserWallet.currency}</span></p>
-              </div>
+          {selectedUserWallet && (() => {
+            const exchangeRates = settingsData?.walletSettings?.exchangeRates || {
+              USD: 1.0, INR: 83.0, AED: 3.67, SAR: 3.75, GBP: 0.78, EUR: 0.92, KWD: 0.31, BHD: 0.38, OMR: 0.38, QAR: 3.64, EGP: 48.0
+            };
 
-              {/* Adjust Type */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-700">Adjustment Type</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    type="button"
-                    variant={adjustType === "credit" ? "default" : "outline"}
-                    className={adjustType === "credit" ? "bg-green-600 hover:bg-green-700 text-white font-bold h-10" : "h-10"}
-                    onClick={() => setAdjustType("credit")}
-                  >
-                    <ArrowUpRight className="w-4 h-4 mr-1 text-green-500" /> Credit (+)
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={adjustType === "debit" ? "default" : "outline"}
-                    className={adjustType === "debit" ? "bg-red-600 hover:bg-red-700 text-white font-bold h-10" : "h-10"}
-                    onClick={() => setAdjustType("debit")}
-                  >
-                    <ArrowDownRight className="w-4 h-4 mr-1 text-red-500" /> Debit (-)
-                  </Button>
+            const currentWalletCurrency = selectedUserWallet.currency || "USD";
+            const enteredAmount = parseFloat(adjustAmount) || 0;
+            let convertedAmount = enteredAmount;
+            let needsConversion = false;
+
+            if (adjustCurrency !== currentWalletCurrency) {
+              needsConversion = true;
+              const inputRate = exchangeRates[adjustCurrency] || 1.0;
+              const amountUSD = enteredAmount / inputRate;
+              const targetRate = exchangeRates[currentWalletCurrency] || 1.0;
+              convertedAmount = amountUSD * targetRate;
+            }
+
+            return (
+              <div className="space-y-4 py-3">
+                <div className="bg-gray-50 border p-3 rounded-lg text-xs space-y-1.5">
+                  <p><span className="text-gray-400 font-semibold">Tenant:</span> <span className="font-bold text-gray-700">{selectedUserWallet.user?.firstName} ({selectedUserWallet.user?.email})</span></p>
+                  <p><span className="text-gray-400 font-semibold">Current Balance:</span> <span className="font-extrabold text-sm text-green-600">{selectedUserWallet.balance} {selectedUserWallet.currency}</span></p>
                 </div>
-              </div>
 
-              {/* Amount */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-700">Adjustment Amount</label>
-                <Input
-                  type="number"
-                  min="0.0001"
-                  step="0.0001"
-                  placeholder="Enter amount"
-                  value={adjustAmount}
-                  onChange={(e) => setAdjustAmount(e.target.value)}
-                  className="border-gray-200"
-                />
-              </div>
+                {/* Adjust Type */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-700">Adjustment Type</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={adjustType === "credit" ? "default" : "outline"}
+                      className={adjustType === "credit" ? "bg-green-600 hover:bg-green-700 text-white font-bold h-10" : "h-10"}
+                      onClick={() => setAdjustType("credit")}
+                    >
+                      <ArrowUpRight className="w-4 h-4 mr-1 text-green-500" /> Credit (+)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={adjustType === "debit" ? "default" : "outline"}
+                      className={adjustType === "debit" ? "bg-red-600 hover:bg-red-700 text-white font-bold h-10" : "h-10"}
+                      onClick={() => setAdjustType("debit")}
+                    >
+                      <ArrowDownRight className="w-4 h-4 mr-1 text-red-500" /> Debit (-)
+                    </Button>
+                  </div>
+                </div>
 
-              {/* Description */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-700">Adjustment Rationale</label>
-                <Input
-                  placeholder="e.g. Campaign backfill credit / Service compensation"
-                  value={adjustDescription}
-                  onChange={(e) => setAdjustDescription(e.target.value)}
-                  className="border-gray-200"
-                />
-              </div>
+                {/* Currency & Amount Grid */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-1 space-y-1.5">
+                    <label className="text-xs font-bold text-gray-700">Currency</label>
+                    <select 
+                      value={adjustCurrency} 
+                      onChange={(e) => setAdjustCurrency(e.target.value)}
+                      className="border rounded-md px-3 py-2.5 text-xs bg-white border-gray-200 w-full focus:outline-none focus:ring-1 focus:ring-green-500"
+                    >
+                      <option value="USD">USD ($)</option>
+                      <option value="INR">INR (₹)</option>
+                      <option value="AED">AED (د.إ)</option>
+                      <option value="SAR">SAR (ر.س)</option>
+                      <option value="GBP">GBP (£)</option>
+                      <option value="EUR">EUR (€)</option>
+                      <option value="KWD">KWD (د.ك)</option>
+                      <option value="BHD">BHD (د.ب)</option>
+                      <option value="OMR">OMR (ر.ع.)</option>
+                      <option value="QAR">QAR (ر.ق)</option>
+                      <option value="EGP">EGP (ج.م)</option>
+                    </select>
+                  </div>
 
-              <DialogFooter className="pt-2">
-                <Button 
-                  onClick={handleAdjustBalance}
-                  disabled={adjustBalanceMutation.isPending}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-bold h-11"
-                >
-                  {adjustBalanceMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Adjusting...
-                    </>
-                  ) : (
-                    `Confirm manual ${adjustType} of ${adjustAmount || '0'} ${selectedUserWallet.currency}`
-                  )}
-                </Button>
-              </DialogFooter>
-            </div>
-          )}
+                  <div className="col-span-2 space-y-1.5">
+                    <label className="text-xs font-bold text-gray-700">Adjustment Amount</label>
+                    <Input
+                      type="number"
+                      min="0.0001"
+                      step="0.0001"
+                      placeholder="Enter amount"
+                      value={adjustAmount}
+                      onChange={(e) => setAdjustAmount(e.target.value)}
+                      className="border-gray-200 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {needsConversion && (
+                  <div className="text-xs font-semibold text-green-600 bg-green-50 p-3 rounded-lg border border-green-200 leading-relaxed text-left">
+                    🔄 Converted Value: <span className="font-bold text-sm">{convertedAmount.toFixed(4)} {currentWalletCurrency}</span>
+                    <span className="text-[10px] text-gray-500 block mt-1">
+                      (Rates: 1 USD = {exchangeRates[adjustCurrency]} {adjustCurrency} | 1 USD = {exchangeRates[currentWalletCurrency]} {currentWalletCurrency})
+                    </span>
+                  </div>
+                )}
+
+                {/* Description */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-700">Adjustment Rationale</label>
+                  <Input
+                    placeholder="e.g. Campaign backfill credit / Service compensation"
+                    value={adjustDescription}
+                    onChange={(e) => setAdjustDescription(e.target.value)}
+                    className="border-gray-200"
+                  />
+                </div>
+
+                <DialogFooter className="pt-2">
+                  <Button 
+                    onClick={handleAdjustBalance}
+                    disabled={adjustBalanceMutation.isPending}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold h-11"
+                  >
+                    {adjustBalanceMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Adjusting...
+                      </>
+                    ) : (
+                      needsConversion 
+                        ? `Confirm manual ${adjustType} of ${adjustAmount} ${adjustCurrency} (${convertedAmount.toFixed(4)} ${currentWalletCurrency})`
+                        : `Confirm manual ${adjustType} of ${adjustAmount || '0'} ${currentWalletCurrency}`
+                    )}
+                  </Button>
+                </DialogFooter>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

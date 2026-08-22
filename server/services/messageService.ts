@@ -163,12 +163,12 @@ export async function sendBusinessMessage({
   let result;
   let sentText = message || "";
 
-  /* ───── Wallet Balance Check & Charge ───── */
-  if (channel.createdBy) {
+  /* ───── Wallet Balance Check & Charge (Template messages only) ───── */
+  if (channel.createdBy && templateName) {
     let category = "service";
     if (channel.connectionMethod === "qr_code") {
       category = "qr_code";
-    } else if (templateName) {
+    } else {
       const tmplList = await db
         .select()
         .from(templates)

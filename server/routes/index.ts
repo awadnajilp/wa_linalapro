@@ -46,6 +46,7 @@ import { registerSMTPRoutes } from "./smtp.route";
 import { registerVoiceRoutes } from "./voice.routes";
 import { registerAiProfileRoutes } from "./ai-profile.routes";
 import { registerCRMRoutes } from "./crm.routes";
+import { registerWalletRoutes } from "./wallet.routes";
 
 // Import error handler middleware
 import { errorHandler } from "../middlewares/error.middleware";
@@ -108,6 +109,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   registerTagsRoutes(app);
   registerAiProfileRoutes(app);
   registerCRMRoutes(app);
+  registerWalletRoutes(app);
   
   // Team management routes
   app.use("/api/team", teamRoutes);

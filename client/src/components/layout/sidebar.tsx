@@ -205,6 +205,13 @@ function getNavItems(role: string): NavItem[] {
         color: "text-blue-400",
         allowedRoles: ["superadmin"],
       },
+      {
+        href: "/wallet",
+        icon: CreditCard,
+        labelKey: "Wallet",
+        color: "text-emerald-600",
+        allowedRoles: ["admin"],
+      },
     ];
   } else {
     // Team or default role
@@ -411,6 +418,12 @@ const sidebarItemsCategories = [
     icon: MdOutlineSupportAgent,
     path: "/support-tickets",
     color: "text-black-400",
+  },
+  {
+    name: "Tenant Wallets",
+    icon: CreditCard,
+    path: "/admin/wallets",
+    color: "text-emerald-600",
   },
 ];
 

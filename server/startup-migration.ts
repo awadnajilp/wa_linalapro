@@ -432,6 +432,53 @@ const steps: MigrationStep[] = [
       ), 0);
     `,
   },
+  addColumnIfNotExists(
+    "users",
+    "wallet_enabled",
+    "BOOLEAN DEFAULT false"
+  ),
+  addColumnIfNotExists(
+    "panel_config",
+    "wallet_settings",
+    "JSONB DEFAULT '{\"upiId\": \"\", \"bankDetails\": \"\", \"marketingMargin\": 0, \"utilityMargin\": 0, \"authMargin\": 0, \"serviceMargin\": 0, \"qrMargin\": 0, \"qrPrice\": 0.0001, \"exchangeRates\": {\"USD\": 1.0, \"INR\": 83.0, \"AED\": 3.67, \"SAR\": 3.75, \"GBP\": 0.78, \"EUR\": 0.92, \"KWD\": 0.31, \"BHD\": 0.38, \"OMR\": 0.38, \"QAR\": 3.64, \"EGP\": 48.0}}'::jsonb"
+  ),
+  {
+    description: "Create table wallets (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS wallets (
+        id          VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id     VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        balance     NUMERIC(12, 4) NOT NULL DEFAULT 0.0000,
+        currency    VARCHAR(10) NOT NULL DEFAULT 'USD',
+        created_at  TIMESTAMP DEFAULT NOW(),
+        updated_at  TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS wallets_user_idx ON wallets (user_id);
+    `,
+  },
+  {
+    description: "Create table wallet_transactions (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS wallet_transactions (
+        id             VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id        VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        amount         NUMERIC(12, 4) NOT NULL,
+        currency       VARCHAR(10) NOT NULL DEFAULT 'USD',
+        type           VARCHAR(20) NOT NULL,
+        payment_method VARCHAR(30) NOT NULL,
+        status         VARCHAR(20) NOT NULL DEFAULT 'pending',
+        receipt_url    TEXT,
+        reference_id   VARCHAR,
+        description    TEXT,
+        verified_by    VARCHAR REFERENCES users (id) ON DELETE SET NULL,
+        verified_at    TIMESTAMP,
+        created_at     TIMESTAMP DEFAULT NOW(),
+        updated_at     TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS wt_user_idx ON wallet_transactions (user_id);
+      CREATE INDEX IF NOT EXISTS wt_status_idx ON wallet_transactions (status);
+    `,
+  },
 ];
 
 /**

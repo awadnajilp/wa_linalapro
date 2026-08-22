@@ -26,6 +26,7 @@ import { getWhatsAppError } from '@shared/whatsapp-error-codes';
 import { cacheGet, CACHE_KEYS, CACHE_TTL } from './cache';
 import { initBullQueue, isBullQueueAvailable, addBulkMessagesToBullQueue, getBullQueueStats } from './bull-queue';
 import { triggerNotification, NOTIFICATION_EVENTS } from './notification.service';
+import { processWalletCharge } from './wallet-service';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -458,6 +459,39 @@ export class MessageQueueService {
         throw new Error(`Channel not found: ${message.channelId}`);
       }
 
+      /* ───── Wallet Balance Check & Charge ───── */
+      if (channel.createdBy) {
+        let category = "service";
+        if (channel.connectionMethod === "qr_code") {
+          category = "qr_code";
+        } else if (message.templateName) {
+          let [tmplRow] = await db
+            .select({ category: templates.category })
+            .from(templates)
+            .where(and(eq(templates.name, message.templateName), eq(templates.channelId, channel.id)))
+            .limit(1);
+          if (!tmplRow) {
+            [tmplRow] = await db
+              .select({ category: templates.category })
+              .from(templates)
+              .where(eq(templates.name, message.templateName))
+              .limit(1);
+          }
+          if (tmplRow?.category) {
+            category = tmplRow.category;
+          }
+        }
+
+        // processWalletCharge will throw if wallet limit is active and balance is insufficient
+        await processWalletCharge(
+          channel.createdBy,
+          message.recipientPhone,
+          category,
+          channel.connectionMethod || "embedded",
+          message.campaignId ? `Debit for Campaign message (${category})` : undefined
+        );
+      }
+
       const channelTier = (channel.healthDetails as any)?.messaging_limit as string | undefined;
       const canSend = await WhatsAppApiService.checkRateLimit(channel.id, channelTier);
       if (!canSend) {
@@ -720,6 +754,42 @@ export class MessageQueueService {
       console.log(`[MessageQueue] Message sent: ${message.id}`);
     } catch (error) {
       console.error(`[MessageQueue] Failed to send message ${message.id}:`, error);
+
+      if (error instanceof Error && error.message.includes("Insufficient wallet balance")) {
+        await db
+          .update(messageQueue)
+          .set({
+            status: "failed",
+            attempts: 3,
+            errorCode: "INSUFFICIENT_BALANCE",
+            errorMessage: error.message,
+            scheduledFor: null
+          })
+          .where(eq(messageQueue.id, message.id));
+          
+        if (message.campaignId) {
+          await db
+            .update(campaigns)
+            .set({
+              failedCount: sql`${campaigns.failedCount} + 1`
+            })
+            .where(eq(campaigns.id, message.campaignId));
+
+          await db
+            .update(campaignRecipients)
+            .set({
+              status: "failed",
+              errorCode: "INSUFFICIENT_BALANCE",
+              errorMessage: error.message,
+              updatedAt: new Date()
+            })
+            .where(and(
+              eq(campaignRecipients.campaignId, message.campaignId),
+              eq(campaignRecipients.phone, message.recipientPhone)
+            ));
+        }
+        return;
+      }
 
       const err = error as any;
       await db

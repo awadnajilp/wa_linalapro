@@ -101,6 +101,8 @@ import LanguageManagement from "./pages/LanguageManagement";
 import SuperadminMessageLogs from "./pages/SuperadminMessageLogs";
 import ApiDocs from "./pages/api-docs";
 import ChannelsManagement from "./pages/channels-management";
+import WalletPage from "./pages/WalletPage";
+import AdminWalletsPage from "./pages/AdminWalletsPage";
 
 // Define route permissions mapping
 const ROUTE_PERMISSIONS: Record<string, string> = {
@@ -414,6 +416,12 @@ function ProtectedRoutes() {
           </Route>
           <Route path="/master-subscriptions">
             <PermissionRoute component={AllSubscriptionsPage} requiredRoles={["superadmin"]} />
+          </Route>
+          <Route path="/wallet">
+            <PermissionRoute component={WalletPage} requiredRoles={["admin"]} />
+          </Route>
+          <Route path="/admin/wallets">
+            <PermissionRoute component={AdminWalletsPage} requiredRoles={["superadmin"]} />
           </Route>
           <Route component={NotFound} />
         </Switch>

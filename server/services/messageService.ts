@@ -128,6 +128,10 @@ import { storage } from "../storage";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
 import { AppError } from "../middlewares/error.middleware";
 import { BaileysManager } from "./baileys-manager";
+import { db } from "../db";
+import { templates } from "@shared/schema";
+import { and, eq } from "drizzle-orm";
+import { processWalletCharge } from "./wallet-service";
 
 export async function sendBusinessMessage({
   to,
@@ -158,6 +162,26 @@ export async function sendBusinessMessage({
 
   let result;
   let sentText = message || "";
+
+  /* ───── Wallet Balance Check & Charge ───── */
+  if (channel.createdBy) {
+    let category = "service";
+    if (channel.connectionMethod === "qr_code") {
+      category = "qr_code";
+    } else if (templateName) {
+      const tmplList = await db
+        .select()
+        .from(templates)
+        .where(and(eq(templates.name, templateName), eq(templates.channelId, channel.id)))
+        .limit(1);
+      if (tmplList.length > 0) {
+        category = tmplList[0].category;
+      }
+    }
+    
+    // This will throw an error if wallet limit is active and balance is insufficient
+    await processWalletCharge(channel.createdBy, to, category, channel.connectionMethod || "embedded");
+  }
 
   /* ───────── QR CODE CHANNEL ───────── */
   if (channel.connectionMethod === "qr_code") {

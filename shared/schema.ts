@@ -72,6 +72,7 @@ export const users = pgTable("users", {
   crmStatus: text("crm_status").default("online"),
   roundRobinCapacity: integer("round_robin_capacity").default(0),
   notificationChannelId: varchar("notification_channel_id"),
+  walletEnabled: boolean("wallet_enabled").default(false),
 });
 
 // Conversation assignments to users
@@ -1108,6 +1109,7 @@ export const panelConfig = pgTable("panel_config", {
   currency: varchar("currency", { length: 10 }).default("INR"),
   country: varchar("country", { length: 2 }).default("IN"),
   embeddedSignupEnabled: boolean("embedded_signup_enabled").default(true),
+  walletSettings: jsonb("wallet_settings").$type<any>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2234,4 +2236,77 @@ export type CrmDealFollowup = typeof crmDealFollowups.$inferSelect;
 export type InsertCrmDealFollowup = typeof crmDealFollowups.$inferInsert;
 export type CrmSetting = typeof crmSettings.$inferSelect;
 export type InsertCrmSetting = typeof crmSettings.$inferInsert;
+
+// ─── Wallet System ───────────────────────────
+export const wallets = pgTable(
+  "wallets",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    balance: numeric("balance", { precision: 12, scale: 4 }).default("0.0000").notNull(),
+    currency: varchar("currency", { length: 10 }).default("USD").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    walletUserIdx: index("wallets_user_idx").on(table.userId),
+  })
+);
+
+export const walletTransactions = pgTable(
+  "wallet_transactions",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    amount: numeric("amount", { precision: 12, scale: 4 }).notNull(),
+    currency: varchar("currency", { length: 10 }).default("USD").notNull(),
+    type: varchar("type", { length: 20 }).notNull(), // 'credit', 'debit'
+    paymentMethod: varchar("payment_method", { length: 30 }).notNull(), // 'razorpay', 'paypal', 'tap', 'instamojo', 'upi', 'cash', 'account_transfer', 'manual_admin'
+    status: varchar("status", { length: 20 }).default("pending").notNull(), // 'pending', 'completed', 'failed'
+    receiptUrl: text("receipt_url"), // upload for manual account transfer
+    referenceId: varchar("reference_id"), // Order ID, Payment ID, UPI Ref, etc.
+    description: text("description"),
+    verifiedBy: varchar("verified_by").references(() => users.id, { onDelete: "set null" }),
+    verifiedAt: timestamp("verified_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    wtUserIdx: index("wt_user_idx").on(table.userId),
+    wtStatusIdx: index("wt_status_idx").on(table.status),
+  })
+);
+
+export const insertWalletSchema = z.object({
+  userId: z.string(),
+  balance: z.string().or(z.number()).optional(),
+  currency: z.string().optional(),
+});
+
+export const insertWalletTransactionSchema = z.object({
+  userId: z.string(),
+  amount: z.string().or(z.number()),
+  currency: z.string().optional(),
+  type: z.string(),
+  paymentMethod: z.string(),
+  status: z.string().optional(),
+  receiptUrl: z.string().nullable().optional(),
+  referenceId: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  verifiedBy: z.string().nullable().optional(),
+  verifiedAt: z.preprocess((val) => typeof val === "string" ? new Date(val) : val, z.date()).nullable().optional(),
+});
+
+export type Wallet = typeof wallets.$inferSelect;
+export type InsertWallet = typeof wallets.$inferInsert;
+export type WalletTransaction = typeof walletTransactions.$inferSelect;
+export type InsertWalletTransaction = typeof walletTransactions.$inferInsert;
 

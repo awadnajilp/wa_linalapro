@@ -490,7 +490,6 @@ const steps: MigrationStep[] = [
         created_by  VARCHAR REFERENCES users (id) ON DELETE CASCADE,
         created_at  TIMESTAMP DEFAULT NOW()
       );
-      CREATE INDEX IF NOT EXISTS broadcast_lists_channel_idx ON broadcast_lists ("channelId");
     `,
   },
   {
@@ -506,6 +505,12 @@ const steps: MigrationStep[] = [
           ALTER TABLE broadcast_lists RENAME COLUMN channelid TO "channelId";
         END IF;
       END $$;
+    `,
+  },
+  {
+    description: "Create index broadcast_lists_channel_idx",
+    sql: `
+      CREATE INDEX IF NOT EXISTS broadcast_lists_channel_idx ON broadcast_lists ("channelId");
     `,
   },
   addColumnIfNotExists(

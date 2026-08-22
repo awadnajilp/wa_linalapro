@@ -34,7 +34,7 @@ const COUNTRY_CODES: Record<string, { name: string; taxRate: number }> = {
 
 // Base Meta prices in USD per message category
 const META_BASE_PRICES: Record<string, Record<string, number>> = {
-  "91": { marketing: 0.0118, utility: 0.0014, auth: 0.0014, service: 0.005 }, // India
+  "91": { marketing: 0.0105, utility: 0.0014, auth: 0.0014, service: 0.0035 }, // India
   "44": { marketing: 0.0592, utility: 0.0171, auth: 0.0358, service: 0.010 }, // UK
   "971": { marketing: 0.0816, utility: 0.0285, auth: 0.0492, service: 0.015 }, // UAE
   "966": { marketing: 0.0800, utility: 0.0300, auth: 0.0500, service: 0.015 }, // Saudi Arabia

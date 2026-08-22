@@ -440,7 +440,7 @@ const steps: MigrationStep[] = [
   addColumnIfNotExists(
     "panel_config",
     "wallet_settings",
-    "JSONB DEFAULT '{\"upiId\": \"\", \"bankDetails\": \"\", \"marketingMargin\": 0, \"utilityMargin\": 0, \"authMargin\": 0, \"serviceMargin\": 0, \"qrMargin\": 0, \"qrPrice\": 0.0001, \"exchangeRates\": {\"USD\": 1.0, \"INR\": 83.0, \"AED\": 3.67, \"SAR\": 3.75, \"GBP\": 0.78, \"EUR\": 0.92, \"KWD\": 0.31, \"BHD\": 0.38, \"OMR\": 0.38, \"QAR\": 3.64, \"EGP\": 48.0}}'::jsonb"
+    "JSONB DEFAULT '{\"upiId\": \"\", \"bankDetails\": \"\", \"marketingMargin\": 0, \"utilityMargin\": 0, \"authMargin\": 0, \"serviceMargin\": 0, \"qrMargin\": 0, \"qrPrice\": 0.0001, \"exchangeRates\": {\"USD\": 1.0, \"INR\": 95.70, \"AED\": 3.67, \"SAR\": 3.75, \"GBP\": 0.78, \"EUR\": 0.92, \"KWD\": 0.31, \"BHD\": 0.38, \"OMR\": 0.38, \"QAR\": 3.64, \"EGP\": 48.0}}'::jsonb"
   ),
   {
     description: "Create table wallets (if not exists)",

@@ -90,7 +90,7 @@ export async function calculateMessageCost(
   const qrPrice = parseFloat(walletSettings.qrPrice || "0.0001");
   const exchangeRates = walletSettings.exchangeRates || {
     USD: 1.0,
-    INR: 83.0,
+    INR: 95.70,
     AED: 3.67,
     SAR: 3.75,
     GBP: 0.78,

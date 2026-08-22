@@ -481,6 +481,7 @@ export const adminRechargeWallet = async (req: Request, res: Response) => {
     }
 
     const amt = parseFloat(amount);
+    const inputCurrency = req.body.currency || "USD";
     
     // Find or create wallet
     let walletList = await db.select().from(wallets).where(eq(wallets.userId, userId)).limit(1);
@@ -496,13 +497,28 @@ export const adminRechargeWallet = async (req: Request, res: Response) => {
       wallet = newWallet[0];
     }
 
+    // Convert currency if different
+    let finalAmount = amt;
+    const pConfigs = await db.select().from(panelConfig).limit(1);
+    const settings = pConfigs[0]?.walletSettings as any || {};
+    const rates = settings.exchangeRates || {
+      USD: 1.0, INR: 95.70, AED: 3.67, SAR: 3.75, GBP: 0.78, EUR: 0.92, KWD: 0.31, BHD: 0.38, OMR: 0.38, QAR: 3.64, EGP: 48.0
+    };
+
+    if (inputCurrency !== wallet.currency) {
+      const inputRate = rates[inputCurrency] || 1.0;
+      const amountUSD = amt / inputRate;
+      const targetRate = rates[wallet.currency] || 1.0;
+      finalAmount = amountUSD * targetRate;
+    }
+
     const currentBalance = parseFloat(wallet.balance);
     let newBalance = currentBalance;
 
     if (type === "credit") {
-      newBalance += amt;
+      newBalance += finalAmount;
     } else if (type === "debit") {
-      newBalance -= amt;
+      newBalance -= finalAmount;
       if (newBalance < 0) {
         newBalance = 0; // prevent negative balance from admin action
       }
@@ -513,13 +529,13 @@ export const adminRechargeWallet = async (req: Request, res: Response) => {
     // Insert completed wallet transaction
     await db.insert(walletTransactions).values({
       userId,
-      amount: amt.toFixed(4),
+      amount: finalAmount.toFixed(4),
       currency: wallet.currency,
       type,
       paymentMethod: "manual_admin",
       status: "completed",
       referenceId: `admin_${adminId}_${Date.now()}`,
-      description: description || `Admin manual ${type} adjustment`,
+      description: description || `Admin manual ${type} of ${amt} ${inputCurrency} (${finalAmount.toFixed(4)} ${wallet.currency})`,
       verifiedBy: adminId,
       verifiedAt: new Date(),
     });

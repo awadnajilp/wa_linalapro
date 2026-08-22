@@ -222,7 +222,7 @@ export default function AdminWalletsPage() {
       qrMargin: parseFloat(formData.get("qrMargin") as string || "0"),
       exchangeRates: {
         USD: parseFloat(formData.get("rateUSD") as string || "1"),
-        INR: parseFloat(formData.get("rateINR") as string || "83"),
+        INR: parseFloat(formData.get("rateINR") as string || "95.70"),
         AED: parseFloat(formData.get("rateAED") as string || "3.67"),
         SAR: parseFloat(formData.get("rateSAR") as string || "3.75"),
         GBP: parseFloat(formData.get("rateGBP") as string || "0.78"),
@@ -653,7 +653,7 @@ export default function AdminWalletsPage() {
                     </CardHeader>
                     <CardContent className="pt-6 grid grid-cols-2 gap-4 max-h-72 overflow-y-auto pr-1">
                       {Object.entries(walletSettings.exchangeRates || {
-                        USD: 1.0, INR: 83.0, AED: 3.67, SAR: 3.75, GBP: 0.78, EUR: 0.92, KWD: 0.31, BHD: 0.38, OMR: 0.38, QAR: 3.64, EGP: 48.0
+                        USD: 1.0, INR: 95.70, AED: 3.67, SAR: 3.75, GBP: 0.78, EUR: 0.92, KWD: 0.31, BHD: 0.38, OMR: 0.38, QAR: 3.64, EGP: 48.0
                       }).map(([curr, rate]) => (
                         <div key={curr} className="space-y-1">
                           <label className="text-[10px] font-bold text-gray-500 block">{curr} Rate</label>
@@ -708,7 +708,7 @@ export default function AdminWalletsPage() {
 
           {selectedUserWallet && (() => {
             const exchangeRates = settingsData?.walletSettings?.exchangeRates || {
-              USD: 1.0, INR: 83.0, AED: 3.67, SAR: 3.75, GBP: 0.78, EUR: 0.92, KWD: 0.31, BHD: 0.38, OMR: 0.38, QAR: 3.64, EGP: 48.0
+              USD: 1.0, INR: 95.70, AED: 3.67, SAR: 3.75, GBP: 0.78, EUR: 0.92, KWD: 0.31, BHD: 0.38, OMR: 0.38, QAR: 3.64, EGP: 48.0
             };
 
             const currentWalletCurrency = selectedUserWallet.currency || "USD";

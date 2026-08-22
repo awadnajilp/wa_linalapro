@@ -486,11 +486,26 @@ const steps: MigrationStep[] = [
         id          VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
         name        VARCHAR(255) NOT NULL,
         description TEXT,
-        channelId   UUID,
+        "channelId" UUID,
         created_by  VARCHAR REFERENCES users (id) ON DELETE CASCADE,
         created_at  TIMESTAMP DEFAULT NOW()
       );
-      CREATE INDEX IF NOT EXISTS broadcast_lists_channel_idx ON broadcast_lists (channelId);
+      CREATE INDEX IF NOT EXISTS broadcast_lists_channel_idx ON broadcast_lists ("channelId");
+    `,
+  },
+  {
+    description: "Fix broadcast_lists channelId column casing",
+    sql: `
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 
+          FROM information_schema.columns 
+          WHERE table_name='broadcast_lists' AND column_name='channelid'
+        ) THEN
+          ALTER TABLE broadcast_lists RENAME COLUMN channelid TO "channelId";
+        END IF;
+      END $$;
     `,
   },
   addColumnIfNotExists(

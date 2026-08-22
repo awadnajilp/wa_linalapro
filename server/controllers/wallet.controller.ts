@@ -400,9 +400,16 @@ export const verifyGatewayRecharge = async (req: Request, res: Response) => {
 // List all wallets in the system
 export const getAdminWallets = async (req: Request, res: Response) => {
   try {
-    const allWallets = await db
+    const allUsersWithWallets = await db
       .select({
-        wallet: wallets,
+        wallet: {
+          id: wallets.id,
+          userId: wallets.userId,
+          balance: wallets.balance,
+          currency: wallets.currency,
+          createdAt: wallets.createdAt,
+          updatedAt: wallets.updatedAt,
+        },
         user: {
           id: users.id,
           username: users.username,
@@ -412,15 +419,20 @@ export const getAdminWallets = async (req: Request, res: Response) => {
           walletEnabled: users.walletEnabled,
         }
       })
-      .from(wallets)
-      .leftJoin(users, eq(wallets.userId, users.id))
-      .orderBy(desc(wallets.updatedAt));
+      .from(users)
+      .leftJoin(wallets, eq(users.id, wallets.userId))
+      .where(sql`${users.role} != 'superadmin'`)
+      .orderBy(desc(users.createdAt));
 
     return res.status(200).json({
       success: true,
-      wallets: allWallets.map(w => ({
-        ...w.wallet,
-        balance: parseFloat(w.wallet.balance),
+      wallets: allUsersWithWallets.map(w => ({
+        id: w.wallet?.id || null,
+        userId: w.user.id,
+        balance: w.wallet?.balance ? parseFloat(w.wallet.balance) : 0.0,
+        currency: w.wallet?.currency || "USD",
+        createdAt: w.wallet?.createdAt || new Date(),
+        updatedAt: w.wallet?.updatedAt || new Date(),
         user: w.user,
       }))
     });

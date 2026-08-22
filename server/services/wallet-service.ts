@@ -74,7 +74,8 @@ export async function calculateMessageCost(
   phone: string,
   category: string, // marketing, utility, auth, service (non-template)
   connectionMethod: string, // qr_code or embedded
-  walletCurrency: string = "USD"
+  walletCurrency: string = "USD",
+  tenantUserId?: string
 ): Promise<CostCalculationResult> {
   const pConfigs = await db.select().from(panelConfig).limit(1);
   const pConfig = pConfigs[0];
@@ -108,21 +109,32 @@ export async function calculateMessageCost(
 
   let countryCode = getCountryPrefix(phone);
   let basePriceUSD = 0;
-  let taxRate = 0;
   let marginPercent = 0;
+
+  // Resolve tenant tax rate based on tenant country prefix
+  let tenantCountryCode = "default";
+  let taxRate = 0;
+
+  if (tenantUserId) {
+    const tenantUserList = await db.select().from(users).where(eq(users.id, tenantUserId)).limit(1);
+    if (tenantUserList.length > 0 && tenantUserList[0].phone) {
+      tenantCountryCode = getCountryPrefix(tenantUserList[0].phone);
+      taxRate = COUNTRY_CODES[tenantCountryCode]?.taxRate || 0;
+    }
+  }
+
+  // Fallback to recipient country tax if tenant prefix is default
+  if (tenantCountryCode === "default") {
+    taxRate = COUNTRY_CODES[countryCode]?.taxRate || 0;
+  }
 
   if (isQr) {
     basePriceUSD = qrPrice;
     marginPercent = margins.qr;
-    // Set countryCode to local country if possible or leave empty
-    const cleanPhone = phone.replace(/\D/g, "");
-    countryCode = getCountryPrefix(cleanPhone);
-    taxRate = COUNTRY_CODES[countryCode]?.taxRate || 0;
   } else {
     // Meta cloud API channel
     const rateCard = META_BASE_PRICES[countryCode] || META_BASE_PRICES.default;
     basePriceUSD = rateCard[cat] !== undefined ? rateCard[cat] : rateCard.service;
-    taxRate = COUNTRY_CODES[countryCode]?.taxRate || 0;
     
     if (cat === "marketing") {
       marginPercent = margins.marketing;
@@ -189,7 +201,7 @@ export async function processWalletCharge(
   }
 
   // Calculate Cost
-  const costResult = await calculateMessageCost(phone, category, connectionMethod, wallet.currency);
+  const costResult = await calculateMessageCost(phone, category, connectionMethod, wallet.currency, userId);
   const cost = costResult.totalPriceWalletCurrency;
   const balance = parseFloat(wallet.balance);
 

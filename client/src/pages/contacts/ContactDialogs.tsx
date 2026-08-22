@@ -252,6 +252,13 @@ interface ContactDialogsProps {
   setSelectedContactIds: (ids: string[]) => void;
   assignGroupContactIds: string[];
   setAssignGroupContactIds: (ids: string[]) => void;
+  showAssignBroadcastDialog?: boolean;
+  setShowAssignBroadcastDialog?: (show: boolean) => void;
+  assignBroadcastContactIds?: string[];
+  setAssignBroadcastContactIds?: (ids: string[]) => void;
+  broadcastLists?: any[];
+  addToBroadcastMutation?: any;
+  removeFromBroadcastMutation?: any;
   contacts: Contact[];
   groupsData: any[];
   activeChannel: any;
@@ -283,6 +290,13 @@ export function ContactDialogs({
   setShowGroupDialog,
   showAssignGroupDialog,
   setShowAssignGroupDialog,
+  showAssignBroadcastDialog = false,
+  setShowAssignBroadcastDialog,
+  assignBroadcastContactIds = [],
+  setAssignBroadcastContactIds,
+  broadcastLists = [],
+  addToBroadcastMutation,
+  removeFromBroadcastMutation,
   selectedContact,
   setSelectedContact,
   contactToDelete,
@@ -701,6 +715,97 @@ export function ContactDialogs({
                 onClick={() => {
                   setShowAssignGroupDialog(false);
                   setAssignGroupContactIds([]);
+                }}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign to Broadcast List Dialog */}
+      <Dialog open={showAssignBroadcastDialog} onOpenChange={setShowAssignBroadcastDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Broadcast Lists</DialogTitle>
+            <DialogDescription>
+              {assignBroadcastContactIds.length === 1
+                ? "Add or remove this contact from broadcast lists."
+                : `Add ${assignBroadcastContactIds.length} contacts to a broadcast list.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {assignBroadcastContactIds.length === 1 && (() => {
+              const contact = contacts.find((c: Contact) => c.id === assignBroadcastContactIds[0]);
+              const contactBroadcastLists = contact?.broadcastLists || [];
+              if (contactBroadcastLists.length === 0) return null;
+              return (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground mb-2 block">Current Broadcast Lists</label>
+                  <div className="flex flex-wrap gap-2">
+                    {contactBroadcastLists.map((name: string) => (
+                      <Badge key={name} variant="secondary" className="pr-1">
+                        {name}
+                        <button
+                          className="ml-1 rounded-full p-0.5 hover:bg-destructive/20"
+                          disabled={removeFromBroadcastMutation?.isPending}
+                          onClick={() => {
+                            removeFromBroadcastMutation?.mutate({
+                              contactIds: assignBroadcastContactIds,
+                              listName: name,
+                            });
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-2 block">Add to Broadcast List</label>
+              {broadcastLists.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No broadcast lists available. Create one first in Groups.
+                </p>
+              ) : (
+                <div className="grid gap-2 max-h-48 overflow-y-auto">
+                  {broadcastLists.map((list: any) => (
+                    <Button
+                      key={list.id}
+                      variant="outline"
+                      className="justify-start h-auto py-3 px-4"
+                      disabled={addToBroadcastMutation?.isPending}
+                      onClick={() => {
+                        addToBroadcastMutation?.mutate({
+                          contactIds: assignBroadcastContactIds,
+                          listName: list.name,
+                        });
+                      }}
+                    >
+                      <FolderPlus className="h-4 w-4 mr-3 shrink-0 text-green-600" />
+                      <div className="text-left">
+                        <div className="font-medium">{list.name}</div>
+                        {list.description && (
+                          <div className="text-xs text-muted-foreground mt-0.5">{list.description}</div>
+                        )}
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAssignBroadcastDialog && setShowAssignBroadcastDialog(false);
+                  setAssignBroadcastContactIds && setAssignBroadcastContactIds([]);
                 }}
               >
                 Close

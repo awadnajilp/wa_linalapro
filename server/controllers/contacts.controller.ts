@@ -267,7 +267,7 @@ export const getContactsByUser = asyncHandler(async (req: Request, res: Response
 
 export const getContactsWithPagination = asyncHandler(
   async (req: RequestWithChannel, res: Response) => {
-    const { search, channelId, page = "1", limit = "10", group, status, createdBy, isGroup, tag } = req.query;
+    const { search, channelId, page = "1", limit = "10", group, status, createdBy, isGroup, tag, broadcast } = req.query;
     const user = (req.session as any)?.user;
 
     const currentPage = parseInt(page, 10);
@@ -324,6 +324,17 @@ export const getContactsWithPagination = asyncHandler(
         const jsonArray = JSON.stringify(groupList);
         conditions.push(
           sql`${contacts.groups} @> ${sql.raw(`'${jsonArray}'::jsonb`)}`
+        );
+      }
+    }
+
+    // Broadcast list filter (jsonb array)
+    if (broadcast && typeof broadcast === "string") {
+      const broadcastList = broadcast.split(',').map(g => g.trim());
+      if (broadcastList.length > 0) {
+        const jsonArray = JSON.stringify(broadcastList);
+        conditions.push(
+          sql`${contacts.broadcastLists} @> ${sql.raw(`'${jsonArray}'::jsonb`)}`
         );
       }
     }

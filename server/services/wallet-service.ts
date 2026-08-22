@@ -52,6 +52,11 @@ const META_BASE_PRICES: Record<string, Record<string, number>> = {
 export function getCountryPrefix(phone: string): string {
   const cleanPhone = phone.replace(/\D/g, "");
   
+  // Treat 10-digit Indian numbers starting with standard mobile digits as prefix '91'
+  if (cleanPhone.length === 10 && /^[6-9]/.test(cleanPhone)) {
+    return "91";
+  }
+  
   // Try 3-digit prefixes
   const threeDigit = cleanPhone.substring(0, 3);
   if (COUNTRY_CODES[threeDigit]) {
@@ -117,8 +122,8 @@ export async function calculateMessageCost(
 
   if (tenantUserId) {
     const tenantUserList = await db.select().from(users).where(eq(users.id, tenantUserId)).limit(1);
-    if (tenantUserList.length > 0 && tenantUserList[0].phone) {
-      tenantCountryCode = getCountryPrefix(tenantUserList[0].phone);
+    if (tenantUserList.length > 0 && tenantUserList[0].phoneNumber) {
+      tenantCountryCode = getCountryPrefix(tenantUserList[0].phoneNumber);
       taxRate = COUNTRY_CODES[tenantCountryCode]?.taxRate || 0;
     }
   }

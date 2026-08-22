@@ -112,6 +112,9 @@ export default function Contacts() {
     queryClient.invalidateQueries({ queryKey: ["/api/user/contacts"] });
   };
   const [selectedGroup, setSelectedGroup] = useState<string | null>("all");
+  const [selectedBroadcast, setSelectedBroadcast] = useState<string | null>("all");
+  const [showAssignBroadcastDialog, setShowAssignBroadcastDialog] = useState(false);
+  const [assignBroadcastContactIds, setAssignBroadcastContactIds] = useState<string[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string | null>("all");
   const [selectedTag, setSelectedTag] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -140,7 +143,15 @@ export default function Contacts() {
     if (phone) {
       setSearchQuery(phone);
     }
-    console.log("Initial search query from URL:", phone);
+    const groupParam = params.get("group");
+    if (groupParam) {
+      setSelectedGroup(groupParam);
+    }
+    const broadcastParam = params.get("broadcast");
+    if (broadcastParam) {
+      setSelectedBroadcast(broadcastParam);
+    }
+    console.log("Initial filters from URL:", { phone, groupParam, broadcastParam });
   }, []);
 
   const form = useForm<InsertContact>({
@@ -172,7 +183,17 @@ export default function Contacts() {
     enabled: !!activeChannel?.id,
   });
 
+  const { data: broadcastListsData } = useQuery({
+    queryKey: ["/api/broadcast-lists", activeChannel?.id],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/broadcast-lists?channelId=${activeChannel?.id}`);
+      return await response.json();
+    },
+    enabled: !!activeChannel?.id,
+  });
+
   const groupsData = groupsFormateData?.groups || [];
+  const broadcastLists = broadcastListsData?.broadcastLists || [];
 
   const userIdNew = user?.role === "team" ? user?.createdBy : user?.id;
 
@@ -208,6 +229,7 @@ export default function Contacts() {
       searchQuery,
       userIdNew,
       selectedTag,
+      selectedBroadcast,
     ],
 
     queryFn: async () => {
@@ -221,7 +243,8 @@ export default function Contacts() {
         selectedGroup !== "all" && selectedGroup ? selectedGroup : undefined,
         selectedStatus !== "all" && selectedStatus ? selectedStatus : undefined,
         userIdNew,
-        selectedTag !== "all" && selectedTag ? selectedTag : undefined
+        selectedTag !== "all" && selectedTag ? selectedTag : undefined,
+        selectedBroadcast !== "all" && selectedBroadcast ? selectedBroadcast : undefined
       );
 
       return (await response.json()) as ContactsResponse;
@@ -688,6 +711,69 @@ export default function Contacts() {
     },
   });
 
+  const addToBroadcastMutation = useMutation({
+    mutationFn: async ({ contactIds, listName }: { contactIds: string[]; listName: string }) => {
+      const response = await fetch("/api/broadcast-lists/add-contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactIds, listName, channelId: activeChannel?.id }),
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to add contacts to broadcast list");
+      return response.json();
+    },
+    onSuccess: (data, { listName }) => {
+      invalidateContacts();
+      toast({
+        title: "Contacts added to broadcast list",
+        description: `${data.updatedCount} contact${data.updatedCount !== 1 ? "s" : ""} added to "${listName}"`,
+      });
+      setShowAssignBroadcastDialog(false);
+      setAssignBroadcastContactIds([]);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to add contacts to broadcast list",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeFromBroadcastMutation = useMutation({
+    mutationFn: async ({ contactIds, listName }: { contactIds: string[]; listName: string }) => {
+      const response = await fetch("/api/broadcast-lists/remove-contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactIds, listName, channelId: activeChannel?.id }),
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to remove contacts from broadcast list");
+      return response.json();
+    },
+    onSuccess: (data, { listName }) => {
+      invalidateContacts();
+      toast({
+        title: "Contacts removed from broadcast list",
+        description: `${data.updatedCount} contact${data.updatedCount !== 1 ? "s" : ""} removed from "${listName}"`,
+      });
+      setShowAssignBroadcastDialog(false);
+      setAssignBroadcastContactIds([]);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to remove contacts from broadcast list",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleOpenAssignBroadcast = (contactIds: string[]) => {
+    setAssignBroadcastContactIds(contactIds);
+    setShowAssignBroadcastDialog(true);
+  };
+
   const handleOpenAssignGroup = (contactIds: string[]) => {
     setAssignGroupContactIds(contactIds);
     setShowAssignGroupDialog(true);
@@ -1030,9 +1116,12 @@ export default function Contacts() {
               setSearchQuery={setSearchQuery}
               selectedGroup={selectedGroup}
               setSelectedGroup={setSelectedGroup}
+              selectedBroadcast={selectedBroadcast}
+              setSelectedBroadcast={setSelectedBroadcast}
               selectedStatus={selectedStatus}
               setSelectedStatus={setSelectedStatus}
               groupsData={groupsData}
+              broadcastLists={broadcastLists}
               handleExportAllContacts={handleExportAllContacts}
               handleCSVUpload={handleCSVUpload}
               handleExcelUpload={handleExcelUpload}
@@ -1047,6 +1136,7 @@ export default function Contacts() {
               selectedTag={selectedTag}
               setSelectedTag={setSelectedTag}
               channelTags={channelTags}
+              activeChannel={activeChannel}
             />
 
             <ContactsTable
@@ -1067,6 +1157,7 @@ export default function Contacts() {
               handleDeleteContact={handleDeleteContact}
               handleToggleContactStatus={handleToggleContactStatus}
               handleOpenAssignGroup={handleOpenAssignGroup}
+              handleOpenAssignBroadcast={handleOpenAssignBroadcast}
               fetchTemplates={() => {}}
               activeChannel={activeChannel}
               channels={channels}
@@ -1125,6 +1216,13 @@ export default function Contacts() {
         deleteBulkContactsMutation={deleteBulkContactsMutation}
         addToGroupMutation={addToGroupMutation}
         removeFromGroupMutation={removeFromGroupMutation}
+        showAssignBroadcastDialog={showAssignBroadcastDialog}
+        setShowAssignBroadcastDialog={setShowAssignBroadcastDialog}
+        assignBroadcastContactIds={assignBroadcastContactIds}
+        setAssignBroadcastContactIds={setAssignBroadcastContactIds}
+        broadcastLists={broadcastLists}
+        addToBroadcastMutation={addToBroadcastMutation}
+        removeFromBroadcastMutation={removeFromBroadcastMutation}
         queryClient={queryClient}
         toast={toast}
         groupName={groupName}

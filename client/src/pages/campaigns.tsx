@@ -233,9 +233,22 @@ export default function Campaigns() {
     enabled: !!activeChannel?.id,
   });
 
+  const { data: broadcastListsData } = useQuery({
+    queryKey: ["/api/broadcast-lists", activeChannel?.id],
+    queryFn: async () => {
+      const response = await apiRequest(
+        "GET",
+        `/api/broadcast-lists?channelId=${activeChannel?.id}`
+      );
+      return await response.json();
+    },
+    enabled: !!activeChannel?.id,
+  });
+
   // console.log("groupsFormateData", groupsFormateData);
 
   const groupsData = groupsFormateData?.groups || [];
+  const broadcastLists = broadcastListsData?.broadcastLists || [];
 
   // Handle create campaign
   const handleCreateCampaign = async (campaignData: any) => {
@@ -264,7 +277,7 @@ export default function Campaigns() {
       });
 
     let recipientCount = 0;
-    if (campaignType === "contacts" || campaignType === "groups") recipientCount = selectedContacts.length;
+    if (campaignType === "contacts" || campaignType === "groups" || campaignType === "broadcast") recipientCount = selectedContacts.length;
     if (campaignType === "csv") recipientCount = csvData.length;
 
     if (recipientCount === 0)
@@ -310,7 +323,7 @@ export default function Campaigns() {
       templateLanguage: isQr ? null : selectedTemplate.language,
       status: scheduledTime ? "scheduled" : "active",
       scheduledAt: scheduledTime ? new Date(scheduledTime).toISOString() : null,
-      contactGroups: (campaignType === "contacts" || campaignType === "groups") ? selectedContacts : [],
+      contactGroups: (campaignType === "contacts" || campaignType === "groups" || campaignType === "broadcast") ? selectedContacts : [],
       csvData: campaignType === "csv" ? csvData : [],
       recipientCount,
       type: "marketing",
@@ -437,6 +450,7 @@ export default function Campaigns() {
 
       <CreateCampaignDialog
         groups={groupsData}
+        broadcastLists={broadcastLists}
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         templates={templates}

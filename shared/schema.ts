@@ -128,6 +128,7 @@ export const contacts = pgTable(
     phone: text("phone").notNull(),
     email: text("email"),
     groups: jsonb("groups").$type<string[]>().default([]),
+    broadcastLists: jsonb("broadcast_lists").$type<string[]>().default([]),
     tags: jsonb("tags").default([]),
     status: text("status").default("active"), // active, blocked, unsubscribed
     source: varchar("source", { length: 100 }), // manual, import, api, chatbot
@@ -1119,6 +1120,18 @@ export const groups = pgTable("groups", {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
   channelId: uuid("channelId"), 
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: false })
+    .defaultNow()
+});
+
+export const broadcastLists = pgTable("broadcast_lists", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  channelId: uuid("channelId"),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   createdBy: varchar("created_by").references(() => users.id, { onDelete: "cascade" }),
@@ -2309,4 +2322,6 @@ export type Wallet = typeof wallets.$inferSelect;
 export type InsertWallet = typeof wallets.$inferInsert;
 export type WalletTransaction = typeof walletTransactions.$inferSelect;
 export type InsertWalletTransaction = typeof walletTransactions.$inferInsert;
+export type BroadcastList = typeof broadcastLists.$inferSelect;
+export type InsertBroadcastList = typeof broadcastLists.$inferInsert;
 

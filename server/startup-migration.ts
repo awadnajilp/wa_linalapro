@@ -479,6 +479,25 @@ const steps: MigrationStep[] = [
       CREATE INDEX IF NOT EXISTS wt_status_idx ON wallet_transactions (status);
     `,
   },
+  {
+    description: "Create table broadcast_lists (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS broadcast_lists (
+        id          VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        name        VARCHAR(255) NOT NULL,
+        description TEXT,
+        channelId   UUID,
+        created_by  VARCHAR REFERENCES users (id) ON DELETE CASCADE,
+        created_at  TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS broadcast_lists_channel_idx ON broadcast_lists (channelId);
+    `,
+  },
+  addColumnIfNotExists(
+    "contacts",
+    "broadcast_lists",
+    "JSONB DEFAULT '[]'::jsonb"
+  ),
 ];
 
 /**

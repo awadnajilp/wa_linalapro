@@ -59,6 +59,7 @@ interface CreateCampaignDialogProps {
   templates: any[];
   contacts: any[];
   groups: any[];
+  broadcastLists: any[];
   onCreateCampaign: (campaignData: any) => void;
   isCreating: boolean;
   messagingLimit?: number | null;
@@ -71,12 +72,13 @@ export function CreateCampaignDialog({
   templates,
   contacts,
   groups,
+  broadcastLists = [],
   onCreateCampaign,
   isCreating,
   messagingLimit,
   messagingTier,
 }: CreateCampaignDialogProps) {
-  const [campaignType, setCampaignType] = useState<"contacts" | "groups" | "csv" | "api">(
+  const [campaignType, setCampaignType] = useState<"contacts" | "broadcast" | "groups" | "csv" | "api">(
     "contacts"
   );
   const { user } = useAuth();
@@ -233,11 +235,17 @@ export function CreateCampaignDialog({
             setSelectedContacts([]);
           }}
         >
-          <TabsList className={`grid w-full ${activeChannel?.connectionMethod === "qr_code" ? "grid-cols-3" : "grid-cols-2"}`}>
+          <TabsList className={`grid w-full ${activeChannel?.connectionMethod === "qr_code" ? "grid-cols-4" : "grid-cols-2"}`}>
             <TabsTrigger value="contacts" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               {t("campaigns.contactsImport")}
             </TabsTrigger>
+            {activeChannel?.connectionMethod === "qr_code" && (
+              <TabsTrigger value="broadcast" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Broadcast Lists
+              </TabsTrigger>
+            )}
             {activeChannel?.connectionMethod === "qr_code" && (
               <TabsTrigger value="groups" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
@@ -385,6 +393,76 @@ export function CreateCampaignDialog({
                 </ScrollArea>
               </div>
             </TabsContent>
+
+            {activeChannel?.connectionMethod === "qr_code" && (
+              <TabsContent value="broadcast" className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1">
+                    <Label className="mb-2 block">Search Broadcast Lists</Label>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search list name..."
+                        value={contactsSearchQuery}
+                        onChange={(e) => setContactsSearchQuery(e.target.value)}
+                        className="pl-9 h-10 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>Select Broadcast Lists to Send To</Label>
+                  </div>
+                  <ScrollArea className="h-64 border rounded-md p-4">
+                    {broadcastLists.length === 0 ? (
+                      <div className="text-center text-muted-foreground py-8">
+                        No broadcast lists available. Create one first in Groups.
+                      </div>
+                    ) : (
+                      broadcastLists
+                        .filter((list: any) =>
+                          !contactsSearchQuery ||
+                          list.name.toLowerCase().includes(contactsSearchQuery.toLowerCase())
+                        )
+                        .map((list: any) => {
+                          const listContactCount = (contacts || []).filter(
+                            (c: any) => !c.isGroup && Array.isArray(c.broadcastLists) && c.broadcastLists.includes(list.name)
+                          ).length;
+                          
+                          const listContacts = (contacts || []).filter(
+                            (c: any) => !c.isGroup && Array.isArray(c.broadcastLists) && c.broadcastLists.includes(list.name)
+                          );
+                          const listContactIds = listContacts.map((c: any) => c.id);
+                          const isFullyChecked = listContactIds.length > 0 && listContactIds.every(id => selectedContacts.includes(id));
+                          
+                          return (
+                            <div
+                              key={list.id}
+                              className="flex items-center space-x-2 mb-2"
+                            >
+                              <Checkbox
+                                checked={isFullyChecked}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedContacts(Array.from(new Set([...selectedContacts, ...listContactIds])));
+                                  } else {
+                                    setSelectedContacts(selectedContacts.filter(id => !listContactIds.includes(id)));
+                                  }
+                                }}
+                              />
+                              <Label className="font-normal">
+                                {list.name} ({listContactCount} contact{listContactCount !== 1 ? "s" : ""})
+                              </Label>
+                            </div>
+                          );
+                        })
+                    )}
+                  </ScrollArea>
+                </div>
+              </TabsContent>
+            )}
 
             {activeChannel?.connectionMethod === "qr_code" && (
               <TabsContent value="groups" className="space-y-4">

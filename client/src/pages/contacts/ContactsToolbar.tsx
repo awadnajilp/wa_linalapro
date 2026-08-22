@@ -41,15 +41,19 @@ interface ContactsToolbarProps {
   setSearchQuery: (query: string) => void;
   selectedGroup: string | null;
   setSelectedGroup: (group: string | null) => void;
+  selectedBroadcast: string | null;
+  setSelectedBroadcast: (broadcast: string | null) => void;
   selectedStatus: string | null;
   setSelectedStatus: (status: string | null) => void;
   groupsData: any[];
+  broadcastLists: any[];
   handleExportAllContacts: () => void;
   handleCSVUpload: (event: React.ChangeEvent<HTMLInputElement>) => void | Promise<void>;
   handleExcelUpload: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleExcelDownload: () => void;
   handleExportSelectedContacts: () => void;
   handleOpenAssignGroup: (contactIds: string[]) => void;
+  handleOpenAssignBroadcast?: (contactIds: string[]) => void;
   setShowBulkDeleteDialog: (show: boolean) => void;
   selectedContactIds: string[];
   user: any;
@@ -58,6 +62,7 @@ interface ContactsToolbarProps {
   selectedTag?: string;
   setSelectedTag?: (tag: string) => void;
   channelTags?: any[];
+  activeChannel?: any;
 }
 
 export function ContactsToolbar({
@@ -65,15 +70,19 @@ export function ContactsToolbar({
   setSearchQuery,
   selectedGroup,
   setSelectedGroup,
+  selectedBroadcast,
+  setSelectedBroadcast,
   selectedStatus,
   setSelectedStatus,
   groupsData,
+  broadcastLists = [],
   handleExportAllContacts,
   handleCSVUpload,
   handleExcelUpload,
   handleExcelDownload,
   handleExportSelectedContacts,
   handleOpenAssignGroup,
+  handleOpenAssignBroadcast,
   setShowBulkDeleteDialog,
   selectedContactIds,
   user,
@@ -82,6 +91,7 @@ export function ContactsToolbar({
   selectedTag = "all",
   setSelectedTag,
   channelTags = [],
+  activeChannel,
 }: ContactsToolbarProps) {
   const { t } = useTranslation();
 
@@ -157,6 +167,66 @@ export function ContactsToolbar({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {activeChannel?.connectionMethod === "qr_code" && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs sm:text-sm"
+                    >
+                      <Filter className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
+                      <span className="hidden sm:inline">
+                        {selectedBroadcast || "All Broadcasts"}
+                      </span>
+                      <span className="sm:hidden">
+                        {selectedBroadcast
+                          ? selectedBroadcast.substring(0, 8) + "..."
+                          : "Broadcasts"}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      onClick={() => setSelectedBroadcast(null)}
+                      className={!selectedBroadcast ? "bg-gray-100" : ""}
+                    >
+                      All Broadcasts
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                      onClick={() => setLocation("/groups")}
+                      className="text-green-600"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Broadcast List
+                    </DropdownMenuItem>
+                    {broadcastLists?.length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem disabled className="py-1">
+                          <span className="text-xs text-gray-500 uppercase">
+                            Available Broadcasts
+                          </span>
+                        </DropdownMenuItem>
+
+                        {broadcastLists?.map((list) => (
+                          <DropdownMenuItem
+                            key={list.id}
+                            onClick={() => setSelectedBroadcast(list.name)}
+                            className={
+                              selectedBroadcast === list.name ? "bg-gray-100" : ""
+                            }
+                          >
+                            {list.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -349,6 +419,19 @@ export function ContactsToolbar({
                   <span className="hidden sm:inline">Add to Group</span>
                   <span className="sm:hidden">Group</span>
                 </Button>
+                {activeChannel?.connectionMethod === "qr_code" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenAssignBroadcast && handleOpenAssignBroadcast(selectedContactIds)}
+                    disabled={user?.username === "demouser"}
+                    className="flex-1 sm:flex-none text-xs sm:text-sm"
+                  >
+                    <FolderPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
+                    <span className="hidden sm:inline">Add to Broadcast</span>
+                    <span className="sm:hidden">Broadcast</span>
+                  </Button>
+                )}
                 <Button
                   disabled={user?.username === "demouser"}
                   variant="outline"

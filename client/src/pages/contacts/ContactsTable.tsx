@@ -64,6 +64,7 @@ interface ContactsTableProps {
   handleDeleteContact: (id: string) => void;
   handleToggleContactStatus: (id: string, currentStatus: string | null) => void;
   handleOpenAssignGroup: (contactIds: string[]) => void;
+  handleOpenAssignBroadcast?: (contactIds: string[]) => void;
   fetchTemplates: () => void;
   activeChannel: any;
   channels: any;
@@ -101,6 +102,7 @@ export function ContactsTable({
   handleDeleteContact,
   handleToggleContactStatus,
   handleOpenAssignGroup,
+  handleOpenAssignBroadcast,
   fetchTemplates,
   activeChannel,
   channels,
@@ -428,6 +430,14 @@ export function ContactsTable({
                                 <FolderPlus className="h-4 w-4 mr-2" />
                                 Add to Group
                               </DropdownMenuItem>
+                              {activeChannel?.connectionMethod === "qr_code" && (
+                                <DropdownMenuItem
+                                  onClick={() => handleOpenAssignBroadcast && handleOpenAssignBroadcast([contact.id])}
+                                >
+                                  <FolderPlus className="h-4 w-4 mr-2" />
+                                  Add to Broadcast List
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem
                                 onClick={() => {
                                   setSelectedContact(contact);

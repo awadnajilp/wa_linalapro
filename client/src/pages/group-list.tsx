@@ -221,6 +221,42 @@ export default function GroupsUI() {
     }
   };
 
+  const [broadcastLists, setBroadcastLists] = useState<any[]>([]);
+  const [listName, setListName] = useState("");
+  const [listDescription, setListDescription] = useState("");
+  const [openListDialog, setOpenListDialog] = useState(false);
+  const [listEditMode, setListEditMode] = useState(false);
+  const [listEditId, setListEditId] = useState<string | null>(null);
+  const [isListSubmitting, setIsListSubmitting] = useState(false);
+  const [listContactCounts, setListContactCounts] = useState<Record<string, number>>({});
+
+  const fetchBroadcastLists = async () => {
+    if (!activeChannel?.id) return;
+    try {
+      setLoading(true);
+      const res = await apiRequest("GET", `/api/broadcast-lists?channelId=${activeChannel?.id}`);
+      const data = await res.json();
+      setBroadcastLists(data.broadcastLists || []);
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to fetch broadcast lists", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchListContactCounts = async () => {
+    if (!activeChannel?.id) return;
+    try {
+      const res = await apiRequest("GET", `/api/broadcast-lists/contact-counts?channelId=${activeChannel?.id}`);
+      const data = await res.json();
+      if (data.success) {
+        setListContactCounts(data.counts || {});
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const fetchGroups = async () => {
     if (!activeChannel?.id) return;
 
@@ -265,6 +301,8 @@ export default function GroupsUI() {
     if (activeChannel?.id) {
       fetchGroups();
       fetchContactCounts();
+      fetchBroadcastLists();
+      fetchListContactCounts();
     }
   }, [activeChannel?.id]);
 
@@ -402,6 +440,138 @@ export default function GroupsUI() {
     }
   };
 
+  const saveBroadcastList = async () => {
+    if (!listName.trim()) {
+      return toast({
+        title: "Error",
+        description: "Broadcast list name is required",
+        variant: "destructive",
+      });
+    }
+
+    const payload = {
+      name: listName,
+      description: listDescription,
+      channelId: activeChannel?.id,
+    };
+
+    setIsListSubmitting(true);
+
+    try {
+      let res;
+      if (listEditMode) {
+        res = await fetch(`/api/broadcast-lists/${listEditId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        res = await fetch("/api/broadcast-lists", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      const data = await res.json();
+
+      if (!data.success) {
+        return toast({
+          title: "Error",
+          description: data.error || "Something went wrong",
+          variant: "destructive",
+        });
+      }
+
+      toast({
+        title: listEditMode ? "Broadcast list updated!" : "Broadcast list created!",
+        description: listEditMode ? "Broadcast list updated successfully" : "Broadcast list created successfully",
+      });
+
+      setOpenListDialog(false);
+      setListName("");
+      setListDescription("");
+      setListEditMode(false);
+      setListEditId(null);
+
+      fetchBroadcastLists();
+      fetchListContactCounts();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setIsListSubmitting(false);
+    }
+  };
+
+  const deleteBroadcastList = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this broadcast list?")) return;
+
+    try {
+      const res = await fetch(`/api/broadcast-lists/${id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        toast({
+          title: "Broadcast list deleted!",
+          description: data.message || "Broadcast list deleted successfully",
+        });
+        fetchBroadcastLists();
+        fetchListContactCounts();
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to delete broadcast list",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteBroadcastListContacts = async (id: string, listName: string) => {
+    if (!confirm(`Are you sure you want to delete all contacts inside the broadcast list "${listName}"? This will delete the contacts from the CRM.`)) return;
+
+    try {
+      const res = await fetch(`/api/broadcast-lists/${id}/contacts`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        toast({
+          title: "Contacts deleted!",
+          description: data.message || "Contacts deleted successfully",
+        });
+        fetchListContactCounts();
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to delete contacts",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Open create dialog
   const openCreateDialog = () => {
     setEditMode(false);
@@ -448,6 +618,9 @@ export default function GroupsUI() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 mb-4 gap-4">
               <TabsList>
                 <TabsTrigger value="internal">CRM Label Groups</TabsTrigger>
+                <TabsTrigger value="broadcast" className="flex items-center gap-2">
+                  <Inbox size={14} /> Broadcast Lists
+                </TabsTrigger>
                 <TabsTrigger value="whatsapp" className="flex items-center gap-2">
                   <Users size={14} /> Groups WA
                 </TabsTrigger>
@@ -457,6 +630,20 @@ export default function GroupsUI() {
                 <TabsContent value="internal" className="mt-0">
                   <Button onClick={openCreateDialog} className="bg-green-600 hover:bg-green-700 text-white">
                     <Plus className="mr-2" size={16} /> Create Group
+                  </Button>
+                </TabsContent>
+                <TabsContent value="broadcast" className="mt-0">
+                  <Button
+                    onClick={() => {
+                      setListEditMode(false);
+                      setListEditId(null);
+                      setListName("");
+                      setListDescription("");
+                      setOpenListDialog(true);
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <Plus className="mr-2" size={16} /> Create Broadcast List
                   </Button>
                 </TabsContent>
                 <TabsContent value="whatsapp" className="mt-0">
@@ -535,9 +722,136 @@ export default function GroupsUI() {
                             </Button>
 
                             <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 border-blue-200"
+                              onClick={() => window.location.href = `/contacts?group=${encodeURIComponent(group.name)}`}
+                            >
+                              <Users size={14} />
+                              <span>View Contacts</span>
+                            </Button>
+
+                            <Button
                               variant="destructive"
                               size="sm"
                               onClick={() => deleteGroup(group.id)}
+                              className="flex items-center gap-1.5"
+                            >
+                              <Trash size={14} />
+                              <span className="hidden sm:inline">Delete</span>
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="broadcast" className="space-y-4">
+              {loading ? (
+                <>
+                  {[1, 2, 3].map((i) => (
+                    <GroupSkeleton key={i} />
+                  ))}
+                </>
+              ) : broadcastLists.length === 0 ? (
+                <Card className="border-dashed border-2 border-gray-300">
+                  <CardContent className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                    <div className="rounded-full bg-gray-100 p-6 mb-4">
+                      <Inbox className="h-12 w-12 text-gray-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold mb-2 text-gray-900">
+                      No broadcast lists yet
+                    </h3>
+                    <p className="text-gray-500 mb-6 max-w-sm">
+                      Create broadcast lists to group contacts for direct campaign broadcasts.
+                    </p>
+                    <Button
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => {
+                        setListEditMode(false);
+                        setListEditId(null);
+                        setListName("");
+                        setListDescription("");
+                        setOpenListDialog(true);
+                      }}
+                    >
+                      <Plus className="mr-2" size={16} /> Create Your First List
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {broadcastLists.map((list) => (
+                    <Card
+                      key={list.id}
+                      className="hover:shadow-md transition-shadow duration-200"
+                    >
+                      <CardContent className="p-4 sm:p-6">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
+                              {list.name}
+                            </h3>
+                            {list.description && (
+                              <p className="text-sm sm:text-base text-gray-600 mt-1 line-clamp-2">
+                                {list.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-3 mt-2">
+                              <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                                <Users size={12} />
+                                {listContactCounts[list.name] || 0} contact{(listContactCounts[list.name] || 0) !== 1 ? "s" : ""}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                Created {new Date(list.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 self-end sm:self-start">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 border-blue-200"
+                              onClick={() => window.location.href = `/contacts?broadcast=${encodeURIComponent(list.name)}`}
+                            >
+                              <Users size={14} />
+                              <span>View Contacts</span>
+                            </Button>
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteBroadcastListContacts(list.id, list.name)}
+                              className="flex items-center gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                            >
+                              <Trash size={14} />
+                              <span className="hidden sm:inline">Delete Contacts</span>
+                            </Button>
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center gap-1.5"
+                              onClick={() => {
+                                setListEditMode(true);
+                                setListEditId(list.id);
+                                setListName(list.name);
+                                setListDescription(list.description || "");
+                                setOpenListDialog(true);
+                              }}
+                            >
+                              <Edit size={14} />
+                              <span className="hidden sm:inline">Edit</span>
+                            </Button>
+
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => deleteBroadcastList(list.id)}
                               className="flex items-center gap-1.5"
                             >
                               <Trash size={14} />
@@ -824,6 +1138,73 @@ export default function GroupsUI() {
                   : editMode
                   ? "Save Changes"
                   : "Create Group"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create/Edit Broadcast List Dialog */}
+      <Dialog open={openListDialog} onOpenChange={setOpenListDialog}>
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl">
+              {listEditMode ? "Edit Broadcast List" : "Create Broadcast List"}
+            </DialogTitle>
+            <DialogDescription>
+              {listEditMode
+                ? "Update your broadcast list details below."
+                : "Create a new broadcast list to group contacts for direct broadcasts."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1.5">
+                List Name <span className="text-red-500">*</span>
+              </label>
+              <Input
+                placeholder="e.g., Summer Promo List"
+                value={listName}
+                onChange={(e) => setListName(e.target.value)}
+                disabled={isListSubmitting}
+                className="w-full"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1.5">
+                Description
+              </label>
+              <Textarea
+                placeholder="Add a description for this broadcast list (optional)"
+                value={listDescription}
+                onChange={(e) => setListDescription(e.target.value)}
+                disabled={isListSubmitting}
+                rows={4}
+                className="w-full resize-none"
+              />
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setOpenListDialog(false)}
+                disabled={isListSubmitting}
+                className="w-full sm:w-auto"
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
+                onClick={saveBroadcastList}
+                disabled={isListSubmitting}
+              >
+                {isListSubmitting
+                  ? "Saving..."
+                  : listEditMode
+                  ? "Save Changes"
+                  : "Create List"}
               </Button>
             </div>
           </div>

@@ -246,10 +246,10 @@ export default function GroupsUI() {
   };
 
   const { data: whatsappGroups, refetch: refetchWaGroups, isLoading: loadingWaGroups } = useQuery({
-    queryKey: [`/api/contacts?isGroup=true`, activeChannel?.id],
+    queryKey: [`/api/contacts-all?isGroup=true`, activeChannel?.id],
     queryFn: async () => {
       if (!activeChannel?.id) return [];
-      const res = await apiRequest("GET", `/api/contacts?isGroup=true&channelId=${activeChannel.id}`);
+      const res = await apiRequest("GET", `/api/contacts-all?isGroup=true&channelId=${activeChannel.id}`);
       if (!res.ok) return [];
       const result = await res.json();
       return Array.isArray(result) ? result : (result.data || []);

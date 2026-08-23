@@ -294,6 +294,27 @@ export default function Automations() {
     },
   });
 
+  useEffect(() => {
+    if (automations.length > 0 && !selectedAutomation && !showFlowBuilder) {
+      const q = new URLSearchParams(window.location.search);
+      const editFlowId = q.get("editFlowId");
+      const editFlowName = q.get("editFlowName");
+      if (editFlowId || editFlowName) {
+        const found = automations.find((a) => 
+          (editFlowId && a.id === editFlowId) || 
+          (editFlowName && a.name.toLowerCase() === editFlowName.toLowerCase())
+        );
+        if (found) {
+          setSelectedAutomation(found);
+          setShowFlowBuilder(true);
+          // Clean search params so it doesn't reopen if closed
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, newUrl);
+        }
+      }
+    }
+  }, [automations, selectedAutomation, showFlowBuilder]);
+
   const toggleMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await apiRequest("POST", `/api/automations/${id}/toggle`);

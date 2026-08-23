@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -99,7 +99,8 @@ export default function ExpenseLedger() {
   });
 
   // Calculate dates based on timeframe
-  const getDates = () => {
+  // Calculate dates based on timeframe (memoized to prevent infinite query loops)
+  const dates = useMemo(() => {
     if (timeframe === "custom") {
       return { start: startDate, end: endDate };
     }
@@ -114,10 +115,11 @@ export default function ExpenseLedger() {
     } else if (timeframe === "year") {
       start.setDate(end.getDate() - 365);
     }
+    // Set static hour bounds to ensure stable ISO strings
+    end.setSeconds(0, 0);
+    start.setSeconds(0, 0);
     return { start: start.toISOString(), end: end.toISOString() };
-  };
-
-  const dates = getDates();
+  }, [timeframe, startDate, endDate]);
 
   // Fetch Expenses with Filters
   const { data: expenses } = useQuery<Expense[]>({
@@ -353,7 +355,7 @@ export default function ExpenseLedger() {
                     <Button 
                       type="button"
                       variant="outline"
-                      onClick={() => window.location.href = "/automation"}
+                      onClick={() => window.location.href = "/automation?editFlowName=WhatsApp%20Expense%20Tracker%20Bot"}
                       className="w-full text-gray-700 hover:bg-gray-100 border-gray-200 text-xs flex items-center justify-center gap-1 h-9"
                     >
                       Edit Flow

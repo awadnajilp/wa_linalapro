@@ -15,7 +15,11 @@ export function registerAddonsRoutes(app: Express) {
   app.get("/api/admin/addons", requireAuth, requireRole("superadmin"), async (req: Request, res: Response) => {
     try {
       const list = await db.select().from(schema.addons);
-      res.json(list);
+      const maskedList = list.map(addon => ({
+        ...addon,
+        adminApiKey: addon.adminApiKey ? "••••••••••••" : null
+      }));
+      res.json(maskedList);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -24,10 +28,16 @@ export function registerAddonsRoutes(app: Express) {
   // Create or edit an addon
   app.post("/api/admin/addons", requireAuth, requireRole("superadmin"), async (req: Request, res: Response) => {
     try {
-      const { id, name, slug, description, price, billingCycle, aiKeyType, defaultCredits, isActive } = req.body;
+      const { id, name, slug, description, price, billingCycle, aiKeyType, defaultCredits, adminProvider, adminApiKey, adminApiEndpoint, adminLlmModel, isActive } = req.body;
       
       if (!name || !slug) {
         return res.status(400).json({ error: "Name and slug are required." });
+      }
+
+      let keyToSave = adminApiKey;
+      if (id && adminApiKey === "••••••••••••") {
+        const [existing] = await db.select().from(schema.addons).where(eq(schema.addons.id, id)).limit(1);
+        keyToSave = existing?.adminApiKey || null;
       }
 
       if (id) {
@@ -41,6 +51,10 @@ export function registerAddonsRoutes(app: Express) {
             billingCycle: billingCycle || "monthly",
             aiKeyType: aiKeyType || "tenant",
             defaultCredits: Number(defaultCredits || 0),
+            adminProvider: adminProvider || "openai",
+            adminApiKey: keyToSave || null,
+            adminApiEndpoint: adminApiEndpoint || null,
+            adminLlmModel: adminLlmModel || "gpt-4o-mini",
             isActive: isActive !== undefined ? isActive : true,
             updatedAt: new Date()
           })
@@ -58,6 +72,10 @@ export function registerAddonsRoutes(app: Express) {
             billingCycle: billingCycle || "monthly",
             aiKeyType: aiKeyType || "tenant",
             defaultCredits: Number(defaultCredits || 0),
+            adminProvider: adminProvider || "openai",
+            adminApiKey: keyToSave || null,
+            adminApiEndpoint: adminApiEndpoint || null,
+            adminLlmModel: adminLlmModel || "gpt-4o-mini",
             isActive: isActive !== undefined ? isActive : true
           })
           .returning();

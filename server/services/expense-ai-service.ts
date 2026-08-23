@@ -52,14 +52,20 @@ export class ExpenseAIService {
           return { amount: 0, category: "General", accountName: "Cash", description: "", error: "Insufficient AI credits. Please recharge your Expense Module." };
         }
         
-        apiKey = process.env.OPENAI_API_KEY || "";
-        baseURL = "https://api.openai.com/v1";
-        
-        // Fallback to Groq if set as default env
-        if (!apiKey && process.env.GROQ_API_KEY) {
-          apiKey = process.env.GROQ_API_KEY;
-          baseURL = "https://api.groq.com/openai/v1";
-          model = "llama-3.3-70b-versatile";
+        apiKey = addon.adminApiKey || "";
+        baseURL = addon.adminApiEndpoint || (addon.adminProvider === "groq" ? "https://api.groq.com/openai/v1" : "https://api.openai.com/v1");
+        model = addon.adminLlmModel || "gpt-4o-mini";
+
+        // Fallback to system env if addon properties are unset
+        if (!apiKey) {
+          apiKey = process.env.OPENAI_API_KEY || "";
+          baseURL = "https://api.openai.com/v1";
+          
+          if (!apiKey && process.env.GROQ_API_KEY) {
+            apiKey = process.env.GROQ_API_KEY;
+            baseURL = "https://api.groq.com/openai/v1";
+            model = "llama-3.3-70b-versatile";
+          }
         }
       } else {
         // Use tenant's keys from users table

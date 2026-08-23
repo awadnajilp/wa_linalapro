@@ -522,22 +522,30 @@ const steps: MigrationStep[] = [
     description: "Create table addons (if not exists)",
     sql: `
       CREATE TABLE IF NOT EXISTS addons (
-        id              VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
-        slug            TEXT NOT NULL UNIQUE,
-        name            TEXT NOT NULL,
-        description     TEXT,
-        price           NUMERIC(10, 2) DEFAULT 0,
-        billing_cycle   VARCHAR(50) DEFAULT 'monthly',
-        ai_key_type     TEXT DEFAULT 'tenant',
-        default_credits INTEGER DEFAULT 0,
-        is_active       BOOLEAN DEFAULT true,
-        created_at      TIMESTAMP DEFAULT NOW(),
-        updated_at      TIMESTAMP DEFAULT NOW()
+        id                 VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        slug               TEXT NOT NULL UNIQUE,
+        name               TEXT NOT NULL,
+        description        TEXT,
+        price              NUMERIC(10, 2) DEFAULT 0,
+        billing_cycle      VARCHAR(50) DEFAULT 'monthly',
+        ai_key_type        TEXT DEFAULT 'tenant',
+        default_credits    INTEGER DEFAULT 0,
+        admin_provider     TEXT DEFAULT 'openai',
+        admin_api_key      TEXT,
+        admin_api_endpoint TEXT,
+        admin_llm_model    TEXT DEFAULT 'gpt-4o-mini',
+        is_active          BOOLEAN DEFAULT true,
+        created_at         TIMESTAMP DEFAULT NOW(),
+        updated_at         TIMESTAMP DEFAULT NOW()
       );
     `,
   },
   addColumnIfNotExists("addons", "ai_key_type", "TEXT DEFAULT 'tenant'"),
   addColumnIfNotExists("addons", "default_credits", "INTEGER DEFAULT 0"),
+  addColumnIfNotExists("addons", "admin_provider", "TEXT DEFAULT 'openai'"),
+  addColumnIfNotExists("addons", "admin_api_key", "TEXT"),
+  addColumnIfNotExists("addons", "admin_api_endpoint", "TEXT"),
+  addColumnIfNotExists("addons", "admin_llm_model", "TEXT DEFAULT 'gpt-4o-mini'"),
   {
     description: "Insert default Expense Module addon (if not exists)",
     sql: `

@@ -21,6 +21,10 @@ interface Addon {
   billingCycle: string;
   aiKeyType: "tenant" | "admin";
   defaultCredits: number;
+  adminProvider?: string;
+  adminApiKey?: string | null;
+  adminApiEndpoint?: string | null;
+  adminLlmModel?: string;
   isActive: boolean;
 }
 
@@ -52,6 +56,10 @@ export default function AdminAddons() {
   const [billingCycle, setBillingCycle] = useState("monthly");
   const [aiKeyType, setAiKeyType] = useState<"tenant" | "admin">("tenant");
   const [defaultCredits, setDefaultCredits] = useState("0");
+  const [adminProvider, setAdminProvider] = useState("openai");
+  const [adminApiKey, setAdminApiKey] = useState("");
+  const [adminApiEndpoint, setAdminApiEndpoint] = useState("");
+  const [adminLlmModel, setAdminLlmModel] = useState("gpt-4o-mini");
 
   // Fetch addons
   const { data: addons, isLoading: loadingAddons } = useQuery<Addon[]>({
@@ -99,6 +107,10 @@ export default function AdminAddons() {
     setBillingCycle("monthly");
     setAiKeyType("tenant");
     setDefaultCredits("0");
+    setAdminProvider("openai");
+    setAdminApiKey("");
+    setAdminApiEndpoint("");
+    setAdminLlmModel("gpt-4o-mini");
     setEditingAddon(null);
   };
 
@@ -111,6 +123,10 @@ export default function AdminAddons() {
     setBillingCycle(addon.billingCycle || "monthly");
     setAiKeyType(addon.aiKeyType || "tenant");
     setDefaultCredits(String(addon.defaultCredits || 0));
+    setAdminProvider(addon.adminProvider || "openai");
+    setAdminApiKey(addon.adminApiKey || "");
+    setAdminApiEndpoint(addon.adminApiEndpoint || "");
+    setAdminLlmModel(addon.adminLlmModel || "gpt-4o-mini");
     setIsFormOpen(true);
   };
 
@@ -124,6 +140,10 @@ export default function AdminAddons() {
       billingCycle,
       aiKeyType,
       defaultCredits: parseInt(defaultCredits, 10) || 0,
+      adminProvider,
+      adminApiKey,
+      adminApiEndpoint,
+      adminLlmModel,
     });
   };
 
@@ -184,10 +204,36 @@ export default function AdminAddons() {
                 </select>
               </div>
               {aiKeyType === "admin" && (
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="credits" className="text-right">Default Credits</Label>
-                  <Input id="credits" type="number" value={defaultCredits} onChange={(e) => setDefaultCredits(e.target.value)} className="col-span-3" placeholder="100" />
-                </div>
+                <>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="credits" className="text-right">Default Credits</Label>
+                    <Input id="credits" type="number" value={defaultCredits} onChange={(e) => setDefaultCredits(e.target.value)} className="col-span-3" placeholder="100" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="adminProv" className="text-right">LLM Provider</Label>
+                    <select id="adminProv" value={adminProvider} onChange={(e) => setAdminProvider(e.target.value)} className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                      <option value="openai">OpenAI (ChatGPT)</option>
+                      <option value="groq">Groq (Llama)</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="adminKey" className="text-right">API Key</Label>
+                    <Input id="adminKey" type="password" value={adminApiKey} onChange={(e) => setAdminApiKey(e.target.value)} className="col-span-3" placeholder="••••••••••••" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="adminEnd" className="text-right">Custom URL</Label>
+                    <Input id="adminEnd" value={adminApiEndpoint} onChange={(e) => setAdminApiEndpoint(e.target.value)} className="col-span-3" placeholder="Optional endpoint URL" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="adminModel" className="text-right">LLM Model</Label>
+                    <select id="adminModel" value={adminLlmModel} onChange={(e) => setAdminLlmModel(e.target.value)} className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                      <option value="gpt-4o-mini">gpt-4o-mini (Default)</option>
+                      <option value="gpt-4o">gpt-4o</option>
+                      <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
+                      <option value="deepseek-r1">deepseek-r1</option>
+                    </select>
+                  </div>
+                </>
               )}
             </div>
 

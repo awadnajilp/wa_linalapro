@@ -2335,6 +2335,10 @@ export const addons = pgTable("addons", {
   billingCycle: varchar("billing_cycle").default("monthly"), // "monthly", "annual", "one-time"
   aiKeyType: text("ai_key_type").default("tenant"), // "tenant" or "admin"
   defaultCredits: integer("default_credits").default(0), // Default allocated tokens/credits for chatbot/AI usage
+  adminProvider: text("admin_provider").default("openai"), // "openai" or "groq"
+  adminApiKey: text("admin_api_key"), // Encrypted or stored API Key for admin keys type
+  adminApiEndpoint: text("admin_api_endpoint"), // Custom endpoint URL for LLM API
+  adminLlmModel: text("admin_llm_model").default("gpt-4o-mini"), // Selected model like 'gpt-4o-mini', 'llama-3.3-70b-versatile'
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

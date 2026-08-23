@@ -576,6 +576,7 @@ const steps: MigrationStep[] = [
         addon_id                VARCHAR NOT NULL REFERENCES addons (id) ON DELETE CASCADE,
         status                  VARCHAR(50) NOT NULL DEFAULT 'active',
         expires_at              TIMESTAMP,
+        purchase_type           TEXT DEFAULT 'flow',
         credits                 INTEGER DEFAULT 0,
         max_credits             INTEGER DEFAULT 0,
         gateway_subscription_id VARCHAR,
@@ -586,6 +587,7 @@ const steps: MigrationStep[] = [
       );
     `,
   },
+  addColumnIfNotExists("tenant_addons", "purchase_type", "TEXT DEFAULT 'flow'"),
   addColumnIfNotExists("tenant_addons", "credits", "INTEGER DEFAULT 0"),
   addColumnIfNotExists("tenant_addons", "max_credits", "INTEGER DEFAULT 0"),
   {

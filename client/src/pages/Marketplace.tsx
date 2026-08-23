@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Puzzle, ShieldAlert, CheckCircle, CreditCard, Sparkles, Key, Coins } from "lucide-react";
+import { Puzzle, ShieldAlert, CheckCircle, CreditCard, Sparkles, Key, Coins, Wallet, BookOpen, Volume2 } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 interface Addon {
   id: string;
@@ -21,6 +23,7 @@ interface Addon {
   subscription: {
     id: string;
     status: string;
+    purchaseType: "flow" | "ai";
     credits: number;
     maxCredits: number;
     expiresAt: string | null;
@@ -32,16 +35,30 @@ export default function Marketplace() {
   const queryClient = useQueryClient();
   const { activeChannel } = useChannelContext();
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
+  
+  // Dialog selection states
+  const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
+  const [targetAddon, setTargetAddon] = useState<Addon | null>(null);
+  const [purchaseType, setPurchaseType] = useState<"flow" | "ai">("flow");
 
   // Fetch all active marketplace addons
   const { data: addons, isLoading } = useQuery<Addon[]>({
     queryKey: ["/api/tenant/addons"],
   });
 
+  // Fetch wallet balance
+  const { data: wallet } = useQuery<{ balance: string; currency: string }>({
+    queryKey: ["/api/wallet"],
+    queryFn: () => fetch("/api/wallet").then((res) => res.json()),
+  });
+
+  const walletBalance = wallet ? parseFloat(wallet.balance) : 0;
+  const currency = wallet?.currency || "USD";
+
   // Purchase Addon Mutation
   const purchaseMutation = useMutation({
-    mutationFn: async ({ addonId, channelId }: { addonId: string; channelId?: string }) => {
-      const res = await apiRequest("POST", `/api/tenant/addons/${addonId}/purchase`, { channelId });
+    mutationFn: async ({ addonId, purchaseType, channelId }: { addonId: string; purchaseType: "flow" | "ai"; channelId?: string }) => {
+      const res = await apiRequest("POST", `/api/tenant/addons/${addonId}/purchase`, { purchaseType, channelId });
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.error || "Failed to purchase addon.");
@@ -54,6 +71,8 @@ export default function Marketplace() {
         description: data.message || "The addon has been successfully activated.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/tenant/addons"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/wallet"] });
+      setShowPurchaseDialog(false);
     },
     onError: (err: any) => {
       toast({
@@ -67,11 +86,19 @@ export default function Marketplace() {
     }
   });
 
-  const handlePurchase = (addon: Addon) => {
-    setPurchasingId(addon.id);
+  const triggerPurchasePrompt = (addon: Addon) => {
+    setTargetAddon(addon);
+    setPurchaseType("flow"); // Default to standard flow based
+    setShowPurchaseDialog(true);
+  };
+
+  const handleConfirmPurchase = () => {
+    if (!targetAddon) return;
+    setPurchasingId(targetAddon.id);
     purchaseMutation.mutate({
-      addonId: addon.id,
-      channelId: activeChannel?.id // Passes current active channel to preload template
+      addonId: targetAddon.id,
+      purchaseType,
+      channelId: activeChannel?.id
     });
   };
 
@@ -84,6 +111,7 @@ export default function Marketplace() {
           description: "Addon subscription cancelled successfully.",
         });
         queryClient.invalidateQueries({ queryKey: ["/api/tenant/addons"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/wallet"] });
       } else {
         throw new Error();
       }
@@ -106,13 +134,26 @@ export default function Marketplace() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 flex items-center gap-2">
-          <Puzzle className="text-indigo-600 w-8 h-8" /> Addons Marketplace
-        </h1>
-        <p className="text-gray-500 max-w-2xl">
-          Enhance your CRM & WhatsApp channel capabilities with modular plugins. Subscribe to advanced automation tools and AI extensions.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 flex items-center gap-2">
+            <Puzzle className="text-indigo-600 w-8 h-8" /> Addons Marketplace
+          </h1>
+          <p className="text-gray-500 max-w-2xl">
+            Enhance your CRM & WhatsApp channel capabilities with modular plugins. Subscribe to advanced automation tools and AI extensions.
+          </p>
+        </div>
+
+        {/* Unified Wallet Balance Widget */}
+        <Card className="border border-gray-150 shadow-xs max-w-xs shrink-0 bg-gray-50/50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Wallet className="w-8 h-8 text-green-600" />
+            <div>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Wallet Balance</p>
+              <h3 className="text-xl font-extrabold text-gray-800">{walletBalance.toFixed(2)} {currency}</h3>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -125,7 +166,7 @@ export default function Marketplace() {
               <Card key={addon.id} className="relative flex flex-col justify-between overflow-hidden border border-gray-150 shadow-xs hover:shadow-md transition-shadow">
                 {isSubscribed && (
                   <div className="absolute top-0 right-0 bg-green-600 text-white px-3 py-1 text-xs font-semibold rounded-bl-lg flex items-center gap-1">
-                    <CheckCircle className="w-3.5 h-3.5" /> Active
+                    <CheckCircle className="w-3.5 h-3.5" /> Active ({addon.subscription?.purchaseType === "ai" ? "AI Agent" : "Flow"})
                   </div>
                 )}
 
@@ -134,11 +175,6 @@ export default function Marketplace() {
                     <Badge variant={addon.aiKeyType === "admin" ? "default" : "outline"} className="text-xs">
                       {addon.aiKeyType === "admin" ? "Admin Key + Credits" : "Uses Your AI Key"}
                     </Badge>
-                    {addon.defaultCredits > 0 && (
-                      <Badge variant="secondary" className="text-xs bg-indigo-55 text-indigo-700">
-                        <Coins className="w-3 h-3 mr-1" /> {addon.defaultCredits} Credits
-                      </Badge>
-                    )}
                   </div>
                   <CardTitle className="text-xl font-bold text-gray-800">{addon.name}</CardTitle>
                   <CardDescription className="line-clamp-3 text-gray-500 mt-1">{addon.description}</CardDescription>
@@ -152,7 +188,11 @@ export default function Marketplace() {
 
                   {isSubscribed && addon.subscription && (
                     <div className="p-3 bg-gray-50 rounded-lg border border-gray-100 space-y-2 text-xs text-gray-600">
-                      {addon.aiKeyType === "admin" && (
+                      <div className="flex justify-between items-center font-semibold text-indigo-700">
+                        <span>Subscription Type:</span>
+                        <span className="uppercase">{addon.subscription.purchaseType} MODE</span>
+                      </div>
+                      {addon.subscription.purchaseType === "ai" && addon.aiKeyType === "admin" && (
                         <div className="flex justify-between items-center">
                           <span>Remaining Credits:</span>
                           <span className="font-bold text-indigo-600">{addon.subscription.credits} / {addon.subscription.maxCredits}</span>
@@ -190,11 +230,11 @@ export default function Marketplace() {
                   ) : (
                     <Button 
                       className="w-full bg-green-600 hover:bg-green-700 text-white font-medium flex items-center justify-center gap-1.5"
-                      onClick={() => handlePurchase(addon)}
+                      onClick={() => triggerPurchasePrompt(addon)}
                       disabled={purchasingId !== null}
                     >
                       <CreditCard className="w-4 h-4" /> 
-                      {purchasingId === addon.id ? "Activating..." : "Subscribe Now"}
+                      Subscribe Now
                     </Button>
                   )}
                 </CardFooter>
@@ -209,6 +249,94 @@ export default function Marketplace() {
           </div>
         )}
       </div>
+
+      {/* Subscription Mode Selector & Payment Dialog */}
+      {targetAddon && (
+        <Dialog open={showPurchaseDialog} onOpenChange={setShowPurchaseDialog}>
+          <DialogContent className="sm:max-w-[450px]">
+            <DialogHeader>
+              <DialogTitle>Configure Subscription: {targetAddon.name}</DialogTitle>
+              <DialogDescription>Choose your execution mode and billing method below.</DialogDescription>
+            </DialogHeader>
+
+            <div className="py-4 space-y-5">
+              {/* Option Mode Selector */}
+              {targetAddon.slug === "expense-tracker" && (
+                <div className="space-y-3">
+                  <Label className="text-sm font-bold text-gray-700">Select Addon Mode</Label>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div 
+                      onClick={() => setPurchaseType("flow")}
+                      className={`p-3.5 border rounded-lg cursor-pointer transition-colors flex items-start gap-3 ${
+                        purchaseType === "flow" ? "border-green-600 bg-green-50/40" : "border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <BookOpen className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-800">Standard Flow-based Mode</h4>
+                        <p className="text-xs text-gray-500 mt-0.5">Collects logs sequentially using the predefined Q&A canvas flow. No credit constraints.</p>
+                      </div>
+                    </div>
+
+                    <div 
+                      onClick={() => setPurchaseType("ai")}
+                      className={`p-3.5 border rounded-lg cursor-pointer transition-colors flex items-start gap-3 ${
+                        purchaseType === "ai" ? "border-indigo-600 bg-indigo-50/40" : "border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <Volume2 className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-800">AI-based Agent Mode</h4>
+                        <p className="text-xs text-gray-500 mt-0.5">Unlocks voice message transcription and instant AI expense extraction. Requires credit recharges (Includes 100 default credits).</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Price & Wallet Balance Validation */}
+              <div className="p-4 bg-gray-50 border border-gray-150 rounded-lg space-y-2.5">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Subscription Price:</span>
+                  <span className="font-extrabold text-gray-900">${parseFloat(targetAddon.price).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Your Wallet Balance:</span>
+                  <span className={`font-bold ${walletBalance >= parseFloat(targetAddon.price) ? "text-green-600" : "text-red-600"}`}>
+                    {walletBalance.toFixed(2)} {currency}
+                  </span>
+                </div>
+                {walletBalance < parseFloat(targetAddon.price) && (
+                  <div className="text-xs text-red-600 font-medium flex items-center gap-1.5 pt-1.5 border-t border-red-100">
+                    <ShieldAlert className="w-4 h-4 shrink-0" />
+                    Wallet balance is insufficient to complete the transaction.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowPurchaseDialog(false)}>Cancel</Button>
+              {walletBalance >= parseFloat(targetAddon.price) ? (
+                <Button 
+                  onClick={handleConfirmPurchase} 
+                  className="bg-green-600 hover:bg-green-700 text-white font-medium"
+                  disabled={purchasingId !== null}
+                >
+                  {purchasingId ? "Activating..." : "Confirm & Pay via Wallet"}
+                </Button>
+              ) : (
+                <Button 
+                  onClick={() => window.location.href = `/wallet?recharge_required=${parseFloat(targetAddon.price) - walletBalance}`} 
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+                >
+                  Recharge Wallet
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

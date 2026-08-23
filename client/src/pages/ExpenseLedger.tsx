@@ -196,6 +196,26 @@ export default function ExpenseLedger() {
     }
   });
 
+  const loadFlowMutation = useMutation({
+    mutationFn: async (payload: { channelId: string }) => {
+      const res = await apiRequest("POST", "/api/expenses/load-flow", payload);
+      if (!res.ok) throw new Error("Failed to load flow");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Default Flow Preloaded", description: data.message || "Predefined Expense tracker flow added to your automations." });
+      queryClient.invalidateQueries({ queryKey: ["/api/automations"] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to preload default flow template.", variant: "destructive" });
+    }
+  });
+
+  const handleLoadFlow = () => {
+    if (!activeChannel?.id) return;
+    loadFlowMutation.mutate({ channelId: activeChannel.id });
+  };
+
   const handleExport = () => {
     const q = new URLSearchParams();
     if (activeChannel?.id) q.set("channelId", activeChannel.id);
@@ -295,6 +315,28 @@ export default function ExpenseLedger() {
                   <div className="flex items-center col-span-3">
                     <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
                     <span className="text-xs text-gray-500 ml-2">Attach ledger as Excel (.xlsx)</span>
+                  </div>
+                </div>
+                <div className="border-t border-gray-100 pt-4 space-y-3 col-span-full">
+                  <Label className="text-xs font-bold text-gray-400 uppercase">Automation Canvas Flow</Label>
+                  <div className="flex gap-2">
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      onClick={handleLoadFlow}
+                      className="w-full text-indigo-650 hover:bg-indigo-50 border-indigo-100 text-xs flex items-center justify-center gap-1 h-9"
+                      disabled={loadFlowMutation.isPending}
+                    >
+                      {loadFlowMutation.isPending ? "Loading..." : "Load Default Flow"}
+                    </Button>
+                    <Button 
+                      type="button"
+                      variant="outline"
+                      onClick={() => window.location.href = "/automations"}
+                      className="w-full text-gray-700 hover:bg-gray-100 border-gray-200 text-xs flex items-center justify-center gap-1 h-9"
+                    >
+                      Edit Flow
+                    </Button>
                   </div>
                 </div>
               </div>

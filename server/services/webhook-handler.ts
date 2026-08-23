@@ -799,13 +799,31 @@ export class WebhookHandler {
         try {
           const tenantId = channel[0]?.createdBy;
           if (tenantId) {
-            const isExpenseActive = await AddonManager.isAddonActive(tenantId, "expense-tracker");
-            if (isExpenseActive) {
-              const [expenseConfig] = await db
+            const [addon] = await db
+              .select()
+              .from(schema.addons)
+              .where(and(eq(schema.addons.slug, "expense-tracker"), eq(schema.addons.isActive, true)))
+              .limit(1);
+
+            if (addon) {
+              const [subscription] = await db
                 .select()
-                .from(schema.expenseConfigs)
-                .where(eq(schema.expenseConfigs.channelId, channelId))
+                .from(schema.tenantAddons)
+                .where(
+                  and(
+                    eq(schema.tenantAddons.tenantId, tenantId),
+                    eq(schema.tenantAddons.addonId, addon.id),
+                    eq(schema.tenantAddons.status, "active")
+                  )
+                )
                 .limit(1);
+
+              if (subscription && subscription.purchaseType === "ai") {
+                const [expenseConfig] = await db
+                  .select()
+                  .from(schema.expenseConfigs)
+                  .where(eq(schema.expenseConfigs.channelId, channelId))
+                  .limit(1);
 
               const triggerKeyword = (expenseConfig?.triggerKeyword || "expense").toLowerCase();
               const retrievalKeyword = (expenseConfig?.retrievalKeyword || "getexpense").toLowerCase();
@@ -952,10 +970,11 @@ export class WebhookHandler {
               }
             }
           }
-        } catch (err: any) {
-          console.error(`[Expense Tracker Interceptor] Error logging expense via bot:`, err.message);
         }
+      } catch (err: any) {
+        console.error(`[Expense Tracker Interceptor] Error logging expense via bot:`, err.message);
       }
+    }
 
       // 8.5 Automations (run first — takes priority over AI)
       let automationHandled = false;

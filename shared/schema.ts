@@ -2350,6 +2350,7 @@ export const tenantAddons = pgTable("tenant_addons", {
   addonId: varchar("addon_id").notNull().references(() => addons.id, { onDelete: "cascade" }),
   status: varchar("status").notNull().default("active"), // "active", "expired", "cancelled"
   expiresAt: timestamp("expires_at"),
+  purchaseType: text("purchase_type").default("flow"), // "flow" (traditional automation) or "ai" (LLM voice notes processing)
   credits: integer("credits").default(0), // Current active credits / tokens remaining for admin-provided key type
   maxCredits: integer("max_credits").default(0), // Max allowed credits for this billing cycle
   gatewaySubscriptionId: varchar("gateway_subscription_id"),

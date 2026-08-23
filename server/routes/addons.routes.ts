@@ -173,10 +173,14 @@ export function registerAddonsRoutes(app: Express) {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
       const addonId = req.params.id;
-      const { channelId } = req.body; // Channel ID to preload default template
+      const { channelId, purchaseType } = req.body; // Channel ID to preload default template
 
       const [addon] = await db.select().from(schema.addons).where(eq(schema.addons.id, addonId)).limit(1);
       if (!addon) return res.status(404).json({ error: "Addon not found" });
+
+      const finalType = purchaseType || "flow";
+      const isAI = finalType === "ai";
+      const initCredits = isAI ? (addon.defaultCredits || 0) : 0;
 
       // Handle billing structure - Check if Wallet is enabled and has balance
       const price = parseFloat(addon.price || "0");
@@ -209,7 +213,7 @@ export function registerAddonsRoutes(app: Express) {
           type: "debit",
           paymentMethod: "wallet",
           status: "completed",
-          description: `Subscription purchase for Addon: ${addon.name}`,
+          description: `Subscription purchase for Addon: ${addon.name} (${finalType.toUpperCase()} mode)`,
           verifiedAt: new Date()
         });
       }
@@ -236,8 +240,9 @@ export function registerAddonsRoutes(app: Express) {
           .set({
             status: "active",
             expiresAt,
-            credits: addon.defaultCredits || 0,
-            maxCredits: addon.defaultCredits || 0,
+            purchaseType: finalType,
+            credits: initCredits,
+            maxCredits: initCredits,
             gatewayProvider: price > 0 ? (user.walletEnabled ? "wallet" : "stripe") : "manual",
             updatedAt: new Date()
           })
@@ -252,8 +257,9 @@ export function registerAddonsRoutes(app: Express) {
             addonId,
             status: "active",
             expiresAt,
-            credits: addon.defaultCredits || 0,
-            maxCredits: addon.defaultCredits || 0,
+            purchaseType: finalType,
+            credits: initCredits,
+            maxCredits: initCredits,
             gatewayProvider: price > 0 ? (user.walletEnabled ? "wallet" : "stripe") : "manual"
           })
           .returning();
@@ -265,7 +271,7 @@ export function registerAddonsRoutes(app: Express) {
         await AddonManager.preloadPredefinedFlow(tenantId, channelId, addon.slug);
       }
 
-      res.json({ success: true, message: `Successfully purchased addon: ${addon.name}`, data: subscription });
+      res.json({ success: true, message: `Successfully purchased addon: ${addon.name} in ${finalType.toUpperCase()} mode`, data: subscription });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -606,6 +612,24 @@ export function registerAddonsRoutes(app: Express) {
       }
 
       res.json(config);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Re-preload / load default expense flow
+  app.post("/api/expenses/load-flow", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { channelId } = req.body;
+
+      if (!channelId) {
+        return res.status(400).json({ error: "ChannelId is required." });
+      }
+
+      await AddonManager.preloadPredefinedFlow(tenantId, channelId, "expense-tracker");
+      res.json({ success: true, message: "Predefined Expense automation flow preloaded successfully." });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

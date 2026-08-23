@@ -77,10 +77,17 @@ export default function ExpenseLedger() {
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [botActive, setBotActive] = useState(true);
   const [botPrompt, setBotPrompt] = useState("You are a helper AI for an Expense Tracker app. Analyze the text representing an expense description or raw chat, and extract the amount, category, account, and description.");
+  const [configChannelId, setConfigChannelId] = useState("");
 
   // Fetch Accounts
   const { data: accounts } = useQuery<PaymentAccount[]>({
     queryKey: ["/api/expenses/payment-accounts"],
+  });
+
+  // Fetch Channels
+  const { data: channels } = useQuery<any[]>({
+    queryKey: ["/api/channels"],
+    queryFn: () => apiRequest("GET", "/api/channels").then((res) => res.json()),
   });
 
   // Fetch Addons Subscription
@@ -91,23 +98,40 @@ export default function ExpenseLedger() {
   const expenseAddon = addons?.find(a => a.slug === "expense-tracker");
   const purchaseType = expenseAddon?.subscription?.purchaseType || "flow";
 
+  // Bind active channel initially
+  React.useEffect(() => {
+    if (activeChannel?.id && !configChannelId) {
+      setConfigChannelId(activeChannel.id);
+    }
+  }, [activeChannel?.id]);
+
   // Fetch Config
   const { data: config } = useQuery<ExpenseConfig>({
-    queryKey: ["/api/expenses/config", activeChannel?.id],
-    enabled: !!activeChannel?.id,
-    onSuccess: (data) => {
-      if (data) {
-        setBotTrigger(data.triggerKeyword);
-        setBotRetrieval(data.retrievalKeyword);
-        setReportNumber(data.reportingNumber || "");
-        setReportInterval(data.reportInterval);
-        setReportEmail(data.reportEmail || "");
-        setEmailEnabled(data.emailEnabled);
-        setBotActive(data.isActive !== undefined ? data.isActive : true);
-        setBotPrompt(data.aiPrompt || "You are a helper AI for an Expense Tracker app. Analyze the text representing an expense description or raw chat, and extract the amount, category, account, and description.");
-      }
-    }
+    queryKey: ["/api/expenses/config", configChannelId],
+    enabled: !!configChannelId,
   });
+
+  React.useEffect(() => {
+    if (config) {
+      setBotTrigger(config.triggerKeyword);
+      setBotRetrieval(config.retrievalKeyword);
+      setReportNumber(config.reportingNumber || "");
+      setReportInterval(config.reportInterval);
+      setReportEmail(config.reportEmail || "");
+      setEmailEnabled(config.emailEnabled);
+      setBotActive(config.isActive !== undefined ? config.isActive : true);
+      setBotPrompt(config.aiPrompt || "You are a helper AI for an Expense Tracker app. Analyze the text representing an expense description or raw chat, and extract the amount, category, account, and description.");
+    } else {
+      setBotTrigger("expense");
+      setBotRetrieval("getexpense");
+      setReportNumber("");
+      setReportInterval("daily");
+      setReportEmail("");
+      setEmailEnabled(false);
+      setBotActive(true);
+      setBotPrompt("You are a helper AI for an Expense Tracker app. Analyze the text representing an expense description or raw chat, and extract the amount, category, account, and description.");
+    }
+  }, [config]);
 
   // Calculate dates based on timeframe
   // Calculate dates based on timeframe (memoized to prevent infinite query loops)
@@ -207,7 +231,7 @@ export default function ExpenseLedger() {
     },
     onSuccess: () => {
       toast({ title: "Saved", description: "Bot triggers configured." });
-      queryClient.invalidateQueries({ queryKey: ["/api/expenses/config", activeChannel?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses/config", configChannelId] });
       setIsConfigOpen(false);
     }
   });
@@ -314,6 +338,19 @@ export default function ExpenseLedger() {
                 <DialogDescription>Setup keywords to trigger and retrieve expenses on WhatsApp.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="configChannel" className="text-right">Configure Channel</Label>
+                  <select
+                    id="configChannel"
+                    value={configChannelId}
+                    onChange={(e) => setConfigChannelId(e.target.value)}
+                    className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    {channels?.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.name} ({c.phoneNumber || "QR Code Session"})</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">Enable Bot</Label>
                   <div className="flex items-center col-span-3">

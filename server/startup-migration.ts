@@ -634,12 +634,14 @@ const steps: MigrationStep[] = [
         report_interval    TEXT DEFAULT 'daily',
         report_email       TEXT,
         email_enabled      BOOLEAN DEFAULT false,
+        is_active          BOOLEAN DEFAULT true,
         next_report_at     TIMESTAMP,
         created_at         TIMESTAMP DEFAULT NOW(),
         CONSTRAINT expense_configs_channel_unique UNIQUE (channel_id)
       );
     `,
   },
+  addColumnIfNotExists("expense_configs", "is_active", "BOOLEAN DEFAULT true"),
 ];
 
 /**

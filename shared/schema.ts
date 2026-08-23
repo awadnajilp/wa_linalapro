@@ -2393,6 +2393,7 @@ export const expenseConfigs = pgTable("expense_configs", {
   reportInterval: text("report_interval").default("daily"), // "daily", "weekly", "monthly"
   reportEmail: text("report_email"),
   emailEnabled: boolean("email_enabled").default(false),
+  isActive: boolean("is_active").default(true),
   nextReportAt: timestamp("next_report_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });

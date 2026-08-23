@@ -36,6 +36,7 @@ interface ExpenseConfig {
   reportInterval: string;
   reportEmail: string | null;
   emailEnabled: boolean;
+  isActive: boolean;
 }
 
 export default function ExpenseLedger() {
@@ -73,6 +74,7 @@ export default function ExpenseLedger() {
   const [reportInterval, setReportInterval] = useState("daily");
   const [reportEmail, setReportEmail] = useState("");
   const [emailEnabled, setEmailEnabled] = useState(false);
+  const [botActive, setBotActive] = useState(true);
 
   // Fetch Accounts
   const { data: accounts } = useQuery<PaymentAccount[]>({
@@ -91,6 +93,7 @@ export default function ExpenseLedger() {
         setReportInterval(data.reportInterval);
         setReportEmail(data.reportEmail || "");
         setEmailEnabled(data.emailEnabled);
+        setBotActive(data.isActive !== undefined ? data.isActive : true);
       }
     }
   });
@@ -255,7 +258,8 @@ export default function ExpenseLedger() {
       reportingNumber: reportNumber,
       reportInterval: reportInterval,
       reportEmail: reportEmail,
-      emailEnabled: emailEnabled
+      emailEnabled: emailEnabled,
+      isActive: botActive
     });
   };
 
@@ -271,6 +275,16 @@ export default function ExpenseLedger() {
           <p className="text-gray-500">
             Interactive AI bot logging, expense ledgers, accounts balances, and periodic reporting schedules.
           </p>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+              Channel: <strong className="text-gray-700 font-bold">{activeChannel?.name || "None Selected"}</strong>
+            </span>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+              botActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+            }`}>
+              {botActive ? "Bot Active" : "Bot Inactive"}
+            </span>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -286,6 +300,13 @@ export default function ExpenseLedger() {
                 <DialogDescription>Setup keywords to trigger and retrieve expenses on WhatsApp.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right">Enable Bot</Label>
+                  <div className="flex items-center col-span-3">
+                    <Switch checked={botActive} onCheckedChange={setBotActive} />
+                    <span className="text-xs text-gray-500 ml-2">Toggle bot parsing for this channel</span>
+                  </div>
+                </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="triggerK" className="text-right">Trigger Word</Label>
                   <Input id="triggerK" value={botTrigger} onChange={(e) => setBotTrigger(e.target.value)} className="col-span-3" />

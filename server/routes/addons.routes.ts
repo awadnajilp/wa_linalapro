@@ -569,7 +569,7 @@ export function registerAddonsRoutes(app: Express) {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
-      const { channelId, triggerKeyword, retrievalKeyword, reportingNumber, reportInterval, reportEmail, emailEnabled } = req.body;
+      const { channelId, triggerKeyword, retrievalKeyword, reportingNumber, reportInterval, reportEmail, emailEnabled, isActive } = req.body;
 
       if (!channelId) return res.status(400).json({ error: "ChannelId is required" });
 
@@ -590,6 +590,7 @@ export function registerAddonsRoutes(app: Express) {
             reportInterval: reportInterval || "daily",
             reportEmail: reportEmail || null,
             emailEnabled: emailEnabled !== undefined ? emailEnabled : false,
+            isActive: isActive !== undefined ? isActive : true,
           })
           .where(eq(schema.expenseConfigs.id, existing.id))
           .returning();
@@ -606,6 +607,7 @@ export function registerAddonsRoutes(app: Express) {
             reportInterval: reportInterval || "daily",
             reportEmail: reportEmail || null,
             emailEnabled: emailEnabled !== undefined ? emailEnabled : false,
+            isActive: isActive !== undefined ? isActive : true,
           })
           .returning();
         config = created;

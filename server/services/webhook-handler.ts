@@ -825,7 +825,8 @@ export class WebhookHandler {
                   .where(eq(schema.expenseConfigs.channelId, channelId))
                   .limit(1);
 
-              const triggerKeyword = (expenseConfig?.triggerKeyword || "expense").toLowerCase();
+                if (!expenseConfig || expenseConfig.isActive) {
+                  const triggerKeyword = (expenseConfig?.triggerKeyword || "expense").toLowerCase();
               const retrievalKeyword = (expenseConfig?.retrievalKeyword || "getexpense").toLowerCase();
               const cleanContent = content.trim();
               const lowerContent = cleanContent.toLowerCase();
@@ -967,6 +968,7 @@ export class WebhookHandler {
                   text: { body: summary }
                 });
                 automationHandled = true;
+              }
               }
             }
           }

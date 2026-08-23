@@ -1646,23 +1646,7 @@ app.post(
         const groupMetadata = groupsMap[jid];
         const name = groupMetadata.subject || "WhatsApp Group";
 
-        // 1. Create local CRM group if not existing
-        const [existingGroup] = await db
-          .select()
-          .from(groups)
-          .where(and(eq(groups.channelId, channelId), eq(groups.name, name)))
-          .limit(1);
-
-        if (!existingGroup) {
-          await db.insert(groups).values({
-            channelId,
-            name,
-            description: `Imported from WhatsApp Group JID: ${jid}`,
-            createdBy: (req as any).user?.id || ""
-          });
-        }
-
-        // 2. Sync group contact in contacts table
+        // 1. Sync group contact in contacts table
         const [existingContact] = await db
           .select()
           .from(contacts)
@@ -1730,24 +1714,6 @@ app.post(
 
       const subject = groupMetadata.subject || "WhatsApp Group";
       const participants = groupMetadata.participants || [];
-
-      // 1. Create local CRM group if not existing
-      const [existingGroup] = await db
-        .select()
-        .from(groups)
-        .where(and(eq(groups.channelId, channelId), eq(groups.name, subject)))
-        .limit(1);
-
-      let groupRecord = existingGroup;
-      if (!groupRecord) {
-        const [newGroup] = await db.insert(groups).values({
-          channelId,
-          name: subject,
-          description: `Imported from WhatsApp Group JID: ${jid}`,
-          createdBy: (req as any).user?.id || ""
-        }).returning();
-        groupRecord = newGroup;
-      }
 
       // 2. Save/Update group contact in contacts table
       const [existingGroupContact] = await db

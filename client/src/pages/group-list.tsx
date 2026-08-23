@@ -848,37 +848,41 @@ export default function GroupsUI() {
                               day: "numeric",
                             })}
                           </TableCell>
-                          <TableCell className="text-right space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-blue-600 hover:text-blue-700 border-blue-200"
-                              onClick={() => window.location.href = `/contacts?group=${encodeURIComponent(group.name)}`}
-                            >
-                              <Users size={14} className="mr-1" /> View Contacts
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openEdit(group)}
-                            >
-                              <Edit size={14} className="mr-1" /> Edit
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeleteGroupContacts(group.id, group.name)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                            >
-                              <Trash size={14} className="mr-1" /> Delete Contacts
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => deleteGroup(group.id)}
-                            >
-                              <Trash size={14} className="mr-1" /> Delete
-                            </Button>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-blue-600 hover:text-white hover:bg-blue-600 border-blue-200 h-8 px-2.5 text-xs font-medium"
+                                onClick={() => window.location.href = `/contacts?group=${encodeURIComponent(group.name)}`}
+                              >
+                                <Users size={12} className="mr-1" /> View Contacts
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-gray-600 hover:text-white hover:bg-gray-600 border-gray-200 h-8 px-2.5 text-xs font-medium"
+                                onClick={() => openEdit(group)}
+                              >
+                                <Edit size={12} className="mr-1" /> Edit
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-amber-600 hover:text-white hover:bg-amber-600 border-amber-200 h-8 px-2.5 text-xs font-medium"
+                                onClick={() => handleDeleteGroupContacts(group.id, group.name)}
+                              >
+                                <Trash size={12} className="mr-1" /> Clear Contacts
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="bg-red-600 hover:bg-red-700 h-8 px-2.5 text-xs font-medium"
+                                onClick={() => deleteGroup(group.id)}
+                              >
+                                <Trash size={12} className="mr-1" /> Delete List
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -957,43 +961,47 @@ export default function GroupsUI() {
                               day: "numeric",
                             })}
                           </TableCell>
-                          <TableCell className="text-right space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-blue-600 hover:text-blue-700 border-blue-200"
-                              onClick={() => window.location.href = `/contacts?broadcast=${encodeURIComponent(list.name)}`}
-                            >
-                              <Users size={14} className="mr-1" /> View Contacts
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeleteBroadcastListContacts(list.id, list.name)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                            >
-                              <Trash size={14} className="mr-1" /> Delete Contacts
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setListEditMode(true);
-                                setListEditId(list.id);
-                                setListName(list.name);
-                                setListDescription(list.description || "");
-                                setOpenListDialog(true);
-                              }}
-                            >
-                              <Edit size={14} className="mr-1" /> Edit
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => deleteBroadcastList(list.id)}
-                            >
-                              <Trash size={14} className="mr-1" /> Delete
-                            </Button>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-blue-600 hover:text-white hover:bg-blue-600 border-blue-200 h-8 px-2.5 text-xs font-medium"
+                                onClick={() => window.location.href = `/contacts?broadcast=${encodeURIComponent(list.name)}`}
+                              >
+                                <Users size={12} className="mr-1" /> View Contacts
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-gray-600 hover:text-white hover:bg-gray-600 border-gray-200 h-8 px-2.5 text-xs font-medium"
+                                onClick={() => {
+                                  setListEditMode(true);
+                                  setListEditId(list.id);
+                                  setListName(list.name);
+                                  setListDescription(list.description || "");
+                                  setOpenListDialog(true);
+                                }}
+                              >
+                                <Edit size={12} className="mr-1" /> Edit
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-amber-600 hover:text-white hover:bg-amber-600 border-amber-200 h-8 px-2.5 text-xs font-medium"
+                                onClick={() => handleDeleteBroadcastListContacts(list.id, list.name)}
+                              >
+                                <Trash size={12} className="mr-1" /> Clear Contacts
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="bg-red-600 hover:bg-red-700 h-8 px-2.5 text-xs font-medium"
+                                onClick={() => deleteBroadcastList(list.id)}
+                              >
+                                <Trash size={12} className="mr-1" /> Delete List
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1244,37 +1252,41 @@ export default function GroupsUI() {
                             day: "numeric",
                           })}
                         </TableCell>
-                        <TableCell className="text-right space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-blue-600 hover:text-blue-700 border-blue-200"
-                            onClick={() => window.location.href = `/contacts?group=${encodeURIComponent(group.name)}`}
-                          >
-                            <Users size={14} className="mr-1" /> View Contacts
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openEdit(group)}
-                          >
-                            <Edit size={14} className="mr-1" /> Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteGroupContacts(group.id, group.name)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                          >
-                            <Trash size={14} className="mr-1" /> Delete Contacts
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => deleteGroup(group.id)}
-                          >
-                            <Trash size={14} className="mr-1" /> Delete
-                          </Button>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-blue-600 hover:text-white hover:bg-blue-600 border-blue-200 h-8 px-2.5 text-xs font-medium"
+                              onClick={() => window.location.href = `/contacts?group=${encodeURIComponent(group.name)}`}
+                            >
+                              <Users size={12} className="mr-1" /> View Contacts
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-gray-600 hover:text-white hover:bg-gray-600 border-gray-200 h-8 px-2.5 text-xs font-medium"
+                              onClick={() => openEdit(group)}
+                            >
+                              <Edit size={12} className="mr-1" /> Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-amber-600 hover:text-white hover:bg-amber-600 border-amber-200 h-8 px-2.5 text-xs font-medium"
+                              onClick={() => handleDeleteGroupContacts(group.id, group.name)}
+                            >
+                              <Trash size={12} className="mr-1" /> Clear Contacts
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="bg-red-600 hover:bg-red-700 h-8 px-2.5 text-xs font-medium"
+                              onClick={() => deleteGroup(group.id)}
+                            >
+                              <Trash size={12} className="mr-1" /> Delete List
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

@@ -353,7 +353,7 @@ export default function ExpenseLedger() {
                     <Button 
                       type="button"
                       variant="outline"
-                      onClick={() => window.location.href = "/automations"}
+                      onClick={() => window.location.href = "/automation"}
                       className="w-full text-gray-700 hover:bg-gray-100 border-gray-200 text-xs flex items-center justify-center gap-1 h-9"
                     >
                       Edit Flow

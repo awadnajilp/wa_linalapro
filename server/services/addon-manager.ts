@@ -2,6 +2,7 @@ import { db } from "../db";
 import * as schema from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { diployLogger } from "@diploy/core";
+import crypto from "crypto";
 
 export class AddonManager {
   /**
@@ -166,7 +167,7 @@ export class AddonManager {
 
       // Connect edges
       await db.insert(schema.automationEdges).values({
-        id: "edge-default-uuid",
+        id: crypto.randomUUID(),
         automationId: newAutomation.id,
         sourceNodeId: triggerNodeId,
         targetNodeId: welcomeNodeId,

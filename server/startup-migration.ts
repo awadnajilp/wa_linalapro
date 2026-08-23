@@ -635,6 +635,7 @@ const steps: MigrationStep[] = [
         report_email       TEXT,
         email_enabled      BOOLEAN DEFAULT false,
         is_active          BOOLEAN DEFAULT true,
+        ai_prompt          TEXT DEFAULT 'You are a helper AI for an Expense Tracker app. Analyze the text representing an expense description or raw chat, and extract the amount, category, account, and description.',
         next_report_at     TIMESTAMP,
         created_at         TIMESTAMP DEFAULT NOW(),
         CONSTRAINT expense_configs_channel_unique UNIQUE (channel_id)
@@ -642,6 +643,7 @@ const steps: MigrationStep[] = [
     `,
   },
   addColumnIfNotExists("expense_configs", "is_active", "BOOLEAN DEFAULT true"),
+  addColumnIfNotExists("expense_configs", "ai_prompt", "TEXT DEFAULT 'You are a helper AI for an Expense Tracker app. Analyze the text representing an expense description or raw chat, and extract the amount, category, account, and description.'"),
 ];
 
 /**

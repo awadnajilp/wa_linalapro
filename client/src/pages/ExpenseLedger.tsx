@@ -11,6 +11,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Wallet, Coins, Plus, Trash, FileSpreadsheet, Settings, UserCheck, Calendar, Filter, Sparkles, Volume2 } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Expense {
   id: string;
@@ -75,11 +76,20 @@ export default function ExpenseLedger() {
   const [reportEmail, setReportEmail] = useState("");
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [botActive, setBotActive] = useState(true);
+  const [botPrompt, setBotPrompt] = useState("You are a helper AI for an Expense Tracker app. Analyze the text representing an expense description or raw chat, and extract the amount, category, account, and description.");
 
   // Fetch Accounts
   const { data: accounts } = useQuery<PaymentAccount[]>({
     queryKey: ["/api/expenses/payment-accounts"],
   });
+
+  // Fetch Addons Subscription
+  const { data: addons } = useQuery<any[]>({
+    queryKey: ["/api/tenant/addons"],
+  });
+
+  const expenseAddon = addons?.find(a => a.slug === "expense-tracker");
+  const purchaseType = expenseAddon?.subscription?.purchaseType || "flow";
 
   // Fetch Config
   const { data: config } = useQuery<ExpenseConfig>({
@@ -94,6 +104,7 @@ export default function ExpenseLedger() {
         setReportEmail(data.reportEmail || "");
         setEmailEnabled(data.emailEnabled);
         setBotActive(data.isActive !== undefined ? data.isActive : true);
+        setBotPrompt(data.aiPrompt || "You are a helper AI for an Expense Tracker app. Analyze the text representing an expense description or raw chat, and extract the amount, category, account, and description.");
       }
     }
   });
@@ -261,7 +272,8 @@ export default function ExpenseLedger() {
       reportInterval: reportInterval,
       reportEmail: reportEmail,
       emailEnabled: emailEnabled,
-      isActive: botActive
+      isActive: botActive,
+      aiPrompt: botPrompt
     });
   };
 
@@ -340,28 +352,41 @@ export default function ExpenseLedger() {
                     <span className="text-xs text-gray-500 ml-2">Attach ledger as Excel (.xlsx)</span>
                   </div>
                 </div>
-                <div className="border-t border-gray-100 pt-4 space-y-3 col-span-full">
-                  <Label className="text-xs font-bold text-gray-400 uppercase">Automation Canvas Flow</Label>
-                  <div className="flex gap-2">
-                    <Button 
-                      type="button"
-                      variant="outline" 
-                      onClick={handleLoadFlow}
-                      className="w-full text-indigo-650 hover:bg-indigo-50 border-indigo-100 text-xs flex items-center justify-center gap-1 h-9"
-                      disabled={loadFlowMutation.isPending}
-                    >
-                      {loadFlowMutation.isPending ? "Loading..." : "Load Default Flow"}
-                    </Button>
-                    <Button 
-                      type="button"
-                      variant="outline"
-                      onClick={() => window.location.href = "/automation?editFlowName=WhatsApp%20Expense%20Tracker%20Bot"}
-                      className="w-full text-gray-700 hover:bg-gray-100 border-gray-200 text-xs flex items-center justify-center gap-1 h-9"
-                    >
-                      Edit Flow
-                    </Button>
+                {purchaseType === "ai" ? (
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label htmlFor="aiPrompt" className="text-right pt-2">AI Instructions</Label>
+                    <Textarea 
+                      id="aiPrompt" 
+                      value={botPrompt} 
+                      onChange={(e) => setBotPrompt(e.target.value)} 
+                      className="col-span-3 min-h-[100px] text-xs" 
+                      placeholder="Instruct the AI agent how to extract categories/accounts from voice and chat text."
+                    />
                   </div>
-                </div>
+                ) : (
+                  <div className="border-t border-gray-100 pt-4 space-y-3 col-span-full">
+                    <Label className="text-xs font-bold text-gray-400 uppercase">Automation Canvas Flow</Label>
+                    <div className="flex gap-2">
+                      <Button 
+                        type="button"
+                        variant="outline" 
+                        onClick={handleLoadFlow}
+                        className="w-full text-indigo-650 hover:bg-indigo-50 border-indigo-100 text-xs flex items-center justify-center gap-1 h-9"
+                        disabled={loadFlowMutation.isPending}
+                      >
+                        {loadFlowMutation.isPending ? "Loading..." : "Load Default Flow"}
+                      </Button>
+                      <Button 
+                        type="button"
+                        variant="outline"
+                        onClick={() => window.location.href = "/automation?editFlowName=WhatsApp%20Expense%20Tracker%20Bot"}
+                        className="w-full text-gray-700 hover:bg-gray-100 border-gray-200 text-xs flex items-center justify-center gap-1 h-9"
+                      >
+                        Edit Flow
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsConfigOpen(false)}>Cancel</Button>

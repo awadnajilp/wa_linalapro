@@ -2394,6 +2394,7 @@ export const expenseConfigs = pgTable("expense_configs", {
   reportEmail: text("report_email"),
   emailEnabled: boolean("email_enabled").default(false),
   isActive: boolean("is_active").default(true),
+  aiPrompt: text("ai_prompt").default("You are a helper AI for an Expense Tracker app. Analyze the text representing an expense description or raw chat, and extract the amount, category, account, and description."),
   nextReportAt: timestamp("next_report_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });

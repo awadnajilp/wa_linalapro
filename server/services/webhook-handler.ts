@@ -18,6 +18,7 @@
 import { db } from "../db";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
 import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites, automationExecutions, automations, voiceProfiles, automationNodes, aiProfiles } from "@shared/schema";
+import * as schema from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { triggerNotification, triggerThrottledNotification, NOTIFICATION_EVENTS } from "./notification.service";

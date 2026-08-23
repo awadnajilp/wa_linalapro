@@ -28,6 +28,15 @@ export class ExpenseAIService {
 
       const accountNames = accounts.map(a => a.name).join(", ") || "Cash, Bank Account, Credit Card";
 
+      // 1.5 Fetch custom prompt configuration
+      const [expenseConfig] = await db
+        .select()
+        .from(schema.expenseConfigs)
+        .where(eq(schema.expenseConfigs.channelId, channelId))
+        .limit(1);
+
+      const customPrompt = expenseConfig?.aiPrompt || `You are a helper AI for an Expense Tracker app. Analyze the text below representing an expense description, voice transcription, or raw chat text, and extract the expense details.`;
+
       // 2. Fetch AI keys config (determine if using tenant key or admin keys)
       const [addon] = await db
         .select()
@@ -115,7 +124,7 @@ export class ExpenseAIService {
 
       const openai = new OpenAI({ apiKey, baseURL });
 
-      const prompt = `You are a helper AI for an Expense Tracker app. Analyze the text below representing an expense description, voice transcription, or raw chat text, and extract the expense details.
+      const prompt = `${customPrompt}
 
 Available Payment Accounts in user database: [${accountNames}]. Try to match closely with one of these accounts. If none are specified, default to "Cash".
 Available default categories: Food, Travel, Office, Marketing, Utility, General, Rent, Salaries, Taxes, Entertainment.

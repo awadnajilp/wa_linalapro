@@ -352,41 +352,54 @@ export default function ExpenseLedger() {
                     <span className="text-xs text-gray-500 ml-2">Attach ledger as Excel (.xlsx)</span>
                   </div>
                 </div>
-                {purchaseType === "ai" ? (
+                {/* AI Instructions Section */}
+                <div className="border-t border-gray-100 pt-4 space-y-3 col-span-full">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-xs font-bold text-gray-400 uppercase">AI Agent Instructions</Label>
+                    {purchaseType === "ai" && (
+                      <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-200 uppercase">Active Mode</span>
+                    )}
+                  </div>
                   <div className="grid grid-cols-4 items-start gap-4">
-                    <Label htmlFor="aiPrompt" className="text-right pt-2">AI Instructions</Label>
+                    <Label htmlFor="aiPrompt" className="text-right pt-2 text-xs">AI Prompt</Label>
                     <Textarea 
                       id="aiPrompt" 
                       value={botPrompt} 
                       onChange={(e) => setBotPrompt(e.target.value)} 
-                      className="col-span-3 min-h-[100px] text-xs" 
+                      className="col-span-3 min-h-[90px] text-xs" 
                       placeholder="Instruct the AI agent how to extract categories/accounts from voice and chat text."
                     />
                   </div>
-                ) : (
-                  <div className="border-t border-gray-100 pt-4 space-y-3 col-span-full">
+                </div>
+
+                {/* Flow Canvas Section */}
+                <div className="border-t border-gray-100 pt-4 space-y-3 col-span-full">
+                  <div className="flex justify-between items-center">
                     <Label className="text-xs font-bold text-gray-400 uppercase">Automation Canvas Flow</Label>
-                    <div className="flex gap-2">
-                      <Button 
-                        type="button"
-                        variant="outline" 
-                        onClick={handleLoadFlow}
-                        className="w-full text-indigo-650 hover:bg-indigo-50 border-indigo-100 text-xs flex items-center justify-center gap-1 h-9"
-                        disabled={loadFlowMutation.isPending}
-                      >
-                        {loadFlowMutation.isPending ? "Loading..." : "Load Default Flow"}
-                      </Button>
-                      <Button 
-                        type="button"
-                        variant="outline"
-                        onClick={() => window.location.href = "/automation?editFlowName=WhatsApp%20Expense%20Tracker%20Bot"}
-                        className="w-full text-gray-700 hover:bg-gray-100 border-gray-200 text-xs flex items-center justify-center gap-1 h-9"
-                      >
-                        Edit Flow
-                      </Button>
-                    </div>
+                    {purchaseType === "flow" && (
+                      <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 uppercase">Active Mode</span>
+                    )}
                   </div>
-                )}
+                  <div className="flex gap-2">
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      onClick={handleLoadFlow}
+                      className="w-full text-indigo-650 hover:bg-indigo-50 border-indigo-100 text-xs flex items-center justify-center gap-1 h-9"
+                      disabled={loadFlowMutation.isPending}
+                    >
+                      {loadFlowMutation.isPending ? "Loading..." : "Load Default Flow"}
+                    </Button>
+                    <Button 
+                      type="button"
+                      variant="outline"
+                      onClick={() => window.location.href = "/automation?editFlowName=WhatsApp%20Expense%20Tracker%20Bot"}
+                      className="w-full text-gray-700 hover:bg-gray-100 border-gray-200 text-xs flex items-center justify-center gap-1 h-9"
+                    >
+                      Edit Flow
+                    </Button>
+                  </div>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsConfigOpen(false)}>Cancel</Button>

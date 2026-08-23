@@ -44,7 +44,17 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Loading Skeleton Component
 const GroupSkeleton = () => (
@@ -89,6 +99,86 @@ const EmptyState = ({ onCreateClick }: { onCreateClick: () => void }) => (
   </Card>
 );
 
+const PaginationControls = ({
+  currentPage,
+  totalPages,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) => {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 sm:px-6 bg-gray-50/50">
+      <div className="flex flex-1 justify-between sm:hidden">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
+          disabled={currentPage === 1}
+        >
+          Previous
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))}
+          disabled={currentPage === totalPages}
+        >
+          Next
+        </Button>
+      </div>
+      <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs text-gray-500">
+            Showing Page <span className="font-medium text-gray-700">{currentPage}</span> of{" "}
+            <span className="font-medium text-gray-700">{totalPages}</span>
+          </p>
+        </div>
+        <div className="flex gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => onPageChange(1)}
+            disabled={currentPage === 1}
+          >
+            First
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => onPageChange(totalPages)}
+            disabled={currentPage === totalPages}
+          >
+            Last
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function GroupsUI() {
   const { toast } = useToast();
   const [groups, setGroups] = useState<any[]>([]);
@@ -114,6 +204,47 @@ export default function GroupsUI() {
   const [syncing, setSyncing] = useState(false);
   const [importingJid, setImportingJid] = useState<string | null>(null);
 
+  // Pagination states
+  const [crmPage, setCrmPage] = useState(1);
+  const [broadcastPage, setBroadcastPage] = useState(1);
+  const [waPage, setWaPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Bulk WhatsApp Groups selection
+  const [selectedWaGroupIds, setSelectedWaGroupIds] = useState<string[]>([]);
+
+  const handleBulkAddWaGroupsToList = async (listName: string) => {
+    if (!activeChannel?.id || selectedWaGroupIds.length === 0) return;
+    try {
+      const res = await apiRequest("POST", "/api/groups/add-contacts", {
+        contactIds: selectedWaGroupIds,
+        groupName: listName,
+        channelId: activeChannel.id,
+      });
+      if (res.ok) {
+        toast({
+          title: "Lists updated",
+          description: `Successfully added ${selectedWaGroupIds.length} groups to CRM List "${listName}".`,
+        });
+        setSelectedWaGroupIds([]);
+        refetchWaGroups();
+      } else {
+        const errorData = await res.json();
+        toast({
+          title: "Error",
+          description: errorData.error || "Failed to add to list.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to add to list.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const { data: whatsappGroups, refetch: refetchWaGroups, isLoading: loadingWaGroups } = useQuery({
     queryKey: [`/api/contacts?isGroup=true`, activeChannel?.id],
     queryFn: async () => {
@@ -125,6 +256,10 @@ export default function GroupsUI() {
     },
     enabled: !!activeChannel?.id,
   });
+
+  useEffect(() => {
+    setSelectedWaGroupIds([]);
+  }, [whatsappGroups]);
 
   const handleSyncGroups = async () => {
     if (!activeChannel?.id) return;
@@ -305,6 +440,25 @@ export default function GroupsUI() {
       fetchListContactCounts();
     }
   }, [activeChannel?.id]);
+
+  const totalCrmPages = Math.ceil(groups.length / itemsPerPage);
+  const paginatedCrmLists = groups.slice(
+    (crmPage - 1) * itemsPerPage,
+    crmPage * itemsPerPage
+  );
+
+  const totalBroadcastPages = Math.ceil(broadcastLists.length / itemsPerPage);
+  const paginatedBroadcastLists = broadcastLists.slice(
+    (broadcastPage - 1) * itemsPerPage,
+    broadcastPage * itemsPerPage
+  );
+
+  const waGroupsList = whatsappGroups || [];
+  const totalWaPages = Math.ceil(waGroupsList.length / itemsPerPage);
+  const paginatedWaGroups = waGroupsList.slice(
+    (waPage - 1) * itemsPerPage,
+    waPage * itemsPerPage
+  );
 
   // Create or update group
   const saveGroup = async () => {
@@ -617,19 +771,19 @@ export default function GroupsUI() {
           <Tabs defaultValue="internal" className="w-full">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 mb-4 gap-4">
               <TabsList>
-                <TabsTrigger value="internal">CRM Label Groups</TabsTrigger>
+                <TabsTrigger value="internal">CRM Lists</TabsTrigger>
                 <TabsTrigger value="broadcast" className="flex items-center gap-2">
                   <Inbox size={14} /> Broadcast Lists
                 </TabsTrigger>
                 <TabsTrigger value="whatsapp" className="flex items-center gap-2">
-                  <Users size={14} /> Groups WA
+                  <Users size={14} /> WhatsApp Groups
                 </TabsTrigger>
               </TabsList>
 
               <div>
                 <TabsContent value="internal" className="mt-0">
                   <Button onClick={openCreateDialog} className="bg-green-600 hover:bg-green-700 text-white">
-                    <Plus className="mr-2" size={16} /> Create Group
+                    <Plus className="mr-2" size={16} /> Create CRM List
                   </Button>
                 </TabsContent>
                 <TabsContent value="broadcast" className="mt-0">
@@ -648,7 +802,7 @@ export default function GroupsUI() {
                 </TabsContent>
                 <TabsContent value="whatsapp" className="mt-0">
                   <Button onClick={handleSyncGroups} disabled={syncing} className="bg-green-600 hover:bg-green-700 text-white">
-                    {syncing ? "Syncing..." : "Sync Groups WA"}
+                    {syncing ? "Syncing..." : "Sync WhatsApp Groups"}
                   </Button>
                 </TabsContent>
               </div>
@@ -664,87 +818,77 @@ export default function GroupsUI() {
               ) : groups.length === 0 ? (
                 <EmptyState onCreateClick={openCreateDialog} />
               ) : (
-                <div className="grid grid-cols-1 gap-4">
-                  {groups.map((group) => (
-                    <Card
-                      key={group.id}
-                      className="hover:shadow-md transition-shadow duration-200"
-                    >
-                      <CardContent className="p-4 sm:p-6">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
-                              {group.name}
-                            </h3>
-                            {group.description && (
-                              <p className="text-sm sm:text-base text-gray-600 mt-1 line-clamp-2">
-                                {group.description}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-3 mt-2">
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-                                <Users size={12} />
-                                {contactCounts[group.name] || 0} contact{(contactCounts[group.name] || 0) !== 1 ? "s" : ""}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                Created{" "}
-                                {new Date(group.createdAt).toLocaleDateString(
-                                  "en-US",
-                                  {
-                                    year: "numeric",
-                                    month: "short",
-                                    day: "numeric",
-                                  }
-                                )}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex gap-2 self-end sm:self-start">
+                <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+                  <Table>
+                    <TableHeader className="bg-gray-50">
+                      <TableRow>
+                        <TableHead className="font-semibold text-gray-700">Name</TableHead>
+                        <TableHead className="font-semibold text-gray-700">Description</TableHead>
+                        <TableHead className="font-semibold text-gray-700">Type</TableHead>
+                        <TableHead className="font-semibold text-gray-700">Contacts Count</TableHead>
+                        <TableHead className="font-semibold text-gray-700">Created At</TableHead>
+                        <TableHead className="text-right font-semibold text-gray-700">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedCrmLists.map((group) => (
+                        <TableRow key={group.id} className="hover:bg-gray-50/50 transition-colors">
+                          <TableCell className="font-semibold text-gray-900">{group.name}</TableCell>
+                          <TableCell className="text-gray-500 max-w-[200px] truncate">{group.description || "-"}</TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center text-[11px] font-medium text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full">
+                              Contact List
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-gray-700">{contactCounts[group.name] || 0} contacts</TableCell>
+                          <TableCell className="text-gray-500">
+                            {new Date(group.createdAt).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </TableCell>
+                          <TableCell className="text-right space-x-2">
                             <Button
                               variant="outline"
                               size="sm"
-                              className="flex items-center gap-1.5"
+                              className="text-blue-600 hover:text-blue-700 border-blue-200"
+                              onClick={() => window.location.href = `/contacts?group=${encodeURIComponent(group.name)}`}
+                            >
+                              <Users size={14} className="mr-1" /> View Contacts
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => openEdit(group)}
                             >
-                              <Edit size={14} />
-                              <span className="hidden sm:inline">Edit</span>
+                              <Edit size={14} className="mr-1" /> Edit
                             </Button>
-
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleDeleteGroupContacts(group.id, group.name)}
-                              className="flex items-center gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                             >
-                              <Trash size={14} />
-                              <span className="hidden sm:inline">Delete Contacts</span>
+                              <Trash size={14} className="mr-1" /> Delete Contacts
                             </Button>
-
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 border-blue-200"
-                              onClick={() => window.location.href = `/contacts?group=${encodeURIComponent(group.name)}`}
-                            >
-                              <Users size={14} />
-                              <span>View Contacts</span>
-                            </Button>
-
                             <Button
                               variant="destructive"
                               size="sm"
                               onClick={() => deleteGroup(group.id)}
-                              className="flex items-center gap-1.5"
                             >
-                              <Trash size={14} />
-                              <span className="hidden sm:inline">Delete</span>
+                              <Trash size={14} className="mr-1" /> Delete
                             </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <PaginationControls
+                    currentPage={crmPage}
+                    totalPages={totalCrmPages}
+                    onPageChange={setCrmPage}
+                  />
                 </div>
               )}
             </TabsContent>
@@ -783,59 +927,56 @@ export default function GroupsUI() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 gap-4">
-                  {broadcastLists.map((list) => (
-                    <Card
-                      key={list.id}
-                      className="hover:shadow-md transition-shadow duration-200"
-                    >
-                      <CardContent className="p-4 sm:p-6">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
-                              {list.name}
-                            </h3>
-                            {list.description && (
-                              <p className="text-sm sm:text-base text-gray-600 mt-1 line-clamp-2">
-                                {list.description}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-3 mt-2">
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-                                <Users size={12} />
-                                {listContactCounts[list.name] || 0} contact{(listContactCounts[list.name] || 0) !== 1 ? "s" : ""}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                Created {new Date(list.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex gap-2 self-end sm:self-start">
+                <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+                  <Table>
+                    <TableHeader className="bg-gray-50">
+                      <TableRow>
+                        <TableHead className="font-semibold text-gray-700">Name</TableHead>
+                        <TableHead className="font-semibold text-gray-700">Description</TableHead>
+                        <TableHead className="font-semibold text-gray-700">Type</TableHead>
+                        <TableHead className="font-semibold text-gray-700">Contacts Count</TableHead>
+                        <TableHead className="font-semibold text-gray-700">Created At</TableHead>
+                        <TableHead className="text-right font-semibold text-gray-700">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedBroadcastLists.map((list) => (
+                        <TableRow key={list.id} className="hover:bg-gray-50/50 transition-colors">
+                          <TableCell className="font-semibold text-gray-900">{list.name}</TableCell>
+                          <TableCell className="text-gray-500 max-w-[200px] truncate">{list.description || "-"}</TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center text-[11px] font-medium text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full">
+                              Broadcast List
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-gray-700">{listContactCounts[list.name] || 0} contacts</TableCell>
+                          <TableCell className="text-gray-500">
+                            {new Date(list.createdAt).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </TableCell>
+                          <TableCell className="text-right space-x-2">
                             <Button
                               variant="outline"
                               size="sm"
-                              className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 border-blue-200"
+                              className="text-blue-600 hover:text-blue-700 border-blue-200"
                               onClick={() => window.location.href = `/contacts?broadcast=${encodeURIComponent(list.name)}`}
                             >
-                              <Users size={14} />
-                              <span>View Contacts</span>
+                              <Users size={14} className="mr-1" /> View Contacts
                             </Button>
-
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleDeleteBroadcastListContacts(list.id, list.name)}
-                              className="flex items-center gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                             >
-                              <Trash size={14} />
-                              <span className="hidden sm:inline">Delete Contacts</span>
+                              <Trash size={14} className="mr-1" /> Delete Contacts
                             </Button>
-
                             <Button
                               variant="outline"
                               size="sm"
-                              className="flex items-center gap-1.5"
                               onClick={() => {
                                 setListEditMode(true);
                                 setListEditId(list.id);
@@ -844,24 +985,25 @@ export default function GroupsUI() {
                                 setOpenListDialog(true);
                               }}
                             >
-                              <Edit size={14} />
-                              <span className="hidden sm:inline">Edit</span>
+                              <Edit size={14} className="mr-1" /> Edit
                             </Button>
-
                             <Button
                               variant="destructive"
                               size="sm"
                               onClick={() => deleteBroadcastList(list.id)}
-                              className="flex items-center gap-1.5"
                             >
-                              <Trash size={14} />
-                              <span className="hidden sm:inline">Delete</span>
+                              <Trash size={14} className="mr-1" /> Delete
                             </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <PaginationControls
+                    currentPage={broadcastPage}
+                    totalPages={totalBroadcastPages}
+                    onPageChange={setBroadcastPage}
+                  />
                 </div>
               )}
             </TabsContent>
@@ -895,99 +1037,161 @@ export default function GroupsUI() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 gap-4">
-                  {whatsappGroups.map((group: any) => (
-                    <Card
-                      key={group.id}
-                      className="hover:shadow-md transition-shadow duration-200"
-                    >
-                      <CardContent className="p-4 sm:p-6">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
-                              {group.name}
-                            </h3>
-                            <p className="text-sm text-gray-500 mt-1 truncate">
-                              JID: {group.phone}
-                            </p>
-                            <div className="flex items-center gap-3 mt-2">
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-                                <Users size={12} />
+                <div className="space-y-4">
+                  {selectedWaGroupIds.length > 0 && (
+                    <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                      <span className="text-sm font-medium text-indigo-800">
+                        {selectedWaGroupIds.length} WhatsApp Group{selectedWaGroupIds.length !== 1 ? "s" : ""} selected
+                      </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="default" size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1">
+                            <Plus size={14} /> Add Selected to CRM List...
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-56">
+                          <DropdownMenuLabel>Select CRM List</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {groups.length === 0 ? (
+                            <div className="text-xs text-gray-500 p-2 text-center">
+                              No CRM lists available.
+                            </div>
+                          ) : (
+                            groups.map((lg) => (
+                              <DropdownMenuItem
+                                key={lg.id}
+                                onClick={() => handleBulkAddWaGroupsToList(lg.name)}
+                              >
+                                {lg.name}
+                              </DropdownMenuItem>
+                            ))
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-gray-600 hover:text-gray-800"
+                        onClick={() => setSelectedWaGroupIds([])}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+                    <Table>
+                      <TableHeader className="bg-gray-50">
+                        <TableRow>
+                          <TableHead className="w-12">
+                            <Checkbox
+                              checked={paginatedWaGroups.length > 0 && paginatedWaGroups.every((g) => selectedWaGroupIds.includes(g.id))}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  const currentIds = paginatedWaGroups.map((g) => g.id);
+                                  setSelectedWaGroupIds((prev) => Array.from(new Set([...prev, ...currentIds])));
+                                } else {
+                                  const currentIds = paginatedWaGroups.map((g) => g.id);
+                                  setSelectedWaGroupIds((prev) => prev.filter((id) => !currentIds.includes(id)));
+                                }
+                              }}
+                            />
+                          </TableHead>
+                          <TableHead className="font-semibold text-gray-700">Name</TableHead>
+                          <TableHead className="font-semibold text-gray-700">JID / Phone</TableHead>
+                          <TableHead className="font-semibold text-gray-700">Type</TableHead>
+                          <TableHead className="font-semibold text-gray-700">Assigned CRM Lists</TableHead>
+                          <TableHead className="font-semibold text-gray-700">Synced At</TableHead>
+                          <TableHead className="text-right font-semibold text-gray-700">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paginatedWaGroups.map((group) => (
+                          <TableRow key={group.id} className="hover:bg-gray-50/50 transition-colors">
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedWaGroupIds.includes(group.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedWaGroupIds((prev) => [...prev, group.id]);
+                                  } else {
+                                    setSelectedWaGroupIds((prev) => prev.filter((id) => id !== group.id));
+                                  }
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell className="font-semibold text-gray-900">{group.name}</TableCell>
+                            <TableCell className="text-gray-500 font-mono text-xs truncate max-w-[200px]">{group.phone}</TableCell>
+                            <TableCell>
+                              <span className="inline-flex items-center text-[11px] font-medium text-green-700 bg-green-50 px-2.5 py-0.5 rounded-full">
                                 WhatsApp Group
                               </span>
-                              <span className="text-xs text-gray-400">
-                                Synced{" "}
-                                {new Date(group.createdAt).toLocaleDateString(
-                                  "en-US",
-                                  {
-                                    year: "numeric",
-                                    month: "short",
-                                    day: "numeric",
-                                  }
-                                )}
-                              </span>
-                            </div>
-
-                            {/* Group labels display */}
-                            {group.groups && group.groups.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-2.5">
-                                {group.groups.map((label: string) => (
-                                  <span
-                                    key={label}
-                                    className="inline-flex items-center text-[11px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded"
-                                  >
-                                    <Tag size={10} className="mr-1" />
-                                    {label}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 self-end sm:self-start">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" className="flex items-center gap-1">
-                                  <Tag size={14} /> Assign Labels
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-56">
-                                <DropdownMenuLabel>CRM Label Groups</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                {groups.length === 0 ? (
-                                  <div className="text-xs text-gray-500 p-2 text-center">
-                                    No CRM label groups created. Create them in the CRM Label Groups tab.
-                                  </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {group.groups && group.groups.length > 0 ? (
+                                  group.groups.map((label: string) => (
+                                    <span
+                                      key={label}
+                                      className="inline-flex items-center text-[10px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded"
+                                    >
+                                      <Tag size={8} className="mr-1" />
+                                      {label}
+                                    </span>
+                                  ))
                                 ) : (
-                                  groups.map((labelGroup: any) => {
-                                    const isAssigned = (group.groups || []).includes(labelGroup.name);
-                                    return (
-                                      <DropdownMenuCheckboxItem
-                                        key={labelGroup.id}
-                                        checked={isAssigned}
-                                        onCheckedChange={() => handleToggleGroupLabel(group, labelGroup.name)}
-                                      >
-                                        {labelGroup.name}
-                                      </DropdownMenuCheckboxItem>
-                                    );
-                                  })
+                                  <span className="text-xs text-gray-400 italic">None</span>
                                 )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="opacity-50 cursor-not-allowed"
-                              disabled={true}
-                              title="Importing individual participants is disabled because groups are targeted directly."
-                            >
-                              Import Disabled
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-gray-500">
+                              {new Date(group.createdAt).toLocaleDateString("en-US", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </TableCell>
+                            <TableCell className="text-right space-x-2">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="outline" size="sm" className="flex items-center gap-1">
+                                    <Plus size={14} /> Add to List
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-56">
+                                  <DropdownMenuLabel>Add to CRM Lists</DropdownMenuLabel>
+                                  <DropdownMenuSeparator />
+                                  {groups.length === 0 ? (
+                                    <div className="text-xs text-gray-500 p-2 text-center">
+                                      No CRM lists created. Create them in the CRM Lists tab.
+                                    </div>
+                                  ) : (
+                                    groups.map((labelGroup: any) => {
+                                      const isAssigned = (group.groups || []).includes(labelGroup.name);
+                                      return (
+                                        <DropdownMenuCheckboxItem
+                                          key={labelGroup.id}
+                                          checked={isAssigned}
+                                          onCheckedChange={() => handleToggleGroupLabel(group, labelGroup.name)}
+                                        >
+                                          {labelGroup.name}
+                                        </DropdownMenuCheckboxItem>
+                                      );
+                                    })
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <PaginationControls
+                      currentPage={waPage}
+                      totalPages={totalWaPages}
+                      onPageChange={setWaPage}
+                    />
+                  </div>
                 </div>
               )}
             </TabsContent>
@@ -995,9 +1199,9 @@ export default function GroupsUI() {
         ) : (
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b pb-3 mb-4">
-              <h2 className="text-xl font-semibold">CRM Label Groups</h2>
+              <h2 className="text-xl font-semibold">CRM Lists</h2>
               <Button onClick={openCreateDialog} className="bg-green-600 hover:bg-green-700 text-white">
-                <Plus className="mr-2" size={16} /> Create Group
+                <Plus className="mr-2" size={16} /> Create CRM List
               </Button>
             </div>
 
@@ -1010,67 +1214,77 @@ export default function GroupsUI() {
             ) : groups.length === 0 ? (
               <EmptyState onCreateClick={openCreateDialog} />
             ) : (
-              <div className="grid grid-cols-1 gap-4">
-                {groups.map((group) => (
-                  <Card
-                    key={group.id}
-                    className="hover:shadow-md transition-shadow duration-200"
-                  >
-                    <CardContent className="p-4 sm:p-6">
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
-                            {group.name}
-                          </h3>
-                          {group.description && (
-                            <p className="text-sm sm:text-base text-gray-600 mt-1 line-clamp-2">
-                              {group.description}
-                            </p>
-                          )}
-                          <div className="flex items-center gap-3 mt-2">
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-                              <Users size={12} />
-                              {contactCounts[group.name] || 0} contact{(contactCounts[group.name] || 0) !== 1 ? "s" : ""}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              Created{" "}
-                              {new Date(group.createdAt).toLocaleDateString(
-                                "en-US",
-                                {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                }
-                              )}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2 self-end sm:self-start">
+              <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+                <Table>
+                  <TableHeader className="bg-gray-50">
+                    <TableRow>
+                      <TableHead className="font-semibold text-gray-700">Name</TableHead>
+                      <TableHead className="font-semibold text-gray-700">Description</TableHead>
+                      <TableHead className="font-semibold text-gray-700">Type</TableHead>
+                      <TableHead className="font-semibold text-gray-700">Contacts Count</TableHead>
+                      <TableHead className="font-semibold text-gray-700">Created At</TableHead>
+                      <TableHead className="text-right font-semibold text-gray-700">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedCrmLists.map((group) => (
+                      <TableRow key={group.id} className="hover:bg-gray-50/50 transition-colors">
+                        <TableCell className="font-semibold text-gray-900">{group.name}</TableCell>
+                        <TableCell className="text-gray-500 max-w-[200px] truncate">{group.description || "-"}</TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center text-[11px] font-medium text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full">
+                            Contact List
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-gray-700">{contactCounts[group.name] || 0} contacts</TableCell>
+                        <TableCell className="text-gray-500">
+                          {new Date(group.createdAt).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </TableCell>
+                        <TableCell className="text-right space-x-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            className="flex items-center gap-1.5"
+                            className="text-blue-600 hover:text-blue-700 border-blue-200"
+                            onClick={() => window.location.href = `/contacts?group=${encodeURIComponent(group.name)}`}
+                          >
+                            <Users size={14} className="mr-1" /> View Contacts
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => openEdit(group)}
                           >
-                            <Edit size={14} />
-                            <span className="hidden sm:inline">Edit</span>
+                            <Edit size={14} className="mr-1" /> Edit
                           </Button>
-
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteGroupContacts(group.id, group.name)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                          >
+                            <Trash size={14} className="mr-1" /> Delete Contacts
+                          </Button>
                           <Button
                             variant="destructive"
                             size="sm"
                             onClick={() => deleteGroup(group.id)}
-                            className="flex items-center gap-1.5"
                           >
-                            <Trash size={14} />
-                            <span className="hidden sm:inline">Delete</span>
+                            <Trash size={14} className="mr-1" /> Delete
                           </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <PaginationControls
+                  currentPage={crmPage}
+                  totalPages={totalCrmPages}
+                  onPageChange={setCrmPage}
+                />
               </div>
             )}
           </div>
@@ -1082,19 +1296,19 @@ export default function GroupsUI() {
         <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl">
-              {editMode ? "Edit Group" : "Create Group"}
+              {editMode ? "Edit CRM List" : "Create CRM List"}
             </DialogTitle>
             <DialogDescription>
               {editMode
-                ? "Update your group details below."
-                : "Create a new group to organize your contacts."}
+                ? "Update your list details below."
+                : "Create a new CRM list to organize your contacts."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1.5">
-                Group Name <span className="text-red-500">*</span>
+                List Name <span className="text-red-500">*</span>
               </label>
               <Input
                 placeholder="e.g., VIP Customers"
@@ -1110,7 +1324,7 @@ export default function GroupsUI() {
                 Description
               </label>
               <Textarea
-                placeholder="Add a description for this group (optional)"
+                placeholder="Add a description for this CRM list (optional)"
                 value={groupDescription}
                 onChange={(e) => setGroupDescription(e.target.value)}
                 disabled={isSubmitting}
@@ -1137,7 +1351,7 @@ export default function GroupsUI() {
                   ? "Saving..."
                   : editMode
                   ? "Save Changes"
-                  : "Create Group"}
+                  : "Create List"}
               </Button>
             </div>
           </div>

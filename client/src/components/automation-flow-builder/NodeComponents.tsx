@@ -495,7 +495,7 @@ export function AddToGroupNode({ data }: { data: BuilderNodeData }) {
       <Handle type="target" position={Position.Top} className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
       <NodeShell
         icon={<UserPlus className="w-4 h-4" />}
-        title="Add to Group"
+        title="Add to CRM List"
         color="text-emerald-700"
         bgColor="bg-emerald-50"
         borderColor="border-emerald-100"
@@ -506,7 +506,7 @@ export function AddToGroupNode({ data }: { data: BuilderNodeData }) {
             <span className="text-[11px] text-gray-600 font-medium truncate">{data.groupName}</span>
           </div>
         ) : (
-          <div className="text-gray-400 italic text-[11px]">No group selected</div>
+          <div className="text-gray-400 italic text-[11px]">No CRM list selected</div>
         )}
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />

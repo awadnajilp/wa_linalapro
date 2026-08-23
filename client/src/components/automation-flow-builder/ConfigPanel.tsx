@@ -2597,11 +2597,11 @@ export function ConfigPanel({
 
           {d.kind === "add_to_group" && (
             <>
-              <SectionHeader>Group Settings</SectionHeader>
+              <SectionHeader>CRM List Settings</SectionHeader>
               <div className="space-y-3 bg-emerald-50/50 rounded-xl p-4 border border-emerald-100">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
-                    <UserPlus className="w-3.5 h-3.5 text-emerald-500" /> Select Group
+                    <UserPlus className="w-3.5 h-3.5 text-emerald-500" /> Select CRM List
                   </Label>
                   <Select
                     value={d.groupId || ""}
@@ -2610,7 +2610,7 @@ export function ConfigPanel({
                       onChange({ groupId: v, groupName: group?.name || "" });
                     }}
                   >
-                    <SelectTrigger className="h-9 text-sm bg-white rounded-lg"><SelectValue placeholder="Select a group" /></SelectTrigger>
+                    <SelectTrigger className="h-9 text-sm bg-white rounded-lg"><SelectValue placeholder="Select a CRM List" /></SelectTrigger>
                     <SelectContent>
                       {(contactGroups as any[]).map((g: any) => (
                         <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
@@ -2618,7 +2618,7 @@ export function ConfigPanel({
                     </SelectContent>
                   </Select>
                   {(contactGroups as any[]).length === 0 && (
-                    <div className="text-[10px] text-gray-400 italic">No groups found. Create groups in Contact Management first.</div>
+                    <div className="text-[10px] text-gray-400 italic">No CRM lists found. Create CRM lists in lists/groups page first.</div>
                   )}
                 </div>
               </div>

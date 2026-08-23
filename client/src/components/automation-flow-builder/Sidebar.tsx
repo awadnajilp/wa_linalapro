@@ -268,12 +268,12 @@ const nodeCategories = [
     items: [
       {
         kind: "add_to_group" as NodeKind,
-        name: "Add Group",
+        name: "Add to CRM List",
         icon: UserPlus,
         color: "text-emerald-600",
         bg: "bg-emerald-50",
         border: "border-emerald-200",
-        tip: "Add the contact to a specific group for segmentation. Use to tag leads, customers, or interests for targeted campaigns later.",
+        tip: "Add the contact to a specific CRM list for segmentation. Use to tag leads, customers, or interests for targeted campaigns later.",
       },
       {
         kind: "update_contact" as NodeKind,

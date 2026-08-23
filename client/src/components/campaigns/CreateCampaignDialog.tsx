@@ -418,7 +418,7 @@ export function CreateCampaignDialog({
                   <ScrollArea className="h-64 border rounded-md p-4">
                     {broadcastLists.length === 0 ? (
                       <div className="text-center text-muted-foreground py-8">
-                        No broadcast lists available. Create one first in Groups.
+                        No broadcast lists available. Create one first in Lists & Groups.
                       </div>
                     ) : (
                       broadcastLists
@@ -469,7 +469,7 @@ export function CreateCampaignDialog({
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="flex-1">
                     <Label className="mb-2 block">
-                      Filter by Group Label
+                      Filter by CRM List
                     </Label>
                     <Select value={selectedGroup} onValueChange={setSelectedGroup}>
                       <SelectTrigger>
@@ -528,7 +528,7 @@ export function CreateCampaignDialog({
                   <ScrollArea className="h-64 border rounded-md p-4">
                     {filteredGroups.length === 0 ? (
                       <div className="text-center text-muted-foreground py-8">
-                        No WhatsApp Groups found. Sync them from the Groups WA page.
+                        No WhatsApp Groups found. Sync them from the Lists & Groups page.
                       </div>
                     ) : (
                       filteredGroups.map((contact: any) => (

@@ -142,7 +142,7 @@ export function ContactsToolbar({
                     className="text-green-600"
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    {t("groups.createButton") || "Create Group"}
+                    {t("groups.createButton") || "Create CRM List"}
                   </DropdownMenuItem>
                   {groupsData?.length > 0 && (
                     <>

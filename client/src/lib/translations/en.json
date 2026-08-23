@@ -67,7 +67,7 @@
     "analytics": "Analytics",
     "settings": "Settings",
     "team": "Team",
-    "groups": "Groups",
+    "groups": "Lists & Groups",
     "channels": "Channels",
     "webhooks": "Webhooks",
     "account": "Account",
@@ -251,10 +251,10 @@
     "blocked": "Blocked",
     "exportAllContacts": "Export All Contacts",
     "tags": "Tags",
-    "groups": "Groups",
-    "allGroups": "All Groups",
+    "groups": "CRM Lists",
+    "allGroups": "All CRM Lists",
     "allStatuses": "All Statuses",
-    "availableGroups": "Available Groups",
+    "availableGroups": "Available CRM Lists",
     "createdAt": "Created At",
     "lastMessageAt": "Last Message",
     "noContacts": "No contacts found",
@@ -416,7 +416,7 @@
     "scheduleFor": "Schedule For",
     "selectTemplate": "Select Template",
     "selectContacts": "Select Contacts",
-    "selectGroups": "Select Groups",
+    "selectGroups": "Select CRM Lists",
     "uploadCSV": "Upload CSV",
     "apiIntegration": "API Integration",
     "testCampaign": "Test Campaign",
@@ -445,8 +445,8 @@
     "csvPreview": "CSV Preview",
     "rows": "rows",
     "tabContent": " API campaigns allow external applications to trigger messages using your templates. After creating the campaign, you'll receive an API endpoint and key.",
-    "campaignfilterlabel": "Campaign Filter by Group",
-    "allGroup": "All Group"
+    "campaignfilterlabel": "Campaign Filter by CRM List",
+    "allGroup": "All CRM Lists"
   },
   "templates": {
     "title": "Templates",
@@ -1120,9 +1120,9 @@
     }
   },
   "groups": {
-    "title": "Groups",
-    "subtitle": "All groups details and management",
-    "createButton": "Create Group"
+    "title": "Lists & Groups",
+    "subtitle": "All CRM lists, Broadcast lists, and WhatsApp groups management",
+    "createButton": "Create CRM List"
   },
   "messageLog": {
     "headerTitle": "Message Logs",

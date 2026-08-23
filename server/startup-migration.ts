@@ -518,6 +518,118 @@ const steps: MigrationStep[] = [
     "broadcast_lists",
     "JSONB DEFAULT '[]'::jsonb"
   ),
+  {
+    description: "Create table addons (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS addons (
+        id              VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        slug            TEXT NOT NULL UNIQUE,
+        name            TEXT NOT NULL,
+        description     TEXT,
+        price           NUMERIC(10, 2) DEFAULT 0,
+        billing_cycle   VARCHAR(50) DEFAULT 'monthly',
+        ai_key_type     TEXT DEFAULT 'tenant',
+        default_credits INTEGER DEFAULT 0,
+        is_active       BOOLEAN DEFAULT true,
+        created_at      TIMESTAMP DEFAULT NOW(),
+        updated_at      TIMESTAMP DEFAULT NOW()
+      );
+    `,
+  },
+  addColumnIfNotExists("addons", "ai_key_type", "TEXT DEFAULT 'tenant'"),
+  addColumnIfNotExists("addons", "default_credits", "INTEGER DEFAULT 0"),
+  {
+    description: "Insert default Expense Module addon (if not exists)",
+    sql: `
+      INSERT INTO addons (id, slug, name, description, price, billing_cycle, ai_key_type, default_credits, is_active)
+      VALUES (
+        'addon-expense-tracker-uuid', 
+        'expense-tracker', 
+        'Expense Module', 
+        'Enable interactive expense tracking bots on WhatsApp, including AI voice transcription, expense ledgers, payment accounts, and automated reports.', 
+        9.99, 
+        'monthly', 
+        'tenant',
+        0,
+        true
+      )
+      ON CONFLICT (slug) DO UPDATE
+      SET name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          price = EXCLUDED.price;
+    `,
+  },
+  {
+    description: "Create table tenant_addons (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS tenant_addons (
+        id                      VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id               VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        addon_id                VARCHAR NOT NULL REFERENCES addons (id) ON DELETE CASCADE,
+        status                  VARCHAR(50) NOT NULL DEFAULT 'active',
+        expires_at              TIMESTAMP,
+        credits                 INTEGER DEFAULT 0,
+        max_credits             INTEGER DEFAULT 0,
+        gateway_subscription_id VARCHAR,
+        gateway_provider        VARCHAR,
+        created_at              TIMESTAMP DEFAULT NOW(),
+        updated_at              TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT tenant_addon_unique UNIQUE (tenant_id, addon_id)
+      );
+    `,
+  },
+  addColumnIfNotExists("tenant_addons", "credits", "INTEGER DEFAULT 0"),
+  addColumnIfNotExists("tenant_addons", "max_credits", "INTEGER DEFAULT 0"),
+  {
+    description: "Create table payment_accounts (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS payment_accounts (
+        id         VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id  VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        type       TEXT NOT NULL DEFAULT 'cash',
+        balance    NUMERIC(12, 2) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `,
+  },
+  {
+    description: "Create table expenses (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS expenses (
+        id                 VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id          VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        channel_id         VARCHAR REFERENCES channels (id) ON DELETE SET NULL,
+        amount             NUMERIC(12, 2) NOT NULL,
+        category           TEXT NOT NULL,
+        payment_account_id VARCHAR REFERENCES payment_accounts (id) ON DELETE SET NULL,
+        description        TEXT,
+        date               TIMESTAMP DEFAULT NOW(),
+        media_url          TEXT,
+        created_at         TIMESTAMP DEFAULT NOW()
+      );
+    `,
+  },
+  {
+    description: "Create table expense_configs (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS expense_configs (
+        id                 VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id          VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        channel_id         VARCHAR REFERENCES channels (id) ON DELETE CASCADE,
+        trigger_keyword    TEXT DEFAULT 'expense',
+        retrieval_keyword  TEXT DEFAULT 'getexpense',
+        reporting_number   TEXT,
+        report_interval    TEXT DEFAULT 'daily',
+        report_email       TEXT,
+        email_enabled      BOOLEAN DEFAULT false,
+        next_report_at     TIMESTAMP,
+        created_at         TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT expense_configs_channel_unique UNIQUE (channel_id)
+      );
+    `,
+  },
 ];
 
 /**

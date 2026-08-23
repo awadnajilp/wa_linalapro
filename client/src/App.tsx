@@ -103,6 +103,9 @@ import ApiDocs from "./pages/api-docs";
 import ChannelsManagement from "./pages/channels-management";
 import WalletPage from "./pages/WalletPage";
 import AdminWalletsPage from "./pages/AdminWalletsPage";
+import Marketplace from "./pages/Marketplace";
+import AdminAddons from "./pages/AdminAddons";
+import ExpenseLedger from "./pages/ExpenseLedger";
 
 // Define route permissions mapping
 const ROUTE_PERMISSIONS: Record<string, string> = {
@@ -422,6 +425,15 @@ function ProtectedRoutes() {
           </Route>
           <Route path="/admin/wallets">
             <PermissionRoute component={AdminWalletsPage} requiredRoles={["superadmin"]} />
+          </Route>
+          <Route path="/marketplace">
+            <PermissionRoute component={Marketplace} requiredRoles={["admin"]} />
+          </Route>
+          <Route path="/expenses">
+            <PermissionRoute component={ExpenseLedger} requiredRoles={["admin"]} />
+          </Route>
+          <Route path="/admin/addons">
+            <PermissionRoute component={AdminAddons} requiredRoles={["superadmin"]} />
           </Route>
           <Route component={NotFound} />
         </Switch>

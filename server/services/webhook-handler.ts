@@ -26,6 +26,8 @@ import { searchTrainingData } from "./training.service";
 import { WhatsAppApiService } from "./whatsapp-api";
 import { triggerService } from "./automation-execution-service";
 import { VoiceManager } from "./voice";
+import { AddonManager } from "./addon-manager";
+import { ExpenseAIService } from "./expense-ai-service";
 
 
 export interface WebhookMessage {
@@ -789,6 +791,169 @@ export class WebhookHandler {
           }
         } catch (notifError) {
           console.error("Error sending new message notification:", notifError);
+        }
+      }
+
+      // ==================== EXPENSE TRACKER INTERCEPTOR ====================
+      if (channelId && conversation.length > 0 && !isGroupMessage) {
+        try {
+          const tenantId = channel[0]?.createdBy;
+          if (tenantId) {
+            const isExpenseActive = await AddonManager.isAddonActive(tenantId, "expense-tracker");
+            if (isExpenseActive) {
+              const [expenseConfig] = await db
+                .select()
+                .from(schema.expenseConfigs)
+                .where(eq(schema.expenseConfigs.channelId, channelId))
+                .limit(1);
+
+              const triggerKeyword = (expenseConfig?.triggerKeyword || "expense").toLowerCase();
+              const retrievalKeyword = (expenseConfig?.retrievalKeyword || "getexpense").toLowerCase();
+              const cleanContent = content.trim();
+              const lowerContent = cleanContent.toLowerCase();
+
+              let isTrigger = lowerContent.startsWith(triggerKeyword);
+              let isRetrieval = lowerContent.startsWith(retrievalKeyword);
+              let isVoiceLog = false;
+
+              // Check if it's a voice note that doesn't start with keyword but could be an expense log
+              if (!isTrigger && !isRetrieval && message.type === "audio" && cleanContent.length > 0) {
+                isVoiceLog = true;
+              }
+
+              if (isTrigger || isVoiceLog) {
+                console.log(`[Expense Tracker] Triggered expense logging via text/voice.`);
+                const promptText = isTrigger ? cleanContent.substring(triggerKeyword.length).trim() : cleanContent;
+                
+                if (promptText.length === 0) {
+                  // Prompt empty trigger keyword, reply with syntax template
+                  const waApi = new WhatsAppApiService(channel[0]);
+                  await waApi.sendDirectMessage({
+                    to: message.from,
+                    type: "text",
+                    text: {
+                      body: "⚠️ *Expense Tracker Help*\nTo record an expense, format like this:\n`expense <amount> <category> <payment_account> <description>`\n\n_Example: expense 45.00 Travel Cash Taxi ride_"
+                    }
+                  });
+                  automationHandled = true;
+                } else {
+                  // Parse with AI
+                  const parsed = await ExpenseAIService.parseExpense(tenantId, channelId, promptText);
+                  if (parsed && !parsed.error && parsed.amount > 0) {
+                    // Match or default to payment account
+                    const accounts = await db
+                      .select()
+                      .from(schema.paymentAccounts)
+                      .where(eq(schema.paymentAccounts.tenantId, tenantId));
+                    
+                    let matchedAccount = accounts.find(
+                      a => a.name.toLowerCase() === parsed.accountName.toLowerCase()
+                    );
+                    
+                    if (!matchedAccount && accounts.length > 0) {
+                      matchedAccount = accounts[0]; // fallback to first account
+                    }
+
+                    if (matchedAccount) {
+                      const currentBalance = parseFloat(matchedAccount.balance || "0");
+                      await db
+                        .update(schema.paymentAccounts)
+                        .set({
+                          balance: String(currentBalance - parsed.amount),
+                          updatedAt: new Date()
+                        })
+                        .where(eq(schema.paymentAccounts.id, matchedAccount.id));
+
+                      // Insert Expense
+                      await db.insert(schema.expenses).values({
+                        tenantId,
+                        channelId,
+                        amount: String(parsed.amount),
+                        category: parsed.category,
+                        paymentAccountId: matchedAccount.id,
+                        description: parsed.description,
+                        date: new Date(),
+                      });
+
+                      const waApi = new WhatsAppApiService(channel[0]);
+                      await waApi.sendDirectMessage({
+                        to: message.from,
+                        type: "text",
+                        text: {
+                          body: `✅ *Expense Logged Successfully!*\n\n💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n💳 Account: *${matchedAccount.name}*\n📝 Description: *${parsed.description || "N/A"}*`
+                        }
+                      });
+                      automationHandled = true;
+                    }
+                  } else {
+                    if (isTrigger) {
+                      // Only reply with format helper if they explicitly typed the keyword
+                      const waApi = new WhatsAppApiService(channel[0]);
+                      await waApi.sendDirectMessage({
+                        to: message.from,
+                        type: "text",
+                        text: {
+                          body: `⚠️ *Failed to parse expense.*\nReason: ${parsed?.error || "AI could not extract valid amount/category."}\n\nFormat: \`expense <amount> <category> <payment_account> <description>\``
+                        }
+                      });
+                      automationHandled = true;
+                    }
+                  }
+                }
+              } else if (isRetrieval) {
+                console.log(`[Expense Tracker] Triggered expense retrieval.`);
+                const timeFrame = cleanContent.substring(retrievalKeyword.length).trim().toLowerCase() || "today";
+
+                let startDate = new Date();
+                if (timeFrame === "today") {
+                  startDate.setHours(0, 0, 0, 0);
+                } else if (timeFrame === "week") {
+                  startDate.setDate(startDate.getDate() - 7);
+                } else if (timeFrame === "month") {
+                  startDate.setDate(startDate.getDate() - 30);
+                } else if (timeFrame === "year") {
+                  startDate.setDate(startDate.getDate() - 365);
+                } else {
+                  startDate.setHours(0, 0, 0, 0); // default today
+                }
+
+                const expenseLogs = await db
+                  .select()
+                  .from(schema.expenses)
+                  .where(
+                    and(
+                      eq(schema.expenses.tenantId, tenantId),
+                      eq(schema.expenses.channelId, channelId),
+                      gte(schema.expenses.date, startDate)
+                    )
+                  );
+
+                const totalAmount = expenseLogs.reduce((acc, curr) => acc + parseFloat(curr.amount || "0"), 0);
+
+                let summary = `📊 *Expenses Summary (${timeFrame.toUpperCase()})*\n`;
+                summary += `───────────────────\n`;
+                if (expenseLogs.length === 0) {
+                  summary += `No expenses found for this period.`;
+                } else {
+                  expenseLogs.forEach((e, idx) => {
+                    summary += `${idx + 1}. *${parseFloat(e.amount).toFixed(2)}* [${e.category}] - ${e.description || "No description"}\n`;
+                  });
+                  summary += `───────────────────\n`;
+                  summary += `Total spent: *${totalAmount.toFixed(2)}*`;
+                }
+
+                const waApi = new WhatsAppApiService(channel[0]);
+                await waApi.sendDirectMessage({
+                  to: message.from,
+                  type: "text",
+                  text: { body: summary }
+                });
+                automationHandled = true;
+              }
+            }
+          }
+        } catch (err: any) {
+          console.error(`[Expense Tracker Interceptor] Error logging expense via bot:`, err.message);
         }
       }
 

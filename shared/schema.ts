@@ -2325,3 +2325,90 @@ export type InsertWalletTransaction = typeof walletTransactions.$inferInsert;
 export type BroadcastList = typeof broadcastLists.$inferSelect;
 export type InsertBroadcastList = typeof broadcastLists.$inferInsert;
 
+// Addons & Marketplace Schema
+export const addons = pgTable("addons", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  price: numeric("price", { precision: 10, scale: 2 }).default("0"),
+  billingCycle: varchar("billing_cycle").default("monthly"), // "monthly", "annual", "one-time"
+  aiKeyType: text("ai_key_type").default("tenant"), // "tenant" or "admin"
+  defaultCredits: integer("default_credits").default(0), // Default allocated tokens/credits for chatbot/AI usage
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const tenantAddons = pgTable("tenant_addons", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  addonId: varchar("addon_id").notNull().references(() => addons.id, { onDelete: "cascade" }),
+  status: varchar("status").notNull().default("active"), // "active", "expired", "cancelled"
+  expiresAt: timestamp("expires_at"),
+  credits: integer("credits").default(0), // Current active credits / tokens remaining for admin-provided key type
+  maxCredits: integer("max_credits").default(0), // Max allowed credits for this billing cycle
+  gatewaySubscriptionId: varchar("gateway_subscription_id"),
+  gatewayProvider: varchar("gateway_provider"), // "stripe", "razorpay", "wallet", "manual"
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Expense Module Schema
+export const paymentAccounts = pgTable("payment_accounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  type: text("type").notNull().default("cash"), // "cash", "bank", "credit_card"
+  balance: numeric("balance", { precision: 12, scale: 2 }).default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const expenses = pgTable("expenses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "set null" }),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  category: text("category").notNull(),
+  paymentAccountId: varchar("payment_account_id").references(() => paymentAccounts.id, { onDelete: "set null" }),
+  description: text("description"),
+  date: timestamp("date").defaultNow(),
+  mediaUrl: text("media_url"), // receipt images
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const expenseConfigs = pgTable("expense_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  triggerKeyword: text("trigger_keyword").default("expense"),
+  retrievalKeyword: text("retrieval_keyword").default("getexpense"),
+  reportingNumber: text("reporting_number"),
+  reportInterval: text("report_interval").default("daily"), // "daily", "weekly", "monthly"
+  reportEmail: text("report_email"),
+  emailEnabled: boolean("email_enabled").default(false),
+  nextReportAt: timestamp("next_report_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Zod schemas
+export const insertAddonSchema = createInsertSchema(addons);
+export const insertTenantAddonSchema = createInsertSchema(tenantAddons);
+export const insertPaymentAccountSchema = createInsertSchema(paymentAccounts);
+export const insertExpenseSchema = createInsertSchema(expenses);
+export const insertExpenseConfigSchema = createInsertSchema(expenseConfigs);
+
+// TypeScript types
+export type Addon = typeof addons.$inferSelect;
+export type InsertAddon = typeof addons.$inferInsert;
+export type TenantAddon = typeof tenantAddons.$inferSelect;
+export type InsertTenantAddon = typeof tenantAddons.$inferInsert;
+export type PaymentAccount = typeof paymentAccounts.$inferSelect;
+export type InsertPaymentAccount = typeof paymentAccounts.$inferInsert;
+export type Expense = typeof expenses.$inferSelect;
+export type InsertExpense = typeof expenses.$inferInsert;
+export type ExpenseConfig = typeof expenseConfigs.$inferSelect;
+export type InsertExpenseConfig = typeof expenseConfigs.$inferInsert;
+
+

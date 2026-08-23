@@ -44,6 +44,8 @@ import {
   BookOpen,
   Smartphone,
   CreditCard,
+  Puzzle,
+  Coins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChannelSwitcher } from "@/components/channel-switcher";
@@ -210,6 +212,20 @@ function getNavItems(role: string): NavItem[] {
         icon: CreditCard,
         labelKey: "Wallet",
         color: "text-emerald-600",
+        allowedRoles: ["admin"],
+      },
+      {
+        href: "/marketplace",
+        icon: Puzzle,
+        labelKey: "Marketplace",
+        color: "text-indigo-500",
+        allowedRoles: ["admin"],
+      },
+      {
+        href: "/expenses",
+        icon: Coins,
+        labelKey: "Expenses Ledger",
+        color: "text-amber-500",
         allowedRoles: ["admin"],
       },
     ];
@@ -425,6 +441,12 @@ const sidebarItemsCategories = [
     path: "/admin/wallets",
     color: "text-emerald-600",
   },
+  {
+    name: "Manage Addons",
+    icon: Puzzle,
+    path: "/admin/addons",
+    color: "text-indigo-600",
+  },
 ];
 
 // Category-based structure for superadmin
@@ -445,6 +467,15 @@ export default function Sidebar() {
     queryFn: () => fetch("/api/brand-settings").then((res) => res.json()),
     staleTime: 5 * 60 * 1000,
   });
+
+  const { data: tenantAddons } = useQuery<any[]>({
+    queryKey: ["/api/tenant/addons"],
+    enabled: !!user && user.role === "admin",
+  });
+
+  const isExpenseActive = tenantAddons?.some(
+    (a) => a.slug === "expense-tracker" && a.subscription?.status === "active"
+  );
 
   const {
     isOpen,
@@ -742,6 +773,7 @@ export default function Sidebar() {
               : navItems
                   .filter(canView)
                   .filter((item) => !(item.href === "/templates" && selectedChannel?.connectionMethod === "qr_code"))
+                  .filter((item) => !(item.href === "/expenses" && !isExpenseActive))
                   .map((item) =>
                     renderLink(
                       t(item.labelKey),

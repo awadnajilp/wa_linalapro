@@ -618,6 +618,8 @@ const steps: MigrationStep[] = [
         description        TEXT,
         date               TIMESTAMP DEFAULT NOW(),
         media_url          TEXT,
+        logged_by_name     TEXT,
+        logged_by_phone    TEXT,
         created_at         TIMESTAMP DEFAULT NOW()
       );
     `,
@@ -666,6 +668,8 @@ const steps: MigrationStep[] = [
   addColumnIfNotExists("expense_configs", "ai_prompt", "TEXT DEFAULT 'You are a helper AI for an Expense Tracker app. Analyze the text representing an expense description or raw chat, and extract the amount, category, account, and description.'"),
   addColumnIfNotExists("expense_configs", "income_keyword", "TEXT DEFAULT 'income'"),
   addColumnIfNotExists("expenses", "type", "TEXT DEFAULT 'expense'"),
+  addColumnIfNotExists("expenses", "logged_by_name", "TEXT"),
+  addColumnIfNotExists("expenses", "logged_by_phone", "TEXT"),
 ];
 
 /**

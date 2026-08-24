@@ -907,6 +907,8 @@ if (activeSession) {
                               type: parsed.type || activeSession.type || "expense",
                               description: parsed.description,
                               date: txDate,
+                              loggedByName: contact[0]?.name || contact[0]?.phone || "Unknown",
+                              loggedByPhone: contact[0]?.phone || "Unknown",
                             });
 
                             await db.delete(schema.expenseSessions).where(eq(schema.expenseSessions.id, activeSession.id));
@@ -981,7 +983,9 @@ if (activeSession) {
                             type: activeSession.type || "expense",
                             description: activeSession.description,
                             date: activeSession.date ? new Date(activeSession.date) : new Date(),
-                            mediaUrl: activeSession.mediaUrl
+                            mediaUrl: activeSession.mediaUrl,
+                            loggedByName: contact[0]?.name || contact[0]?.phone || "Unknown",
+                            loggedByPhone: contact[0]?.phone || "Unknown",
                           });
 
                           await db.delete(schema.expenseSessions).where(eq(schema.expenseSessions.id, activeSession.id));
@@ -1047,7 +1051,9 @@ if (activeSession) {
                             type: activeSession.type || "expense",
                             description: activeSession.description,
                             date: parsedDate,
-                            mediaUrl: activeSession.mediaUrl
+                            mediaUrl: activeSession.mediaUrl,
+                            loggedByName: contact[0]?.name || contact[0]?.phone || "Unknown",
+                            loggedByPhone: contact[0]?.phone || "Unknown",
                           });
 
                           await db.delete(schema.expenseSessions).where(eq(schema.expenseSessions.id, activeSession.id));
@@ -1151,7 +1157,9 @@ if (activeSession) {
                                 type: parsed.type || "expense",
                                 description: parsed.description,
                                 date: txDate,
-                                mediaUrl: fileUrl || null
+                                mediaUrl: fileUrl || null,
+                                loggedByName: contact[0]?.name || contact[0]?.phone || "Unknown",
+                                loggedByPhone: contact[0]?.phone || "Unknown",
                               });
 
                           await db
@@ -1249,6 +1257,8 @@ if (activeSession) {
                               type: parsed.type || "expense",
                               description: parsed.description,
                               date: new Date(),
+                              loggedByName: contact[0]?.name || contact[0]?.phone || "Unknown",
+                              loggedByPhone: contact[0]?.phone || "Unknown",
                             });
 
                           await db

@@ -2381,6 +2381,8 @@ export const expenses = pgTable("expenses", {
   description: text("description"),
   date: timestamp("date").defaultNow(),
   mediaUrl: text("media_url"), // receipt images
+  loggedByName: text("logged_by_name"),
+  loggedByPhone: text("logged_by_phone"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

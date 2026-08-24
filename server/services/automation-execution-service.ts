@@ -5641,6 +5641,10 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
                   })
                   .where(eq(paymentAccounts.id, matchedAccount.id));
 
+                const getContact = await db.query.contacts.findFirst({
+                  where: eq(contacts.id, execution.contactId!),
+                });
+
                 await db.insert(expenses).values({
                   tenantId,
                   channelId,
@@ -5650,6 +5654,8 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
                   type,
                   description,
                   date: new Date(),
+                  loggedByName: getContact?.name || getContact?.phone || "Unknown",
+                  loggedByPhone: getContact?.phone || "Unknown",
                 });
 
                 // Disable AI Takeover for this conversation thread
@@ -5660,9 +5666,6 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
 
                 // Send confirmation
                 const channel = await storage.getChannel(channelId);
-                const getContact = await db.query.contacts.findFirst({
-                  where: eq(contacts.id, execution.contactId!),
-                });
                 if (getContact && channel) {
                   const waApi = new WhatsAppApiService(channel);
                   const flowLabel = type === "deposit" ? "Income/Deposit" : "Expense";

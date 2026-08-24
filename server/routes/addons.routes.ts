@@ -390,7 +390,9 @@ export function registerAddonsRoutes(app: Express) {
           type: txType,
           description: description || "",
           date: date ? new Date(date) : new Date(),
-          mediaUrl: mediaUrl || null
+          mediaUrl: mediaUrl || null,
+          loggedByName: (req.user as any)?.username || (req.user as any)?.email || "Admin",
+          loggedByPhone: "Manual"
         })
         .returning();
 
@@ -480,6 +482,8 @@ export function registerAddonsRoutes(app: Express) {
         { header: "Category", key: "category", width: 20 },
         { header: "Payment Account", key: "account", width: 25 },
         { header: "Description", key: "description", width: 40 },
+        { header: "Logged By (Name)", key: "loggedByName", width: 25 },
+        { header: "Logged By (Phone)", key: "loggedByPhone", width: 20 },
       ];
 
       worksheet.getRow(1).font = { bold: true };
@@ -491,6 +495,8 @@ export function registerAddonsRoutes(app: Express) {
           category: log.category,
           account: log.paymentAccountId ? (accountsMap.get(log.paymentAccountId) || "Unknown") : "Cash",
           description: log.description || "",
+          loggedByName: log.loggedByName || "N/A",
+          loggedByPhone: log.loggedByPhone || "N/A",
         });
       });
 

@@ -133,6 +133,8 @@ async function checkAndSendReports() {
           { header: "Category", key: "category", width: 20 },
           { header: "Description", key: "description", width: 35 },
           { header: "Payment Account", key: "account", width: 25 },
+          { header: "Logged By (Name)", key: "loggedByName", width: 25 },
+          { header: "Logged By (Phone)", key: "loggedByPhone", width: 20 },
         ];
 
         // Format header
@@ -153,6 +155,8 @@ async function checkAndSendReports() {
             category: log.category,
             description: log.description || "",
             account: log.paymentAccountId ? (accountsMap.get(log.paymentAccountId) || "Unknown") : "Cash",
+            loggedByName: log.loggedByName || "N/A",
+            loggedByPhone: log.loggedByPhone || "N/A",
           });
         }
 

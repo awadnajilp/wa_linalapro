@@ -720,6 +720,7 @@ export default function ExpenseLedger() {
               <TableHead>Category</TableHead>
               <TableHead>Account</TableHead>
               <TableHead>Description</TableHead>
+              <TableHead>Logged By</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -747,6 +748,16 @@ export default function ExpenseLedger() {
                     {accounts?.find(a => a.id === e.paymentAccountId)?.name || "Cash"}
                   </TableCell>
                   <TableCell className="text-gray-500">{e.description || "N/A"}</TableCell>
+                  <TableCell className="text-xs">
+                    {e.loggedByName ? (
+                      <div>
+                        <div className="font-semibold text-gray-700">{e.loggedByName}</div>
+                        <div className="text-gray-400 font-mono text-[10px]">{e.loggedByPhone}</div>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 italic">Unknown</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button variant="outline" size="sm" onClick={() => deleteExpenseMutation.mutate(e.id)} className="h-8 w-8 p-0 text-red-600 hover:bg-red-50 border-red-100">
                       <Trash className="w-3.5 h-3.5" />
@@ -756,7 +767,7 @@ export default function ExpenseLedger() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-gray-400">
+                <TableCell colSpan={8} className="text-center py-12 text-gray-400">
                   No expense records found. Try sending text/voice reports to your bot!
                 </TableCell>
               </TableRow>

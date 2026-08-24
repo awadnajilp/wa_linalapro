@@ -46,6 +46,7 @@ import {
   expenseConfigs,
 } from "@shared/schema";
 import OpenAI from "openai";
+import { ExpenseAIService } from "./expense-ai-service";
 import { searchTrainingData } from "./training.service";
 import { VoiceManager } from "./voice";
 import { eq, and, or, asc, desc } from "drizzle-orm";
@@ -5610,44 +5611,27 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
 
         if (execution && execution.automation) {
           const vars = (execution.variables || {}) as Record<string, any>;
-          if (vars.expense_amount) {
-            // This is an expense tracker flow! Let's log it.
-            const rawAmount = parseFloat(vars.expense_amount);
+          const isIncomeFlow = !!vars.income_amount;
+          const isExpenseFlow = !!vars.expense_amount;
+
+          if (isIncomeFlow || isExpenseFlow) {
+            const rawAmount = parseFloat(isIncomeFlow ? vars.income_amount : vars.expense_amount);
             const amount = isNaN(rawAmount) ? 0 : rawAmount;
-            const description = vars.expense_description || 'Flow log';
-            const categoryAndAcc = vars.expense_category_account || 'General / Cash';
-            
-            let category = 'General';
-            let accountName = 'Cash';
-            if (categoryAndAcc.includes('/')) {
-              const parts = categoryAndAcc.split('/');
-              category = parts[0].trim();
-              accountName = parts[1].trim();
-            } else {
-              category = categoryAndAcc.trim();
-            }
+            const description = (isIncomeFlow ? vars.income_description : vars.expense_description) || 'Flow log';
+            const category = (isIncomeFlow ? vars.income_category : vars.expense_category) || 'General';
+            const accountName = (isIncomeFlow ? vars.income_account : vars.expense_account) || 'Cash';
+            const type = isIncomeFlow ? 'deposit' : 'expense';
 
             const channelId = execution.automation.channelId;
             const tenantId = execution.automation.createdBy;
 
             if (channelId && tenantId) {
-              const accounts = await db
-                .select()
-                .from(paymentAccounts)
-                .where(eq(paymentAccounts.tenantId, tenantId));
-
-              let matchedAccount = accounts.find(
-                a => a.name.toLowerCase() === accountName.toLowerCase() ||
-                     accountName.toLowerCase().includes(a.name.toLowerCase())
-              );
-
-              if (!matchedAccount && accounts.length > 0) {
-                matchedAccount = accounts[0]; // fallback
-              }
+              // Resolve or auto-create payment account using the typo tolerance helper
+              const matchedAccount = await ExpenseAIService.resolveOrCreatePaymentAccount(tenantId, accountName);
 
               if (matchedAccount) {
                 const currentBalance = parseFloat(matchedAccount.balance || "0");
-                const newBalance = currentBalance - amount;
+                const newBalance = type === "deposit" ? currentBalance + amount : currentBalance - amount;
 
                 await db
                   .update(paymentAccounts)
@@ -5663,7 +5647,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
                   amount: String(amount),
                   category,
                   paymentAccountId: matchedAccount.id,
-                  type: "expense",
+                  type,
                   description,
                   date: new Date(),
                 });
@@ -5681,11 +5665,12 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
                 });
                 if (getContact && channel) {
                   const waApi = new WhatsAppApiService(channel);
+                  const flowLabel = type === "deposit" ? "Income/Deposit" : "Expense";
                   await waApi.sendDirectMessage({
                     to: getContact.phone,
                     type: "text",
                     text: {
-                      body: `✅ *Expense Logged Successfully! (Flow Mode)*\n\n💰 Amount: *${amount.toFixed(2)}*\n📂 Category: *${category}*\n💳 Account: *${matchedAccount.name}*\n📝 Description: *${description}*`
+                      body: `✅ *${flowLabel} Logged Successfully! (Flow Mode)*\n\n💰 Amount: *${amount.toFixed(2)}*\n📂 Category: *${category}*\n💳 Account: *${matchedAccount.name}*\n📝 Description: *${description}*`
                     }
                   });
                 }
@@ -6669,7 +6654,7 @@ export class AutomationTriggerService {
       message.whatsappMessageId ?? message.id ?? null;
 
     for (const automation of activeAutomations) {
-      if (automation.name === "WhatsApp Expense Tracker Bot") {
+      if (automation.name === "WhatsApp Expense Tracker Bot" || automation.name === "WhatsApp Income Tracker Bot") {
         const [config] = await db
           .select()
           .from(expenseConfigs)
@@ -6680,8 +6665,12 @@ export class AutomationTriggerService {
         const incomeKeyword = (config?.incomeKeyword || "income").toLowerCase();
         const contentStr = (message.content || message.text || "").trim().toLowerCase();
 
-        if (!contentStr.startsWith(triggerKeyword) && !contentStr.startsWith(incomeKeyword)) {
-          console.log(`[Expense Tracker] Skipping predefined flow trigger execution because message "${contentStr}" does not match keywords "${triggerKeyword}" / "${incomeKeyword}"`);
+        if (automation.name === "WhatsApp Expense Tracker Bot" && !contentStr.startsWith(triggerKeyword)) {
+          console.log(`[Expense Tracker] Skipping predefined Expense flow trigger execution because message "${contentStr}" does not match trigger "${triggerKeyword}"`);
+          continue;
+        }
+        if (automation.name === "WhatsApp Income Tracker Bot" && !contentStr.startsWith(incomeKeyword)) {
+          console.log(`[Expense Tracker] Skipping predefined Income flow trigger execution because message "${contentStr}" does not match income keyword "${incomeKeyword}"`);
           continue;
         }
       }

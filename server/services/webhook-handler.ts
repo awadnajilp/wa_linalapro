@@ -844,20 +844,9 @@ if (activeSession) {
                       // Parse details via AI
                       const parsed = await ExpenseAIService.parseExpense(tenantId, channelId, cleanContent, activeSession.type || "expense");
                       if (parsed && !parsed.error && parsed.amount > 0) {
-                        const accounts = await db
-                          .select()
-                          .from(schema.paymentAccounts)
-                          .where(eq(schema.paymentAccounts.tenantId, tenantId));
+                        const matchedAccount = await ExpenseAIService.resolveOrCreatePaymentAccount(tenantId, parsed.accountName);
 
-                        let matchedAccount = accounts.find(
-                          a => a.name.toLowerCase() === parsed.accountName.toLowerCase()
-                        );
-
-                        if (!matchedAccount && accounts.length === 1) {
-                          matchedAccount = accounts[0];
-                        }
-
-                        const isMissingAccount = !matchedAccount && accounts.length > 1;
+                        const isMissingAccount = false;
                         const isMissingDate = parsed.date === "MISSING";
 
                         if (isMissingAccount || isMissingDate) {
@@ -948,16 +937,8 @@ if (activeSession) {
                       }
                       automationHandled = true;
                     } else if (activeSession.status === "waiting_for_account") {
-                      // Match account
-                      const accounts = await db
-                        .select()
-                        .from(schema.paymentAccounts)
-                        .where(eq(schema.paymentAccounts.tenantId, tenantId));
-                      
-                      const matchedAccount = accounts.find(
-                        a => a.name.toLowerCase() === cleanContent.toLowerCase() ||
-                             cleanContent.toLowerCase().includes(a.name.toLowerCase())
-                      );
+                      // Resolve or auto-create payment account
+                      const matchedAccount = await ExpenseAIService.resolveOrCreatePaymentAccount(tenantId, cleanContent);
 
                       if (matchedAccount) {
                         // Account matched! Check if date is missing
@@ -1018,15 +999,6 @@ if (activeSession) {
                             }
                           });
                         }
-                      } else {
-                        const accountListStr = accounts.map(a => `- ${a.name}`).join("\n");
-                        await waApi.sendDirectMessage({
-                          to: message.from,
-                          type: "text",
-                          text: {
-                            body: `⚠️ *Account Not Recognized.*\n\nPlease reply with one of the following available payment accounts:\n\n${accountListStr}`
-                          }
-                        });
                       }
                       automationHandled = true;
                     } else if (activeSession.status === "waiting_for_date") {
@@ -1116,21 +1088,8 @@ if (activeSession) {
                         const parsed = await ExpenseAIService.parseReceiptImage(tenantId, channelId, buffer, mimeType);
 
                         if (parsed && !parsed.error && parsed.amount > 0) {
-                          // Match or default to payment account
-                          const accounts = await db
-                            .select()
-                            .from(schema.paymentAccounts)
-                            .where(eq(schema.paymentAccounts.tenantId, tenantId));
-
-                          let matchedAccount = accounts.find(
-                            a => a.name.toLowerCase() === parsed.accountName.toLowerCase()
-                          );
-
-                          if (!matchedAccount && accounts.length === 1) {
-                            matchedAccount = accounts[0]; // Auto-match if there is exactly 1 account
-                          }
-
-                          const isMissingAccount = !matchedAccount && accounts.length > 1;
+                          const matchedAccount = await ExpenseAIService.resolveOrCreatePaymentAccount(tenantId, parsed.accountName);
+                          const isMissingAccount = false;
                           const isMissingDate = parsed.date === "MISSING";
 
                           if (isMissingAccount || isMissingDate) {
@@ -1265,19 +1224,7 @@ if (activeSession) {
                         // Parse with AI
                         const parsed = await ExpenseAIService.parseExpense(tenantId, channelId, promptText, defaultType);
                         if (parsed && !parsed.error && parsed.amount > 0) {
-                          // Match or default to payment account
-                          const accounts = await db
-                            .select()
-                            .from(schema.paymentAccounts)
-                            .where(eq(schema.paymentAccounts.tenantId, tenantId));
-                          
-                          let matchedAccount = accounts.find(
-                            a => a.name.toLowerCase() === parsed.accountName.toLowerCase()
-                          );
-                          
-                          if (!matchedAccount && accounts.length > 0) {
-                            matchedAccount = accounts[0]; // fallback to first account
-                          }
+                          const matchedAccount = await ExpenseAIService.resolveOrCreatePaymentAccount(tenantId, parsed.accountName);
 
                           if (matchedAccount) {
                             const currentBalance = parseFloat(matchedAccount.balance || "0");

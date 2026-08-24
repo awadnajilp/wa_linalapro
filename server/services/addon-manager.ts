@@ -119,10 +119,10 @@ export class AddonManager {
         return;
       }
 
-      console.log(`[AddonManager] Preloading WhatsApp Expense Tracker Bot template for channel ${channelId}`);
+      console.log(`[AddonManager] Preloading WhatsApp Expense and Income Bots templates for channel ${channelId}`);
 
-      // Create main automation record
-      const [newAutomation] = await db
+      // 1. Create main Expense automation record
+      const [newExpenseAutomation] = await db
         .insert(schema.automations)
         .values({
           channelId,
@@ -134,16 +134,17 @@ export class AddonManager {
         })
         .returning();
 
-      // Create predefined nodes
-      const triggerNodeId = "node-trigger-uuid";
-      const q1NodeId = "node-q1-uuid";
-      const q2NodeId = "node-q2-uuid";
-      const q3NodeId = "node-q3-uuid";
+      // Create predefined nodes for Expense
+      const expTriggerNodeId = "node-exp-trigger-uuid";
+      const expQ1NodeId = "node-exp-q1-uuid";
+      const expQ2NodeId = "node-exp-q2-uuid";
+      const expQ3NodeId = "node-exp-q3-uuid";
+      const expQ4NodeId = "node-exp-q4-uuid";
 
       await db.insert(schema.automationNodes).values([
         {
-          automationId: newAutomation.id,
-          nodeId: triggerNodeId,
+          automationId: newExpenseAutomation.id,
+          nodeId: expTriggerNodeId,
           type: "trigger",
           subtype: "message_received",
           position: { x: 100, y: 150 },
@@ -151,70 +152,209 @@ export class AddonManager {
             label: "Trigger: Inbound Message",
             trigger: "message_received",
           },
-          connections: [q1NodeId],
+          connections: [expQ1NodeId],
         },
         {
-          automationId: newAutomation.id,
-          nodeId: q1NodeId,
+          automationId: newExpenseAutomation.id,
+          nodeId: expQ1NodeId,
           type: "user_reply",
           subtype: "send_message",
-          position: { x: 100, y: 350 },
-          data: {
-            label: "Ask Description",
-            question: "What is your expense today?",
-            saveAs: "expense_description",
-          },
-          connections: [q2NodeId],
-        },
-        {
-          automationId: newAutomation.id,
-          nodeId: q2NodeId,
-          type: "user_reply",
-          subtype: "send_message",
-          position: { x: 100, y: 550 },
+          position: { x: 100, y: 300 },
           data: {
             label: "Ask Amount",
-            question: "How much was it?",
+            question: "How much?",
             saveAs: "expense_amount",
           },
-          connections: [q3NodeId],
+          connections: [expQ2NodeId],
         },
         {
-          automationId: newAutomation.id,
-          nodeId: q3NodeId,
+          automationId: newExpenseAutomation.id,
+          nodeId: expQ2NodeId,
+          type: "user_reply",
+          subtype: "send_message",
+          position: { x: 100, y: 450 },
+          data: {
+            label: "Ask Description",
+            question: "Enter expense description.",
+            saveAs: "expense_description",
+          },
+          connections: [expQ3NodeId],
+        },
+        {
+          automationId: newExpenseAutomation.id,
+          nodeId: expQ3NodeId,
+          type: "user_reply",
+          subtype: "send_message",
+          position: { x: 100, y: 600 },
+          data: {
+            label: "Ask Category",
+            question: "Category? (Eg. Food/Petrol/Utility)",
+            saveAs: "expense_category",
+          },
+          connections: [expQ4NodeId],
+        },
+        {
+          automationId: newExpenseAutomation.id,
+          nodeId: expQ4NodeId,
           type: "user_reply",
           subtype: "send_message",
           position: { x: 100, y: 750 },
           data: {
-            label: "Ask Category & Account",
-            question: "Do you wanna save it category or account? (Example: Food / Cash Account)",
-            saveAs: "expense_category_account",
+            label: "Ask Account",
+            question: "Which account? (Eg. Cash/Card/Bank)",
+            saveAs: "expense_account",
           },
           connections: [],
         },
       ]);
 
-      // Connect edges
+      // Connect edges for Expense
       await db.insert(schema.automationEdges).values([
         {
           id: crypto.randomUUID(),
-          automationId: newAutomation.id,
-          sourceNodeId: triggerNodeId,
-          targetNodeId: q1NodeId,
+          automationId: newExpenseAutomation.id,
+          sourceNodeId: expTriggerNodeId,
+          targetNodeId: expQ1NodeId,
           animated: true,
         },
         {
           id: crypto.randomUUID(),
-          automationId: newAutomation.id,
-          sourceNodeId: q1NodeId,
-          targetNodeId: q2NodeId,
+          automationId: newExpenseAutomation.id,
+          sourceNodeId: expQ1NodeId,
+          targetNodeId: expQ2NodeId,
           animated: true,
         },
         {
           id: crypto.randomUUID(),
-          automationId: newAutomation.id,
-          sourceNodeId: q2NodeId,
-          targetNodeId: q3NodeId,
+          automationId: newExpenseAutomation.id,
+          sourceNodeId: expQ2NodeId,
+          targetNodeId: expQ3NodeId,
+          animated: true,
+        },
+        {
+          id: crypto.randomUUID(),
+          automationId: newExpenseAutomation.id,
+          sourceNodeId: expQ3NodeId,
+          targetNodeId: expQ4NodeId,
+          animated: true,
+        },
+      ]);
+
+      // 2. Create main Income automation record
+      const [newIncomeAutomation] = await db
+        .insert(schema.automations)
+        .values({
+          channelId,
+          name: "WhatsApp Income Tracker Bot",
+          description: "Default predefined chatbot template for tracking income on WhatsApp using text and voice notes.",
+          trigger: "message_received",
+          status: "active",
+          createdBy: tenantId,
+        })
+        .returning();
+
+      // Create predefined nodes for Income
+      const incTriggerNodeId = "node-inc-trigger-uuid";
+      const incQ1NodeId = "node-inc-q1-uuid";
+      const incQ2NodeId = "node-inc-q2-uuid";
+      const incQ3NodeId = "node-inc-q3-uuid";
+      const incQ4NodeId = "node-inc-q4-uuid";
+
+      await db.insert(schema.automationNodes).values([
+        {
+          automationId: newIncomeAutomation.id,
+          nodeId: incTriggerNodeId,
+          type: "trigger",
+          subtype: "message_received",
+          position: { x: 400, y: 150 },
+          data: {
+            label: "Trigger: Inbound Message",
+            trigger: "message_received",
+          },
+          connections: [incQ1NodeId],
+        },
+        {
+          automationId: newIncomeAutomation.id,
+          nodeId: incQ1NodeId,
+          type: "user_reply",
+          subtype: "send_message",
+          position: { x: 400, y: 300 },
+          data: {
+            label: "Ask Amount",
+            question: "How much?",
+            saveAs: "income_amount",
+          },
+          connections: [incQ2NodeId],
+        },
+        {
+          automationId: newIncomeAutomation.id,
+          nodeId: incQ2NodeId,
+          type: "user_reply",
+          subtype: "send_message",
+          position: { x: 400, y: 450 },
+          data: {
+            label: "Ask Description",
+            question: "Enter income description.",
+            saveAs: "income_description",
+          },
+          connections: [incQ3NodeId],
+        },
+        {
+          automationId: newIncomeAutomation.id,
+          nodeId: incQ3NodeId,
+          type: "user_reply",
+          subtype: "send_message",
+          position: { x: 400, y: 600 },
+          data: {
+            label: "Ask Category",
+            question: "Category? (Eg. Salary/Bonus/Deposit)",
+            saveAs: "income_category",
+          },
+          connections: [incQ4NodeId],
+        },
+        {
+          automationId: newIncomeAutomation.id,
+          nodeId: incQ4NodeId,
+          type: "user_reply",
+          subtype: "send_message",
+          position: { x: 400, y: 750 },
+          data: {
+            label: "Ask Account",
+            question: "Which account? (Eg. Cash/Card/Bank)",
+            saveAs: "income_account",
+          },
+          connections: [],
+        },
+      ]);
+
+      // Connect edges for Income
+      await db.insert(schema.automationEdges).values([
+        {
+          id: crypto.randomUUID(),
+          automationId: newIncomeAutomation.id,
+          sourceNodeId: incTriggerNodeId,
+          targetNodeId: incQ1NodeId,
+          animated: true,
+        },
+        {
+          id: crypto.randomUUID(),
+          automationId: newIncomeAutomation.id,
+          sourceNodeId: incQ1NodeId,
+          targetNodeId: incQ2NodeId,
+          animated: true,
+        },
+        {
+          id: crypto.randomUUID(),
+          automationId: newIncomeAutomation.id,
+          sourceNodeId: incQ2NodeId,
+          targetNodeId: incQ3NodeId,
+          animated: true,
+        },
+        {
+          id: crypto.randomUUID(),
+          automationId: newIncomeAutomation.id,
+          sourceNodeId: incQ3NodeId,
+          targetNodeId: incQ4NodeId,
           animated: true,
         },
       ]);

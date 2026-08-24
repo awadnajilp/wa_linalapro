@@ -347,4 +347,57 @@ Example output:
       return null;
     }
   }
+
+  /**
+   * Resolves payment account with typo tolerance, and auto-creates it if it does not exist.
+   */
+  public static async resolveOrCreatePaymentAccount(tenantId: string, accountNameInput: string): Promise<any> {
+    const accounts = await db
+      .select()
+      .from(schema.paymentAccounts)
+      .where(eq(schema.paymentAccounts.tenantId, tenantId));
+
+    const clean = accountNameInput.trim().toLowerCase();
+
+    // 1. Direct or partial match
+    let matched = accounts.find(
+      a => a.name.toLowerCase() === clean ||
+           clean.includes(a.name.toLowerCase()) ||
+           a.name.toLowerCase().includes(clean)
+    );
+
+    // 2. Typing aliases mapping (detect typos like cas, cash, csh, crd, bnk)
+    if (!matched) {
+      if (["cash", "cas", "csh", "cah"].some(x => clean.includes(x))) {
+        matched = accounts.find(a => a.name.toLowerCase().includes("cash"));
+        if (!matched) matched = accounts.find(a => a.name.toLowerCase() === "cash");
+      } else if (["card", "crd", "cc", "credit"].some(x => clean.includes(x))) {
+        matched = accounts.find(a => a.name.toLowerCase().includes("card"));
+      } else if (["bank", "bnk", "transfer", "online"].some(x => clean.includes(x))) {
+        matched = accounts.find(a => a.name.toLowerCase().includes("bank"));
+      }
+    }
+
+    if (matched) {
+      return matched;
+    }
+
+    // 3. Auto-create account if not found
+    const name = accountNameInput.trim().charAt(0).toUpperCase() + accountNameInput.trim().slice(1);
+    const type = name.toLowerCase().includes("bank") ? "bank" :
+                 (name.toLowerCase().includes("card") ? "credit_card" : "cash");
+
+    const [newAcc] = await db
+      .insert(schema.paymentAccounts)
+      .values({
+        tenantId,
+        name,
+        type,
+        balance: "0.00"
+      })
+      .returning();
+
+    console.log(`[Expense Tracker] Auto-created payment account: ${name}`);
+    return newAcc;
+  }
 }

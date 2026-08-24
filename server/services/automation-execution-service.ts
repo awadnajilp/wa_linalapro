@@ -266,6 +266,10 @@ export class AutomationExecutionService {
 
       // Execute based on node type
       switch (node.type) {
+        case 'trigger':
+          result = { action: 'trigger_passed' };
+          break;
+
         case 'custom_reply':
           result = await this.executeCustomReply(node, context);
           break;

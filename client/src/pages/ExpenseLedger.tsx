@@ -64,6 +64,7 @@ export default function ExpenseLedger() {
   const [expenseAccountId, setExpenseAccountId] = useState("");
   const [expenseDesc, setExpenseDesc] = useState("");
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split("T")[0]);
+  const [expenseType, setExpenseType] = useState("expense"); // "expense" or "deposit"
 
   const [accountName, setAccountName] = useState("");
   const [accountType, setAccountType] = useState("cash");
@@ -71,6 +72,7 @@ export default function ExpenseLedger() {
 
   const [botTrigger, setBotTrigger] = useState("expense");
   const [botRetrieval, setBotRetrieval] = useState("getexpense");
+  const [botIncome, setBotIncome] = useState("income");
   const [reportNumber, setReportNumber] = useState("");
   const [reportInterval, setReportInterval] = useState("daily");
   const [reportEmail, setReportEmail] = useState("");
@@ -115,6 +117,7 @@ export default function ExpenseLedger() {
     if (config) {
       setBotTrigger(config.triggerKeyword);
       setBotRetrieval(config.retrievalKeyword);
+      setBotIncome(config.incomeKeyword || "income");
       setReportNumber(config.reportingNumber || "");
       setReportInterval(config.reportInterval);
       setReportEmail(config.reportEmail || "");
@@ -124,6 +127,7 @@ export default function ExpenseLedger() {
     } else {
       setBotTrigger("expense");
       setBotRetrieval("getexpense");
+      setBotIncome("income");
       setReportNumber("");
       setReportInterval("daily");
       setReportEmail("");
@@ -189,12 +193,13 @@ export default function ExpenseLedger() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Expense Added", description: "Manual expense successfully logged." });
+      toast({ title: "Transaction Saved", description: "The transaction was successfully logged." });
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
       queryClient.invalidateQueries({ queryKey: ["/api/expenses/payment-accounts"] });
       setIsExpenseOpen(false);
       setExpenseAmount("");
       setExpenseDesc("");
+      setExpenseType("expense");
     }
   });
 
@@ -221,6 +226,18 @@ export default function ExpenseLedger() {
       toast({ title: "Deleted", description: "Expense log deleted." });
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
       queryClient.invalidateQueries({ queryKey: ["/api/expenses/payment-accounts"] });
+    }
+  });
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("DELETE", `/api/expenses/payment-accounts/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Deleted", description: "Payment account deleted." });
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses/payment-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
     }
   });
 
@@ -274,7 +291,8 @@ export default function ExpenseLedger() {
       paymentAccountId: expenseAccountId || null,
       description: expenseDesc,
       date: expenseDate,
-      channelId: activeChannel?.id
+      channelId: activeChannel?.id,
+      type: expenseType
     });
   };
 
@@ -286,12 +304,19 @@ export default function ExpenseLedger() {
     });
   };
 
+  const handleDeleteAccount = (id: string) => {
+    if (confirm("Are you sure you want to delete this payment account? All transactions will remain but the account mapping will be removed.")) {
+      deleteAccountMutation.mutate(id);
+    }
+  };
+
   const handleSaveConfig = () => {
-    if (!activeChannel?.id) return;
+    if (!configChannelId) return;
     saveConfigMutation.mutate({
-      channelId: activeChannel.id,
+      channelId: configChannelId,
       triggerKeyword: botTrigger,
       retrievalKeyword: botRetrieval,
+      incomeKeyword: botIncome,
       reportingNumber: reportNumber,
       reportInterval: reportInterval,
       reportEmail: reportEmail,
@@ -301,7 +326,8 @@ export default function ExpenseLedger() {
     });
   };
 
-  const totalSpent = expenses?.reduce((sum, e) => sum + parseFloat(e.amount), 0) || 0;
+  const totalSpent = expenses?.filter(e => e.type !== "deposit").reduce((sum, e) => sum + parseFloat(e.amount), 0) || 0;
+  const totalIncome = expenses?.filter(e => e.type === "deposit").reduce((sum, e) => sum + parseFloat(e.amount), 0) || 0;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -361,6 +387,10 @@ export default function ExpenseLedger() {
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="triggerK" className="text-right">Trigger Word</Label>
                   <Input id="triggerK" value={botTrigger} onChange={(e) => setBotTrigger(e.target.value)} className="col-span-3" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="incomeK" className="text-right">Income Word</Label>
+                  <Input id="incomeK" value={botIncome} onChange={(e) => setBotIncome(e.target.value)} className="col-span-3" />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="retrievalK" className="text-right">Retrieval Word</Label>
@@ -489,10 +519,17 @@ export default function ExpenseLedger() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[400px]">
               <DialogHeader>
-                <DialogTitle>Add Manual Expense</DialogTitle>
-                <DialogDescription>Log an expense entry directly into the ledger.</DialogDescription>
+                <DialogTitle>Add Manual Entry</DialogTitle>
+                <DialogDescription>Log an expense or deposit directly into the ledger.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="expType" className="text-right">Type</Label>
+                  <select id="expType" value={expenseType} onChange={(e) => setExpenseType(e.target.value)} className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                    <option value="expense">Expense (Debit)</option>
+                    <option value="deposit">Income / Deposit (Credit)</option>
+                  </select>
+                </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="expAmt" className="text-right">Amount</Label>
                   <Input id="expAmt" type="number" value={expenseAmount} onChange={(e) => setExpenseAmount(e.target.value)} className="col-span-3" placeholder="50.00" />
@@ -539,7 +576,7 @@ export default function ExpenseLedger() {
 
       {/* Accounts & Metrics widgets */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-xs">
+        <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white shadow-xs">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold opacity-85 uppercase tracking-wide">Total Logged Expense</CardTitle>
             <span className="text-3xl font-extrabold">${totalSpent.toFixed(2)}</span>
@@ -549,14 +586,33 @@ export default function ExpenseLedger() {
           </CardContent>
         </Card>
 
+        <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white shadow-xs">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold opacity-85 uppercase tracking-wide">Total Logged Income</CardTitle>
+            <span className="text-3xl font-extrabold">${totalIncome.toFixed(2)}</span>
+          </CardHeader>
+          <CardContent className="pt-2 text-xs opacity-75 flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5" /> For the selected filters period
+          </CardContent>
+        </Card>
+
         {accounts?.map((acc) => (
-          <Card key={acc.id} className="border border-gray-150 shadow-xs">
+          <Card key={acc.id} className="border border-gray-150 shadow-xs relative group">
             <CardHeader className="pb-2">
-              <CardDescription className="capitalize text-xs font-semibold text-gray-400 uppercase tracking-wider">{acc.type.replace("_", " ")}</CardDescription>
+              <div className="flex justify-between items-start">
+                <CardDescription className="capitalize text-xs font-semibold text-gray-400 uppercase tracking-wider">{acc.type.replace("_", " ")}</CardDescription>
+                <button 
+                  onClick={() => handleDeleteAccount(acc.id)}
+                  className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-gray-50"
+                  title="Delete Account"
+                >
+                  <Trash className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <CardTitle className="text-lg font-bold text-gray-800">{acc.name}</CardTitle>
             </CardHeader>
             <CardContent className="flex justify-between items-baseline pt-2">
-              <span className="text-2xl font-extrabold text-gray-900">${parseFloat(acc.balance).toFixed(2)}</span>
+              <span className="text-2xl font-extrabold text-gray-900">${parseFloat(acc.balance || "0").toFixed(2)}</span>
             </CardContent>
           </Card>
         ))}
@@ -631,6 +687,7 @@ export default function ExpenseLedger() {
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Account</TableHead>
@@ -643,7 +700,16 @@ export default function ExpenseLedger() {
               expenses.map((e) => (
                 <TableRow key={e.id}>
                   <TableCell>{new Date(e.date).toLocaleString()}</TableCell>
-                  <TableCell className="font-bold text-gray-800">${parseFloat(e.amount).toFixed(2)}</TableCell>
+                  <TableCell>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                      e.type === "deposit" ? "bg-green-50 text-green-700 border border-green-250" : "bg-red-50 text-red-700 border border-red-250"
+                    }`}>
+                      {e.type === "deposit" ? "Deposit" : "Expense"}
+                    </span>
+                  </TableCell>
+                  <TableCell className={`font-bold ${e.type === "deposit" ? "text-green-600" : "text-gray-800"}`}>
+                    {e.type === "deposit" ? "+" : "-"}${parseFloat(e.amount).toFixed(2)}
+                  </TableCell>
                   <TableCell>
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
                       {e.category}

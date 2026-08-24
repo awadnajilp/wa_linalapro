@@ -2377,6 +2377,7 @@ export const expenses = pgTable("expenses", {
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   category: text("category").notNull(),
   paymentAccountId: varchar("payment_account_id").references(() => paymentAccounts.id, { onDelete: "set null" }),
+  type: text("type").default("expense"), // "expense" or "deposit"
   description: text("description"),
   date: timestamp("date").defaultNow(),
   mediaUrl: text("media_url"), // receipt images
@@ -2389,6 +2390,7 @@ export const expenseConfigs = pgTable("expense_configs", {
   channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
   triggerKeyword: text("trigger_keyword").default("expense"),
   retrievalKeyword: text("retrieval_keyword").default("getexpense"),
+  incomeKeyword: text("income_keyword").default("income"),
   reportingNumber: text("reporting_number"),
   reportInterval: text("report_interval").default("daily"), // "daily", "weekly", "monthly"
   reportEmail: text("report_email"),
@@ -2399,12 +2401,27 @@ export const expenseConfigs = pgTable("expense_configs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const expenseSessions = pgTable("expense_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  status: text("status").notNull(), // "waiting_for_account", "waiting_for_date"
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  category: text("category").notNull(),
+  paymentAccountId: varchar("payment_account_id").references(() => paymentAccounts.id, { onDelete: "set null" }),
+  description: text("description"),
+  date: text("date"), // YYYY-MM-DD
+  mediaUrl: text("media_url"),
+  type: text("type").default("expense"), // "expense" or "deposit"
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Zod schemas
 export const insertAddonSchema = createInsertSchema(addons);
 export const insertTenantAddonSchema = createInsertSchema(tenantAddons);
 export const insertPaymentAccountSchema = createInsertSchema(paymentAccounts);
 export const insertExpenseSchema = createInsertSchema(expenses);
 export const insertExpenseConfigSchema = createInsertSchema(expenseConfigs);
+export const insertExpenseSessionSchema = createInsertSchema(expenseSessions);
 
 // TypeScript types
 export type Addon = typeof addons.$inferSelect;
@@ -2417,5 +2434,7 @@ export type Expense = typeof expenses.$inferSelect;
 export type InsertExpense = typeof expenses.$inferInsert;
 export type ExpenseConfig = typeof expenseConfigs.$inferSelect;
 export type InsertExpenseConfig = typeof expenseConfigs.$inferInsert;
+export type ExpenseSession = typeof expenseSessions.$inferSelect;
+export type InsertExpenseSession = typeof expenseSessions.$inferInsert;
 
 

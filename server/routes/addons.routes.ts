@@ -349,11 +349,13 @@ export function registerAddonsRoutes(app: Express) {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
-      const { amount, category, paymentAccountId, description, date, mediaUrl, channelId } = req.body;
+      const { amount, category, paymentAccountId, description, date, mediaUrl, channelId, type } = req.body;
 
       if (!amount || !category) {
         return res.status(400).json({ error: "Amount and category are required." });
       }
+
+      const txType = type || "expense";
 
       // If account specified, adjust the balance
       if (paymentAccountId) {
@@ -365,10 +367,12 @@ export function registerAddonsRoutes(app: Express) {
         
         if (account) {
           const currentBalance = parseFloat(account.balance || "0");
+          const change = parseFloat(amount);
+          const newBalance = txType === "deposit" ? currentBalance + change : currentBalance - change;
           await db
             .update(schema.paymentAccounts)
             .set({
-              balance: String(currentBalance - parseFloat(amount)),
+              balance: String(newBalance),
               updatedAt: new Date()
             })
             .where(eq(schema.paymentAccounts.id, paymentAccountId));
@@ -383,6 +387,7 @@ export function registerAddonsRoutes(app: Express) {
           amount: String(amount),
           category,
           paymentAccountId: paymentAccountId || null,
+          type: txType,
           description: description || "",
           date: date ? new Date(date) : new Date(),
           mediaUrl: mediaUrl || null
@@ -419,10 +424,12 @@ export function registerAddonsRoutes(app: Express) {
         
         if (account) {
           const currentBalance = parseFloat(account.balance || "0");
+          const change = parseFloat(expense.amount);
+          const restoredBalance = expense.type === "deposit" ? currentBalance - change : currentBalance + change;
           await db
             .update(schema.paymentAccounts)
             .set({
-              balance: String(currentBalance + parseFloat(expense.amount)),
+              balance: String(restoredBalance),
               updatedAt: new Date()
             })
             .where(eq(schema.paymentAccounts.id, expense.paymentAccountId));
@@ -539,6 +546,36 @@ export function registerAddonsRoutes(app: Express) {
     }
   });
 
+  app.delete("/api/expenses/payment-accounts/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+
+      const [existing] = await db
+        .select()
+        .from(schema.paymentAccounts)
+        .where(
+          and(
+            eq(schema.paymentAccounts.id, req.params.id),
+            eq(schema.paymentAccounts.tenantId, tenantId)
+          )
+        )
+        .limit(1);
+
+      if (!existing) {
+        return res.status(404).json({ error: "Payment account not found." });
+      }
+
+      await db
+        .delete(schema.paymentAccounts)
+        .where(eq(schema.paymentAccounts.id, req.params.id));
+
+      res.json({ success: true, message: "Payment account deleted." });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Get/Save trigger configurations
   app.get("/api/expenses/config", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -569,7 +606,7 @@ export function registerAddonsRoutes(app: Express) {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
-      const { channelId, triggerKeyword, retrievalKeyword, reportingNumber, reportInterval, reportEmail, emailEnabled, isActive, aiPrompt } = req.body;
+      const { channelId, triggerKeyword, retrievalKeyword, incomeKeyword, reportingNumber, reportInterval, reportEmail, emailEnabled, isActive, aiPrompt } = req.body;
 
       if (!channelId) return res.status(400).json({ error: "ChannelId is required" });
 
@@ -586,6 +623,7 @@ export function registerAddonsRoutes(app: Express) {
           .set({
             triggerKeyword: triggerKeyword || "expense",
             retrievalKeyword: retrievalKeyword || "getexpense",
+            incomeKeyword: incomeKeyword || "income",
             reportingNumber: reportingNumber || null,
             reportInterval: reportInterval || "daily",
             reportEmail: reportEmail || null,
@@ -604,6 +642,7 @@ export function registerAddonsRoutes(app: Express) {
             channelId,
             triggerKeyword: triggerKeyword || "expense",
             retrievalKeyword: retrievalKeyword || "getexpense",
+            incomeKeyword: incomeKeyword || "income",
             reportingNumber: reportingNumber || null,
             reportInterval: reportInterval || "daily",
             reportEmail: reportEmail || null,

@@ -614,6 +614,7 @@ const steps: MigrationStep[] = [
         amount             NUMERIC(12, 2) NOT NULL,
         category           TEXT NOT NULL,
         payment_account_id VARCHAR REFERENCES payment_accounts (id) ON DELETE SET NULL,
+        type               TEXT DEFAULT 'expense',
         description        TEXT,
         date               TIMESTAMP DEFAULT NOW(),
         media_url          TEXT,
@@ -630,6 +631,7 @@ const steps: MigrationStep[] = [
         channel_id         VARCHAR REFERENCES channels (id) ON DELETE CASCADE,
         trigger_keyword    TEXT DEFAULT 'expense',
         retrieval_keyword  TEXT DEFAULT 'getexpense',
+        income_keyword     TEXT DEFAULT 'income',
         reporting_number   TEXT,
         report_interval    TEXT DEFAULT 'daily',
         report_email       TEXT,
@@ -642,8 +644,28 @@ const steps: MigrationStep[] = [
       );
     `,
   },
+  {
+    description: "Create table expense_sessions (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS expense_sessions (
+        id                 VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        conversation_id    VARCHAR NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
+        status             TEXT NOT NULL,
+        amount             NUMERIC(12, 2) NOT NULL,
+        category           TEXT NOT NULL,
+        payment_account_id VARCHAR REFERENCES payment_accounts (id) ON DELETE SET NULL,
+        description        TEXT,
+        date               TEXT,
+        media_url          TEXT,
+        type               TEXT DEFAULT 'expense',
+        created_at         TIMESTAMP DEFAULT NOW()
+      );
+    `,
+  },
   addColumnIfNotExists("expense_configs", "is_active", "BOOLEAN DEFAULT true"),
   addColumnIfNotExists("expense_configs", "ai_prompt", "TEXT DEFAULT 'You are a helper AI for an Expense Tracker app. Analyze the text representing an expense description or raw chat, and extract the amount, category, account, and description.'"),
+  addColumnIfNotExists("expense_configs", "income_keyword", "TEXT DEFAULT 'income'"),
+  addColumnIfNotExists("expenses", "type", "TEXT DEFAULT 'expense'"),
 ];
 
 /**

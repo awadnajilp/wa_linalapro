@@ -827,100 +827,378 @@ export class WebhookHandler {
                   .limit(1);
 
                 if (!expenseConfig || expenseConfig.isActive) {
-                  const triggerKeyword = (expenseConfig?.triggerKeyword || "expense").toLowerCase();
-              const retrievalKeyword = (expenseConfig?.retrievalKeyword || "getexpense").toLowerCase();
-              const cleanContent = content.trim();
-              const lowerContent = cleanContent.toLowerCase();
+                  // 1. Check if there is an active conversational session for this conversation
+                  const [activeSession] = await db
+                    .select()
+                    .from(schema.expenseSessions)
+                    .where(eq(schema.expenseSessions.conversationId, conversation[0].id))
+                    .limit(1);
 
-              let isTrigger = lowerContent.startsWith(triggerKeyword);
-              let isRetrieval = lowerContent.startsWith(retrievalKeyword);
-              let isVoiceLog = false;
+                  if (activeSession) {
+                    console.log(`[Expense Tracker] Processing active session input for conversation: ${conversation[0].id}`);
+                    const cleanContent = content.trim();
+                    const waApi = new WhatsAppApiService(channel[0]);
 
-              // Check if it's a voice note that doesn't start with keyword but could be an expense log
-              if (!isTrigger && !isRetrieval && message.type === "audio" && cleanContent.length > 0) {
-                isVoiceLog = true;
-              }
+                    if (activeSession.status === "waiting_for_account") {
+                      // Match account
+                      const accounts = await db
+                        .select()
+                        .from(schema.paymentAccounts)
+                        .where(eq(schema.paymentAccounts.tenantId, tenantId));
+                      
+                      const matchedAccount = accounts.find(
+                        a => a.name.toLowerCase() === cleanContent.toLowerCase() ||
+                             cleanContent.toLowerCase().includes(a.name.toLowerCase())
+                      );
 
-              if (isTrigger || isVoiceLog) {
-                console.log(`[Expense Tracker] Triggered expense logging via text/voice.`);
-                const promptText = isTrigger ? cleanContent.substring(triggerKeyword.length).trim() : cleanContent;
-                
-                if (promptText.length === 0) {
-                  // Prompt empty trigger keyword, reply with syntax template
-                  const waApi = new WhatsAppApiService(channel[0]);
-                  await waApi.sendDirectMessage({
-                    to: message.from,
-                    type: "text",
-                    text: {
-                      body: "⚠️ *Expense Tracker Help*\nTo record an expense, format like this:\n`expense <amount> <category> <payment_account> <description>`\n\n_Example: expense 45.00 Travel Cash Taxi ride_"
-                    }
-                  });
-                  automationHandled = true;
-                } else {
-                  // Parse with AI
-                  const parsed = await ExpenseAIService.parseExpense(tenantId, channelId, promptText);
-                  if (parsed && !parsed.error && parsed.amount > 0) {
-                    // Match or default to payment account
-                    const accounts = await db
-                      .select()
-                      .from(schema.paymentAccounts)
-                      .where(eq(schema.paymentAccounts.tenantId, tenantId));
-                    
-                    let matchedAccount = accounts.find(
-                      a => a.name.toLowerCase() === parsed.accountName.toLowerCase()
-                    );
-                    
-                    if (!matchedAccount && accounts.length > 0) {
-                      matchedAccount = accounts[0]; // fallback to first account
-                    }
+                      if (matchedAccount) {
+                        // Account matched! Check if date is missing
+                        if (activeSession.date === "MISSING") {
+                          await db
+                            .update(schema.expenseSessions)
+                            .set({
+                              status: "waiting_for_date",
+                              paymentAccountId: matchedAccount.id
+                            })
+                            .where(eq(schema.expenseSessions.id, activeSession.id));
 
-                    if (matchedAccount) {
-                      const currentBalance = parseFloat(matchedAccount.balance || "0");
-                      await db
-                        .update(schema.paymentAccounts)
-                        .set({
-                          balance: String(currentBalance - parsed.amount),
-                          updatedAt: new Date()
-                        })
-                        .where(eq(schema.paymentAccounts.id, matchedAccount.id));
+                          await waApi.sendDirectMessage({
+                            to: message.from,
+                            type: "text",
+                            text: {
+                              body: `💳 *Account matched:* ${matchedAccount.name}\n\n📅 The date of this receipt is missing. Please reply with the date (e.g. today, yesterday, or a date like 2026-08-24).`
+                            }
+                          });
+                        } else {
+                          // Complete transaction
+                          const currentBalance = parseFloat(matchedAccount.balance || "0");
+                          const amountVal = parseFloat(activeSession.amount);
+                          const newBalance = activeSession.type === "deposit" ? currentBalance + amountVal : currentBalance - amountVal;
 
-                      // Insert Expense
-                      await db.insert(schema.expenses).values({
-                        tenantId,
-                        channelId,
-                        amount: String(parsed.amount),
-                        category: parsed.category,
-                        paymentAccountId: matchedAccount.id,
-                        description: parsed.description,
-                        date: new Date(),
-                      });
+                          await db
+                            .update(schema.paymentAccounts)
+                            .set({
+                              balance: String(newBalance),
+                              updatedAt: new Date()
+                            })
+                            .where(eq(schema.paymentAccounts.id, matchedAccount.id));
 
-                      const waApi = new WhatsAppApiService(channel[0]);
-                      await waApi.sendDirectMessage({
-                        to: message.from,
-                        type: "text",
-                        text: {
-                          body: `✅ *Expense Logged Successfully!*\n\n💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n💳 Account: *${matchedAccount.name}*\n📝 Description: *${parsed.description || "N/A"}*`
+                          await db.insert(schema.expenses).values({
+                            tenantId,
+                            channelId,
+                            amount: activeSession.amount,
+                            category: activeSession.category,
+                            paymentAccountId: matchedAccount.id,
+                            type: activeSession.type || "expense",
+                            description: activeSession.description,
+                            date: activeSession.date ? new Date(activeSession.date) : new Date(),
+                            mediaUrl: activeSession.mediaUrl
+                          });
+
+                          await db.delete(schema.expenseSessions).where(eq(schema.expenseSessions.id, activeSession.id));
+
+                          await waApi.sendDirectMessage({
+                            to: message.from,
+                            type: "text",
+                            text: {
+                              body: `✅ *Receipt Logged Successfully!*\n\n💰 Amount: *${amountVal.toFixed(2)}*\n📂 Category: *${activeSession.category}*\n💳 Account: *${matchedAccount.name}*\n📝 Description: *${activeSession.description || "N/A"}*\n📅 Date: *${activeSession.date}*`
+                            }
+                          });
                         }
-                      });
+                      } else {
+                        const accountListStr = accounts.map(a => `- ${a.name}`).join("\n");
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: {
+                            body: `⚠️ *Account Not Recognized.*\n\nPlease reply with one of the following available payment accounts:\n\n${accountListStr}`
+                          }
+                        });
+                      }
                       automationHandled = true;
+                    } else if (activeSession.status === "waiting_for_date") {
+                      // Resolve date and complete transaction
+                      let parsedDate = new Date();
+                      const lowerDateInput = cleanContent.toLowerCase();
+                      if (lowerDateInput === "today" || lowerDateInput.includes("today")) {
+                        parsedDate = new Date();
+                      } else if (lowerDateInput === "yesterday" || lowerDateInput.includes("yesterday")) {
+                        parsedDate = new Date();
+                        parsedDate.setDate(parsedDate.getDate() - 1);
+                      } else {
+                        const parsedMs = Date.parse(cleanContent);
+                        if (!isNaN(parsedMs)) {
+                          parsedDate = new Date(parsedMs);
+                        }
+                      }
+
+                      const accountId = activeSession.paymentAccountId;
+                      if (accountId) {
+                        const [account] = await db
+                          .select()
+                          .from(schema.paymentAccounts)
+                          .where(eq(schema.paymentAccounts.id, accountId))
+                          .limit(1);
+
+                        if (account) {
+                          const currentBalance = parseFloat(account.balance || "0");
+                          const amountVal = parseFloat(activeSession.amount);
+                          const newBalance = activeSession.type === "deposit" ? currentBalance + amountVal : currentBalance - amountVal;
+
+                          await db
+                            .update(schema.paymentAccounts)
+                            .set({
+                              balance: String(newBalance),
+                              updatedAt: new Date()
+                            })
+                            .where(eq(schema.paymentAccounts.id, account.id));
+
+                          await db.insert(schema.expenses).values({
+                            tenantId,
+                            channelId,
+                            amount: activeSession.amount,
+                            category: activeSession.category,
+                            paymentAccountId: account.id,
+                            type: activeSession.type || "expense",
+                            description: activeSession.description,
+                            date: parsedDate,
+                            mediaUrl: activeSession.mediaUrl
+                          });
+
+                          await db.delete(schema.expenseSessions).where(eq(schema.expenseSessions.id, activeSession.id));
+
+                          await waApi.sendDirectMessage({
+                            to: message.from,
+                            type: "text",
+                            text: {
+                              body: `✅ *Receipt Logged Successfully!*\n\n💰 Amount: *${amountVal.toFixed(2)}*\n📂 Category: *${activeSession.category}*\n💳 Account: *${account.name}*\n📝 Description: *${activeSession.description || "N/A"}*\n📅 Date: *${parsedDate.toISOString().split("T")[0]}*`
+                            }
+                          });
+                        }
+                      }
+                      automationHandled = true;
+                    }
+                  } else if (message.type === "image") {
+                    // 2. Vision OCR receipt scanning
+                    console.log(`[Expense Tracker] Triggered receipt vision scan.`);
+                    const waApi = new WhatsAppApiService(channel[0]);
+                    const mediaId = (message.image as any)?.id || message.mediaId;
+                    
+                    if (mediaId) {
+                      try {
+                        const { buffer, mimeType } = await waApi.getMediaBuffer(mediaId);
+                        
+                        let fileUrl: string | undefined;
+                        try {
+                          fileUrl = await waApi.fetchMediaUrl(mediaId);
+                        } catch (err) {
+                          console.error("Failed to fetch media URL:", err);
+                        }
+
+                        const parsed = await ExpenseAIService.parseReceiptImage(tenantId, channelId, buffer, mimeType);
+
+                        if (parsed && !parsed.error && parsed.amount > 0) {
+                          // Match or default to payment account
+                          const accounts = await db
+                            .select()
+                            .from(schema.paymentAccounts)
+                            .where(eq(schema.paymentAccounts.tenantId, tenantId));
+
+                          let matchedAccount = accounts.find(
+                            a => a.name.toLowerCase() === parsed.accountName.toLowerCase()
+                          );
+
+                          if (!matchedAccount && accounts.length === 1) {
+                            matchedAccount = accounts[0]; // Auto-match if there is exactly 1 account
+                          }
+
+                          const isMissingAccount = !matchedAccount && accounts.length > 1;
+                          const isMissingDate = parsed.date === "MISSING";
+
+                          if (isMissingAccount || isMissingDate) {
+                            // Create temporary session
+                            await db.insert(schema.expenseSessions).values({
+                              conversationId: conversation[0].id,
+                              status: isMissingAccount ? "waiting_for_account" : "waiting_for_date",
+                              amount: String(parsed.amount),
+                              category: parsed.category,
+                              paymentAccountId: matchedAccount ? matchedAccount.id : null,
+                              description: parsed.description,
+                              date: parsed.date,
+                              type: parsed.type || "expense",
+                              mediaUrl: fileUrl || null
+                            });
+
+                            if (isMissingAccount) {
+                              const accountListStr = accounts.map(a => `- ${a.name}`).join("\n");
+                              await waApi.sendDirectMessage({
+                                to: message.from,
+                                type: "text",
+                                text: {
+                                  body: `📸 *Receipt Detected!*\n💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n\n⚠️ Could not determine which payment account to charge it to. Please reply with one of the following:\n\n${accountListStr}`
+                                }
+                              });
+                            } else {
+                              await waApi.sendDirectMessage({
+                                to: message.from,
+                                type: "text",
+                                text: {
+                                  body: `📸 *Receipt Detected!*\n💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n💳 Account: *${matchedAccount!.name}*\n\n📅 The transaction date is missing. Please reply with the date (e.g. today, yesterday, or a date like 2026-08-24).`
+                                }
+                              });
+                            }
+                          } else {
+                            // Fully resolved immediately!
+                            const finalAccount = matchedAccount || (accounts.length > 0 ? accounts[0] : null);
+                            if (finalAccount) {
+                              const currentBalance = parseFloat(finalAccount.balance || "0");
+                              const amountVal = parsed.amount;
+                              const newBalance = parsed.type === "deposit" ? currentBalance + amountVal : currentBalance - amountVal;
+
+                              await db
+                                .update(schema.paymentAccounts)
+                                .set({
+                                  balance: String(newBalance),
+                                  updatedAt: new Date()
+                                })
+                                .where(eq(schema.paymentAccounts.id, finalAccount.id));
+
+                              const txDate = parsed.date && parsed.date !== "MISSING" ? new Date(parsed.date) : new Date();
+
+                              await db.insert(schema.expenses).values({
+                                tenantId,
+                                channelId,
+                                amount: String(parsed.amount),
+                                category: parsed.category,
+                                paymentAccountId: finalAccount.id,
+                                type: parsed.type || "expense",
+                                description: parsed.description,
+                                date: txDate,
+                                mediaUrl: fileUrl || null
+                              });
+
+                              await waApi.sendDirectMessage({
+                                to: message.from,
+                                type: "text",
+                                text: {
+                                  body: `✅ *Receipt Logged Successfully!*\n\n💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n💳 Account: *${finalAccount.name}*\n📝 Description: *${parsed.description || "N/A"}*\n📅 Date: *${txDate.toISOString().split("T")[0]}*`
+                                }
+                              });
+                            }
+                          }
+                          automationHandled = true;
+                        }
+                      } catch (err: any) {
+                        console.error("Receipt parsing failed:", err.message);
+                      }
                     }
                   } else {
-                    if (isTrigger) {
-                      // Only reply with format helper if they explicitly typed the keyword
-                      const waApi = new WhatsAppApiService(channel[0]);
-                      await waApi.sendDirectMessage({
-                        to: message.from,
-                        type: "text",
-                        text: {
-                          body: `⚠️ *Failed to parse expense.*\nReason: ${parsed?.error || "AI could not extract valid amount/category."}\n\nFormat: \`expense <amount> <category> <payment_account> <description>\``
-                        }
-                      });
-                      automationHandled = true;
+                    // 3. Regular text/audio trigger parser (supports expense, income, etc.)
+                    const triggerKeyword = (expenseConfig?.triggerKeyword || "expense").toLowerCase();
+                    const retrievalKeyword = (expenseConfig?.retrievalKeyword || "getexpense").toLowerCase();
+                    const incomeKeyword = (expenseConfig?.incomeKeyword || "income").toLowerCase();
+                    const cleanContent = content.trim();
+                    const lowerContent = cleanContent.toLowerCase();
+
+                    let isTrigger = lowerContent.startsWith(triggerKeyword);
+                    let isIncomeTrigger = lowerContent.startsWith(incomeKeyword);
+                    let isRetrieval = lowerContent.startsWith(retrievalKeyword);
+                    let isVoiceLog = false;
+
+                    // Check if it's a voice note that doesn't start with keyword but could be an expense log
+                    if (!isTrigger && !isIncomeTrigger && !isRetrieval && message.type === "audio" && cleanContent.length > 0) {
+                      isVoiceLog = true;
                     }
-                  }
-                }
-              } else if (isRetrieval) {
+
+                    if (isTrigger || isIncomeTrigger || isVoiceLog) {
+                      console.log(`[Expense Tracker] Triggered expense logging via text/voice.`);
+                      const keywordToStrip = isTrigger ? triggerKeyword : (isIncomeTrigger ? incomeKeyword : "");
+                      const promptText = keywordToStrip ? cleanContent.substring(keywordToStrip.length).trim() : cleanContent;
+                      
+                      const defaultType = isIncomeTrigger ? "deposit" : "expense";
+
+                      if (promptText.length === 0) {
+                        const waApi = new WhatsAppApiService(channel[0]);
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: {
+                            body: isIncomeTrigger 
+                              ? "⚠️ *Income Tracker Help*\nTo record income, format like this:\n`income <amount> <category> <payment_account> <description>`\n\n_Example: income 500.00 Salary Cash Monthly paycheck_"
+                              : "⚠️ *Expense Tracker Help*\nTo record an expense, format like this:\n`expense <amount> <category> <payment_account> <description>`\n\n_Example: expense 45.00 Travel Cash Taxi ride_"
+                          }
+                        });
+                        automationHandled = true;
+                      } else {
+                        // Parse with AI
+                        const parsed = await ExpenseAIService.parseExpense(tenantId, channelId, promptText, defaultType);
+                        if (parsed && !parsed.error && parsed.amount > 0) {
+                          // Match or default to payment account
+                          const accounts = await db
+                            .select()
+                            .from(schema.paymentAccounts)
+                            .where(eq(schema.paymentAccounts.tenantId, tenantId));
+                          
+                          let matchedAccount = accounts.find(
+                            a => a.name.toLowerCase() === parsed.accountName.toLowerCase()
+                          );
+                          
+                          if (!matchedAccount && accounts.length > 0) {
+                            matchedAccount = accounts[0]; // fallback to first account
+                          }
+
+                          if (matchedAccount) {
+                            const currentBalance = parseFloat(matchedAccount.balance || "0");
+                            const amountVal = parsed.amount;
+                            const newBalance = parsed.type === "deposit" ? currentBalance + amountVal : currentBalance - amountVal;
+
+                            await db
+                              .update(schema.paymentAccounts)
+                              .set({
+                                balance: String(newBalance),
+                                updatedAt: new Date()
+                              })
+                              .where(eq(schema.paymentAccounts.id, matchedAccount.id));
+
+                            // Insert Expense
+                            await db.insert(schema.expenses).values({
+                              tenantId,
+                              channelId,
+                              amount: String(parsed.amount),
+                              category: parsed.category,
+                              paymentAccountId: matchedAccount.id,
+                              type: parsed.type || "expense",
+                              description: parsed.description,
+                              date: new Date(),
+                            });
+
+                            const waApi = new WhatsAppApiService(channel[0]);
+                            const successTitle = parsed.type === "deposit" ? "Income/Deposit Logged Successfully!" : "Expense Logged Successfully!";
+                            await waApi.sendDirectMessage({
+                              to: message.from,
+                              type: "text",
+                              text: {
+                                body: `✅ *${successTitle}*\n\n💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n💳 Account: *${matchedAccount.name}*\n📝 Description: *${parsed.description || "N/A"}*`
+                              }
+                            });
+                            automationHandled = true;
+                          }
+                        } else {
+                          if (isTrigger || isIncomeTrigger) {
+                            const waApi = new WhatsAppApiService(channel[0]);
+                            const helperFormat = isIncomeTrigger ? "income <amount> <category> <payment_account> <description>" : "expense <amount> <category> <payment_account> <description>";
+                            await waApi.sendDirectMessage({
+                              to: message.from,
+                              type: "text",
+                              text: {
+                                body: `⚠️ *Failed to parse transaction.*\nReason: ${parsed?.error || "AI could not extract valid amount/category."}\n\nFormat: \`${helperFormat}\``
+                              }
+                            });
+                            automationHandled = true;
+                          }
+                        }
+                      }
+                    } else if (isRetrieval) {
                 console.log(`[Expense Tracker] Triggered expense retrieval.`);
                 const timeFrame = cleanContent.substring(retrievalKeyword.length).trim().toLowerCase() || "today";
 
@@ -974,7 +1252,8 @@ export class WebhookHandler {
             }
           }
         }
-      } catch (err: any) {
+      }
+    } catch (err: any) {
         console.error(`[Expense Tracker Interceptor] Error logging expense via bot:`, err.message);
       }
     }

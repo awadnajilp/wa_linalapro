@@ -11,12 +11,14 @@ export class ExpenseAIService {
   public static async parseExpense(
     tenantId: string,
     channelId: string,
-    text: string
+    text: string,
+    defaultType: "expense" | "deposit" = "expense"
   ): Promise<{
     amount: number;
     category: string;
     accountName: string;
     description: string;
+    type?: "expense" | "deposit";
     error?: string;
   } | null> {
     try {
@@ -45,7 +47,7 @@ export class ExpenseAIService {
         .limit(1);
 
       if (!addon) {
-        return { amount: 0, category: "General", accountName: "Cash", description: "", error: "Expense Module addon not registered." };
+        return { amount: 0, category: "General", accountName: "Cash", description: "", type: defaultType, error: "Expense Module addon not registered." };
       }
 
       let apiKey = "";
@@ -58,7 +60,7 @@ export class ExpenseAIService {
         // Use platform keys and verify credits
         const hasCredits = await AddonManager.consumeCredits(tenantId, "expense-tracker", 1);
         if (!hasCredits) {
-          return { amount: 0, category: "General", accountName: "Cash", description: "", error: "Insufficient AI credits. Please recharge your Expense Module." };
+          return { amount: 0, category: "General", accountName: "Cash", description: "", type: defaultType, error: "Insufficient AI credits. Please recharge your Expense Module." };
         }
         
         apiKey = addon.adminApiKey || "";
@@ -119,7 +121,7 @@ export class ExpenseAIService {
       }
 
       if (!apiKey) {
-        return { amount: 0, category: "General", accountName: "Cash", description: "", error: "No active AI configurations or api keys found." };
+        return { amount: 0, category: "General", accountName: "Cash", description: "", type: defaultType, error: "No active AI configurations or api keys found." };
       }
 
       const openai = new OpenAI({ apiKey, baseURL });
@@ -134,13 +136,15 @@ Analyze the sentence and extract:
 2. Category: match the default categories or extract one
 3. Account Name: match one of [${accountNames}] closely
 4. Description: a concise description of what was purchased/spent
+5. Type: either "expense" (spending) or "deposit" (income, cash inflow). Defaults to "${defaultType}".
 
 Response format MUST be a valid JSON object ONLY. No markdown wrapping, no conversational text.
 Example outputs:
-{"amount": 50.00, "category": "Food", "accountName": "Cash", "description": "lunch taxi"}
-{"amount": 1200.00, "category": "Travel", "accountName": "Bank Account", "description": "flight tickets"}
+{"amount": 50.00, "category": "Food", "accountName": "Cash", "description": "lunch taxi", "type": "expense"}
+{"amount": 1200.00, "category": "Travel", "accountName": "Bank Account", "description": "flight tickets", "type": "expense"}
+{"amount": 2500.00, "category": "Salaries", "accountName": "Bank Account", "description": "monthly income", "type": "deposit"}
 
-If the input has absolutely no mention of expenses or amounts, return an error block:
+If the input has absolutely no mention of expenses, deposits, or amounts, return an error block:
 {"error": "Not an expense"}
 
 Input text: "${text}"`;
@@ -165,7 +169,7 @@ Input text: "${text}"`;
 
       const parsed = JSON.parse(cleanJsonText);
       if (parsed.error) {
-        return { amount: 0, category: "General", accountName: "Cash", description: "", error: parsed.error };
+        return { amount: 0, category: "General", accountName: "Cash", description: "", type: defaultType, error: parsed.error };
       }
 
       return {
@@ -173,10 +177,173 @@ Input text: "${text}"`;
         category: String(parsed.category || "General"),
         accountName: String(parsed.accountName || "Cash"),
         description: String(parsed.description || ""),
+        type: parsed.type === "deposit" ? "deposit" : "expense"
       };
 
     } catch (err: any) {
       console.error(`[ExpenseAIService] AI parsing failed:`, err.message);
+      return null;
+    }
+  }
+
+  /**
+   * Analyze receipt images using Vision models to extract expense/deposit data
+   */
+  public static async parseReceiptImage(
+    tenantId: string,
+    channelId: string,
+    imageBuffer: Buffer,
+    mimeType: string
+  ): Promise<{
+    amount: number;
+    category: string;
+    accountName: string;
+    description: string;
+    date: string; // YYYY-MM-DD or "MISSING"
+    type: "expense" | "deposit";
+    error?: string;
+  } | null> {
+    try {
+      // 1. Fetch available payment accounts for this user so AI can match them
+      const accounts = await db
+        .select()
+        .from(schema.paymentAccounts)
+        .where(eq(schema.paymentAccounts.tenantId, tenantId));
+
+      const accountNames = accounts.map(a => a.name).join(", ") || "Cash, Bank Account, Credit Card";
+
+      // 2. Fetch AI keys config (determine if using tenant key or admin keys)
+      const [addon] = await db
+        .select()
+        .from(schema.addons)
+        .where(eq(schema.addons.slug, "expense-tracker"))
+        .limit(1);
+
+      if (!addon) {
+        return { amount: 0, category: "General", accountName: "UNKNOWN", description: "", date: "MISSING", type: "expense", error: "Expense Module addon not registered." };
+      }
+
+      let apiKey = "";
+      let baseURL = "https://api.openai.com/v1";
+      let model = "gpt-4o-mini"; // Default vision capable model
+
+      const useAdminKey = addon.aiKeyType === "admin";
+
+      if (useAdminKey) {
+        // Vision requests consume 2 credits
+        const hasCredits = await AddonManager.consumeCredits(tenantId, "expense-tracker", 2);
+        if (!hasCredits) {
+          return { amount: 0, category: "General", accountName: "UNKNOWN", description: "", date: "MISSING", type: "expense", error: "Insufficient AI credits. Please recharge your Expense Module." };
+        }
+        
+        apiKey = addon.adminApiKey || "";
+        baseURL = addon.adminApiEndpoint || "https://api.openai.com/v1";
+        model = addon.adminLlmModel || "gpt-4o-mini";
+        
+        // If groq or llama are chosen but don't support vision directly, fallback to vision models
+        if (model.includes("groq") || model.includes("llama-3.3")) {
+          model = "llama-3.2-11b-vision-preview";
+        }
+      } else {
+        const [tenant] = await db
+          .select()
+          .from(schema.users)
+          .where(eq(schema.users.id, tenantId))
+          .limit(1);
+
+        if (tenant) {
+          if (tenant.groqApiKey) {
+            apiKey = tenant.groqApiKey;
+            baseURL = "https://api.groq.com/openai/v1";
+            model = "llama-3.2-11b-vision-preview";
+          } else {
+            const [aiSetting] = await db
+              .select()
+              .from(schema.aiSettings)
+              .where(and(eq(schema.aiSettings.channelId, channelId), eq(schema.aiSettings.isActive, true)))
+              .limit(1);
+            
+            if (aiSetting && aiSetting.apiKey) {
+              apiKey = aiSetting.apiKey;
+              baseURL = aiSetting.endpoint || "https://api.openai.com/v1";
+              model = aiSetting.model || "gpt-4o-mini";
+            }
+          }
+        }
+      }
+
+      // If no custom key found, fallback to system env keys
+      if (!apiKey) {
+        apiKey = process.env.OPENAI_API_KEY || "";
+        baseURL = "https://api.openai.com/v1";
+      }
+
+      if (!apiKey) {
+        return { amount: 0, category: "General", accountName: "UNKNOWN", description: "", date: "MISSING", type: "expense", error: "No active AI configurations or api keys found." };
+      }
+
+      const openai = new OpenAI({ apiKey, baseURL });
+
+      const prompt = `You are a helper AI for an Expense Tracker app. Analyze the attached receipt image and extract the expense details.
+
+Available Payment Accounts in user database: [${accountNames}]. Try to match closely with one of these accounts. If none match or are specified on the receipt, return "UNKNOWN".
+Available default categories: Food, Travel, Office, Marketing, Utility, General, Rent, Salaries, Taxes, Entertainment.
+
+Analyze the image and extract:
+1. Amount: the total amount of the transaction (numerical value)
+2. Category: match the default categories or extract one
+3. Account Name: match one of [${accountNames}] closely. If not clear or missing, return "UNKNOWN".
+4. Description: a concise description of what was purchased/spent
+5. Date: the date of the receipt in YYYY-MM-DD format. If date is not visible or missing on the receipt, return "MISSING".
+6. Type: return either "expense" (spending) or "deposit" (income, refund, deposit).
+
+Response format MUST be a valid JSON object ONLY. No markdown wrapping, no conversational text.
+Example output:
+{"amount": 120.50, "category": "Food", "accountName": "Cash", "description": "lunch taxi", "date": "2026-08-24", "type": "expense"}`;
+
+      console.log(`🤖 Sending receipt image to LLM (${model}) for OCR parsing...`);
+      const completion = await openai.chat.completions.create({
+        model: model,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${mimeType};base64,${imageBuffer.toString("base64")}`,
+                },
+              },
+            ],
+          },
+        ],
+        temperature: 0.1,
+      });
+
+      const responseText = completion.choices[0]?.message?.content?.trim() || "";
+      console.log(`🤖 Received LLM Image Response: "${responseText}"`);
+
+      // Parse JSON from output
+      let cleanJsonText = responseText;
+      if (responseText.includes("```json")) {
+        cleanJsonText = responseText.split("```json")[1].split("```")[0].trim();
+      } else if (responseText.includes("```")) {
+        cleanJsonText = responseText.split("```")[1].split("```")[0].trim();
+      }
+
+      const parsed = JSON.parse(cleanJsonText);
+      return {
+        amount: Number(parsed.amount || 0),
+        category: String(parsed.category || "General"),
+        accountName: String(parsed.accountName || "UNKNOWN"),
+        description: String(parsed.description || ""),
+        date: String(parsed.date || "MISSING"),
+        type: parsed.type === "deposit" ? "deposit" : "expense"
+      };
+
+    } catch (err: any) {
+      console.error(`[ExpenseAIService] parseReceiptImage failed:`, err.message);
       return null;
     }
   }

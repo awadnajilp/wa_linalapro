@@ -606,9 +606,30 @@ export function registerAddonsRoutes(app: Express) {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
-      const { channelId, triggerKeyword, retrievalKeyword, incomeKeyword, reportingNumber, reportInterval, reportEmail, emailEnabled, isActive, aiPrompt } = req.body;
+      const { channelId, triggerKeyword, retrievalKeyword, incomeKeyword, reportingNumber, reportInterval, reportEmail, emailEnabled, isActive, aiPrompt, purchaseType } = req.body;
 
       if (!channelId) return res.status(400).json({ error: "ChannelId is required" });
+
+      // Update subscription purchase type if specified
+      if (purchaseType === "ai" || purchaseType === "flow") {
+        const [addon] = await db
+          .select()
+          .from(schema.addons)
+          .where(eq(schema.addons.slug, "expense-tracker"))
+          .limit(1);
+
+        if (addon) {
+          await db
+            .update(schema.tenantAddons)
+            .set({ purchaseType })
+            .where(
+              and(
+                eq(schema.tenantAddons.tenantId, tenantId),
+                eq(schema.tenantAddons.addonId, addon.id)
+              )
+            );
+        }
+      }
 
       const [existing] = await db
         .select()

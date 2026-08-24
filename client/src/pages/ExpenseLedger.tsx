@@ -100,9 +100,18 @@ export default function ExpenseLedger() {
   const expenseAddon = addons?.find(a => a.slug === "expense-tracker");
   const purchaseType = expenseAddon?.subscription?.purchaseType || "flow";
 
-  // Bind active channel initially
+  const [botModeType, setBotModeType] = useState("flow");
+
+  // Sync purchase type state when loaded
   React.useEffect(() => {
-    if (activeChannel?.id && !configChannelId) {
+    if (purchaseType) {
+      setBotModeType(purchaseType);
+    }
+  }, [purchaseType]);
+
+  // Bind active channel when it changes
+  React.useEffect(() => {
+    if (activeChannel?.id) {
       setConfigChannelId(activeChannel.id);
     }
   }, [activeChannel?.id]);
@@ -254,6 +263,7 @@ export default function ExpenseLedger() {
     onSuccess: () => {
       toast({ title: "Saved", description: "Bot triggers configured." });
       queryClient.invalidateQueries({ queryKey: ["/api/expenses/config", configChannelId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tenant/addons"] });
       setIsConfigOpen(false);
     }
   });
@@ -327,7 +337,8 @@ export default function ExpenseLedger() {
       reportEmail: reportEmail,
       emailEnabled: emailEnabled,
       isActive: botActive,
-      aiPrompt: botPrompt
+      aiPrompt: botPrompt,
+      purchaseType: botModeType
     });
   };
 
@@ -388,6 +399,18 @@ export default function ExpenseLedger() {
                     <Switch checked={botActive} onCheckedChange={setBotActive} />
                     <span className="text-xs text-gray-500 ml-2">Toggle bot parsing for this channel</span>
                   </div>
+                </div>
+                 <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="botMode" className="text-right">Bot Type</Label>
+                  <select
+                    id="botMode"
+                    value={botModeType}
+                    onChange={(e) => setBotModeType(e.target.value)}
+                    className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="flow">Flow Based (Predefined Automation Flow)</option>
+                    <option value="ai">AI Based (Fully Optimized AI Agent with Voice/Image)</option>
+                  </select>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="triggerK" className="text-right">Trigger Word</Label>

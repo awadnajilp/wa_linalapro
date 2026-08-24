@@ -101,6 +101,9 @@ export default function ExpenseLedger() {
   const purchaseType = expenseAddon?.subscription?.purchaseType || "flow";
 
   const [botModeType, setBotModeType] = useState("flow");
+  const [availableCategories, setAvailableCategories] = useState<string[]>([
+    "Food", "Travel", "Office", "Marketing", "Utility", "Rent", "Salaries", "General"
+  ]);
 
   // Sync purchase type state when loaded
   React.useEffect(() => {
@@ -199,6 +202,16 @@ export default function ExpenseLedger() {
       return res.json();
     },
   });
+
+  React.useEffect(() => {
+    if (expenses && expenses.length > 0) {
+      setAvailableCategories(prev => {
+        const currentCats = expenses.map(e => e.category).filter(Boolean);
+        const next = Array.from(new Set([...prev, ...currentCats]));
+        return next.sort();
+      });
+    }
+  }, [expenses]);
 
   // Mutations
   const createExpenseMutation = useMutation({
@@ -653,14 +666,9 @@ export default function ExpenseLedger() {
             <span className="text-[10px] font-bold text-gray-500 uppercase">Category</span>
             <select value={category} onChange={(e) => setCategory(e.target.value)} className="flex h-9 rounded-md border border-input bg-background px-2.5 py-1 text-sm">
               <option value="all">All Categories</option>
-              <option value="Food">Food</option>
-              <option value="Travel">Travel</option>
-              <option value="Office">Office</option>
-              <option value="Marketing">Marketing</option>
-              <option value="Utility">Utility</option>
-              <option value="Rent">Rent</option>
-              <option value="Salaries">Salaries</option>
-              <option value="General">General</option>
+              {availableCategories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
             </select>
           </div>
 

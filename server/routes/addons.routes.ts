@@ -156,7 +156,8 @@ export function registerAddonsRoutes(app: Express) {
             status: sub.status,
             credits: sub.credits,
             maxCredits: sub.maxCredits,
-            expiresAt: sub.expiresAt
+            expiresAt: sub.expiresAt,
+            purchaseType: sub.purchaseType
           } : null
         };
       });

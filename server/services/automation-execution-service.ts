@@ -41,6 +41,9 @@ import {
   crmDeals,
   crmSettings,
   conversationAssignments,
+  paymentAccounts,
+  expenses,
+  expenseConfigs,
 } from "@shared/schema";
 import OpenAI from "openai";
 import { searchTrainingData } from "./training.service";
@@ -5595,6 +5598,105 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       .where(eq(automationExecutions.id, executionId));
 
     console.log(`🏁 Execution ${executionId} ${status}: ${result}`);
+
+    try {
+      if (status === 'completed') {
+        const execution = await db.query.automationExecutions.findFirst({
+          where: eq(automationExecutions.id, executionId),
+          with: {
+            automation: true
+          }
+        });
+
+        if (execution && execution.automation) {
+          const vars = (execution.variables || {}) as Record<string, any>;
+          if (vars.expense_amount) {
+            // This is an expense tracker flow! Let's log it.
+            const rawAmount = parseFloat(vars.expense_amount);
+            const amount = isNaN(rawAmount) ? 0 : rawAmount;
+            const description = vars.expense_description || 'Flow log';
+            const categoryAndAcc = vars.expense_category_account || 'General / Cash';
+            
+            let category = 'General';
+            let accountName = 'Cash';
+            if (categoryAndAcc.includes('/')) {
+              const parts = categoryAndAcc.split('/');
+              category = parts[0].trim();
+              accountName = parts[1].trim();
+            } else {
+              category = categoryAndAcc.trim();
+            }
+
+            const channelId = execution.automation.channelId;
+            const tenantId = execution.automation.createdBy;
+
+            if (channelId && tenantId) {
+              const accounts = await db
+                .select()
+                .from(paymentAccounts)
+                .where(eq(paymentAccounts.tenantId, tenantId));
+
+              let matchedAccount = accounts.find(
+                a => a.name.toLowerCase() === accountName.toLowerCase() ||
+                     accountName.toLowerCase().includes(a.name.toLowerCase())
+              );
+
+              if (!matchedAccount && accounts.length > 0) {
+                matchedAccount = accounts[0]; // fallback
+              }
+
+              if (matchedAccount) {
+                const currentBalance = parseFloat(matchedAccount.balance || "0");
+                const newBalance = currentBalance - amount;
+
+                await db
+                  .update(paymentAccounts)
+                  .set({
+                    balance: String(newBalance),
+                    updatedAt: new Date()
+                  })
+                  .where(eq(paymentAccounts.id, matchedAccount.id));
+
+                await db.insert(expenses).values({
+                  tenantId,
+                  channelId,
+                  amount: String(amount),
+                  category,
+                  paymentAccountId: matchedAccount.id,
+                  type: "expense",
+                  description,
+                  date: new Date(),
+                });
+
+                // Disable AI Takeover for this conversation thread
+                await db
+                  .update(conversations)
+                  .set({ aiEnabled: false })
+                  .where(eq(conversations.id, execution.conversationId));
+
+                // Send confirmation
+                const channel = await storage.getChannel(channelId);
+                const getContact = await db.query.contacts.findFirst({
+                  where: eq(contacts.id, execution.contactId!),
+                });
+                if (getContact && channel) {
+                  const waApi = new WhatsAppApiService(channel);
+                  await waApi.sendDirectMessage({
+                    to: getContact.phone,
+                    type: "text",
+                    text: {
+                      body: `✅ *Expense Logged Successfully! (Flow Mode)*\n\n💰 Amount: *${amount.toFixed(2)}*\n📂 Category: *${category}*\n💳 Account: *${matchedAccount.name}*\n📝 Description: *${description}*`
+                    }
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[Expense Tracker Flow Interceptor] Error logging expense:", err);
+    }
   }
 
   private async logNodeExecution(
@@ -6567,6 +6669,23 @@ export class AutomationTriggerService {
       message.whatsappMessageId ?? message.id ?? null;
 
     for (const automation of activeAutomations) {
+      if (automation.name === "WhatsApp Expense Tracker Bot") {
+        const [config] = await db
+          .select()
+          .from(expenseConfigs)
+          .where(eq(expenseConfigs.channelId, channelId))
+          .limit(1);
+
+        const triggerKeyword = (config?.triggerKeyword || "expense").toLowerCase();
+        const incomeKeyword = (config?.incomeKeyword || "income").toLowerCase();
+        const contentStr = (message.content || message.text || "").trim().toLowerCase();
+
+        if (!contentStr.startsWith(triggerKeyword) && !contentStr.startsWith(incomeKeyword)) {
+          console.log(`[Expense Tracker] Skipping predefined flow trigger execution because message "${contentStr}" does not match keywords "${triggerKeyword}" / "${incomeKeyword}"`);
+          continue;
+        }
+      }
+
       console.log(`🚀 Starting automation: ${automation.id} - "${automation.name}"`);
       
       try {

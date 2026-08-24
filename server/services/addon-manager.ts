@@ -136,7 +136,9 @@ export class AddonManager {
 
       // Create predefined nodes
       const triggerNodeId = "node-trigger-uuid";
-      const welcomeNodeId = "node-welcome-uuid";
+      const q1NodeId = "node-q1-uuid";
+      const q2NodeId = "node-q2-uuid";
+      const q3NodeId = "node-q3-uuid";
 
       await db.insert(schema.automationNodes).values([
         {
@@ -149,30 +151,73 @@ export class AddonManager {
             label: "Trigger: Inbound Message",
             trigger: "message_received",
           },
-          connections: [welcomeNodeId],
+          connections: [q1NodeId],
         },
         {
           automationId: newAutomation.id,
-          nodeId: welcomeNodeId,
-          type: "custom_reply",
+          nodeId: q1NodeId,
+          type: "user_reply",
           subtype: "send_message",
           position: { x: 100, y: 350 },
           data: {
-            label: "Welcome Instruction",
-            message: "Welcome to your *WhatsApp Expense Tracker Bot*!\n\nTo log an expense, type it like this:\n*expense <amount> <category> <account> <description>*\n_Example: expense 50 Food Cash Taxi_\n\nOr simply send a voice note stating what you spent (e.g. \"spent 50 dollars on fuel using credit card\").\n\nTo retrieve your logs, type:\n*getexpense <today/week/month/year>*",
+            label: "Ask Description",
+            question: "What is your expense today?",
+            saveAs: "expense_description",
+          },
+          connections: [q2NodeId],
+        },
+        {
+          automationId: newAutomation.id,
+          nodeId: q2NodeId,
+          type: "user_reply",
+          subtype: "send_message",
+          position: { x: 100, y: 550 },
+          data: {
+            label: "Ask Amount",
+            question: "How much was it?",
+            saveAs: "expense_amount",
+          },
+          connections: [q3NodeId],
+        },
+        {
+          automationId: newAutomation.id,
+          nodeId: q3NodeId,
+          type: "user_reply",
+          subtype: "send_message",
+          position: { x: 100, y: 750 },
+          data: {
+            label: "Ask Category & Account",
+            question: "Do you wanna save it category or account? (Example: Food / Cash Account)",
+            saveAs: "expense_category_account",
           },
           connections: [],
         },
       ]);
 
       // Connect edges
-      await db.insert(schema.automationEdges).values({
-        id: crypto.randomUUID(),
-        automationId: newAutomation.id,
-        sourceNodeId: triggerNodeId,
-        targetNodeId: welcomeNodeId,
-        animated: true,
-      });
+      await db.insert(schema.automationEdges).values([
+        {
+          id: crypto.randomUUID(),
+          automationId: newAutomation.id,
+          sourceNodeId: triggerNodeId,
+          targetNodeId: q1NodeId,
+          animated: true,
+        },
+        {
+          id: crypto.randomUUID(),
+          automationId: newAutomation.id,
+          sourceNodeId: q1NodeId,
+          targetNodeId: q2NodeId,
+          animated: true,
+        },
+        {
+          id: crypto.randomUUID(),
+          automationId: newAutomation.id,
+          sourceNodeId: q2NodeId,
+          targetNodeId: q3NodeId,
+          animated: true,
+        },
+      ]);
 
       // Create default cash payment account if not exists
       const existingAccounts = await db

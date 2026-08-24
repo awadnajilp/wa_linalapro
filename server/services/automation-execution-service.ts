@@ -44,6 +44,8 @@ import {
   paymentAccounts,
   expenses,
   expenseConfigs,
+  addons,
+  tenantAddons,
 } from "@shared/schema";
 import OpenAI from "openai";
 import { ExpenseAIService } from "./expense-ai-service";
@@ -6658,6 +6660,37 @@ export class AutomationTriggerService {
 
     for (const automation of activeAutomations) {
       if (automation.name === "WhatsApp Expense Tracker Bot" || automation.name === "WhatsApp Income Tracker Bot") {
+        // Skip predefined flow triggers if channel/tenant is currently in AI Mode
+        const tenantId = automation.createdBy;
+        const [targetAddon] = await db
+          .select()
+          .from(addons)
+          .where(and(eq(addons.slug, "expense-tracker"), eq(addons.isActive, true)))
+          .limit(1);
+
+        let isAiMode = false;
+        if (targetAddon) {
+          const [subscription] = await db
+            .select()
+            .from(tenantAddons)
+            .where(
+              and(
+                eq(tenantAddons.tenantId, tenantId),
+                eq(tenantAddons.addonId, targetAddon.id),
+                eq(tenantAddons.status, "active")
+              )
+            )
+            .limit(1);
+          if (subscription && subscription.purchaseType === "ai") {
+            isAiMode = true;
+          }
+        }
+
+        if (isAiMode) {
+          console.log(`[Expense Tracker] Skipping predefined flow trigger execution because channel is in AI mode.`);
+          continue;
+        }
+
         const [config] = await db
           .select()
           .from(expenseConfigs)

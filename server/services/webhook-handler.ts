@@ -795,6 +795,8 @@ export class WebhookHandler {
         }
       }
 
+      let automationHandled = false;
+
       // ==================== EXPENSE TRACKER INTERCEPTOR ====================
       if (channelId && conversation.length > 0 && !isGroupMessage) {
         try {
@@ -1259,9 +1261,7 @@ export class WebhookHandler {
     }
 
       // 8.5 Automations (run first — takes priority over AI)
-      let automationHandled = false;
-
-      if (!isGroupMessage) {
+      if (!isGroupMessage && !automationHandled) {
         try {
           if (channelId) {
             const hasPendingExecution =

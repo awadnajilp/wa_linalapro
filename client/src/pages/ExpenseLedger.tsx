@@ -110,6 +110,11 @@ export default function ExpenseLedger() {
   // Fetch Config
   const { data: config } = useQuery<ExpenseConfig>({
     queryKey: ["/api/expenses/config", configChannelId],
+    queryFn: async () => {
+      const res = await fetch(`/api/expenses/config?channelId=${configChannelId}`);
+      if (!res.ok) throw new Error("Failed to fetch config");
+      return res.json();
+    },
     enabled: !!configChannelId,
   });
 

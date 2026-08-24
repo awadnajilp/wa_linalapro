@@ -899,6 +899,11 @@ export class WebhookHandler {
 
                           await db.delete(schema.expenseSessions).where(eq(schema.expenseSessions.id, activeSession.id));
 
+                          await db
+                            .update(schema.conversations)
+                            .set({ aiEnabled: false })
+                            .where(eq(schema.conversations.id, conversation[0].id));
+
                           await waApi.sendDirectMessage({
                             to: message.from,
                             type: "text",
@@ -968,6 +973,11 @@ export class WebhookHandler {
                           });
 
                           await db.delete(schema.expenseSessions).where(eq(schema.expenseSessions.id, activeSession.id));
+
+                           await db
+                             .update(schema.conversations)
+                             .set({ aiEnabled: false })
+                             .where(eq(schema.conversations.id, conversation[0].id));
 
                           await waApi.sendDirectMessage({
                             to: message.from,
@@ -1079,6 +1089,11 @@ export class WebhookHandler {
                                 mediaUrl: fileUrl || null
                               });
 
+                          await db
+                            .update(schema.conversations)
+                            .set({ aiEnabled: false })
+                            .where(eq(schema.conversations.id, conversation[0].id));
+
                               await waApi.sendDirectMessage({
                                 to: message.from,
                                 type: "text",
@@ -1173,6 +1188,11 @@ export class WebhookHandler {
                               description: parsed.description,
                               date: new Date(),
                             });
+
+                          await db
+                            .update(schema.conversations)
+                            .set({ aiEnabled: false })
+                            .where(eq(schema.conversations.id, conversation[0].id));
 
                             const waApi = new WhatsAppApiService(channel[0]);
                             const successTitle = parsed.type === "deposit" ? "Income/Deposit Logged Successfully!" : "Expense Logged Successfully!";

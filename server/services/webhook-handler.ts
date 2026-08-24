@@ -1195,9 +1195,9 @@ if (activeSession) {
                     let isRetrieval = lowerContent.startsWith(retrievalKeyword);
                     let isVoiceLog = false;
 
-                    // Check if it's a voice note that doesn't start with keyword but could be an expense log
+                    // Disable direct audio logs to prevent the bot from being active on voice notes all the time
                     if (!isTrigger && !isIncomeTrigger && !isRetrieval && message.type === "audio" && cleanContent.length > 0) {
-                      isVoiceLog = true;
+                      isVoiceLog = false;
                     }
 
                     if (isTrigger || isIncomeTrigger || isVoiceLog) {

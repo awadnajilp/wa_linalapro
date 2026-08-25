@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
-import { Info, FileText, Clock, Eye, Check, Upload, Loader2, Smile, Wrench } from "lucide-react";
+import { Info, FileText, Clock, Eye, Check, Upload, Loader2, Smile, Wrench, Plus } from "lucide-react";
 import { TemplatePickerDialog, getTemplateButtons } from "@/components/shared/TemplatePickerDialog";
 import { MediaGalleryDialog } from "@/components/media/MediaGalleryDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";

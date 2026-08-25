@@ -47,6 +47,7 @@ import {
   XCircle,
   Repeat,
   AlertCircle,
+  Clock,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useTranslation } from "@/lib/i18n";

@@ -770,6 +770,22 @@ private stemWord(word: string = ""): string {
         edgesToFollow = fallbackEdges.length > 0 ? fallbackEdges : outgoingEdges;
       }
     }
+    // Custom routing check for predefined WhatsApp Expense Tracker Bot questions
+    if (currentNode.nodeId === "node-exp-q5-uuid") {
+      const confirmVal = String(context.variables.expense_receipt_confirm || "").trim().toLowerCase();
+      const isYes = ["y", "yes", "ys"].some(x => confirmVal === x || confirmVal.startsWith(x));
+      
+      if (isYes) {
+        // Route to the upload receipt node
+        const uploadEdge = outgoingEdges.find((e: any) => e.targetNodeId === "node-exp-q6-uuid");
+        edgesToFollow = uploadEdge ? [uploadEdge] : [];
+      } else {
+        // Skip upload receipt, complete flow immediately
+        console.log("[Expense Tracker Flow] User replied No to receipt attachment. Skipping receipt node and completing execution.");
+        await this.completeExecution(context.executionId, 'completed', 'All nodes executed successfully');
+        return;
+      }
+    }
 
     // Follow each edge
     for (const edge of edgesToFollow) {
@@ -808,10 +824,7 @@ private stemWord(word: string = ""): string {
   //   };
   // }
 
-  /**
-   * Enhanced handleUserResponse to update context with user message for conditions
-   */
-  async handleUserResponse(conversationId: string, userResponse: string, interactiveData?: any) {
+  async handleUserResponse(conversationId: string, userResponse: string, interactiveData?: any, messageObject?: any) {
     console.log(`📨 Received user response for conversation ${conversationId}: "${userResponse}"`);
     
     // Lookup contactId
@@ -857,6 +870,88 @@ private stemWord(word: string = ""): string {
       // Process the response
       let processedResponse = userResponse;
       let selectedButtonId = null;
+
+      // If it is an image upload and we are saving it
+      if (messageObject && messageObject.type === 'image' && pendingExecution.saveAs) {
+        const getContact = await db.query.contacts.findFirst({
+          where: eq(contacts.id, pendingExecution.contactId!),
+        });
+        if (getContact && getContact.channelId) {
+          const channelRow = await storage.getChannel(getContact.channelId);
+          if (channelRow) {
+            const waApi = new WhatsAppApiService(channelRow);
+            const mediaId = (messageObject.image as any)?.id || messageObject.mediaId;
+            if (mediaId) {
+              try {
+                let fileUrl = "";
+                if (channelRow.connectionMethod === "qr_code") {
+                  fileUrl = await waApi.fetchMediaUrl(mediaId);
+                } else {
+                  // Cloud API: download buffer and permanently upload to DO / local
+                  const { buffer, mimeType } = await waApi.getMediaBuffer(mediaId);
+                  if (buffer) {
+                    const extension = mimeType.split("/")[1]?.split(";")[0] || "bin";
+                    const filename = `${Date.now()}-${mediaId}.${extension}`;
+
+                    const { createDOClient } = await import("../config/digitalOceanConfig");
+                    const doClient = await createDOClient();
+                    if (doClient) {
+                      const { s3, bucket, endpoint } = doClient;
+                      const fileKey = `uploads/incoming/${filename}`;
+                      const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+
+                      try {
+                        await s3.send(
+                          new PutObjectCommand({
+                            Bucket: bucket!,
+                            Key: fileKey,
+                            Body: buffer,
+                            ACL: "public-read",
+                            ContentType: mimeType,
+                          })
+                        );
+                      } catch (s3Error: any) {
+                        if (s3Error.name === "AccessControlListNotSupported" || s3Error.message?.includes("ACL")) {
+                          await s3.send(
+                            new PutObjectCommand({
+                              Bucket: bucket!,
+                              Key: fileKey,
+                              Body: buffer,
+                              ContentType: mimeType,
+                            })
+                          );
+                        } else {
+                          throw s3Error;
+                        }
+                      }
+
+                      const endpointUrl = new URL(endpoint || "");
+                      fileUrl = `https://${bucket}.${endpointUrl.host}/${fileKey}`;
+                    } else {
+                      const fs = await import("fs");
+                      const path = await import("path");
+                      const uploadDir = path.join("uploads", "incoming");
+                      if (!fs.existsSync(uploadDir)) {
+                        fs.mkdirSync(uploadDir, { recursive: true });
+                      }
+                      const localPath = path.join(uploadDir, filename);
+                      fs.writeFileSync(localPath, buffer);
+                      fileUrl = `/uploads/incoming/${filename}`;
+                    }
+                  }
+                }
+
+                if (fileUrl) {
+                  processedResponse = fileUrl; // Store the permanent media URL in the variable!
+                  console.log(`📸 Fetched and saved media URL permanently: ${fileUrl}`);
+                }
+              } catch (err: any) {
+                console.error("Failed to fetch media URL permanently in handleUserResponse:", err.message);
+              }
+            }
+          }
+        }
+      }
       
       // If this was a button click response
       if (interactiveData && interactiveData.type === 'button_reply') {
@@ -5658,6 +5753,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
                   date: new Date(),
                   loggedByName: getContact?.name || getContact?.phone || "Unknown",
                   loggedByPhone: getContact?.phone || "Unknown",
+                  mediaUrl: vars.expense_receipt_media || null,
                 });
 
                 // Disable AI Takeover for this conversation thread
@@ -6631,7 +6727,7 @@ export class AutomationTriggerService {
     if (hasPending) {
       console.log(`📨 Processing as user response to pending execution`);
       try {
-        await this.executionService.handleUserResponse(conversationId, message.content || message.text || message, message.interactive);
+        await this.executionService.handleUserResponse(conversationId, message.content || message.text || message, message.interactive, message);
         return true; // Pending execution handled this message
       } catch (error) {
         console.error(`Error handling user response:`, error);
@@ -6676,12 +6772,24 @@ export class AutomationTriggerService {
             .where(
               and(
                 eq(tenantAddons.tenantId, tenantId),
-                eq(tenantAddons.addonId, targetAddon.id),
-                eq(tenantAddons.status, "active")
+                eq(tenantAddons.addonId, targetAddon.id)
               )
             )
             .limit(1);
-          if (subscription && subscription.purchaseType === "ai") {
+
+          const [user] = await db
+            .select()
+            .from(users)
+            .where(eq(users.id, tenantId))
+            .limit(1);
+
+          const isSubscriptionActive = subscription
+            ? (subscription.status === "active" || user?.role === "superadmin")
+            : (user?.role === "superadmin" ? true : false);
+
+          const purchaseType = subscription?.purchaseType || (user?.role === "superadmin" ? "ai" : "flow");
+
+          if (isSubscriptionActive && purchaseType === "ai") {
             isAiMode = true;
           }
         }

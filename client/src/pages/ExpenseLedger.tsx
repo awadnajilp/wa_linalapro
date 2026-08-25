@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Wallet, Coins, Plus, Trash, FileSpreadsheet, Settings, UserCheck, Calendar, Filter, Sparkles, Volume2 } from "lucide-react";
+import { Wallet, Coins, Plus, Trash, FileSpreadsheet, Settings, UserCheck, Calendar, Filter, Sparkles, Volume2, Paperclip } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +20,10 @@ interface Expense {
   paymentAccountId: string | null;
   description: string | null;
   date: string;
+  type?: string;
+  mediaUrl?: string | null;
+  loggedByName?: string | null;
+  loggedByPhone?: string | null;
 }
 
 interface PaymentAccount {
@@ -52,6 +56,12 @@ export default function ExpenseLedger() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const limit = 20;
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [category, paymentAccountId, timeframe, startDate, endDate, search, activeChannel]);
 
   // Modals open state
   const [isExpenseOpen, setIsExpenseOpen] = useState(false);
@@ -178,7 +188,12 @@ export default function ExpenseLedger() {
   }, [timeframe, startDate, endDate]);
 
   // Fetch Expenses with Filters
-  const { data: expenses } = useQuery<Expense[]>({
+  const { data } = useQuery<{
+    expenses: Expense[];
+    total: number;
+    totalSpent: number;
+    totalIncome: number;
+  }>({
     queryKey: [
       "/api/expenses",
       category,
@@ -188,6 +203,7 @@ export default function ExpenseLedger() {
       dates.end,
       search,
       activeChannel?.id,
+      page,
     ],
     queryFn: async () => {
       const q = new URLSearchParams();
@@ -197,11 +213,17 @@ export default function ExpenseLedger() {
       if (dates.start) q.set("startDate", dates.start);
       if (dates.end) q.set("endDate", dates.end);
       if (search) q.set("search", search);
+      q.set("page", page.toString());
+      q.set("limit", limit.toString());
 
       const res = await fetch(`/api/expenses?${q.toString()}`);
       return res.json();
     },
   });
+
+  const expenses = data?.expenses || [];
+  const total = data?.total || 0;
+  const totalPages = Math.ceil(total / limit);
 
   React.useEffect(() => {
     if (expenses && expenses.length > 0) {
@@ -355,8 +377,8 @@ export default function ExpenseLedger() {
     });
   };
 
-  const totalSpent = expenses?.filter(e => e.type !== "deposit").reduce((sum, e) => sum + parseFloat(e.amount), 0) || 0;
-  const totalIncome = expenses?.filter(e => e.type === "deposit").reduce((sum, e) => sum + parseFloat(e.amount), 0) || 0;
+  const totalSpent = data?.totalSpent || 0;
+  const totalIncome = data?.totalIncome || 0;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -723,12 +745,13 @@ export default function ExpenseLedger() {
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Amount</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Account</TableHead>
               <TableHead>Description</TableHead>
+              <TableHead className="text-right">Debit (Expense)</TableHead>
+              <TableHead className="text-right">Credit (Income)</TableHead>
               <TableHead>Logged By</TableHead>
+              <TableHead>Receipt</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -738,16 +761,6 @@ export default function ExpenseLedger() {
                 <TableRow key={e.id}>
                   <TableCell>{new Date(e.date).toLocaleString()}</TableCell>
                   <TableCell>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                      e.type === "deposit" ? "bg-green-50 text-green-700 border border-green-250" : "bg-red-50 text-red-700 border border-red-250"
-                    }`}>
-                      {e.type === "deposit" ? "Deposit" : "Expense"}
-                    </span>
-                  </TableCell>
-                  <TableCell className={`font-bold ${e.type === "deposit" ? "text-green-600" : "text-gray-800"}`}>
-                    {e.type === "deposit" ? "+" : "-"}${parseFloat(e.amount).toFixed(2)}
-                  </TableCell>
-                  <TableCell>
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
                       {e.category}
                     </span>
@@ -756,6 +769,12 @@ export default function ExpenseLedger() {
                     {accounts?.find(a => a.id === e.paymentAccountId)?.name || "Cash"}
                   </TableCell>
                   <TableCell className="text-gray-500">{e.description || "N/A"}</TableCell>
+                  <TableCell className="text-right font-bold text-red-600">
+                    {e.type !== "deposit" ? `$${parseFloat(e.amount).toFixed(2)}` : "—"}
+                  </TableCell>
+                  <TableCell className="text-right font-bold text-green-600">
+                    {e.type === "deposit" ? `$${parseFloat(e.amount).toFixed(2)}` : "—"}
+                  </TableCell>
                   <TableCell className="text-xs">
                     {e.loggedByName ? (
                       <div>
@@ -764,6 +783,34 @@ export default function ExpenseLedger() {
                       </div>
                     ) : (
                       <span className="text-gray-400 italic">Unknown</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {e.mediaUrl ? (
+                      <div className="flex items-center gap-2">
+                        {e.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) || e.mediaUrl.includes("image") || e.mediaUrl.includes("baileys_media_") || e.mediaUrl.startsWith("http") ? (
+                          <a
+                            href={e.mediaUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="relative block w-8 h-8 rounded border border-gray-200 overflow-hidden hover:opacity-85 transition-opacity"
+                            title="View Receipt"
+                          >
+                            <img src={e.mediaUrl} alt="Receipt" className="w-full h-full object-cover" />
+                          </a>
+                        ) : (
+                          <a
+                            href={e.mediaUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-900 font-medium hover:underline"
+                          >
+                            <Paperclip className="w-3.5 h-3.5" /> View File
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right">
@@ -775,13 +822,39 @@ export default function ExpenseLedger() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-gray-400">
+                <TableCell colSpan={9} className="text-center py-12 text-gray-400">
                   No expense records found. Try sending text/voice reports to your bot!
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between p-4 border-t border-gray-150 bg-gray-50/50">
+            <div className="text-sm text-gray-500">
+              Showing {(page - 1) * limit + 1} to {Math.min(page * limit, total)} of {total} records
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page === 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bot Instructions Tip Box */}

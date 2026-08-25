@@ -19,7 +19,7 @@ import { db } from "../db";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
 import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites, automationExecutions, automations, voiceProfiles, automationNodes, aiProfiles } from "@shared/schema";
 import * as schema from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte } from "drizzle-orm";
 import crypto from "crypto";
 import { triggerNotification, triggerThrottledNotification, NOTIFICATION_EVENTS } from "./notification.service";
 import OpenAI from "openai";
@@ -224,6 +224,11 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
   try {
     const tenantId = channelRow?.createdBy;
     if (tenantId) {
+      const accounts = await db
+        .select()
+        .from(schema.paymentAccounts)
+        .where(eq(schema.paymentAccounts.tenantId, tenantId));
+
       const [addon] = await db
         .select()
         .from(schema.addons)
@@ -237,13 +242,24 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
           .where(
             and(
               eq(schema.tenantAddons.tenantId, tenantId),
-              eq(schema.tenantAddons.addonId, addon.id),
-              eq(schema.tenantAddons.status, "active")
+              eq(schema.tenantAddons.addonId, addon.id)
             )
           )
           .limit(1);
 
-        if (subscription && subscription.purchaseType === "ai") {
+        const [user] = await db
+          .select()
+          .from(schema.users)
+          .where(eq(schema.users.id, tenantId))
+          .limit(1);
+
+        const isSubscriptionActive = subscription
+          ? (subscription.status === "active" || user?.role === "superadmin")
+          : (user?.role === "superadmin" ? true : false);
+
+        const purchaseType = subscription?.purchaseType || (user?.role === "superadmin" ? "ai" : "flow");
+
+        if (isSubscriptionActive && purchaseType === "ai") {
           const [expenseConfig] = await db
             .select()
             .from(schema.expenseConfigs)
@@ -258,106 +274,224 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
               .where(eq(schema.expenseSessions.conversationId, conversation[0].id))
               .limit(1);
 
-if (activeSession) {
+            if (activeSession) {
               const cleanContent = content.trim();
               const waApi = new WhatsAppApiService(channelRow);
 
               if (activeSession.status === "waiting_for_details") {
-                // Parse details via AI
-                const parsed = await ExpenseAIService.parseExpense(tenantId, channelId, cleanContent, activeSession.type || "expense");
-                if (parsed && !parsed.error && parsed.amount > 0) {
-                  const matchedAccount = await ExpenseAIService.resolveOrCreatePaymentAccount(tenantId, parsed.accountName);
+                const mediaId = message.image?.id || message.mediaId;
+                if (message.type === "image" && mediaId) {
+                  try {
+                    const { buffer, mimeType } = await waApi.getMediaBuffer(mediaId);
+                    let fileUrl: string | undefined;
+                    try {
+                      fileUrl = await waApi.fetchMediaUrl(mediaId);
+                    } catch (err) {
+                      console.error("Failed to fetch media URL:", err);
+                    }
 
-                  const isMissingAccount = false;
-                  const isMissingDate = parsed.date === "MISSING";
+                    const parsed = await ExpenseAIService.parseReceiptImage(tenantId, channelId, buffer, mimeType);
+                    if (parsed && !parsed.error && parsed.amount > 0) {
+                      const matchedAccount = await ExpenseAIService.resolveOrCreatePaymentAccount(tenantId, parsed.accountName);
+                      const isMissingAccount = false;
+                      const isMissingDate = parsed.date === "MISSING";
 
-                  if (isMissingAccount || isMissingDate) {
-                    await db
-                      .update(schema.expenseSessions)
-                      .set({
-                        status: isMissingAccount ? "waiting_for_account" : "waiting_for_date",
-                        amount: String(parsed.amount),
-                        category: parsed.category,
-                        paymentAccountId: matchedAccount ? matchedAccount.id : null,
-                        description: parsed.description,
-                        date: parsed.date,
-                        type: parsed.type || activeSession.type || "expense"
-                      })
-                      .where(eq(schema.expenseSessions.id, activeSession.id));
+                      if (isMissingAccount || isMissingDate) {
+                        await db
+                          .update(schema.expenseSessions)
+                          .set({
+                            status: isMissingAccount ? "waiting_for_account" : "waiting_for_date",
+                            amount: String(parsed.amount),
+                            category: parsed.category,
+                            paymentAccountId: matchedAccount ? matchedAccount.id : null,
+                            description: parsed.description,
+                            date: parsed.date,
+                            type: parsed.type || "expense",
+                            mediaUrl: fileUrl || null
+                          })
+                          .where(eq(schema.expenseSessions.id, activeSession.id));
 
-                    if (isMissingAccount) {
-                      const accountListStr = accounts.map(a => `- ${a.name}`).join("\n");
-                      await waApi.sendDirectMessage({
-                        to: message.from,
-                        type: "text",
-                        text: {
-                          body: `💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n\n⚠️ Could not determine which payment account to charge it to. Please reply with one of the following:\n\n${accountListStr}`
+                        if (isMissingAccount) {
+                          const accountListStr = accounts.map(a => `- ${a.name}`).join("\n");
+                          await waApi.sendDirectMessage({
+                            to: message.from,
+                            type: "text",
+                            text: {
+                              body: `📸 *Receipt Detected!*\n💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n\n⚠️ Could not determine which payment account to charge it to. Please reply with one of the following:\n\n${accountListStr}`
+                            }
+                          });
+                        } else {
+                          await waApi.sendDirectMessage({
+                            to: message.from,
+                            type: "text",
+                            text: {
+                              body: `📸 *Receipt Detected!*\n💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n💳 Account: *${matchedAccount!.name}*\n\n📅 The transaction date is missing. Please reply with the date (e.g. today, yesterday, or a date like 2026-08-24).`
+                            }
+                          });
                         }
-                      });
+                      } else {
+                        const finalAccount = matchedAccount || (accounts.length > 0 ? accounts[0] : null);
+                        if (finalAccount) {
+                          const currentBalance = parseFloat(finalAccount.balance || "0");
+                          const amountVal = parsed.amount;
+                          const newBalance = parsed.type === "deposit" ? currentBalance + amountVal : currentBalance - amountVal;
+
+                          await db
+                            .update(schema.paymentAccounts)
+                            .set({
+                              balance: String(newBalance),
+                              updatedAt: new Date()
+                            })
+                            .where(eq(schema.paymentAccounts.id, finalAccount.id));
+
+                          const txDate = parsed.date && parsed.date !== "MISSING" ? new Date(parsed.date) : new Date();
+
+                          await db.insert(schema.expenses).values({
+                            tenantId,
+                            channelId,
+                            amount: String(parsed.amount),
+                            category: parsed.category,
+                            paymentAccountId: finalAccount.id,
+                            type: parsed.type || "expense",
+                            description: parsed.description,
+                            date: txDate,
+                            mediaUrl: fileUrl || null,
+                            loggedByName: contact[0]?.name || contact[0]?.phone || "Unknown",
+                            loggedByPhone: contact[0]?.phone || "Unknown",
+                          });
+
+                          await db.delete(schema.expenseSessions).where(eq(schema.expenseSessions.id, activeSession.id));
+
+                          await db
+                            .update(schema.conversations)
+                            .set({ aiEnabled: false })
+                            .where(eq(schema.conversations.id, conversation[0].id));
+
+                          await waApi.sendDirectMessage({
+                            to: message.from,
+                            type: "text",
+                            text: {
+                              body: `✅ *Receipt Logged Successfully!*\n\n💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n💳 Account: *${finalAccount.name}*\n📝 Description: *${parsed.description || "N/A"}*\n📅 Date: *${txDate.toISOString().split("T")[0]}*`
+                            }
+                          });
+                        }
+                      }
                     } else {
                       await waApi.sendDirectMessage({
                         to: message.from,
                         type: "text",
                         text: {
-                          body: `💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n💳 Account: *${matchedAccount!.name}*\n\n📅 The transaction date is missing. Please reply with the date (e.g. today, yesterday, or a date like 2026-08-24).`
+                          body: `⚠️ *Failed to parse receipt image.*\nReason: ${parsed?.error || "AI could not extract receipt details."}\n\nPlease try again or upload a clearer photo.`
                         }
                       });
                     }
-                  } else {
-                    const finalAccount = matchedAccount || (accounts.length > 0 ? accounts[0] : null);
-                    if (finalAccount) {
-                      const currentBalance = parseFloat(finalAccount.balance || "0");
-                      const amountVal = parsed.amount;
-                      const newBalance = parsed.type === "deposit" ? currentBalance + amountVal : currentBalance - amountVal;
-
-                      await db
-                        .update(schema.paymentAccounts)
-                        .set({
-                          balance: String(newBalance),
-                          updatedAt: new Date()
-                        })
-                        .where(eq(schema.paymentAccounts.id, finalAccount.id));
-
-                      const txDate = parsed.date && parsed.date !== "MISSING" ? new Date(parsed.date) : new Date();
-
-                      await db.insert(schema.expenses).values({
-                        tenantId,
-                        channelId,
-                        amount: String(parsed.amount),
-                        category: parsed.category,
-                        paymentAccountId: finalAccount.id,
-                        type: parsed.type || activeSession.type || "expense",
-                        description: parsed.description,
-                        date: txDate,
-                        loggedByName: contact[0]?.name || contact[0]?.phone || "Unknown",
-                        loggedByPhone: contact[0]?.phone || "Unknown",
-                      });
-
-                      await db.delete(schema.expenseSessions).where(eq(schema.expenseSessions.id, activeSession.id));
-
-                      await db
-                        .update(schema.conversations)
-                        .set({ aiEnabled: false })
-                        .where(eq(schema.conversations.id, conversation[0].id));
-
-                      const successTitle = parsed.type === "deposit" ? "Income/Deposit Logged Successfully!" : "Expense Logged Successfully!";
-                      await waApi.sendDirectMessage({
-                        to: message.from,
-                        type: "text",
-                        text: {
-                          body: `✅ *${successTitle}*\n\n💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n💳 Account: *${finalAccount.name}*\n📝 Description: *${parsed.description || "N/A"}*\n📅 Date: *${txDate.toISOString().split("T")[0]}*`
-                        }
-                      });
-                    }
+                  } catch (err: any) {
+                    console.error("Receipt image parsing failed inside active session:", err.message);
+                    await waApi.sendDirectMessage({
+                      to: message.from,
+                      type: "text",
+                      text: {
+                        body: `⚠️ *Failed to parse receipt image due to system error.*`
+                      }
+                    });
                   }
                 } else {
-                  await waApi.sendDirectMessage({
-                    to: message.from,
-                    type: "text",
-                    text: {
-                      body: `⚠️ *Failed to parse transaction details.*\nReason: ${parsed?.error || "AI could not extract amount or category."}\n\nPlease try again or reply with clear text (e.g. "spent 50 for marketing cash").`
+                  // Parse details via AI
+                  const parsed = await ExpenseAIService.parseExpense(tenantId, channelId, cleanContent, (activeSession.type as "expense" | "deposit") || "expense");
+                  if (parsed && !parsed.error && parsed.amount > 0) {
+                    const matchedAccount = await ExpenseAIService.resolveOrCreatePaymentAccount(tenantId, parsed.accountName);
+
+                    const isMissingAccount = false;
+                    const isMissingDate = (parsed as any).date === "MISSING";
+
+                    if (isMissingAccount || isMissingDate) {
+                      await db
+                        .update(schema.expenseSessions)
+                        .set({
+                          status: isMissingAccount ? "waiting_for_account" : "waiting_for_date",
+                          amount: String(parsed.amount),
+                          category: parsed.category,
+                          paymentAccountId: matchedAccount ? matchedAccount.id : null,
+                          description: parsed.description,
+                          date: (parsed as any).date || null,
+                          type: parsed.type || (activeSession.type as "expense" | "deposit") || "expense"
+                        })
+                        .where(eq(schema.expenseSessions.id, activeSession.id));
+
+                      if (isMissingAccount) {
+                        const accountListStr = accounts.map(a => `- ${a.name}`).join("\n");
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: {
+                            body: `💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n\n⚠️ Could not determine which payment account to charge it to. Please reply with one of the following:\n\n${accountListStr}`
+                          }
+                        });
+                      } else {
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: {
+                            body: `💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n💳 Account: *${matchedAccount!.name}*\n\n📅 The transaction date is missing. Please reply with the date (e.g. today, yesterday, or a date like 2026-08-24).`
+                          }
+                        });
+                      }
+                    } else {
+                      const finalAccount = matchedAccount || (accounts.length > 0 ? accounts[0] : null);
+                      if (finalAccount) {
+                        const currentBalance = parseFloat(finalAccount.balance || "0");
+                        const amountVal = parsed.amount;
+                        const newBalance = parsed.type === "deposit" ? currentBalance + amountVal : currentBalance - amountVal;
+
+                        await db
+                          .update(schema.paymentAccounts)
+                          .set({
+                            balance: String(newBalance),
+                            updatedAt: new Date()
+                          })
+                          .where(eq(schema.paymentAccounts.id, finalAccount.id));
+
+                        const txDate = (parsed as any).date && (parsed as any).date !== "MISSING" ? new Date((parsed as any).date) : new Date();
+
+                        await db.insert(schema.expenses).values({
+                          tenantId,
+                          channelId,
+                          amount: String(parsed.amount),
+                          category: parsed.category,
+                          paymentAccountId: finalAccount.id,
+                          type: parsed.type || (activeSession.type as "expense" | "deposit") || "expense",
+                          description: parsed.description,
+                          date: txDate,
+                          loggedByName: contact[0]?.name || contact[0]?.phone || "Unknown",
+                          loggedByPhone: contact[0]?.phone || "Unknown",
+                        });
+
+                        await db.delete(schema.expenseSessions).where(eq(schema.expenseSessions.id, activeSession.id));
+
+                        await db
+                          .update(schema.conversations)
+                          .set({ aiEnabled: false })
+                          .where(eq(schema.conversations.id, conversation[0].id));
+
+                        const successTitle = parsed.type === "deposit" ? "Income/Deposit Logged Successfully!" : "Expense Logged Successfully!";
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: {
+                            body: `✅ *${successTitle}*\n\n💰 Amount: *${parsed.amount.toFixed(2)}*\n📂 Category: *${parsed.category}*\n💳 Account: *${finalAccount.name}*\n📝 Description: *${parsed.description || "N/A"}*\n📅 Date: *${txDate.toISOString().split("T")[0]}*`
+                          }
+                        });
+                      }
                     }
-                  });
+                  } else {
+                    await waApi.sendDirectMessage({
+                      to: message.from,
+                      type: "text",
+                      text: {
+                        body: `⚠️ *Failed to parse transaction details.*\nReason: ${parsed?.error || "AI could not extract amount or category."}\n\nPlease try again or reply with clear text (e.g. "spent 50 for marketing cash").`
+                      }
+                    });
+                  }
                 }
                 automationHandled = true;
               } else if (activeSession.status === "waiting_for_account") {
@@ -1407,7 +1541,8 @@ if (activeSession) {
               const result = await triggerService.getExecutionService().handleUserResponse(
                 conversation[0].id,
                 content,
-                interactiveData
+                interactiveData,
+                message
               );
 
               if (result && result.success) {

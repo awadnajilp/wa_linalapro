@@ -18,6 +18,14 @@ export class AddonManager {
 
       if (!addon) return false;
 
+      const [user] = await db
+        .select()
+        .from(schema.users)
+        .where(eq(schema.users.id, tenantId))
+        .limit(1);
+
+      if (user?.role === "superadmin") return true;
+
       const [subscription] = await db
         .select()
         .from(schema.tenantAddons)
@@ -140,6 +148,8 @@ export class AddonManager {
       const expQ2NodeId = "node-exp-q2-uuid";
       const expQ3NodeId = "node-exp-q3-uuid";
       const expQ4NodeId = "node-exp-q4-uuid";
+      const expQ5NodeId = "node-exp-q5-uuid";
+      const expQ6NodeId = "node-exp-q6-uuid";
 
       await db.insert(schema.automationNodes).values([
         {
@@ -204,6 +214,32 @@ export class AddonManager {
             question: "Which account? (Eg. Cash/Card/Bank)",
             saveAs: "expense_account",
           },
+          connections: [expQ5NodeId],
+        },
+        {
+          automationId: newExpenseAutomation.id,
+          nodeId: expQ5NodeId,
+          type: "user_reply",
+          subtype: "send_message",
+          position: { x: 100, y: 900 },
+          data: {
+            label: "Ask Confirm Receipt",
+            question: "Do you want to attach expense receipt image? Yes (y) or No (n)",
+            saveAs: "expense_receipt_confirm",
+          },
+          connections: [expQ6NodeId],
+        },
+        {
+          automationId: newExpenseAutomation.id,
+          nodeId: expQ6NodeId,
+          type: "user_reply",
+          subtype: "send_message",
+          position: { x: 100, y: 1050 },
+          data: {
+            label: "Ask Upload Receipt",
+            question: "Please upload/attach the receipt image.",
+            saveAs: "expense_receipt_media",
+          },
           connections: [],
         },
       ]);
@@ -236,6 +272,20 @@ export class AddonManager {
           automationId: newExpenseAutomation.id,
           sourceNodeId: expQ3NodeId,
           targetNodeId: expQ4NodeId,
+          animated: true,
+        },
+        {
+          id: crypto.randomUUID(),
+          automationId: newExpenseAutomation.id,
+          sourceNodeId: expQ4NodeId,
+          targetNodeId: expQ5NodeId,
+          animated: true,
+        },
+        {
+          id: crypto.randomUUID(),
+          automationId: newExpenseAutomation.id,
+          sourceNodeId: expQ5NodeId,
+          targetNodeId: expQ6NodeId,
           animated: true,
         },
       ]);

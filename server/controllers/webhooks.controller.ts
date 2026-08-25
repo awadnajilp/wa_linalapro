@@ -819,8 +819,8 @@ if (io) {
   console.error("❌ IO not initialized");
 }
 
+    const isGroupMessage = contact?.isGroup === true || from.endsWith("@g.us");
     try {
-      const isGroupMessage = contact?.isGroup === true || from.endsWith("@g.us");
       if (channel.createdBy && !isGroupMessage) {
         const ownerId = channel.createdBy;
         const ownerResult = await db.select().from(users).where(eq(users.id, ownerId));
@@ -858,7 +858,8 @@ if (io) {
           await triggerService.getExecutionService().handleUserResponse(
             conversation.id,
             messageContent,
-            interactiveData
+            interactiveData,
+            message
           );
 
         if (result && result.success) {

@@ -139,6 +139,63 @@ export function CreateCampaignForm({
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState("");
 
+  const [isCadence, setIsCadence] = useState(false);
+  const [cadenceSteps, setCadenceSteps] = useState<any[]>([
+    {
+      stepNumber: 1,
+      delayDays: 0,
+      delayHours: 0,
+      delayMinutes: 0,
+      messageType: "text",
+      customMessage: "",
+      mediaUrl: "",
+      mediaName: "",
+      mediaMimeType: "",
+      templateId: "",
+      templateName: "",
+      templateLanguage: "en_US",
+      variableMapping: {}
+    }
+  ]);
+
+  const addStep = () => {
+    setCadenceSteps([
+      ...cadenceSteps,
+      {
+        stepNumber: cadenceSteps.length + 1,
+        delayDays: 0,
+        delayHours: 1,
+        delayMinutes: 0,
+        messageType: "text",
+        customMessage: "",
+        mediaUrl: "",
+        mediaName: "",
+        mediaMimeType: "",
+        templateId: "",
+        templateName: "",
+        templateLanguage: "en_US",
+        variableMapping: {}
+      }
+    ]);
+  };
+
+  const deleteStep = (index: number) => {
+    const newSteps = cadenceSteps.filter((_, i) => i !== index).map((step, idx) => ({
+      ...step,
+      stepNumber: idx + 1
+    }));
+    setCadenceSteps(newSteps);
+  };
+
+  const updateStepField = (index: number, field: string, value: any) => {
+    const newSteps = [...cadenceSteps];
+    newSteps[index] = {
+      ...newSteps[index],
+      [field]: value
+    };
+    setCadenceSteps(newSteps);
+  };
+
   // Fetch local QR templates
   const { data: localTemplates } = useQuery({
     queryKey: ["/api/templates", { channelId }],
@@ -349,6 +406,8 @@ export function CreateCampaignForm({
       isRecurring: isRecurring,
       recurringInterval: isRecurring ? (recurringIntervalType === "custom" ? customIntervalHours : parseInt(recurringIntervalType)) : null,
       recurringIterations: isRecurring ? recurringIterations : null,
+      isCadence: isCadence,
+      cadenceSteps: isCadence ? cadenceSteps : [],
       ...(isQr ? {
         customMessage,
         mediaUrl: mediaUrl || null,
@@ -444,9 +503,227 @@ export function CreateCampaignForm({
         </CardContent>
       </Card>
 
-      {!isQr ? (
-        <Card>
-          <CardHeader className="pb-3">
+      {/* Multi-step Cadence / Follow-ups Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Clock className="h-4 w-4 text-purple-600" />
+              Multi-step Followup Campaign (Cadence)
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="isCadence"
+                checked={isCadence}
+                onCheckedChange={(checked) => setIsCadence(!!checked)}
+              />
+              <Label htmlFor="isCadence" className="text-xs font-semibold cursor-pointer">Enable Cadence</Label>
+            </div>
+          </div>
+        </CardHeader>
+        {isCadence && (
+          <CardContent className="space-y-4">
+            <div className="text-xs text-gray-500 bg-purple-50 p-2.5 rounded-lg border border-purple-100 leading-relaxed mb-4">
+              ℹ️ A cadence campaign allows you to schedule multiple follow-up steps. If a recipient replies with <strong>&quot;Stp&quot;</strong>, they will be automatically removed from all subsequent steps to respect opt-outs.
+            </div>
+
+            <div className="space-y-4">
+              {cadenceSteps.map((step, idx) => (
+                <div key={idx} className="p-4 border rounded-lg bg-gray-50/50 space-y-4 relative">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-purple-700 bg-purple-100/80 px-2 py-0.5 rounded-full">
+                      Step {step.stepNumber}
+                    </span>
+                    {cadenceSteps.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-500 hover:text-red-700 h-6 px-2 text-xs"
+                        onClick={() => deleteStep(idx)}
+                      >
+                        Remove Step
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Delay Configuration */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label className="text-[11px] font-medium">Delay Days</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={step.delayDays}
+                        onChange={(e) => updateStepField(idx, "delayDays", parseInt(e.target.value) || 0)}
+                        className="h-8 text-xs mt-0.5"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] font-medium">Delay Hours</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="23"
+                        value={step.delayHours}
+                        onChange={(e) => updateStepField(idx, "delayHours", parseInt(e.target.value) || 0)}
+                        className="h-8 text-xs mt-0.5"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] font-medium">Delay Minutes</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="59"
+                        value={step.delayMinutes}
+                        onChange={(e) => updateStepField(idx, "delayMinutes", parseInt(e.target.value) || 0)}
+                        className="h-8 text-xs mt-0.5"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Message Type Selector */}
+                  <div>
+                    <Label className="text-xs font-medium">Message Type</Label>
+                    <Select
+                      value={step.messageType}
+                      onValueChange={(val) => updateStepField(idx, "messageType", val)}
+                    >
+                      <SelectTrigger className="h-8 text-xs mt-0.5">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="text">Custom Text/Media Message</SelectItem>
+                        <SelectItem value="template">WhatsApp Template</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* If Text message */}
+                  {step.messageType === "text" && (
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-xs font-medium">Message Text</Label>
+                        <Textarea
+                          placeholder="Write your custom message step here... Support variables e.g. {{name}}"
+                          value={step.customMessage}
+                          onChange={(e) => updateStepField(idx, "customMessage", e.target.value)}
+                          rows={3}
+                          className="text-xs mt-0.5"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-medium">Media URL (Optional)</Label>
+                        <Input
+                          placeholder="https://example.com/image.jpg"
+                          value={step.mediaUrl}
+                          onChange={(e) => updateStepField(idx, "mediaUrl", e.target.value)}
+                          className="h-8 text-xs mt-0.5"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* If Template message */}
+                  {step.messageType === "template" && (
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-xs font-medium">Select Template</Label>
+                        <Select
+                          value={step.templateId || ""}
+                          onValueChange={(val) => {
+                            const selectedTmpl = templates.find((t) => t.id === val);
+                            if (selectedTmpl) {
+                              // Initialize mapping for template variables
+                              const vars = extractTemplateVariables(selectedTmpl);
+                              const newMapping: Record<string, string> = {};
+                              vars.forEach((v) => {
+                                newMapping[v] = "";
+                              });
+                              updateStepField(idx, "templateId", val);
+                              updateStepField(idx, "templateName", selectedTmpl.name);
+                              updateStepField(idx, "templateLanguage", selectedTmpl.language || "en_US");
+                              updateStepField(idx, "variableMapping", newMapping);
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs mt-0.5">
+                            <SelectValue placeholder="Choose a template..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {templates.map((t) => (
+                              <SelectItem key={t.id} value={t.id}>
+                                {t.name} ({t.language})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Render step variable mappings if a template is selected */}
+                      {step.templateId && (() => {
+                        const selectedTmpl = templates.find((t) => t.id === step.templateId);
+                        const variables = selectedTmpl ? extractTemplateVariables(selectedTmpl) : [];
+                        if (variables.length === 0) return null;
+                        return (
+                          <div className="p-3 border rounded bg-white space-y-2">
+                            <span className="text-[11px] font-bold text-gray-700 block mb-1">Template Variables Mapping</span>
+                            {variables.map((variableName) => (
+                              <div key={variableName} className="grid grid-cols-3 gap-2 items-center">
+                                <span className="text-xs font-medium text-gray-600 font-mono">
+                                  Variable {`{{${variableName}}}`}
+                                </span>
+                                <div className="col-span-2">
+                                  <Select
+                                    value={step.variableMapping[variableName] || ""}
+                                    onValueChange={(val) => {
+                                      const newMap = { ...step.variableMapping, [variableName]: val };
+                                      updateStepField(idx, "variableMapping", newMap);
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue placeholder="Map value to..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="contact_name">Contact Name (name)</SelectItem>
+                                      <SelectItem value="contact_phone">Contact Phone (phone)</SelectItem>
+                                      {customVariables.map((cv) => (
+                                        <SelectItem key={cv} value={`custom_${cv}`}>
+                                          Custom Variable ({cv})
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addStep}
+              className="w-full h-8 text-xs flex items-center gap-1.5 mt-2 hover:bg-purple-50 hover:text-purple-700 border-purple-100 hover:border-purple-200"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Cadence Step
+            </Button>
+          </CardContent>
+        )}
+      </Card>
+
+      {!isCadence && (
+        !isQr ? (
+          <Card>
+            <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Eye className="h-4 w-4" />
               Template
@@ -915,7 +1192,8 @@ export function CreateCampaignForm({
             </CardContent>
           </Card>
         </div>
-      )}
+      )
+    )}
 
       {(isQr || (utilityCategoryHelperEnabled && selectedTemplate)) && (
         <>

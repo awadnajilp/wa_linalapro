@@ -50,6 +50,8 @@ interface Campaign {
   createdAt: string;
   completedAt?: string;
   scheduledAt?: string;
+  isCadence?: boolean;
+  cadenceSteps?: any[];
 }
 
 interface CampaignDetailsDialogProps {
@@ -249,6 +251,38 @@ export function CampaignDetailsDialog({ campaign: initialCampaign, onClose }: Ca
                 )}
               </CardContent>
             </Card>
+
+            {campaign.isCadence && campaign.cadenceSteps && campaign.cadenceSteps.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-semibold text-purple-700">Cadence Steps ({campaign.cadenceSteps.length})</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {campaign.cadenceSteps.map((step: any, idx: number) => (
+                    <div key={idx} className="p-3 border rounded-lg bg-gray-50 text-xs space-y-1.5">
+                      <div className="flex justify-between font-bold text-purple-700">
+                        <span>Step {step.stepNumber || (idx + 1)}</span>
+                        <span className="text-gray-500 font-normal">
+                          Delay: {step.delayDays || 0}d {step.delayHours || 0}h {step.delayMinutes || 0}m
+                        </span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-gray-700">Type:</span> <span className="capitalize">{step.messageType}</span>
+                      </div>
+                      {step.messageType === "template" ? (
+                        <div>
+                          <span className="font-semibold text-gray-700">Template:</span> <span>{step.templateName} ({step.templateLanguage})</span>
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="font-semibold text-gray-700">Message:</span> <p className="text-gray-600 mt-0.5 whitespace-pre-wrap">{step.customMessage}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="metrics" className="space-y-4">

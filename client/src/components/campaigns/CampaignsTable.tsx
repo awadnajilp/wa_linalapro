@@ -69,6 +69,13 @@ interface Campaign {
   completedAt?: string;
   scheduledAt?: string;
   createdBy: string;
+  isRecurring?: boolean;
+  recurringInterval?: number;
+  currentIteration?: number;
+  recurringIterations?: number;
+  createdByName?: string;
+  isCadence?: boolean;
+  cadenceSteps?: any[];
 }
 
 interface CampaignsTableProps {
@@ -187,6 +194,14 @@ export function CampaignsTable({
                           <Repeat className="h-2.5 w-2.5" />
                           <span>
                             Recurring: Every {campaign.recurringInterval}h (Run {campaign.currentIteration}/{campaign.recurringIterations})
+                          </span>
+                        </div>
+                      )}
+                      {campaign.isCadence && (
+                        <div className="flex items-center gap-1 text-[10px] text-purple-600 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded w-max">
+                          <Clock className="h-2.5 w-2.5" />
+                          <span>
+                            Cadence: {campaign.cadenceSteps?.length || 0} Steps
                           </span>
                         </div>
                       )}

@@ -470,10 +470,10 @@ export default function Sidebar() {
 
   const { data: tenantAddons } = useQuery<any[]>({
     queryKey: ["/api/tenant/addons"],
-    enabled: !!user && user.role === "admin",
+    enabled: !!user && (user.role === "admin" || user.role === "superadmin"),
   });
 
-  const isExpenseActive = tenantAddons?.some(
+  const isExpenseActive = user?.role === "superadmin" || tenantAddons?.some(
     (a) => a.slug === "expense-tracker" && a.subscription?.status === "active"
   );
 

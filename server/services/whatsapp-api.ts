@@ -74,7 +74,8 @@ export class WhatsAppApiService {
     templateName: string,
     components: any[] = [],
     language: string = "en_US",
-    isMarketing: boolean = true
+    isMarketing: boolean = true,
+    appendStopMsg: boolean = false
   ): Promise<any> {
     if (channel.connectionMethod === "qr_code") {
       // Reconstruct template message into plain text
@@ -115,6 +116,10 @@ export class WhatsAppApiService {
         }
       } else {
         text = `Template: ${templateName}`;
+      }
+
+      if (appendStopMsg) {
+        text += "\n\nReply with 'Stp' to Stop future message";
       }
 
       if (hasHeaderMedia && headerMediaData) {

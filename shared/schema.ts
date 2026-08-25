@@ -202,6 +202,8 @@ export const campaigns = pgTable(
     recurringIterations: integer("recurring_iterations").default(3),
     currentIteration: integer("current_iteration").default(1),
     parentCampaignId: varchar("parent_campaign_id"),
+    isCadence: boolean("is_cadence").default(false),
+    cadenceSteps: jsonb("cadence_steps").$type<any[]>().default([]),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
@@ -236,6 +238,7 @@ export const campaignRecipients = pgTable(
     errorCode: varchar("error_code"),
     errorMessage: text("error_message"),
     retryCount: integer("retry_count").default(0),
+    isStopped: boolean("is_stopped").default(false),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
@@ -1053,6 +1056,7 @@ export const messageQueue = pgTable("message_queue", {
   messageType: varchar("message_type", { length: 20 }).notNull(), // marketing, utility, authentication
   status: varchar("status", { length: 20 }).default("queued"), // queued, processing, sent, delivered, failed
   attempts: integer("attempts").default(0),
+  stepNumber: integer("step_number"),
   whatsappMessageId: varchar("whatsapp_message_id", { length: 100 }),
   conversationId: varchar("conversation_id", { length: 100 }),
   sentVia: varchar("sent_via", { length: 20 }), // cloud_api, marketing_messages

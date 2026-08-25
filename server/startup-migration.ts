@@ -670,6 +670,69 @@ const steps: MigrationStep[] = [
   addColumnIfNotExists("expenses", "type", "TEXT DEFAULT 'expense'"),
   addColumnIfNotExists("expenses", "logged_by_name", "TEXT"),
   addColumnIfNotExists("expenses", "logged_by_phone", "TEXT"),
+  addColumnIfNotExists("campaigns", "is_cadence", "BOOLEAN DEFAULT false"),
+  addColumnIfNotExists("campaigns", "cadence_steps", "JSONB DEFAULT '[]'::jsonb"),
+  addColumnIfNotExists("message_queue", "step_number", "INTEGER"),
+  addColumnIfNotExists("campaign_recipients", "is_stopped", "BOOLEAN DEFAULT false"),
+  {
+    description: "Update existing predefined WhatsApp Expense Tracker Bot templates with optional receipt question",
+    sql: `
+      DO $$
+      DECLARE
+          r RECORD;
+      BEGIN
+          FOR r IN SELECT id FROM automations WHERE name = 'WhatsApp Expense Tracker Bot' LOOP
+              -- Check if Q5 node already exists for this automation
+              IF NOT EXISTS (SELECT 1 FROM automation_nodes WHERE automation_id = r.id AND node_id = 'node-exp-q5-uuid') THEN
+                  -- Update Q4 node connections
+                  UPDATE automation_nodes 
+                  SET connections = '["node-exp-q5-uuid"]'::jsonb 
+                  WHERE automation_id = r.id AND node_id = 'node-exp-q4-uuid';
+                  
+                  -- Insert Q5 and Q6 nodes
+                  INSERT INTO automation_nodes (automation_id, node_id, type, subtype, position, data, connections)
+                  VALUES 
+                  (
+                      r.id, 
+                      'node-exp-q5-uuid', 
+                      'user_reply', 
+                      'send_message', 
+                      '{"x": 100, "y": 900}'::jsonb, 
+                      '{"label": "Ask Confirm Receipt", "question": "Do you want to attach expense receipt image? Yes (y) or No (n)", "saveAs": "expense_receipt_confirm"}'::jsonb, 
+                      '["node-exp-q6-uuid"]'::jsonb
+                  ),
+                  (
+                      r.id, 
+                      'node-exp-q6-uuid', 
+                      'user_reply', 
+                      'send_message', 
+                      '{"x": 100, "y": 1050}'::jsonb, 
+                      '{"label": "Ask Upload Receipt", "question": "Please upload/attach the receipt image.", "saveAs": "expense_receipt_media"}'::jsonb, 
+                      '[]'::jsonb
+                  );
+                  
+                  -- Insert edges
+                  INSERT INTO automation_edges (id, automation_id, source_node_id, target_node_id, animated)
+                  VALUES 
+                  (
+                      gen_random_uuid()::text,
+                      r.id,
+                      'node-exp-q4-uuid',
+                      'node-exp-q5-uuid',
+                      true
+                  ),
+                  (
+                      gen_random_uuid()::text,
+                      r.id,
+                      'node-exp-q5-uuid',
+                      'node-exp-q6-uuid',
+                      true
+                  );
+              END IF;
+          END LOOP;
+      END $$;
+    `,
+  },
 ];
 
 /**

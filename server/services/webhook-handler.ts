@@ -19,7 +19,7 @@ import { db } from "../db";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
 import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites, automationExecutions, automations, voiceProfiles, automationNodes, aiProfiles } from "@shared/schema";
 import * as schema from "@shared/schema";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { triggerNotification, triggerThrottledNotification, NOTIFICATION_EVENTS } from "./notification.service";
 import OpenAI from "openai";
@@ -1371,6 +1371,60 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
           mediaUrl = await waApi.fetchMediaUrl(mediaId);
         } catch (err) {
           console.error("Failed to fetch media URL in webhook-handler:", err);
+        }
+      }
+
+      // Check for stop cadence campaign condition (Stp)
+      const cleanLowerContent = (content || "").trim().toLowerCase();
+      if (channelId && (cleanLowerContent === "stp" || cleanLowerContent === "stop")) {
+        try {
+          const activeCadenceCampaigns = await db
+            .select()
+            .from(schema.campaigns)
+            .where(
+              and(
+                eq(schema.campaigns.channelId, channelId),
+                eq(schema.campaigns.isCadence, true),
+                inArray(schema.campaigns.status, ["active", "sending", "scheduled"])
+              )
+            );
+          
+          if (activeCadenceCampaigns.length > 0) {
+            console.log(`[Cadence Stop] Found ${activeCadenceCampaigns.length} active cadence campaign(s) for channel ${channelId}. Checking recipients for ${message.from}`);
+            for (const cmp of activeCadenceCampaigns) {
+              const updatedRecipients = await db
+                .update(schema.campaignRecipients)
+                .set({
+                  status: "stopped",
+                  isStopped: true,
+                  updatedAt: new Date()
+                })
+                .where(
+                  and(
+                    eq(schema.campaignRecipients.campaignId, cmp.id),
+                    eq(schema.campaignRecipients.phone, message.from)
+                  )
+                )
+                .returning();
+              
+              if (updatedRecipients.length > 0) {
+                // Delete queued steps in message_queue
+                const deletedQueue = await db
+                  .delete(schema.messageQueue)
+                  .where(
+                    and(
+                      eq(schema.messageQueue.campaignId, cmp.id),
+                      eq(schema.messageQueue.recipientPhone, message.from),
+                      eq(schema.messageQueue.status, "queued")
+                    )
+                  )
+                  .returning();
+                console.log(`[Cadence Stop] Stopped future steps for ${message.from} in campaign ${cmp.name}. Deleted ${deletedQueue.length} queued messages.`);
+              }
+            }
+          }
+        } catch (stopErr) {
+          console.error("[Cadence Stop] Error processing stop request:", stopErr);
         }
       }
 

@@ -333,13 +333,51 @@ export function registerAddonsRoutes(app: Express) {
         conditions.push(like(schema.expenses.description, `%${search}%`));
       }
 
-      const list = await db
+      // Calculate totals on the full filtered dataset (not paginated)
+      const [totalsResult] = await db
+        .select({
+          totalSpent: sql`sum(case when ${schema.expenses.type} != 'deposit' then ${schema.expenses.amount} else 0 end)`,
+          totalIncome: sql`sum(case when ${schema.expenses.type} = 'deposit' then ${schema.expenses.amount} else 0 end)`
+        })
+        .from(schema.expenses)
+        .where(and(...conditions));
+
+      const totalSpent = parseFloat(totalsResult?.totalSpent || "0");
+      const totalIncome = parseFloat(totalsResult?.totalIncome || "0");
+
+      // Calculate total count
+      const [countResult] = await db
+        .select({ count: sql`count(*)` })
+        .from(schema.expenses)
+        .where(and(...conditions));
+      const total = parseInt(countResult?.count as string) || 0;
+
+      const page = req.query.page ? parseInt(req.query.page as string) : null;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
+
+      let selectQuery = db
         .select()
         .from(schema.expenses)
         .where(and(...conditions))
         .orderBy(sql`${schema.expenses.date} DESC`);
 
-      res.json(list);
+      if (page) {
+        const offset = (page - 1) * limit;
+        selectQuery = selectQuery.limit(limit).offset(offset) as any;
+      }
+
+      const list = await selectQuery;
+
+      if (page) {
+        res.json({
+          expenses: list,
+          total,
+          totalSpent,
+          totalIncome
+        });
+      } else {
+        res.json(list);
+      }
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -479,7 +517,8 @@ export function registerAddonsRoutes(app: Express) {
 
       worksheet.columns = [
         { header: "Date", key: "date", width: 22 },
-        { header: "Amount", key: "amount", width: 15 },
+        { header: "Debit (Expense)", key: "debit", width: 18 },
+        { header: "Credit (Income)", key: "credit", width: 18 },
         { header: "Category", key: "category", width: 20 },
         { header: "Payment Account", key: "account", width: 25 },
         { header: "Description", key: "description", width: 40 },
@@ -492,7 +531,8 @@ export function registerAddonsRoutes(app: Express) {
       list.forEach(log => {
         worksheet.addRow({
           date: log.date ? new Date(log.date).toLocaleString() : "",
-          amount: Number(log.amount || 0).toFixed(2),
+          debit: log.type !== "deposit" ? Number(log.amount || 0).toFixed(2) : "",
+          credit: log.type === "deposit" ? Number(log.amount || 0).toFixed(2) : "",
           category: log.category,
           account: log.paymentAccountId ? (accountsMap.get(log.paymentAccountId) || "Unknown") : "Cash",
           description: log.description || "",
@@ -617,7 +657,7 @@ export function registerAddonsRoutes(app: Express) {
 
       if (!channelId) return res.status(400).json({ error: "ChannelId is required" });
 
-      // Update subscription purchase type if specified
+      // Update or insert subscription purchase type if specified
       if (purchaseType === "ai" || purchaseType === "flow") {
         const [addon] = await db
           .select()
@@ -626,15 +666,36 @@ export function registerAddonsRoutes(app: Express) {
           .limit(1);
 
         if (addon) {
-          await db
-            .update(schema.tenantAddons)
-            .set({ purchaseType })
+          const [existingSub] = await db
+            .select()
+            .from(schema.tenantAddons)
             .where(
               and(
                 eq(schema.tenantAddons.tenantId, tenantId),
                 eq(schema.tenantAddons.addonId, addon.id)
               )
-            );
+            )
+            .limit(1);
+
+          if (existingSub) {
+            await db
+              .update(schema.tenantAddons)
+              .set({ purchaseType, updatedAt: new Date() })
+              .where(eq(schema.tenantAddons.id, existingSub.id));
+          } else {
+            const expiresAt = new Date();
+            expiresAt.setFullYear(expiresAt.getFullYear() + 10); // Far future expiry for admins/superadmins bypass
+            await db.insert(schema.tenantAddons).values({
+              tenantId,
+              addonId: addon.id,
+              status: "active",
+              expiresAt,
+              purchaseType,
+              credits: addon.defaultCredits || 0,
+              maxCredits: addon.defaultCredits || 0,
+              gatewayProvider: "manual",
+            });
+          }
         }
       }
 

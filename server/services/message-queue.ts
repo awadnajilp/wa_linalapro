@@ -459,6 +459,32 @@ export class MessageQueueService {
         throw new Error(`Channel not found: ${message.channelId}`);
       }
 
+      if (message.campaignId) {
+        const [recipient] = await db
+          .select({ isStopped: campaignRecipients.isStopped })
+          .from(campaignRecipients)
+          .where(
+            and(
+              eq(campaignRecipients.campaignId, message.campaignId),
+              eq(campaignRecipients.phone, message.recipientPhone)
+            )
+          )
+          .limit(1);
+        
+        if (recipient?.isStopped) {
+          console.log(`[MessageQueue] Skipping message ${message.id} because recipient ${message.recipientPhone} opted out (Stp).`);
+          await db
+            .update(messageQueue)
+            .set({ 
+              status: "failed", 
+              errorMessage: "Recipient opted out (Stp)",
+              processedAt: new Date()
+            })
+            .where(eq(messageQueue.id, message.id));
+          return;
+        }
+      }
+
       /* ───── Wallet Balance Check & Charge ───── */
       if (channel.createdBy) {
         let category = "service";
@@ -511,13 +537,21 @@ export class MessageQueueService {
       let response;
       if (message.templateName) {
         const language = (message as any).templateLanguage || "en_US";
+        let appendStopMsg = false;
+        if (message.campaignId && channel.connectionMethod === "qr_code") {
+          const campaign = await storage.getCampaign(message.campaignId);
+          if (campaign?.isCadence) {
+            appendStopMsg = true;
+          }
+        }
         response = await WhatsAppApiService.sendTemplateMessage(
           channel,
           message.recipientPhone,
           message.templateName,
           message.templateParams || [],
           language,
-          isMarketing
+          isMarketing,
+          appendStopMsg
         );
       } else if (channel.connectionMethod === "qr_code") {
         let text = "";
@@ -530,15 +564,27 @@ export class MessageQueueService {
           if (!campaign) {
             throw new Error(`Campaign not found: ${message.campaignId}`);
           }
-          const isWarmer = message.templateParams && (message.templateParams as any).isWarmer;
+          const params = message.templateParams as any;
+          const isWarmer = params && params.isWarmer;
+          const isCadenceStep = params && (params.isCadenceStep || params.customMessage !== undefined);
+
           if (isWarmer) {
-            text = (message.templateParams as any).customMessage || "";
+            text = params.customMessage || "";
+          } else if (isCadenceStep) {
+            text = params.customMessage || "";
+            mediaUrl = params.mediaUrl || null;
+            mediaMimeType = params.mediaMimeType || null;
+            mediaName = params.mediaName || null;
           } else {
             text = campaign.customMessage || "";
+            mediaUrl = campaign.mediaUrl;
+            mediaMimeType = campaign.mediaMimeType;
+            mediaName = campaign.mediaName;
           }
-          mediaUrl = campaign.mediaUrl;
-          mediaMimeType = campaign.mediaMimeType;
-          mediaName = campaign.mediaName;
+
+          if (campaign.isCadence) {
+            text += "\n\nReply with 'Stp' to Stop future message";
+          }
         } else {
           // Direct follow-up or API raw text message
           const params = message.templateParams as any;

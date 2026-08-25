@@ -140,6 +140,7 @@ export function CreateCampaignForm({
   const [newTemplateName, setNewTemplateName] = useState("");
 
   const [isCadence, setIsCadence] = useState(false);
+  const [activeMediaStepIndex, setActiveMediaStepIndex] = useState<number | null>(null);
   const [cadenceSteps, setCadenceSteps] = useState<any[]>([
     {
       stepNumber: 1,
@@ -613,14 +614,81 @@ export function CreateCampaignForm({
                           className="text-xs mt-0.5"
                         />
                       </div>
-                      <div>
-                        <Label className="text-xs font-medium">Media URL (Optional)</Label>
-                        <Input
-                          placeholder="https://example.com/image.jpg"
-                          value={step.mediaUrl}
-                          onChange={(e) => updateStepField(idx, "mediaUrl", e.target.value)}
-                          className="h-8 text-xs mt-0.5"
-                        />
+                      {/* Cadence Step Media Upload Section */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-gray-700 block">Header Media File (Optional)</Label>
+                        <div className="flex flex-col md:flex-row gap-3 items-stretch">
+                          <div 
+                            onClick={() => {
+                              setActiveMediaStepIndex(idx);
+                              setShowMediaGallery(true);
+                            }}
+                            className="flex-1 flex items-center justify-center border-2 border-dashed rounded-lg p-4 bg-gray-50/50 hover:bg-purple-50/30 hover:border-purple-300 cursor-pointer transition min-h-[80px]"
+                          >
+                            <div className="flex flex-col items-center text-center gap-1.5">
+                              {step.mediaUrl ? (
+                                <>
+                                  <Check className="h-5 w-5 text-purple-600" />
+                                  <span className="text-xs font-semibold text-gray-800 max-w-[150px] truncate">{step.mediaName || "File selected"}</span>
+                                  <span className="text-[10px] text-gray-500">Click to change</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="h-5 w-5 text-gray-400" />
+                                  <span className="text-xs font-semibold text-purple-700">Open Media Gallery</span>
+                                  <span className="text-[10px] text-gray-500">Select or upload (Max 100MB)</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex-1 flex flex-col justify-between space-y-2">
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <Label className="text-[11px] font-medium text-gray-500">Or Direct Media URL</Label>
+                              </div>
+                              <Input
+                                placeholder="https://example.com/image.jpg"
+                                value={step.mediaUrl}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  updateStepField(idx, "mediaUrl", val);
+                                  if (!val) {
+                                    updateStepField(idx, "mediaMimeType", "");
+                                    updateStepField(idx, "mediaName", "");
+                                  } else {
+                                    const ext = val.split("?")[0].split(".").pop()?.toLowerCase();
+                                    let guessedMime = "image/jpeg";
+                                    if (ext === "png") guessedMime = "image/png";
+                                    else if (ext === "gif") guessedMime = "image/gif";
+                                    else if (ext === "mp4") guessedMime = "video/mp4";
+                                    else if (ext === "pdf") guessedMime = "application/pdf";
+                                    updateStepField(idx, "mediaMimeType", guessedMime);
+                                    updateStepField(idx, "mediaName", val.substring(val.lastIndexOf("/") + 1));
+                                  }
+                                }}
+                                className="h-8 text-xs mt-0.5"
+                              />
+                            </div>
+                            {step.mediaUrl && (
+                              <div className="flex items-center justify-between text-xs text-gray-500 border rounded px-2.5 py-1 bg-gray-50">
+                                <span className="truncate max-w-[120px] font-medium">{step.mediaName || "Media file"}</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateStepField(idx, "mediaUrl", "");
+                                    updateStepField(idx, "mediaName", "");
+                                    updateStepField(idx, "mediaMimeType", "");
+                                  }}
+                                  className="text-red-500 hover:text-red-700 font-semibold"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1487,17 +1555,38 @@ export function CreateCampaignForm({
 
       <MediaGalleryDialog
         open={showMediaGallery}
-        onOpenChange={setShowMediaGallery}
-        onSelect={(url, name) => {
-          setMediaUrl(url);
-          setMediaName(name);
-          const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
-          let guessedMime = "image/jpeg";
-          if (ext === "png") guessedMime = "image/png";
-          else if (ext === "gif") guessedMime = "image/gif";
-          else if (ext === "mp4") guessedMime = "video/mp4";
-          else if (ext === "pdf") guessedMime = "application/pdf";
-          setMediaMimeType(guessedMime);
+        onOpenChange={(open) => {
+          setShowMediaGallery(open);
+          if (!open) {
+            setActiveMediaStepIndex(null);
+          }
+        }}
+        onSelect={(url, name, selectedMimeType) => {
+          let mimeType = selectedMimeType;
+          if (!mimeType) {
+            const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
+            mimeType = "image/jpeg";
+            if (ext === "png") mimeType = "image/png";
+            else if (ext === "gif") mimeType = "image/gif";
+            else if (ext === "mp4") mimeType = "video/mp4";
+            else if (ext === "pdf") mimeType = "application/pdf";
+          }
+
+          if (activeMediaStepIndex !== null) {
+            const newSteps = [...cadenceSteps];
+            newSteps[activeMediaStepIndex] = {
+              ...newSteps[activeMediaStepIndex],
+              mediaUrl: url,
+              mediaName: name,
+              mediaMimeType: mimeType
+            };
+            setCadenceSteps(newSteps);
+            setActiveMediaStepIndex(null);
+          } else {
+            setMediaUrl(url);
+            setMediaName(name);
+            setMediaMimeType(mimeType);
+          }
         }}
       />
 

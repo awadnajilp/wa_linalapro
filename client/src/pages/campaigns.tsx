@@ -68,25 +68,22 @@ export default function Campaigns() {
 
   // Fetch campaigns
   const { data: campaignResponse, isLoading: campaignsLoading } = useQuery({
-    queryKey: ["campaigns", userId, userRole, page],
+    queryKey: ["campaigns", channelId, page],
     queryFn: async () => {
-      let res;
-      if (userRole === "superadmin") {
-        res = await fetch(`/api/campaigns?page=${page}&limit=${limit}`, {
-          credentials: "include",
-        });
-      } else {
-        res = await fetch("/api/getCampaignsByUserId", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId, page, limit }),
-        });
+      const headers: Record<string, string> = {};
+      if (channelId) {
+        headers["x-channel-id"] = channelId;
       }
+
+      const res = await fetch(`/api/campaigns?page=${page}&limit=${limit}`, {
+        headers,
+        credentials: "include",
+      });
 
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
-    enabled: !!userId,
+    enabled: userRole === "superadmin" || !!channelId,
   });
 
   const campaigns = campaignResponse?.data || [];

@@ -573,21 +573,19 @@ export default function Automations() {
           <p className="text-sm text-gray-500 mt-0.5">Create and manage conversation flows with drag-and-drop visual builder</p>
         </div>
         <div className="flex items-center gap-2">
-          {automations.length === 0 && (
-            <Button
-              variant="outline"
-              onClick={() => seedMutation.mutate()}
-              disabled={seedMutation.isPending}
-              className="gap-1.5"
-            >
-              {seedMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
-              Load Sample Templates
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            onClick={() => seedMutation.mutate()}
+            disabled={seedMutation.isPending}
+            className="gap-1.5 border-purple-100 hover:bg-purple-50/50 hover:text-purple-700"
+          >
+            {seedMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            Load Sample Templates
+          </Button>
           <input
             type="file"
             ref={fileInputRef}

@@ -449,7 +449,7 @@ export default function CampaignAnalytics() {
                   Back to Analytics
                 </Button>
               </Link>
-              {/* <div className="flex space-x-2">
+              <div className="flex space-x-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -468,7 +468,7 @@ export default function CampaignAnalytics() {
                   <Download className="w-4 h-4 mr-2" />
                   {exportLoading ? "Exporting..." : "Export Excel"}
                 </Button>
-              </div> */}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1006,6 +1006,63 @@ export default function CampaignAnalytics() {
                     <p className="font-medium">{campaign.csvData.length} records imported</p>
                   </div>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Failed Recipients Report */}
+        {recipients.some(r => r.status === "failed") && (
+          <Card className="border-red-100">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0 pb-2">
+              <div>
+                <CardTitle className="text-red-700 font-bold flex items-center gap-2">
+                  <XCircle className="w-5 h-5 text-red-500" />
+                  Failed Deliveries ({recipients.filter(r => r.status === "failed").length})
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">List of numbers that failed to receive campaign messages</p>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => handleExport("excel")}
+                disabled={exportLoading}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                <Download className="w-3.5 h-3.5 mr-1.5" />
+                Export Failed & Full Report
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto rounded-md border border-red-100">
+                <table className="w-full text-sm">
+                  <thead className="bg-red-50/50 border-b border-red-100">
+                    <tr>
+                      <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Recipient</th>
+                      <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Phone Number</th>
+                      <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Error Code</th>
+                      <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Reason</th>
+                      <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-red-50 bg-white">
+                    {recipients.filter(r => r.status === "failed").map((rec, idx) => (
+                      <tr key={rec.id || idx} className="hover:bg-red-50/10">
+                        <td className="px-6 py-4 font-medium text-gray-900">{rec.name || "Unknown"}</td>
+                        <td className="px-6 py-4 text-gray-500 font-mono">{rec.phone}</td>
+                        <td className="px-6 py-4">
+                          <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs font-mono font-bold">
+                            {rec.errorCode || "N/A"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-red-600 font-medium">{rec.errorMessage || "Unknown issue"}</td>
+                        <td className="px-6 py-4 text-gray-500 text-xs">
+                          {rec.sentAt ? new Date(rec.sentAt).toLocaleString() : "N/A"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>

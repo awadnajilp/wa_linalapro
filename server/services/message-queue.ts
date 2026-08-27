@@ -483,6 +483,39 @@ export class MessageQueueService {
             .where(eq(messageQueue.id, message.id));
           return;
         }
+
+        // Check follow-up step 24-hour reply constraint
+        if (message.stepNumber && message.stepNumber > 1 && channel.connectionMethod !== "qr_code") {
+          const campaign = await storage.getCampaign(message.campaignId);
+          if (campaign?.isCadence && (campaign as any).followUpOnlyAfterReply24h) {
+            const [conv] = await db
+              .select({ lastIncomingMessageAt: conversations.lastIncomingMessageAt })
+              .from(conversations)
+              .where(
+                and(
+                  eq(conversations.channelId, channel.id),
+                  eq(conversations.contactPhone, message.recipientPhone)
+                )
+              )
+              .limit(1);
+
+            const lastIncoming = conv?.lastIncomingMessageAt;
+            const threshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+            if (!lastIncoming || new Date(lastIncoming) < threshold) {
+              console.log(`[MessageQueue] Skipping cadence step ${message.stepNumber} for message ${message.id} because recipient ${message.recipientPhone} has not replied in the last 24h.`);
+              await db
+                .update(messageQueue)
+                .set({ 
+                  status: "failed", 
+                  errorMessage: "Recipient has not replied in the last 24h (Cadence window constraint)",
+                  processedAt: new Date()
+                })
+                .where(eq(messageQueue.id, message.id));
+              return;
+            }
+          }
+        }
       }
 
       /* ───── Wallet Balance Check & Charge ───── */

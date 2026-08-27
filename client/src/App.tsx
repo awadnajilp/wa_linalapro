@@ -106,6 +106,7 @@ import AdminWalletsPage from "./pages/AdminWalletsPage";
 import Marketplace from "./pages/Marketplace";
 import AdminAddons from "./pages/AdminAddons";
 import ExpenseLedger from "./pages/ExpenseLedger";
+import SupportTicketsLedger from "./pages/SupportTicketsLedger";
 
 // Define route permissions mapping
 const ROUTE_PERMISSIONS: Record<string, string> = {
@@ -431,6 +432,9 @@ function ProtectedRoutes() {
           </Route>
           <Route path="/expenses">
             <PermissionRoute component={ExpenseLedger} requiredRoles={["admin"]} />
+          </Route>
+          <Route path="/tickets">
+            <PermissionRoute component={SupportTicketsLedger} requiredRoles={["admin"]} />
           </Route>
           <Route path="/admin/addons">
             <PermissionRoute component={AdminAddons} requiredRoles={["superadmin"]} />

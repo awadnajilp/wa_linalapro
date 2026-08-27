@@ -46,6 +46,7 @@ import {
   CreditCard,
   Puzzle,
   Coins,
+  LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChannelSwitcher } from "@/components/channel-switcher";
@@ -226,6 +227,13 @@ function getNavItems(role: string): NavItem[] {
         icon: Coins,
         labelKey: "Expenses Ledger",
         color: "text-amber-500",
+        allowedRoles: ["admin"],
+      },
+      {
+        href: "/tickets",
+        icon: LifeBuoy,
+        labelKey: "Support Tickets",
+        color: "text-rose-500",
         allowedRoles: ["admin"],
       },
     ];
@@ -475,6 +483,10 @@ export default function Sidebar() {
 
   const isExpenseActive = user?.role === "superadmin" || tenantAddons?.some(
     (a) => a.slug === "expense-tracker" && a.subscription?.status === "active"
+  );
+
+  const isTicketsActive = user?.role === "superadmin" || tenantAddons?.some(
+    (a) => a.slug === "support-tickets" && a.subscription?.status === "active"
   );
 
   const {
@@ -774,6 +786,7 @@ export default function Sidebar() {
                   .filter(canView)
                   .filter((item) => !(item.href === "/templates" && selectedChannel?.connectionMethod === "qr_code"))
                   .filter((item) => !(item.href === "/expenses" && !isExpenseActive))
+                  .filter((item) => !(item.href === "/tickets" && !isTicketsActive))
                   .map((item) =>
                     renderLink(
                       t(item.labelKey),

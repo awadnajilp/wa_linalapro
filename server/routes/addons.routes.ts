@@ -267,8 +267,8 @@ export function registerAddonsRoutes(app: Express) {
         subscription = created;
       }
 
-      // Preload default flow configuration if it is the expense module and channelId was passed
-      if (addon.slug === "expense-tracker" && channelId) {
+      // Preload default flow configuration if it is the expense module or support ticket module and channelId was passed
+      if ((addon.slug === "expense-tracker" || addon.slug === "support-tickets") && channelId) {
         await AddonManager.preloadPredefinedFlow(tenantId, channelId, addon.slug);
       }
 
@@ -762,6 +762,460 @@ export function registerAddonsRoutes(app: Express) {
 
       await AddonManager.preloadPredefinedFlow(tenantId, channelId, "expense-tracker");
       res.json({ success: true, message: "Predefined Expense automation flow preloaded successfully." });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ============================================================
+  // SUPPORT TICKETS MODULE LEDGER & CONFIG ENDPOINTS
+  // ============================================================
+
+  // Get Tickets Ledger with Filters
+  app.get("/api/tickets", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { search, category, status, priority, startDate, endDate, channelId } = req.query;
+
+      const conditions = [eq(schema.supportTickets.tenantId, tenantId)];
+
+      if (channelId && typeof channelId === "string") {
+        conditions.push(eq(schema.supportTickets.channelId, channelId));
+      }
+      if (category && typeof category === "string" && category !== "all") {
+        conditions.push(eq(schema.supportTickets.category, category.toLowerCase()));
+      }
+      if (status && typeof status === "string" && status !== "all") {
+        conditions.push(eq(schema.supportTickets.status, status.toLowerCase()));
+      }
+      if (priority && typeof priority === "string" && priority !== "all") {
+        conditions.push(eq(schema.supportTickets.priority, priority.toLowerCase()));
+      }
+      if (startDate && typeof startDate === "string") {
+        conditions.push(gte(schema.supportTickets.createdAt, new Date(startDate)));
+      }
+      if (endDate && typeof endDate === "string") {
+        conditions.push(lte(schema.supportTickets.createdAt, new Date(endDate)));
+      }
+      if (search && typeof search === "string" && search.trim() !== "") {
+        conditions.push(
+          or(
+            like(schema.supportTickets.subject, `%${search}%`),
+            like(schema.supportTickets.ticketId, `%${search}%`),
+            like(schema.supportTickets.description, `%${search}%`),
+            like(schema.supportTickets.loggedByName, `%${search}%`),
+            like(schema.supportTickets.loggedByPhone, `%${search}%`)
+          )
+        );
+      }
+
+      // Calculate total count
+      const [countResult] = await db
+        .select({ count: sql`count(*)` })
+        .from(schema.supportTickets)
+        .where(and(...conditions));
+      const total = parseInt(countResult?.count as string) || 0;
+
+      const page = req.query.page ? parseInt(req.query.page as string) : null;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
+
+      let selectQuery = db
+        .select()
+        .from(schema.supportTickets)
+        .where(and(...conditions))
+        .orderBy(sql`${schema.supportTickets.createdAt} DESC`);
+
+      if (page) {
+        const offset = (page - 1) * limit;
+        selectQuery = selectQuery.limit(limit).offset(offset) as any;
+      }
+
+      const list = await selectQuery;
+
+      if (page) {
+        res.json({
+          tickets: list,
+          total
+        });
+      } else {
+        res.json(list);
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Create manual support ticket
+  app.post("/api/tickets", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { subject, description, category, priority, status, assignedTo, channelId, mediaUrl } = req.body;
+
+      if (!subject) {
+        return res.status(400).json({ error: "Subject is required." });
+      }
+
+      const ticketId = `TKT-${Math.floor(100000 + Math.random() * 900000)}`;
+
+      const [created] = await db
+        .insert(schema.supportTickets)
+        .values({
+          ticketId,
+          tenantId,
+          channelId: channelId || null,
+          subject,
+          description: description || "",
+          category: (category || "general").toLowerCase(),
+          priority: (priority || "medium").toLowerCase(),
+          status: (status || "open").toLowerCase(),
+          assignedTo: assignedTo || null,
+          mediaUrl: mediaUrl || null,
+          loggedByName: (req.user as any)?.username || (req.user as any)?.email || "Admin",
+          loggedByPhone: "Manual"
+        })
+        .returning();
+
+      // Forward email if config is enabled
+      const [config] = await db
+        .select()
+        .from(schema.supportTicketConfigs)
+        .where(eq(schema.supportTicketConfigs.channelId, channelId))
+        .limit(1);
+
+      if (config && config.forwardEnabled && config.forwardEmail) {
+        try {
+          const transporter = await getTransporter();
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM_EMAIL || "info@linalapro.com",
+            to: config.forwardEmail,
+            subject: `🎫 [Support Ticket] New Ticket Alert: ${ticketId} - ${subject}`,
+            html: `
+              <h3>New Support Ticket Logged Manually</h3>
+              <p>Hello,</p>
+              <p>A new support ticket has been created manually by Admin. Details below:</p>
+              <table style="width:100%; border-collapse:collapse; font-family:sans-serif;">
+                <tr>
+                  <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Ticket ID:</td>
+                  <td style="padding:8px; border:1px solid #ddd;">${ticketId}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Subject:</td>
+                  <td style="padding:8px; border:1px solid #ddd;">${subject}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Description:</td>
+                  <td style="padding:8px; border:1px solid #ddd;">${description || "N/A"}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Category:</td>
+                  <td style="padding:8px; border:1px solid #ddd;">${category}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Priority:</td>
+                  <td style="padding:8px; border:1px solid #ddd;">${priority}</td>
+                </tr>
+                ${mediaUrl ? `
+                <tr>
+                  <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Attachment:</td>
+                  <td style="padding:8px; border:1px solid #ddd;"><a href="${mediaUrl}">View Attachment</a></td>
+                </tr>` : ""}
+              </table>
+              <br/>
+              <p>Best regards,<br/>Linala Team</p>
+            `
+          });
+        } catch (emailErr: any) {
+          console.error("[Support Ticket Manual] Email forwarding failed:", emailErr.message);
+        }
+      }
+
+      res.json(created);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Update support ticket
+  app.put("/api/tickets/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { status, priority, category, description, assignedTo, subject } = req.body;
+
+      const [existing] = await db
+        .select()
+        .from(schema.supportTickets)
+        .where(
+          and(
+            eq(schema.supportTickets.id, req.params.id),
+            eq(schema.supportTickets.tenantId, tenantId)
+          )
+        )
+        .limit(1);
+
+      if (!existing) {
+        return res.status(404).json({ error: "Ticket not found." });
+      }
+
+      const [updated] = await db
+        .update(schema.supportTickets)
+        .set({
+          status: status !== undefined ? status.toLowerCase() : existing.status,
+          priority: priority !== undefined ? priority.toLowerCase() : existing.priority,
+          category: category !== undefined ? category.toLowerCase() : existing.category,
+          description: description !== undefined ? description : existing.description,
+          assignedTo: assignedTo !== undefined ? assignedTo : existing.assignedTo,
+          subject: subject !== undefined ? subject : existing.subject,
+          updatedAt: new Date()
+        })
+        .where(eq(schema.supportTickets.id, req.params.id))
+        .returning();
+
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Delete support ticket
+  app.delete("/api/tickets/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      
+      const [ticket] = await db
+        .select()
+        .from(schema.supportTickets)
+        .where(and(eq(schema.supportTickets.id, req.params.id), eq(schema.supportTickets.tenantId, tenantId)))
+        .limit(1);
+
+      if (!ticket) return res.status(404).json({ error: "Ticket entry not found." });
+
+      await db.delete(schema.supportTickets).where(eq(schema.supportTickets.id, req.params.id));
+      res.json({ success: true, message: "Ticket deleted successfully." });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Export Tickets Ledger as Excel
+  app.get("/api/tickets/export", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { search, category, status, priority, startDate, endDate, channelId } = req.query;
+
+      const conditions = [eq(schema.supportTickets.tenantId, tenantId)];
+
+      if (channelId && typeof channelId === "string") conditions.push(eq(schema.supportTickets.channelId, channelId));
+      if (category && typeof category === "string" && category !== "all") conditions.push(eq(schema.supportTickets.category, category.toLowerCase()));
+      if (status && typeof status === "string" && status !== "all") conditions.push(eq(schema.supportTickets.status, status.toLowerCase()));
+      if (priority && typeof priority === "string" && priority !== "all") conditions.push(eq(schema.supportTickets.priority, priority.toLowerCase()));
+      if (startDate && typeof startDate === "string") conditions.push(gte(schema.supportTickets.createdAt, new Date(startDate)));
+      if (endDate && typeof endDate === "string") conditions.push(lte(schema.supportTickets.createdAt, new Date(endDate)));
+      if (search && typeof search === "string" && search.trim() !== "") {
+        conditions.push(
+          or(
+            like(schema.supportTickets.subject, `%${search}%`),
+            like(schema.supportTickets.ticketId, `%${search}%`),
+            like(schema.supportTickets.description, `%${search}%`)
+          )
+        );
+      }
+
+      const list = await db
+        .select()
+        .from(schema.supportTickets)
+        .where(and(...conditions))
+        .orderBy(desc(schema.supportTickets.createdAt));
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Support Tickets");
+
+      worksheet.columns = [
+        { header: "Ticket ID", key: "ticketId", width: 15 },
+        { header: "Date Created", key: "createdAt", width: 22 },
+        { header: "Subject", key: "subject", width: 25 },
+        { header: "Category", key: "category", width: 18 },
+        { header: "Priority", key: "priority", width: 15 },
+        { header: "Status", key: "status", width: 15 },
+        { header: "Description", key: "description", width: 40 },
+        { header: "Logged By Name", key: "loggedByName", width: 25 },
+        { header: "Logged By Phone", key: "loggedByPhone", width: 20 },
+        { header: "Assigned To", key: "assignedTo", width: 25 },
+      ];
+
+      worksheet.getRow(1).font = { bold: true };
+
+      list.forEach(tkt => {
+        worksheet.addRow({
+          ticketId: tkt.ticketId,
+          createdAt: tkt.createdAt ? new Date(tkt.createdAt).toLocaleString() : "",
+          subject: tkt.subject,
+          category: tkt.category ? tkt.category.toUpperCase() : "GENERAL",
+          priority: tkt.priority ? tkt.priority.toUpperCase() : "MEDIUM",
+          status: tkt.status ? tkt.status.toUpperCase() : "OPEN",
+          description: tkt.description || "",
+          loggedByName: tkt.loggedByName || "N/A",
+          loggedByPhone: tkt.loggedByPhone || "N/A",
+          assignedTo: tkt.assignedTo || "Unassigned",
+        });
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+
+      res.setHeader("Content-Disposition", `attachment; filename=support_tickets_${new Date().toISOString().split("T")[0]}.xlsx`);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.send(buffer);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Get ticket configurations
+  app.get("/api/tickets/config", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { channelId } = req.query;
+
+      if (!channelId) return res.status(400).json({ error: "ChannelId is required" });
+
+      const [config] = await db
+        .select()
+        .from(schema.supportTicketConfigs)
+        .where(
+          and(
+            eq(schema.supportTicketConfigs.tenantId, tenantId),
+            eq(schema.supportTicketConfigs.channelId, String(channelId))
+          )
+        )
+        .limit(1);
+
+      res.json(config || null);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Save ticket configuration
+  app.post("/api/tickets/config", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { channelId, triggerKeyword, retrievalKeyword, reportingNumber, reportInterval, reportEmail, emailEnabled, forwardEmail, forwardEnabled, isActive, aiPrompt, purchaseType } = req.body;
+
+      if (!channelId) return res.status(400).json({ error: "ChannelId is required" });
+
+      // Update or insert subscription purchase type if specified
+      if (purchaseType === "ai" || purchaseType === "flow") {
+        const [addon] = await db
+          .select()
+          .from(schema.addons)
+          .where(eq(schema.addons.slug, "support-tickets"))
+          .limit(1);
+
+        if (addon) {
+          const [existingSub] = await db
+            .select()
+            .from(schema.tenantAddons)
+            .where(
+              and(
+                eq(schema.tenantAddons.tenantId, tenantId),
+                eq(schema.tenantAddons.addonId, addon.id)
+              )
+            )
+            .limit(1);
+
+          if (existingSub) {
+            await db
+              .update(schema.tenantAddons)
+              .set({ purchaseType, updatedAt: new Date() })
+              .where(eq(schema.tenantAddons.id, existingSub.id));
+          } else {
+            const expiresAt = new Date();
+            expiresAt.setFullYear(expiresAt.getFullYear() + 10); // Far future expiry for admin bypass
+            await db.insert(schema.tenantAddons).values({
+              tenantId,
+              addonId: addon.id,
+              status: "active",
+              expiresAt,
+              purchaseType,
+              credits: addon.defaultCredits || 0,
+              maxCredits: addon.defaultCredits || 0,
+              gatewayProvider: "manual",
+            });
+          }
+        }
+      }
+
+      const [existing] = await db
+        .select()
+        .from(schema.supportTicketConfigs)
+        .where(eq(schema.supportTicketConfigs.channelId, channelId))
+        .limit(1);
+
+      let config;
+      if (existing) {
+        const [updated] = await db
+          .update(schema.supportTicketConfigs)
+          .set({
+            triggerKeyword: triggerKeyword || "ticket",
+            retrievalKeyword: retrievalKeyword || "getticket",
+            reportingNumber: reportingNumber || null,
+            reportInterval: reportInterval || "daily",
+            reportEmail: reportEmail || null,
+            emailEnabled: emailEnabled !== undefined ? emailEnabled : false,
+            forwardEmail: forwardEmail || null,
+            forwardEnabled: forwardEnabled !== undefined ? forwardEnabled : false,
+            isActive: isActive !== undefined ? isActive : true,
+            aiPrompt: aiPrompt !== undefined ? aiPrompt : undefined,
+          })
+          .where(eq(schema.supportTicketConfigs.id, existing.id))
+          .returning();
+        config = updated;
+      } else {
+        const [created] = await db
+          .insert(schema.supportTicketConfigs)
+          .values({
+            tenantId,
+            channelId,
+            triggerKeyword: triggerKeyword || "ticket",
+            retrievalKeyword: retrievalKeyword || "getticket",
+            reportingNumber: reportingNumber || null,
+            reportInterval: reportInterval || "daily",
+            reportEmail: reportEmail || null,
+            emailEnabled: emailEnabled !== undefined ? emailEnabled : false,
+            forwardEmail: forwardEmail || null,
+            forwardEnabled: forwardEnabled !== undefined ? forwardEnabled : false,
+            isActive: isActive !== undefined ? isActive : true,
+            aiPrompt: aiPrompt || undefined,
+          })
+          .returning();
+        config = created;
+      }
+
+      res.json(config);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Re-preload / load default support ticket flow
+  app.post("/api/tickets/load-flow", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { channelId } = req.body;
+
+      if (!channelId) {
+        return res.status(400).json({ error: "ChannelId is required." });
+      }
+
+      await AddonManager.preloadPredefinedFlow(tenantId, channelId, "support-tickets");
+      res.json({ success: true, message: "Predefined Support Ticket automation flow preloaded successfully." });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

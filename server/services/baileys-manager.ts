@@ -1053,6 +1053,10 @@ export class BaileysManager {
         mime = "video/mp4";
       } else if (targetName.endsWith(".mp3") || targetName.endsWith(".mpeg")) {
         mime = "audio/mpeg";
+      } else if (targetName.endsWith(".ogg") || targetName.endsWith(".oga") || targetName.endsWith(".opus")) {
+        mime = "audio/ogg";
+      } else if (targetName.endsWith(".wav")) {
+        mime = "audio/wav";
       } else if (targetName.endsWith(".docx") || targetName.endsWith(".doc")) {
         mime = "application/msword";
       } else if (targetName.endsWith(".xlsx") || targetName.endsWith(".xls")) {

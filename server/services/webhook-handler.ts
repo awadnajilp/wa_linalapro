@@ -19,7 +19,7 @@ import { db } from "../db";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
 import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites, automationExecutions, automations, voiceProfiles, automationNodes, aiProfiles } from "@shared/schema";
 import * as schema from "@shared/schema";
-import { eq, and, gte, inArray } from "drizzle-orm";
+import { eq, and, gte, inArray, desc } from "drizzle-orm";
 import crypto from "crypto";
 import { triggerNotification, triggerThrottledNotification, NOTIFICATION_EVENTS } from "./notification.service";
 import OpenAI from "openai";
@@ -29,6 +29,8 @@ import { triggerService } from "./automation-execution-service";
 import { VoiceManager } from "./voice";
 import { AddonManager } from "./addon-manager";
 import { ExpenseAIService } from "./expense-ai-service";
+import { TicketAIService } from "./ticket-ai-service";
+import { getTransporter } from "./email.service";
 
 
 export interface WebhookMessage {
@@ -911,6 +913,488 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
     return automationHandled;
   }
 
+  // Static helper to execute AI Support Tickets interceptor for both QR and Cloud API channels
+  public static async interceptSupportTickets(
+    channelId: string,
+    conversation: any[],
+    contact: any[],
+    message: any,
+    content: string,
+    isGroupMessage: boolean,
+    channelRow: any
+  ): Promise<boolean> {
+    let automationHandled = false;
+    if (channelId && conversation.length > 0 && !isGroupMessage) {
+      try {
+        const tenantId = channelRow?.createdBy;
+        if (tenantId) {
+          const [addon] = await db
+            .select()
+            .from(schema.addons)
+            .where(and(eq(schema.addons.slug, "support-tickets"), eq(schema.addons.isActive, true)))
+            .limit(1);
+
+          if (addon) {
+            const [subscription] = await db
+              .select()
+              .from(schema.tenantAddons)
+              .where(
+                and(
+                  eq(schema.tenantAddons.tenantId, tenantId),
+                  eq(schema.tenantAddons.addonId, addon.id)
+                )
+              )
+              .limit(1);
+
+            const [user] = await db
+              .select()
+              .from(schema.users)
+              .where(eq(schema.users.id, tenantId))
+              .limit(1);
+
+            const isSubscriptionActive = subscription
+              ? (subscription.status === "active" || user?.role === "superadmin")
+              : (user?.role === "superadmin" ? true : false);
+
+            const purchaseType = subscription?.purchaseType || (user?.role === "superadmin" ? "ai" : "flow");
+
+            if (isSubscriptionActive && purchaseType === "ai") {
+              const [ticketConfig] = await db
+                .select()
+                .from(schema.whatsappSupportTicketConfigs)
+                .where(eq(schema.whatsappSupportTicketConfigs.channelId, channelId))
+                .limit(1);
+
+              if (ticketConfig && ticketConfig.isActive) {
+                // Check if there is an active conversational session for this conversation
+                const [activeSession] = await db
+                  .select()
+                  .from(schema.whatsappSupportTicketSessions)
+                  .where(eq(schema.whatsappSupportTicketSessions.conversationId, conversation[0].id))
+                  .limit(1);
+
+                const waApi = new WhatsAppApiService(channelRow);
+
+                if (activeSession) {
+                  const cleanContent = content.trim();
+
+                  if (activeSession.status === "waiting_for_details") {
+                    const mediaId = message.image?.id || message.mediaId;
+                    if (message.type === "image" && mediaId) {
+                      try {
+                        const { buffer, mimeType } = await waApi.getMediaBuffer(mediaId);
+                        let fileUrl: string | undefined;
+                        try {
+                          fileUrl = await waApi.fetchMediaUrl(mediaId);
+                        } catch (err) {
+                          console.error("Failed to fetch media URL:", err);
+                        }
+
+                        const parsed = await TicketAIService.parseScreenshotImage(tenantId, channelId, buffer, mimeType);
+                        if (parsed && !parsed.error && parsed.subject) {
+                          const ticketId = `TKT-${Math.floor(100000 + Math.random() * 900000)}`;
+                          
+                          await db.insert(schema.whatsappSupportTickets).values({
+                            ticketId,
+                            tenantId,
+                            channelId,
+                            subject: parsed.subject,
+                            description: parsed.description || "Refer to attached screenshot",
+                            category: parsed.category.toLowerCase(),
+                            priority: parsed.priority.toLowerCase(),
+                            status: "open",
+                            mediaUrl: fileUrl || null,
+                            loggedByName: contact[0]?.name || contact[0]?.phone || "Unknown",
+                            loggedByPhone: contact[0]?.phone || "Unknown",
+                          });
+
+                          await db.delete(schema.whatsappSupportTicketSessions).where(eq(schema.whatsappSupportTicketSessions.id, activeSession.id));
+
+                          await db
+                            .update(schema.conversations)
+                            .set({ aiEnabled: false })
+                            .where(eq(schema.conversations.id, conversation[0].id));
+
+                          await waApi.sendDirectMessage({
+                            to: message.from,
+                            type: "text",
+                            text: {
+                              body: `✅ *Support Ticket Logged Successfully (from Image)!*\n\n🎫 Ticket ID: *${ticketId}*\n📌 Subject: *${parsed.subject}*\n📂 Category: *${parsed.category}*\n⚠️ Priority: *${parsed.priority}*`
+                            }
+                          });
+
+                          // Forward email if config is enabled
+                          if (ticketConfig.forwardEnabled && ticketConfig.forwardEmail) {
+                            try {
+                              const transporter = await getTransporter();
+                              await transporter.sendMail({
+                                from: process.env.SMTP_FROM_EMAIL || "info@linalapro.com",
+                                to: ticketConfig.forwardEmail,
+                                subject: `🎫 [Support Ticket] New Ticket Alert: ${ticketId} - ${parsed.subject}`,
+                                html: `
+                                  <h3>New Support Ticket Logged via WhatsApp (Image Mode)</h3>
+                                  <p>Hello,</p>
+                                  <p>A new support ticket has been created. Details below:</p>
+                                  <table style="width:100%; border-collapse:collapse; font-family:sans-serif;">
+                                    <tr>
+                                      <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Ticket ID:</td>
+                                      <td style="padding:8px; border:1px solid #ddd;">${ticketId}</td>
+                                    </tr>
+                                    <tr>
+                                      <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Customer:</td>
+                                      <td style="padding:8px; border:1px solid #ddd;">${contact[0]?.name || "Unknown"} (${contact[0]?.phone || "Unknown"})</td>
+                                    </tr>
+                                    <tr>
+                                      <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Subject:</td>
+                                      <td style="padding:8px; border:1px solid #ddd;">${parsed.subject}</td>
+                                    </tr>
+                                    <tr>
+                                      <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Description:</td>
+                                      <td style="padding:8px; border:1px solid #ddd;">${parsed.description}</td>
+                                    </tr>
+                                    <tr>
+                                      <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Category:</td>
+                                      <td style="padding:8px; border:1px solid #ddd;">${parsed.category}</td>
+                                    </tr>
+                                    <tr>
+                                      <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Priority:</td>
+                                      <td style="padding:8px; border:1px solid #ddd;">${parsed.priority}</td>
+                                    </tr>
+                                    ${fileUrl ? `
+                                    <tr>
+                                      <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Attachment:</td>
+                                      <td style="padding:8px; border:1px solid #ddd;"><a href="${fileUrl}">View Screenshot</a></td>
+                                    </tr>` : ""}
+                                  </table>
+                                  <br/>
+                                  <p>Best regards,<br/>Linala Team</p>
+                                `
+                              });
+                            } catch (e: any) {
+                              console.error("[Support Ticket] Failed to send forward email:", e.message);
+                            }
+                          }
+
+                          automationHandled = true;
+                        } else {
+                          await waApi.sendDirectMessage({
+                            to: message.from,
+                            type: "text",
+                            text: {
+                              body: `⚠️ *Failed to parse support request image.*\nReason: ${parsed?.error || "AI could not extract issue details."}\n\nPlease try again or describe the issue in text.`
+                            }
+                          });
+                          automationHandled = true;
+                        }
+                      } catch (err: any) {
+                        console.error("Screenshot support ticket parsing failed:", err.message);
+                      }
+                    } else {
+                      // Parse details via AI
+                      const parsed = await TicketAIService.parseTicket(tenantId, channelId, cleanContent);
+                      if (parsed && !parsed.error && parsed.subject) {
+                        const ticketId = `TKT-${Math.floor(100000 + Math.random() * 900000)}`;
+
+                        await db.insert(schema.whatsappSupportTickets).values({
+                          ticketId,
+                          tenantId,
+                          channelId,
+                          subject: parsed.subject,
+                          description: parsed.description,
+                          category: parsed.category.toLowerCase(),
+                          priority: parsed.priority.toLowerCase(),
+                          status: "open",
+                          loggedByName: contact[0]?.name || contact[0]?.phone || "Unknown",
+                          loggedByPhone: contact[0]?.phone || "Unknown",
+                        });
+
+                        await db.delete(schema.whatsappSupportTicketSessions).where(eq(schema.whatsappSupportTicketSessions.id, activeSession.id));
+
+                        await db
+                          .update(schema.conversations)
+                          .set({ aiEnabled: false })
+                          .where(eq(schema.conversations.id, conversation[0].id));
+
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: {
+                            body: `✅ *Support Ticket Logged Successfully!*\n\n🎫 Ticket ID: *${ticketId}*\n📌 Subject: *${parsed.subject}*\n📂 Category: *${parsed.category}*\n⚠️ Priority: *${parsed.priority}*\n📝 Description: *${parsed.description || "N/A"}*`
+                          }
+                        });
+
+                        // Forward email if config is enabled
+                        if (ticketConfig.forwardEnabled && ticketConfig.forwardEmail) {
+                          try {
+                            const transporter = await getTransporter();
+                            await transporter.sendMail({
+                              from: process.env.SMTP_FROM_EMAIL || "info@linalapro.com",
+                              to: ticketConfig.forwardEmail,
+                              subject: `🎫 [Support Ticket] New Ticket Alert: ${ticketId} - ${parsed.subject}`,
+                              html: `
+                                <h3>New Support Ticket Logged via WhatsApp</h3>
+                                <p>Hello,</p>
+                                <p>A new support ticket has been created. Details below:</p>
+                                <table style="width:100%; border-collapse:collapse; font-family:sans-serif;">
+                                  <tr>
+                                    <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Ticket ID:</td>
+                                    <td style="padding:8px; border:1px solid #ddd;">${ticketId}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Customer:</td>
+                                    <td style="padding:8px; border:1px solid #ddd;">${contact[0]?.name || "Unknown"} (${contact[0]?.phone || "Unknown"})</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Subject:</td>
+                                    <td style="padding:8px; border:1px solid #ddd;">${parsed.subject}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Description:</td>
+                                    <td style="padding:8px; border:1px solid #ddd;">${parsed.description}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Category:</td>
+                                    <td style="padding:8px; border:1px solid #ddd;">${parsed.category}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Priority:</td>
+                                    <td style="padding:8px; border:1px solid #ddd;">${parsed.priority}</td>
+                                  </tr>
+                                </table>
+                                <br/>
+                                <p>Best regards,<br/>Linala Team</p>
+                              `
+                            });
+                          } catch (e: any) {
+                            console.error("[Support Ticket] Failed to send forward email:", e.message);
+                          }
+                        }
+
+                        automationHandled = true;
+                      } else {
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: {
+                            body: `⚠️ *Failed to parse issue details.*\nReason: ${parsed?.error || "AI could not extract subject/details."}\n\nPlease try again or describe the issue clearly.`
+                          }
+                        });
+                        automationHandled = true;
+                      }
+                    }
+                  }
+                } else {
+                  // Regular text/audio trigger parser (supports tickets)
+                  const triggerKeyword = (ticketConfig?.triggerKeyword || "ticket").toLowerCase();
+                  const retrievalKeyword = (ticketConfig?.retrievalKeyword || "getticket").toLowerCase();
+                  const cleanContent = content.trim();
+                  const lowerContent = cleanContent.toLowerCase();
+
+                  let isTrigger = lowerContent.startsWith(triggerKeyword);
+                  let isRetrieval = lowerContent.startsWith(retrievalKeyword);
+
+                  if (isTrigger) {
+                    console.log(`[Support Ticket] Triggered ticket logging via text.`);
+                    const promptText = cleanContent.substring(triggerKeyword.length).trim();
+
+                    if (promptText.length === 0) {
+                      // Create waiting_for_details session
+                      await db.insert(schema.whatsappSupportTicketSessions).values({
+                        conversationId: conversation[0].id,
+                        status: "waiting_for_details"
+                      });
+
+                      await waApi.sendDirectMessage({
+                        to: message.from,
+                        type: "text",
+                        text: {
+                          body: `🎫 *Support Ticket Bot*\n\nPlease reply describing your issue (e.g. subject, description, category, priority) or attach a screenshot detailing the problem.`
+                        }
+                      });
+                      automationHandled = true;
+                    } else {
+                      // Parse with AI immediately
+                      const parsed = await TicketAIService.parseTicket(tenantId, channelId, promptText);
+                      if (parsed && !parsed.error && parsed.subject) {
+                        const ticketId = `TKT-${Math.floor(100000 + Math.random() * 900000)}`;
+
+                        await db.insert(schema.whatsappSupportTickets).values({
+                          ticketId,
+                          tenantId,
+                          channelId,
+                          subject: parsed.subject,
+                          description: parsed.description,
+                          category: parsed.category.toLowerCase(),
+                          priority: parsed.priority.toLowerCase(),
+                          status: "open",
+                          loggedByName: contact[0]?.name || contact[0]?.phone || "Unknown",
+                          loggedByPhone: contact[0]?.phone || "Unknown",
+                        });
+
+                        await db
+                          .update(schema.conversations)
+                          .set({ aiEnabled: false })
+                          .where(eq(schema.conversations.id, conversation[0].id));
+
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: {
+                            body: `✅ *Support Ticket Logged Successfully!*\n\n🎫 Ticket ID: *${ticketId}*\n📌 Subject: *${parsed.subject}*\n📂 Category: *${parsed.category}*\n⚠️ Priority: *${parsed.priority}*\n📝 Description: *${parsed.description || "N/A"}*`
+                          }
+                        });
+
+                        // Forward email if config is enabled
+                        if (ticketConfig.forwardEnabled && ticketConfig.forwardEmail) {
+                          try {
+                            const transporter = await getTransporter();
+                            await transporter.sendMail({
+                              from: process.env.SMTP_FROM_EMAIL || "info@linalapro.com",
+                              to: ticketConfig.forwardEmail,
+                              subject: `🎫 [Support Ticket] New Ticket Alert: ${ticketId} - ${parsed.subject}`,
+                              html: `
+                                <h3>New Support Ticket Logged via WhatsApp</h3>
+                                <p>Hello,</p>
+                                <p>A new support ticket has been created. Details below:</p>
+                                <table style="width:100%; border-collapse:collapse; font-family:sans-serif;">
+                                  <tr>
+                                    <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Ticket ID:</td>
+                                    <td style="padding:8px; border:1px solid #ddd;">${ticketId}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Customer:</td>
+                                    <td style="padding:8px; border:1px solid #ddd;">${contact[0]?.name || "Unknown"} (${contact[0]?.phone || "Unknown"})</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Subject:</td>
+                                    <td style="padding:8px; border:1px solid #ddd;">${parsed.subject}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Description:</td>
+                                    <td style="padding:8px; border:1px solid #ddd;">${parsed.description}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Category:</td>
+                                    <td style="padding:8px; border:1px solid #ddd;">${parsed.category}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Priority:</td>
+                                    <td style="padding:8px; border:1px solid #ddd;">${parsed.priority}</td>
+                                  </tr>
+                                </table>
+                                <br/>
+                                <p>Best regards,<br/>Linala Team</p>
+                              `
+                            });
+                          } catch (e: any) {
+                            console.error("[Support Ticket] Failed to send forward email:", e.message);
+                          }
+                        }
+
+                        automationHandled = true;
+                      } else {
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: {
+                            body: `⚠️ *Failed to parse issue details.*\nReason: ${parsed?.error || "AI could not extract subject/details."}\n\nFormat: \`ticket <describe your issue here>\``
+                          }
+                        });
+                        automationHandled = true;
+                      }
+                    }
+                  } else if (isRetrieval) {
+                    console.log(`[Support Ticket] Triggered ticket retrieval.`);
+                    const targetTicketId = cleanContent.substring(retrievalKeyword.length).trim().toUpperCase();
+
+                    if (targetTicketId) {
+                      // Retrieve a specific ticket
+                      const [tkt] = await db
+                        .select()
+                        .from(schema.whatsappSupportTickets)
+                        .where(
+                          and(
+                            eq(schema.whatsappSupportTickets.tenantId, tenantId),
+                            eq(schema.whatsappSupportTickets.ticketId, targetTicketId)
+                          )
+                        )
+                        .limit(1);
+
+                      if (tkt) {
+                        const statusEmoji = tkt.status === "open" ? "🟢" : (tkt.status === "pending" ? "🟡" : "✅");
+                        let body = `🎫 *Support Ticket Details - ${tkt.ticketId}*\n\n`;
+                        body += `📌 Subject: *${tkt.subject}*\n`;
+                        body += `${statusEmoji} Status: *${tkt.status.toUpperCase()}*\n`;
+                        body += `⚠️ Priority: *${tkt.priority.toUpperCase()}*\n`;
+                        body += `📂 Category: *${tkt.category.toUpperCase()}*\n`;
+                        body += `📝 Description: *${tkt.description || "N/A"}*\n`;
+                        body += `👤 Assigned To: *${tkt.assignedTo || "Unassigned"}*\n`;
+                        body += `📅 Created: *${tkt.createdAt ? new Date(tkt.createdAt).toLocaleDateString() : "N/A"}*`;
+
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: { body }
+                        });
+                      } else {
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: { body: `⚠️ Ticket *${targetTicketId}* not found.` }
+                        });
+                      }
+                      automationHandled = true;
+                    } else {
+                      // Retrieve list of tickets for this contact
+                      const contactPhone = contact[0]?.phone;
+                      if (contactPhone) {
+                        const list = await db
+                          .select()
+                          .from(schema.whatsappSupportTickets)
+                          .where(
+                            and(
+                              eq(schema.whatsappSupportTickets.tenantId, tenantId),
+                              eq(schema.whatsappSupportTickets.loggedByPhone, contactPhone)
+                            )
+                          )
+                          .orderBy(desc(schema.whatsappSupportTickets.createdAt))
+                          .limit(5);
+
+                        if (list.length > 0) {
+                          let body = `🎫 *Your Recent Support Tickets:*\n\n`;
+                          for (const tkt of list) {
+                            const emoji = tkt.status === "open" ? "🟢" : (tkt.status === "pending" ? "🟡" : "✅");
+                            body += `${emoji} *${tkt.ticketId}* - ${tkt.subject} (${tkt.status.toUpperCase()})\n`;
+                          }
+                          body += `\nTo view details, reply with: \`getticket <ticketId>\``;
+                          await waApi.sendDirectMessage({
+                            to: message.from,
+                            type: "text",
+                            text: { body }
+                          });
+                        } else {
+                          await waApi.sendDirectMessage({
+                            to: message.from,
+                            type: "text",
+                            text: { body: `🎫 You do not have any logged support tickets.` }
+                          });
+                        }
+                      }
+                      automationHandled = true;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+        console.error("[Support Tickets Interceptor] Error:", err.message);
+      }
+    }
+    return automationHandled;
+  }
+
   public static async handleIncomingMessage(
     phoneNumberId: string,
     message: WebhookMessage,
@@ -1564,6 +2048,19 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
         isGroupMessage,
         channel[0]
       );
+
+      // ==================== SUPPORT TICKETS INTERCEPTOR ====================
+      if (!automationHandled) {
+        automationHandled = await WebhookHandler.interceptSupportTickets(
+          channelId,
+          conversation,
+          contact,
+          message,
+          content,
+          isGroupMessage,
+          channel[0]
+        );
+      }
 
       // 8.5 Automations (run first — takes priority over AI)
       if (!isGroupMessage && !automationHandled) {

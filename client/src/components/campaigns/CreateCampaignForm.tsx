@@ -1,5 +1,6 @@
 import { ReactNode, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -95,6 +96,7 @@ export function CreateCampaignForm({
   const [optimizeCampaignToUtility, setOptimizeCampaignToUtility] = useState(false);
   const [enableChunking, setEnableChunking] = useState(connectionMethod === "qr_code");
   const [isRecurring, setIsRecurring] = useState(false);
+  const [followUpOnlyAfterReply24h, setFollowUpOnlyAfterReply24h] = useState(true);
   const [recurringIntervalType, setRecurringIntervalType] = useState<"8" | "24" | "48" | "custom">("24");
   const [customIntervalHours, setCustomIntervalHours] = useState(24);
   const [recurringIterations, setRecurringIterations] = useState(3);
@@ -167,7 +169,7 @@ export function CreateCampaignForm({
         delayDays: 0,
         delayHours: 1,
         delayMinutes: 0,
-        messageType: "text",
+        messageType: (!isQr && !followUpOnlyAfterReply24h) ? "template" : "text",
         customMessage: "",
         mediaUrl: "",
         mediaName: "",
@@ -409,6 +411,7 @@ export function CreateCampaignForm({
       recurringIterations: isRecurring ? recurringIterations : null,
       isCadence: isCadence,
       cadenceSteps: isCadence ? cadenceSteps : [],
+      followUpOnlyAfterReply24h: isCadence ? followUpOnlyAfterReply24h : false,
       ...(isQr ? {
         customMessage,
         mediaUrl: mediaUrl || null,
@@ -528,6 +531,32 @@ export function CreateCampaignForm({
               ℹ️ A cadence campaign allows you to schedule multiple follow-up steps. If a recipient replies with <strong>&quot;Stp&quot;</strong>, they will be automatically removed from all subsequent steps to respect opt-outs.
             </div>
 
+            {!isQr && (
+              <div className="flex items-center justify-between p-3 border rounded-lg bg-white shadow-sm mb-4">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-bold text-gray-800">Follow up only after reply in 24h</Label>
+                  <p className="text-[11px] text-gray-500">
+                    If enabled, subsequent messages are sent only if the recipient replied in the last 24h.
+                    If disabled, subsequent messages must be Meta-approved templates.
+                  </p>
+                </div>
+                <Switch
+                  checked={followUpOnlyAfterReply24h}
+                  onCheckedChange={(checked) => {
+                    setFollowUpOnlyAfterReply24h(checked);
+                    // If turned off, force all cadence steps to be 'template'
+                    if (!checked) {
+                      const updated = cadenceSteps.map(step => ({
+                        ...step,
+                        messageType: "template"
+                      }));
+                      setCadenceSteps(updated);
+                    }
+                  }}
+                />
+              </div>
+            )}
+
             <div className="space-y-4">
               {cadenceSteps.map((step, idx) => (
                 <div key={idx} className="p-4 border rounded-lg bg-gray-50/50 space-y-4 relative">
@@ -587,18 +616,24 @@ export function CreateCampaignForm({
                   {/* Message Type Selector */}
                   <div>
                     <Label className="text-xs font-medium">Message Type</Label>
-                    <Select
-                      value={step.messageType}
-                      onValueChange={(val) => updateStepField(idx, "messageType", val)}
-                    >
-                      <SelectTrigger className="h-8 text-xs mt-0.5">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="text">Custom Text/Media Message</SelectItem>
-                        <SelectItem value="template">WhatsApp Template</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {!isQr && !followUpOnlyAfterReply24h ? (
+                      <div className="p-2 border rounded bg-indigo-50/40 text-xs font-semibold text-indigo-700 mt-0.5">
+                        Locked to WhatsApp Template (Requires Meta approval)
+                      </div>
+                    ) : (
+                      <Select
+                        value={step.messageType}
+                        onValueChange={(val) => updateStepField(idx, "messageType", val)}
+                      >
+                        <SelectTrigger className="h-8 text-xs mt-0.5">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="text">Custom Text/Media Message</SelectItem>
+                          <SelectItem value="template">WhatsApp Template</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
 
                   {/* If Text message */}
@@ -909,7 +944,7 @@ export function CreateCampaignForm({
             </CardHeader>
             <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
               {/* Media Upload Section */}
-              {requiresHeaderImage && (
+              {(requiresHeaderImage || isQr) && (
                 <div className="space-y-3">
                   <Label className="text-xs font-semibold text-gray-700 block">Header Media File (Optional)</Label>
                   <div className="flex flex-col md:flex-row gap-3 items-stretch">

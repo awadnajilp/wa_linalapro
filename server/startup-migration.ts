@@ -44,6 +44,11 @@ const steps: MigrationStep[] = [
     "non_deliverable_count",
     "INTEGER DEFAULT 0"
   ),
+  addColumnIfNotExists(
+    "campaigns",
+    "follow_up_only_after_reply_24h",
+    "BOOLEAN DEFAULT false"
+  ),
 
   // ────────────────────────────────────────────────────
   // automation_edges
@@ -731,6 +736,87 @@ const steps: MigrationStep[] = [
               END IF;
           END LOOP;
       END $$;
+    `,
+  },
+  {
+    description: "Create table whatsapp_support_tickets (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS whatsapp_support_tickets (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        ticket_id VARCHAR NOT NULL,
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        channel_id VARCHAR REFERENCES channels (id) ON DELETE SET NULL,
+        subject TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        priority TEXT NOT NULL DEFAULT 'medium',
+        category TEXT NOT NULL DEFAULT 'general',
+        description TEXT,
+        media_url TEXT,
+        logged_by_name TEXT,
+        logged_by_phone TEXT,
+        assigned_to TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `,
+  },
+  {
+    description: "Create table whatsapp_support_ticket_configs (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS whatsapp_support_ticket_configs (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        channel_id VARCHAR NOT NULL REFERENCES channels (id) ON DELETE CASCADE,
+        trigger_keyword TEXT DEFAULT 'ticket',
+        retrieval_keyword TEXT DEFAULT 'getticket',
+        reporting_number TEXT,
+        report_interval TEXT DEFAULT 'daily',
+        report_email TEXT,
+        email_enabled BOOLEAN DEFAULT false,
+        forward_email TEXT,
+        forward_enabled BOOLEAN DEFAULT false,
+        is_active BOOLEAN DEFAULT true,
+        ai_prompt TEXT DEFAULT 'You are a helper AI for a Support Ticket app. Analyze the text representing a support ticket issue, description, or raw chat, and extract the subject, category, priority, and description.',
+        next_report_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `,
+  },
+  {
+    description: "Create table whatsapp_support_ticket_sessions (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS whatsapp_support_ticket_sessions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        conversation_id VARCHAR NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
+        status TEXT NOT NULL,
+        subject TEXT,
+        category TEXT,
+        priority TEXT,
+        description TEXT,
+        media_url TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `,
+  },
+  {
+    description: "Insert default Support Ticket Module addon (if not exists)",
+    sql: `
+      INSERT INTO addons (id, slug, name, description, price, billing_cycle, ai_key_type, default_credits, is_active)
+      VALUES (
+        'addon-support-tickets-uuid', 
+        'support-tickets', 
+        'Support Tickets', 
+        'Enable interactive support ticket creation and management on WhatsApp, with automated email forwarding and summary reports.', 
+        14.99, 
+        'monthly', 
+        'tenant',
+        0,
+        true
+      )
+      ON CONFLICT (slug) DO UPDATE
+      SET name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          price = EXCLUDED.price;
     `,
   },
 ];

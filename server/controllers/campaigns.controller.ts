@@ -114,6 +114,7 @@ const createCampaignSchema = z.object({
   recurringIterations: z.number().optional().nullable(),
   isCadence: z.boolean().optional(),
   cadenceSteps: z.array(z.any()).optional(),
+  followUpOnlyAfterReply24h: z.boolean().optional(),
 });
 
 const updateStatusSchema = z.object({

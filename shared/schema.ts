@@ -204,6 +204,7 @@ export const campaigns = pgTable(
     parentCampaignId: varchar("parent_campaign_id"),
     isCadence: boolean("is_cadence").default(false),
     cadenceSteps: jsonb("cadence_steps").$type<any[]>().default([]),
+    followUpOnlyAfterReply24h: boolean("follow_up_only_after_reply_24h").default(false),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
@@ -2421,6 +2422,54 @@ export const expenseSessions = pgTable("expense_sessions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const whatsappSupportTickets = pgTable("whatsapp_support_tickets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ticketId: varchar("ticket_id").notNull(),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "set null" }),
+  subject: text("subject").notNull(),
+  status: text("status").notNull().default("open"), // "open", "pending", "resolved", "closed"
+  priority: text("priority").notNull().default("medium"), // "low", "medium", "high", "urgent"
+  category: text("category").notNull().default("general"), // "technical", "billing", "sales", "general"
+  description: text("description"),
+  mediaUrl: text("media_url"),
+  loggedByName: text("logged_by_name"),
+  loggedByPhone: text("logged_by_phone"),
+  assignedTo: text("assigned_to"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const whatsappSupportTicketConfigs = pgTable("whatsapp_support_ticket_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  triggerKeyword: text("trigger_keyword").default("ticket"),
+  retrievalKeyword: text("retrieval_keyword").default("getticket"),
+  reportingNumber: text("reporting_number"),
+  reportInterval: text("report_interval").default("daily"), // "daily", "weekly", "monthly"
+  reportEmail: text("report_email"),
+  emailEnabled: boolean("email_enabled").default(false),
+  forwardEmail: text("forward_email"),
+  forwardEnabled: boolean("forward_enabled").default(false),
+  isActive: boolean("is_active").default(true),
+  aiPrompt: text("ai_prompt").default("You are a helper AI for a Support Ticket app. Analyze the text representing a support ticket issue, description, or raw chat, and extract the subject, category, priority, and description."),
+  nextReportAt: timestamp("next_report_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const whatsappSupportTicketSessions = pgTable("whatsapp_support_ticket_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  status: text("status").notNull(), // "waiting_for_subject", "waiting_for_category", "waiting_for_details"
+  subject: text("subject"),
+  category: text("category"),
+  priority: text("priority"),
+  description: text("description"),
+  mediaUrl: text("media_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Zod schemas
 export const insertAddonSchema = createInsertSchema(addons);
 export const insertTenantAddonSchema = createInsertSchema(tenantAddons);
@@ -2428,6 +2477,9 @@ export const insertPaymentAccountSchema = createInsertSchema(paymentAccounts);
 export const insertExpenseSchema = createInsertSchema(expenses);
 export const insertExpenseConfigSchema = createInsertSchema(expenseConfigs);
 export const insertExpenseSessionSchema = createInsertSchema(expenseSessions);
+export const insertWhatsappSupportTicketSchema = createInsertSchema(whatsappSupportTickets);
+export const insertWhatsappSupportTicketConfigSchema = createInsertSchema(whatsappSupportTicketConfigs);
+export const insertWhatsappSupportTicketSessionSchema = createInsertSchema(whatsappSupportTicketSessions);
 
 // TypeScript types
 export type Addon = typeof addons.$inferSelect;
@@ -2442,5 +2494,11 @@ export type ExpenseConfig = typeof expenseConfigs.$inferSelect;
 export type InsertExpenseConfig = typeof expenseConfigs.$inferInsert;
 export type ExpenseSession = typeof expenseSessions.$inferSelect;
 export type InsertExpenseSession = typeof expenseSessions.$inferInsert;
+export type WhatsappSupportTicket = typeof whatsappSupportTickets.$inferSelect;
+export type InsertWhatsappSupportTicket = typeof whatsappSupportTickets.$inferInsert;
+export type WhatsappSupportTicketConfig = typeof whatsappSupportTicketConfigs.$inferSelect;
+export type InsertWhatsappSupportTicketConfig = typeof whatsappSupportTicketConfigs.$inferInsert;
+export type WhatsappSupportTicketSession = typeof whatsappSupportTicketSessions.$inferSelect;
+export type InsertWhatsappSupportTicketSession = typeof whatsappSupportTicketSessions.$inferInsert;
 
 

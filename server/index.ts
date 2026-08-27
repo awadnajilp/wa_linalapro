@@ -58,6 +58,7 @@ import { diployLogger, DIPLOY_HEADER_KEY, DIPLOY_HEADER_VALUE, DIPLOY_VERSION, D
 import { createAdapter } from "@socket.io/redis-adapter";
 import { runStartupMigration } from "./startup-migration";
 import { initExpenseReportCron } from "./services/expense-report-cron";
+import { initTicketReportCron } from "./services/ticket-report-cron";
 
 const app = express();
 const httpServer = createServer(app);
@@ -798,7 +799,8 @@ app.use((req, res, next) => {
       startDeleteAccountCleanupCron();
       startExchangeRatesCron();
       startUnrepliedAlertService();
-      initExpenseReportCron();
+       initExpenseReportCron();
+       initTicketReportCron();
 
       const messageStatusUpdater = new MessageStatusUpdater();
       messageStatusUpdater.startCronJob(60);

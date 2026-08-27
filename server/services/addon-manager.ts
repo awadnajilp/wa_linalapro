@@ -108,7 +108,7 @@ export class AddonManager {
    */
   public static async preloadPredefinedFlow(tenantId: string, channelId: string, addonSlug: string): Promise<void> {
     try {
-      if (addonSlug !== "expense-tracker") return;
+      if (addonSlug !== "expense-tracker" && addonSlug !== "support-tickets") return;
 
       // Check if template already exists
       const existing = await db
@@ -442,6 +442,208 @@ export class AddonManager {
           emailEnabled: false,
         });
         console.log(`[AddonManager] Prepopulated default expense config for channel ${channelId}`);
+      }
+
+      if (addonSlug === "support-tickets") {
+        // Check if template already exists
+        const existingTkt = await db
+          .select()
+          .from(schema.automations)
+          .where(
+            and(
+              eq(schema.automations.channelId, channelId),
+              eq(schema.automations.name, "WhatsApp Support Ticket Bot")
+            )
+          )
+          .limit(1);
+
+        if (existingTkt.length > 0) {
+          console.log(`[AddonManager] Predefined support ticket flow already exists for channel ${channelId}`);
+          return;
+        }
+
+        console.log(`[AddonManager] Preloading WhatsApp Support Ticket Bot template for channel ${channelId}`);
+
+        // 1. Create main Support Ticket automation record
+        const [newTicketAutomation] = await db
+          .insert(schema.automations)
+          .values({
+            channelId,
+            name: "WhatsApp Support Ticket Bot",
+            description: "Default predefined chatbot template for creating support tickets on WhatsApp.",
+            trigger: "message_received",
+            status: "active",
+            createdBy: tenantId,
+          })
+          .returning();
+
+        // Create predefined nodes for Support Ticket
+        const tktTriggerNodeId = `node-tkt-trigger-${channelId}`;
+        const tktQ1NodeId = `node-tkt-q1-${channelId}`;
+        const tktQ2NodeId = `node-tkt-q2-${channelId}`;
+        const tktQ3NodeId = `node-tkt-q3-${channelId}`;
+        const tktQ4NodeId = `node-tkt-q4-${channelId}`;
+        const tktQ5NodeId = `node-tkt-q5-${channelId}`;
+        const tktQ6NodeId = `node-tkt-q6-${channelId}`;
+
+        await db.insert(schema.automationNodes).values([
+          {
+            automationId: newTicketAutomation.id,
+            nodeId: tktTriggerNodeId,
+            type: "trigger",
+            subtype: "message_received",
+            position: { x: 100, y: 150 },
+            data: {
+              label: "Trigger: Inbound Message",
+              trigger: "message_received",
+            },
+            connections: [tktQ1NodeId],
+          },
+          {
+            automationId: newTicketAutomation.id,
+            nodeId: tktQ1NodeId,
+            type: "user_reply",
+            subtype: "send_message",
+            position: { x: 100, y: 300 },
+            data: {
+              label: "Ask Subject",
+              question: "Please enter the subject/title of your support ticket.",
+              saveAs: "ticket_subject",
+            },
+            connections: [tktQ2NodeId],
+          },
+          {
+            automationId: newTicketAutomation.id,
+            nodeId: tktQ2NodeId,
+            type: "user_reply",
+            subtype: "send_message",
+            position: { x: 100, y: 450 },
+            data: {
+              label: "Ask Description",
+              question: "Please provide a brief description of the issue.",
+              saveAs: "ticket_description",
+            },
+            connections: [tktQ3NodeId],
+          },
+          {
+            automationId: newTicketAutomation.id,
+            nodeId: tktQ3NodeId,
+            type: "user_reply",
+            subtype: "send_message",
+            position: { x: 100, y: 600 },
+            data: {
+              label: "Ask Category",
+              question: "What category does this issue fall into? (e.g. Technical, Billing, Sales, General)",
+              saveAs: "ticket_category",
+            },
+            connections: [tktQ4NodeId],
+          },
+          {
+            automationId: newTicketAutomation.id,
+            nodeId: tktQ4NodeId,
+            type: "user_reply",
+            subtype: "send_message",
+            position: { x: 100, y: 750 },
+            data: {
+              label: "Ask Priority",
+              question: "What is the priority of this issue? (Low, Medium, High, Urgent)",
+              saveAs: "ticket_priority",
+            },
+            connections: [tktQ5NodeId],
+          },
+          {
+            automationId: newTicketAutomation.id,
+            nodeId: tktQ5NodeId,
+            type: "user_reply",
+            subtype: "send_message",
+            position: { x: 100, y: 900 },
+            data: {
+              label: "Ask Confirm Attachment",
+              question: "Do you want to attach a screenshot or image? Yes (y) or No (n)",
+              saveAs: "ticket_screenshot_confirm",
+            },
+            connections: [tktQ6NodeId],
+          },
+          {
+            automationId: newTicketAutomation.id,
+            nodeId: tktQ6NodeId,
+            type: "user_reply",
+            subtype: "send_message",
+            position: { x: 100, y: 1050 },
+            data: {
+              label: "Ask Upload Screenshot",
+              question: "Please upload/attach the screenshot image.",
+              saveAs: "ticket_screenshot_media",
+            },
+            connections: [],
+          },
+        ]);
+
+        // Connect edges for Support Ticket
+        await db.insert(schema.automationEdges).values([
+          {
+            id: crypto.randomUUID(),
+            automationId: newTicketAutomation.id,
+            sourceNodeId: tktTriggerNodeId,
+            targetNodeId: tktQ1NodeId,
+            animated: true,
+          },
+          {
+            id: crypto.randomUUID(),
+            automationId: newTicketAutomation.id,
+            sourceNodeId: tktQ1NodeId,
+            targetNodeId: tktQ2NodeId,
+            animated: true,
+          },
+          {
+            id: crypto.randomUUID(),
+            automationId: newTicketAutomation.id,
+            sourceNodeId: tktQ2NodeId,
+            targetNodeId: tktQ3NodeId,
+            animated: true,
+          },
+          {
+            id: crypto.randomUUID(),
+            automationId: newTicketAutomation.id,
+            sourceNodeId: tktQ3NodeId,
+            targetNodeId: tktQ4NodeId,
+            animated: true,
+          },
+          {
+            id: crypto.randomUUID(),
+            automationId: newTicketAutomation.id,
+            sourceNodeId: tktQ4NodeId,
+            targetNodeId: tktQ5NodeId,
+            animated: true,
+          },
+          {
+            id: crypto.randomUUID(),
+            automationId: newTicketAutomation.id,
+            sourceNodeId: tktQ5NodeId,
+            targetNodeId: tktQ6NodeId,
+            animated: true,
+          },
+        ]);
+
+        // Prepopulate default configuration
+        const existingConfigTkt = await db
+          .select()
+          .from(schema.whatsappSupportTicketConfigs)
+          .where(eq(schema.whatsappSupportTicketConfigs.channelId, channelId))
+          .limit(1);
+
+        if (existingConfigTkt.length === 0) {
+          await db.insert(schema.whatsappSupportTicketConfigs).values({
+            tenantId,
+            channelId,
+            triggerKeyword: "ticket",
+            retrievalKeyword: "getticket",
+            reportInterval: "daily",
+            emailEnabled: false,
+            forwardEnabled: false,
+          });
+          console.log(`[AddonManager] Prepopulated default support ticket config for channel ${channelId}`);
+        }
       }
 
     } catch (err: any) {

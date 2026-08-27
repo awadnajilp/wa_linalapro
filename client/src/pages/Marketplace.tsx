@@ -226,6 +226,14 @@ export default function Marketplace() {
                           Open Module
                         </Button>
                       )}
+                      {addon.slug === "support-tickets" && (
+                        <Button 
+                          className="w-full bg-rose-600 hover:bg-rose-700 text-white"
+                          onClick={() => window.location.href = "/tickets"}
+                        >
+                          Open Module
+                        </Button>
+                      )}
                     </>
                   ) : (
                     <Button 
@@ -261,7 +269,7 @@ export default function Marketplace() {
 
             <div className="py-4 space-y-5">
               {/* Option Mode Selector */}
-              {targetAddon.slug === "expense-tracker" && (
+              {(targetAddon.slug === "expense-tracker" || targetAddon.slug === "support-tickets") && (
                 <div className="space-y-3">
                   <Label className="text-sm font-bold text-gray-700">Select Addon Mode</Label>
                   <div className="grid grid-cols-1 gap-3">
@@ -274,7 +282,11 @@ export default function Marketplace() {
                       <BookOpen className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
                       <div>
                         <h4 className="text-sm font-bold text-gray-800">Standard Flow-based Mode</h4>
-                        <p className="text-xs text-gray-500 mt-0.5">Collects logs sequentially using the predefined Q&A canvas flow. No credit constraints.</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {targetAddon.slug === "support-tickets" 
+                            ? "Collects support details sequentially using the predefined Q&A canvas flow. No credit constraints." 
+                            : "Collects logs sequentially using the predefined Q&A canvas flow. No credit constraints."}
+                        </p>
                       </div>
                     </div>
 
@@ -287,7 +299,11 @@ export default function Marketplace() {
                       <Volume2 className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
                       <div>
                         <h4 className="text-sm font-bold text-gray-800">AI-based Agent Mode</h4>
-                        <p className="text-xs text-gray-500 mt-0.5">Unlocks voice message transcription and instant AI expense extraction. Requires credit recharges (Includes 100 default credits).</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {targetAddon.slug === "support-tickets"
+                            ? "Unlocks voice message transcription and instant AI support ticket extraction. Requires credit recharges (Includes 100 default credits)."
+                            : "Unlocks voice message transcription and instant AI expense extraction. Requires credit recharges (Includes 100 default credits)."}
+                        </p>
                       </div>
                     </div>
                   </div>

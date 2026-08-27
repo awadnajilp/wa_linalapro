@@ -46,8 +46,11 @@ import {
   expenseConfigs,
   addons,
   tenantAddons,
+  whatsappSupportTickets,
+  whatsappSupportTicketConfigs,
 } from "@shared/schema";
 import OpenAI from "openai";
+import { getTransporter } from "./email.service";
 import { ExpenseAIService } from "./expense-ai-service";
 import { searchTrainingData } from "./training.service";
 import { VoiceManager } from "./voice";
@@ -3485,7 +3488,14 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       } else if (mediaType === 'image') {
         mimeType = 'image/jpeg';
       } else if (mediaType === 'audio') {
-        mimeType = 'audio/mpeg';
+        const lowerName = (mediaFileName || mediaSource || '').toLowerCase();
+        if (lowerName.endsWith('.ogg') || lowerName.endsWith('.oga') || lowerName.endsWith('.opus')) {
+          mimeType = 'audio/ogg';
+        } else if (lowerName.endsWith('.wav')) {
+          mimeType = 'audio/wav';
+        } else {
+          mimeType = 'audio/mpeg';
+        }
       } else if (mediaType === 'document') {
         const lowerName = (mediaFileName || mediaSource || '').toLowerCase();
         if (lowerName.endsWith('.pdf')) {
@@ -3536,7 +3546,16 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         
         let mimeType = 'image/jpeg';
         if (mediaType === 'video') mimeType = 'video/mp4';
-        else if (mediaType === 'audio') mimeType = 'audio/mpeg';
+        else if (mediaType === 'audio') {
+          const lowerName = (mediaFileName || mediaUrl || '').toLowerCase();
+          if (lowerName.endsWith('.ogg') || lowerName.endsWith('.oga') || lowerName.endsWith('.opus')) {
+            mimeType = 'audio/ogg';
+          } else if (lowerName.endsWith('.wav')) {
+            mimeType = 'audio/wav';
+          } else {
+            mimeType = 'audio/mpeg';
+          }
+        }
         else if (mediaType === 'document') {
           const lowerName = (mediaFileName || mediaUrl || '').toLowerCase();
           if (lowerName.endsWith('.pdf')) mimeType = 'application/pdf';
@@ -5778,6 +5797,119 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
               }
             }
           }
+
+          // Check for Support Ticket flow completion
+          const isTicketFlow = !!vars.ticket_subject;
+          if (isTicketFlow) {
+            const subject = vars.ticket_subject;
+            const description = vars.ticket_description || subject;
+            const category = vars.ticket_category || "general";
+            const priority = vars.ticket_priority || "medium";
+            const screenshotMedia = vars.ticket_screenshot_media || null;
+
+            const channelId = execution.automation.channelId;
+            const tenantId = execution.automation.createdBy;
+
+            if (channelId && tenantId) {
+              const ticketId = `TKT-${Math.floor(100000 + Math.random() * 900000)}`;
+
+              const getContact = await db.query.contacts.findFirst({
+                where: eq(contacts.id, execution.contactId!),
+              });
+
+              await db.insert(whatsappSupportTickets).values({
+                ticketId,
+                tenantId,
+                channelId,
+                subject,
+                description,
+                category: category.toLowerCase(),
+                priority: priority.toLowerCase(),
+                status: "open",
+                loggedByName: getContact?.name || getContact?.phone || "Unknown",
+                loggedByPhone: getContact?.phone || "Unknown",
+                mediaUrl: screenshotMedia,
+              });
+
+              // Disable AI Takeover for this conversation thread
+              await db
+                .update(conversations)
+                .set({ aiEnabled: false })
+                .where(eq(conversations.id, execution.conversationId));
+
+              // Send confirmation message
+              const channel = await storage.getChannel(channelId);
+              if (getContact && channel) {
+                const waApi = new WhatsAppApiService(channel);
+                await waApi.sendDirectMessage({
+                  to: getContact.phone,
+                  type: "text",
+                  text: {
+                    body: `✅ *Support Ticket Created Successfully! (Flow Mode)*\n\n🎫 Ticket ID: *${ticketId}*\n📌 Subject: *${subject}*\n📂 Category: *${category}*\n⚠️ Priority: *${priority}*`
+                  }
+                });
+              }
+
+              // Send email alert (forwarding to mail) if enabled
+              const [config] = await db
+                .select()
+                .from(whatsappSupportTicketConfigs)
+                .where(eq(whatsappSupportTicketConfigs.channelId, channelId))
+                .limit(1);
+
+              if (config && config.forwardEnabled && config.forwardEmail) {
+                try {
+                  const transporter = await getTransporter();
+                  await transporter.sendMail({
+                    from: process.env.SMTP_FROM_EMAIL || "info@linalapro.com",
+                    to: config.forwardEmail,
+                    subject: `🎫 [Support Ticket] New Ticket Alert: ${ticketId} - ${subject}`,
+                    html: `
+                      <h3>New Support Ticket Logged via WhatsApp</h3>
+                      <p>Hello,</p>
+                      <p>A new support ticket has been created automatically. Details below:</p>
+                      <table style="width:100%; border-collapse:collapse; font-family:sans-serif;">
+                        <tr>
+                          <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Ticket ID:</td>
+                          <td style="padding:8px; border:1px solid #ddd;">${ticketId}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Customer:</td>
+                          <td style="padding:8px; border:1px solid #ddd;">${getContact?.name || "Unknown"} (${getContact?.phone || "Unknown"})</td>
+                        </tr>
+                        <tr>
+                          <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Subject:</td>
+                          <td style="padding:8px; border:1px solid #ddd;">${subject}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Description:</td>
+                          <td style="padding:8px; border:1px solid #ddd;">${description}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Category:</td>
+                          <td style="padding:8px; border:1px solid #ddd;">${category}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Priority:</td>
+                          <td style="padding:8px; border:1px solid #ddd;">${priority}</td>
+                        </tr>
+                        ${screenshotMedia ? `
+                        <tr>
+                          <td style="padding:8px; border:1px solid #ddd; font-weight:bold;">Attachment:</td>
+                          <td style="padding:8px; border:1px solid #ddd;"><a href="${screenshotMedia}">View Screenshot</a></td>
+                        </tr>` : ""}
+                      </table>
+                      <br/>
+                      <p>Best regards,<br/>Linala Team</p>
+                    `
+                  });
+                  console.log(`[Support Ticket Flow] Forwarded email alert to ${config.forwardEmail}`);
+                } catch (emailErr: any) {
+                  console.error(`[Support Ticket Flow] Failed to send forward email to ${config.forwardEmail}:`, emailErr.message);
+                }
+              }
+            }
+          }
         }
       }
     } catch (err) {
@@ -6815,6 +6947,65 @@ export class AutomationTriggerService {
         }
         if (automation.name === "WhatsApp Income Tracker Bot" && !contentStr.startsWith(incomeKeyword)) {
           console.log(`[Expense Tracker] Skipping predefined Income flow trigger execution because message "${contentStr}" does not match income keyword "${incomeKeyword}"`);
+          continue;
+        }
+      }
+
+      if (automation.name === "WhatsApp Support Ticket Bot") {
+        // Skip predefined flow triggers if channel/tenant is currently in AI Mode
+        const tenantId = automation.createdBy;
+        const [targetAddon] = await db
+          .select()
+          .from(addons)
+          .where(and(eq(addons.slug, "support-tickets"), eq(addons.isActive, true)))
+          .limit(1);
+
+        let isAiMode = false;
+        if (targetAddon) {
+          const [subscription] = await db
+            .select()
+            .from(tenantAddons)
+            .where(
+              and(
+                eq(tenantAddons.tenantId, tenantId),
+                eq(tenantAddons.addonId, targetAddon.id)
+              )
+            )
+            .limit(1);
+
+          const [user] = await db
+            .select()
+            .from(users)
+            .where(eq(users.id, tenantId))
+            .limit(1);
+
+          const isSubscriptionActive = subscription
+            ? (subscription.status === "active" || user?.role === "superadmin")
+            : (user?.role === "superadmin" ? true : false);
+
+          const purchaseType = subscription?.purchaseType || (user?.role === "superadmin" ? "ai" : "flow");
+
+          if (isSubscriptionActive && purchaseType === "ai") {
+            isAiMode = true;
+          }
+        }
+
+        if (isAiMode) {
+          console.log(`[Support Tickets] Skipping predefined flow trigger execution because channel is in AI mode.`);
+          continue;
+        }
+
+        const [config] = await db
+          .select()
+          .from(whatsappSupportTicketConfigs)
+          .where(eq(whatsappSupportTicketConfigs.channelId, channelId))
+          .limit(1);
+
+        const triggerKeyword = (config?.triggerKeyword || "ticket").toLowerCase();
+        const contentStr = (message.content || message.text || "").trim().toLowerCase();
+
+        if (!contentStr.startsWith(triggerKeyword)) {
+          console.log(`[Support Tickets] Skipping predefined Support Ticket flow trigger execution because message "${contentStr}" does not match trigger "${triggerKeyword}"`);
           continue;
         }
       }

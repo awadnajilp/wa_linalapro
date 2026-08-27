@@ -484,84 +484,201 @@ async function exportPDF(req: Request, res: Response) {
 
 // Helper function to export Excel
 export async function exportExcel(req: Request, res: Response) {
-  const { type, channelId, days = "30" } = req.query;
+  const { type, channelId, days = "30", campaignId } = req.query;
 
   const workbook = new ExcelJS.Workbook();
 
-  // ----------------------
-  // Message Analytics Sheet
-  // ----------------------
-  if (type === "messages" || type === "all") {
-    const daysNum = parseInt(days as string, 10);
-    const start = new Date(Date.now() - daysNum * 24 * 60 * 60 * 1000);
-
-    const conditions = [];
-    if (channelId) {
-      conditions.push(eq(conversations.channelId, channelId as string));
+  if (campaignId) {
+    const campaign = await storage.getCampaign(campaignId as string);
+    if (!campaign) {
+      return res.status(404).send("Campaign not found");
     }
-    conditions.push(gte(messages.createdAt, start));
 
-    const messageData = await dbRead
-      .select({
-        date: sql<string>`DATE(${messages.createdAt})`,
-        totalMessages: count(messages.id),
-        outbound: sql<number>`COUNT(CASE WHEN ${messages.direction} = 'outbound' THEN 1 END)`,
-        inbound: sql<number>`COUNT(CASE WHEN ${messages.direction} = 'inbound' THEN 1 END)`,
-        delivered: sql<number>`COUNT(CASE WHEN ${messages.direction} = 'outbound' AND ${messages.status} IN ('delivered', 'read') THEN 1 END)`,
-        read: sql<number>`COUNT(CASE WHEN ${messages.direction} = 'outbound' AND ${messages.status} = 'read' THEN 1 END)`,
-        failed: sql<number>`COUNT(CASE WHEN ${messages.direction} = 'outbound' AND ${messages.status} = 'failed' THEN 1 END)`,
-      })
-      .from(messages)
-      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-      .where(and(...conditions))
-      .groupBy(sql`DATE(${messages.createdAt})`)
-      .orderBy(sql`DATE(${messages.createdAt})`);
+    // 1. Overview Sheet
+    const overviewSheet = workbook.addWorksheet("Campaign Overview");
+    overviewSheet.columns = [
+      { header: "Metric", key: "metric", width: 25 },
+      { header: "Value", key: "value", width: 45 }
+    ];
+    overviewSheet.addRows([
+      { metric: "Campaign Name", value: campaign.name },
+      { metric: "Description", value: campaign.description || "N/A" },
+      { metric: "Campaign Type", value: campaign.campaignType || "contacts" },
+      { metric: "Channel ID", value: campaign.channelId },
+      { metric: "Status", value: campaign.status },
+      { metric: "Total Recipients", value: campaign.recipientCount || 0 },
+      { metric: "Sent Count", value: campaign.sentCount || 0 },
+      { metric: "Delivered Count", value: campaign.deliveredCount || 0 },
+      { metric: "Read Count", value: campaign.readCount || 0 },
+      { metric: "Failed Count", value: campaign.failedCount || 0 },
+      { metric: "Created At", value: campaign.createdAt ? new Date(campaign.createdAt).toLocaleString() : "N/A" }
+    ]);
 
-    const ws = workbook.addWorksheet("Message Analytics");
+    // 2. Load recipients list (matching controller logic)
+    let recipientsList = await dbRead
+      .select()
+      .from(campaignRecipients)
+      .where(eq(campaignRecipients.campaignId, campaign.id));
 
-    if (messageData.length > 0) {
-      // Add header row
-      ws.columns = Object.keys(messageData[0]).map((key) => ({
-        header: key.charAt(0).toUpperCase() + key.slice(1),
-        key,
-        width: 15,
-      }));
+    if (recipientsList.length === 0) {
+      const queueEntries = await dbRead
+        .select({
+          id: messageQueue.id,
+          campaignId: messageQueue.campaignId,
+          phone: messageQueue.recipientPhone,
+          status: messageQueue.status,
+          sentAt: messageQueue.processedAt,
+          deliveredAt: messageQueue.deliveredAt,
+          readAt: messageQueue.readAt,
+          errorCode: messageQueue.errorCode,
+          errorMessage: messageQueue.errorMessage,
+          name: contactsTable.name,
+        })
+        .from(messageQueue)
+        .leftJoin(contactsTable, and(
+          eq(contactsTable.phone, messageQueue.recipientPhone),
+          eq(contactsTable.channelId, messageQueue.channelId)
+        ))
+        .where(eq(messageQueue.campaignId, campaign.id));
 
-      // Add data rows
-      messageData.forEach((row) => ws.addRow(row));
+      if (queueEntries.length > 0) {
+        recipientsList = queueEntries.map(e => ({
+          id: e.id,
+          campaignId: e.campaignId || "",
+          phone: e.phone,
+          status: e.status,
+          sentAt: e.sentAt || null,
+          deliveredAt: e.deliveredAt || null,
+          readAt: e.readAt || null,
+          errorCode: e.errorCode || null,
+          errorMessage: e.errorMessage || null,
+          name: e.name || "Unknown",
+        })) as any[];
+      }
     }
-  }
 
-  // ----------------------
-  // Campaign Analytics Sheet
-  // ----------------------
-  if (type === "campaigns" || type === "all") {
-    const campaignData = await dbRead
-      .select({
-        name: campaigns.name,
-        type: campaigns.type,
-        status: campaigns.status,
-        recipients: campaigns.recipientCount,
-        sent: campaigns.sentCount,
-        delivered: campaigns.deliveredCount,
-        read: campaigns.readCount,
-        replied: campaigns.repliedCount,
-        failed: campaigns.failedCount,
-      })
-      .from(campaigns)
-      .where(channelId ? eq(campaigns.channelId, channelId as string) : undefined)
-      .orderBy(desc(campaigns.createdAt));
+    // 3. All Recipients Sheet
+    const allRecipientsSheet = workbook.addWorksheet("All Recipients");
+    allRecipientsSheet.columns = [
+      { header: "Name", key: "name", width: 25 },
+      { header: "Phone Number", key: "phone", width: 20 },
+      { header: "Status", key: "status", width: 15 },
+      { header: "Sent At", key: "sentAt", width: 25 },
+      { header: "Delivered At", key: "deliveredAt", width: 25 },
+      { header: "Read At", key: "readAt", width: 25 },
+      { header: "Error Code", key: "errorCode", width: 15 },
+      { header: "Error Message", key: "errorMessage", width: 40 }
+    ];
 
-    const ws = workbook.addWorksheet("Campaign Analytics");
+    recipientsList.forEach(r => {
+      allRecipientsSheet.addRow({
+        name: r.name || "Unknown",
+        phone: r.phone,
+        status: r.status,
+        sentAt: r.sentAt ? new Date(r.sentAt).toLocaleString() : "N/A",
+        deliveredAt: r.deliveredAt ? new Date(r.deliveredAt).toLocaleString() : "N/A",
+        readAt: r.readAt ? new Date(r.readAt).toLocaleString() : "N/A",
+        errorCode: r.errorCode || "N/A",
+        errorMessage: r.errorMessage || "N/A"
+      });
+    });
 
-    if (campaignData.length > 0) {
-      ws.columns = Object.keys(campaignData[0]).map((key) => ({
-        header: key.charAt(0).toUpperCase() + key.slice(1),
-        key,
-        width: 15,
-      }));
+    // 4. Failed Deliveries Sheet
+    const failedSheet = workbook.addWorksheet("Failed Deliveries");
+    failedSheet.columns = [
+      { header: "Name", key: "name", width: 25 },
+      { header: "Phone Number", key: "phone", width: 20 },
+      { header: "Error Code", key: "errorCode", width: 15 },
+      { header: "Error Message", key: "errorMessage", width: 45 },
+      { header: "Sent At", key: "sentAt", width: 25 }
+    ];
 
-      campaignData.forEach((row) => ws.addRow(row));
+    const failedRecipients = recipientsList.filter(r => r.status === "failed");
+    failedRecipients.forEach(r => {
+      failedSheet.addRow({
+        name: r.name || "Unknown",
+        phone: r.phone,
+        errorCode: r.errorCode || "N/A",
+        errorMessage: r.errorMessage || "Unknown issue",
+        sentAt: r.sentAt ? new Date(r.sentAt).toLocaleString() : "N/A"
+      });
+    });
+  } else {
+    // ----------------------
+    // Message Analytics Sheet
+    // ----------------------
+    if (type === "messages" || type === "all") {
+      const daysNum = parseInt(days as string, 10);
+      const start = new Date(Date.now() - daysNum * 24 * 60 * 60 * 1000);
+
+      const conditions = [];
+      if (channelId) {
+        conditions.push(eq(conversations.channelId, channelId as string));
+      }
+      conditions.push(gte(messages.createdAt, start));
+
+      const messageData = await dbRead
+        .select({
+          date: sql<string>`DATE(${messages.createdAt})`,
+          totalMessages: count(messages.id),
+          outbound: sql<number>`COUNT(CASE WHEN ${messages.direction} = 'outbound' THEN 1 END)`,
+          inbound: sql<number>`COUNT(CASE WHEN ${messages.direction} = 'inbound' THEN 1 END)`,
+          delivered: sql<number>`COUNT(CASE WHEN ${messages.direction} = 'outbound' AND ${messages.status} IN ('delivered', 'read') THEN 1 END)`,
+          read: sql<number>`COUNT(CASE WHEN ${messages.direction} = 'outbound' AND ${messages.status} = 'read' THEN 1 END)`,
+          failed: sql<number>`COUNT(CASE WHEN ${messages.direction} = 'outbound' AND ${messages.status} = 'failed' THEN 1 END)`,
+        })
+        .from(messages)
+        .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+        .where(and(...conditions))
+        .groupBy(sql`DATE(${messages.createdAt})`)
+        .orderBy(sql`DATE(${messages.createdAt})`);
+
+      const ws = workbook.addWorksheet("Message Analytics");
+
+      if (messageData.length > 0) {
+        // Add header row
+        ws.columns = Object.keys(messageData[0]).map((key) => ({
+          header: key.charAt(0).toUpperCase() + key.slice(1),
+          key,
+          width: 15,
+        }));
+
+        // Add data rows
+        messageData.forEach((row) => ws.addRow(row));
+      }
+    }
+
+    // ----------------------
+    // Campaign Analytics Sheet
+    // ----------------------
+    if (type === "campaigns" || type === "all") {
+      const campaignData = await dbRead
+        .select({
+          name: campaigns.name,
+          type: campaigns.type,
+          status: campaigns.status,
+          recipients: campaigns.recipientCount,
+          sent: campaigns.sentCount,
+          delivered: campaigns.deliveredCount,
+          read: campaigns.readCount,
+          replied: campaigns.repliedCount,
+          failed: campaigns.failedCount,
+        })
+        .from(campaigns)
+        .where(channelId ? eq(campaigns.channelId, channelId as string) : undefined)
+        .orderBy(desc(campaigns.createdAt));
+
+      const ws = workbook.addWorksheet("Campaign Analytics");
+
+      if (campaignData.length > 0) {
+        ws.columns = Object.keys(campaignData[0]).map((key) => ({
+          header: key.charAt(0).toUpperCase() + key.slice(1),
+          key,
+          width: 15,
+        }));
+
+        campaignData.forEach((row) => ws.addRow(row));
+      }
     }
   }
 

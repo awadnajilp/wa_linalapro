@@ -880,8 +880,8 @@ export function registerAddonsRoutes(app: Express) {
       // Forward email if config is enabled
       const [config] = await db
         .select()
-        .from(schema.supportTicketConfigs)
-        .where(eq(schema.supportTicketConfigs.channelId, channelId))
+        .from(schema.whatsappSupportTicketConfigs)
+        .where(eq(schema.whatsappSupportTicketConfigs.channelId, channelId))
         .limit(1);
 
       if (config && config.forwardEnabled && config.forwardEmail) {
@@ -1085,11 +1085,11 @@ export function registerAddonsRoutes(app: Express) {
 
       const [config] = await db
         .select()
-        .from(schema.supportTicketConfigs)
+        .from(schema.whatsappSupportTicketConfigs)
         .where(
           and(
-            eq(schema.supportTicketConfigs.tenantId, tenantId),
-            eq(schema.supportTicketConfigs.channelId, String(channelId))
+            eq(schema.whatsappSupportTicketConfigs.tenantId, tenantId),
+            eq(schema.whatsappSupportTicketConfigs.channelId, String(channelId))
           )
         )
         .limit(1);
@@ -1153,14 +1153,14 @@ export function registerAddonsRoutes(app: Express) {
 
       const [existing] = await db
         .select()
-        .from(schema.supportTicketConfigs)
-        .where(eq(schema.supportTicketConfigs.channelId, channelId))
+        .from(schema.whatsappSupportTicketConfigs)
+        .where(eq(schema.whatsappSupportTicketConfigs.channelId, channelId))
         .limit(1);
 
       let config;
       if (existing) {
         const [updated] = await db
-          .update(schema.supportTicketConfigs)
+          .update(schema.whatsappSupportTicketConfigs)
           .set({
             triggerKeyword: triggerKeyword || "ticket",
             retrievalKeyword: retrievalKeyword || "getticket",
@@ -1173,12 +1173,12 @@ export function registerAddonsRoutes(app: Express) {
             isActive: isActive !== undefined ? isActive : true,
             aiPrompt: aiPrompt !== undefined ? aiPrompt : undefined,
           })
-          .where(eq(schema.supportTicketConfigs.id, existing.id))
+          .where(eq(schema.whatsappSupportTicketConfigs.id, existing.id))
           .returning();
         config = updated;
       } else {
         const [created] = await db
-          .insert(schema.supportTicketConfigs)
+          .insert(schema.whatsappSupportTicketConfigs)
           .values({
             tenantId,
             channelId,

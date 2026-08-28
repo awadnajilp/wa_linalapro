@@ -568,8 +568,7 @@ const steps: MigrationStep[] = [
       )
       ON CONFLICT (slug) DO UPDATE
       SET name = EXCLUDED.name,
-          description = EXCLUDED.description,
-          price = EXCLUDED.price;
+          description = EXCLUDED.description;
     `,
   },
   {
@@ -815,8 +814,7 @@ const steps: MigrationStep[] = [
       )
       ON CONFLICT (slug) DO UPDATE
       SET name = EXCLUDED.name,
-          description = EXCLUDED.description,
-          price = EXCLUDED.price;
+          description = EXCLUDED.description;
     `,
   },
   {
@@ -836,8 +834,7 @@ const steps: MigrationStep[] = [
       )
       ON CONFLICT (slug) DO UPDATE
       SET name = EXCLUDED.name,
-          description = EXCLUDED.description,
-          price = EXCLUDED.price;
+          description = EXCLUDED.description;
     `,
   },
   {

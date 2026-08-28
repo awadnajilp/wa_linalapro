@@ -15,6 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+import { ChannelSwitcher } from "@/components/channel-switcher";
+
 interface Product {
   id: string;
   name: string;
@@ -73,9 +75,9 @@ interface EcommerceConfig {
 export default function EcommerceLedger() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { activeChannel } = useChannelContext();
+  const { selectedChannel } = useChannelContext();
 
-  const channelId = activeChannel?.id;
+  const channelId = selectedChannel?.id;
 
   // Active Tab
   const [activeTab, setActiveTab] = useState("products");
@@ -335,10 +337,15 @@ export default function EcommerceLedger() {
 
   if (!channelId) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[500px]">
-        <ShoppingCart className="w-16 h-16 text-gray-300 mb-4" />
-        <h2 className="text-xl font-bold text-gray-700">No Active Channel</h2>
-        <p className="text-gray-500 mt-2">Please select a WhatsApp channel from the top bar to manage your store.</p>
+      <div className="flex flex-col items-center justify-center min-h-[500px] space-y-4">
+        <ShoppingCart className="w-16 h-16 text-gray-300 mb-2" />
+        <h2 className="text-xl font-bold text-gray-700">No Active Channel Selected</h2>
+        <p className="text-gray-500 max-w-sm text-center">
+          Please select a WhatsApp channel to manage your store catalog and settings.
+        </p>
+        <div className="w-64">
+          <ChannelSwitcher />
+        </div>
       </div>
     );
   }

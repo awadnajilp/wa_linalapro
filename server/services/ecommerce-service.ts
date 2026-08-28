@@ -170,6 +170,13 @@ export class EcommerceService {
         .limit(1);
 
       if (session) {
+        const lastUpdated = session.updatedAt || session.createdAt;
+        const diffMs = Date.now() - new Date(lastUpdated).getTime();
+        const timeoutMs = 15 * 60 * 1000;
+        if (diffMs > timeoutMs) {
+          console.log(`[EcommerceService] Inactive session ${session.id} expired after 15 mins`);
+          await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+        } else {
         // If it's a waiting_for_product_selection session
         if (session.currentStep === "waiting_for_product_selection") {
           if (session.productId) {
@@ -257,6 +264,7 @@ export class EcommerceService {
           return true;
         }
       }
+    }
 
       return false;
     } catch (err: any) {
@@ -531,6 +539,14 @@ export class EcommerceService {
       .limit(1);
     
     const to = conv?.contactPhone || contactPhone;
+
+    // Support cancelling/resetting active checkout session
+    const cleanInput = input.trim().toLowerCase();
+    if (cleanInput === "cancel" || cleanInput === "exit" || cleanInput === "reset") {
+      await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+      await waApi.sendTextMessage(to, "❌ *Checkout cancelled.* Type *store* to open the catalog again.");
+      return;
+    }
 
     // AI Chat Step check
     if (session.currentStep === "ai_chat") {

@@ -47,6 +47,7 @@ import {
   Puzzle,
   Coins,
   LifeBuoy,
+  ShoppingCart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChannelSwitcher } from "@/components/channel-switcher";
@@ -234,6 +235,13 @@ function getNavItems(role: string): NavItem[] {
         icon: LifeBuoy,
         labelKey: "Support Tickets",
         color: "text-rose-500",
+        allowedRoles: ["admin"],
+      },
+      {
+        href: "/ecommerce",
+        icon: ShoppingCart,
+        labelKey: "Ecommerce Store",
+        color: "text-emerald-500",
         allowedRoles: ["admin"],
       },
     ];
@@ -487,6 +495,10 @@ export default function Sidebar() {
 
   const isTicketsActive = user?.role === "superadmin" || tenantAddons?.some(
     (a) => a.slug === "support-tickets" && a.subscription?.status === "active"
+  );
+
+  const isEcommerceActive = user?.role === "superadmin" || tenantAddons?.some(
+    (a) => a.slug === "ecommerce" && a.subscription?.status === "active"
   );
 
   const {
@@ -787,6 +799,7 @@ export default function Sidebar() {
                   .filter((item) => !(item.href === "/templates" && selectedChannel?.connectionMethod === "qr_code"))
                   .filter((item) => !(item.href === "/expenses" && !isExpenseActive))
                   .filter((item) => !(item.href === "/tickets" && !isTicketsActive))
+                  .filter((item) => !(item.href === "/ecommerce" && !isEcommerceActive))
                   .map((item) =>
                     renderLink(
                       t(item.labelKey),

@@ -67,6 +67,7 @@ import { registerClientApiRoutes } from "./client-api.routes";
 import { registerRestApiV1Routes } from "./rest-api-v1.routes";
 import { registerTagsRoutes } from "./tags.routes";
 import { registerAddonsRoutes } from "./addons.routes";
+import { registerEcommerceRoutes } from "./ecommerce.routes";
 
 export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
   // Auth routes (no authentication required)
@@ -114,6 +115,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   registerCRMRoutes(app);
   registerWalletRoutes(app);
   registerAddonsRoutes(app);
+  registerEcommerceRoutes(app);
   
   // Team management routes
   app.use("/api/team", teamRoutes);

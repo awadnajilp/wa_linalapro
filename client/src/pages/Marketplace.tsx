@@ -234,6 +234,14 @@ export default function Marketplace() {
                           Open Module
                         </Button>
                       )}
+                      {addon.slug === "ecommerce" && (
+                        <Button 
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                          onClick={() => window.location.href = "/ecommerce"}
+                        >
+                          Open Module
+                        </Button>
+                      )}
                     </>
                   ) : (
                     <Button 

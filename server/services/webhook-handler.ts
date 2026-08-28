@@ -31,6 +31,7 @@ import { AddonManager } from "./addon-manager";
 import { ExpenseAIService } from "./expense-ai-service";
 import { TicketAIService } from "./ticket-ai-service";
 import { getTransporter } from "./email.service";
+import { EcommerceService } from "./ecommerce-service";
 
 
 export interface WebhookMessage {
@@ -2052,6 +2053,19 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
       // ==================== SUPPORT TICKETS INTERCEPTOR ====================
       if (!automationHandled) {
         automationHandled = await WebhookHandler.interceptSupportTickets(
+          channelId,
+          conversation,
+          contact,
+          message,
+          content,
+          isGroupMessage,
+          channel[0]
+        );
+      }
+
+      // ==================== ECOMMERCE INTERCEPTOR ====================
+      if (!automationHandled) {
+        automationHandled = await EcommerceService.interceptEcommerce(
           channelId,
           conversation,
           contact,

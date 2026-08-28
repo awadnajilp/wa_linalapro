@@ -2481,6 +2481,83 @@ export const insertWhatsappSupportTicketSchema = createInsertSchema(whatsappSupp
 export const insertWhatsappSupportTicketConfigSchema = createInsertSchema(whatsappSupportTicketConfigs);
 export const insertWhatsappSupportTicketSessionSchema = createInsertSchema(whatsappSupportTicketSessions);
 
+// Ecommerce Module Schema
+export const ecommerceProducts = pgTable("ecommerce_products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  price: numeric("price", { precision: 12, scale: 2 }).default("0"),
+  description: text("description"),
+  photos: jsonb("photos").default([]),
+  checkoutLink: text("checkout_link"),
+  triggerKeyword: text("trigger_keyword"),
+  isTriggerEnabled: boolean("is_trigger_enabled").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const ecommerceConfigs = pgTable("ecommerce_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  storeTriggerKeyword: text("store_trigger_keyword").default("store"),
+  isStoreFlowActive: boolean("is_store_flow_active").default(true),
+  welcomeMessage: text("welcome_message").default("Welcome to our store!"),
+  welcomeHeaderUrl: text("welcome_header_url"),
+  welcomeHeaderType: text("welcome_header_type").default("image"), // "image", "video", "none"
+  qrCodeUrl: text("qr_code_url"),
+  checkoutFields: jsonb("checkout_fields").default(["name", "phone", "address", "pin"]),
+  instamojoApiKey: text("instamojo_api_key"),
+  instamojoAuthToken: text("instamojo_auth_token"),
+  instamojoSandbox: boolean("instamojo_sandbox").default(true),
+  razorpayKeyId: text("razorpay_key_id"),
+  razorpayKeySecret: text("razorpay_key_secret"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const ecommerceOrders = pgTable("ecommerce_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderNumber: text("order_number").notNull().unique(),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "set null" }),
+  conversationId: varchar("conversation_id").references(() => conversations.id, { onDelete: "set null" }),
+  customerPhone: text("customer_phone").notNull(),
+  customerName: text("customer_name"),
+  customerData: jsonb("customer_data").default({}),
+  productId: varchar("product_id").references(() => ecommerceProducts.id, { onDelete: "set null" }),
+  productName: text("product_name"),
+  price: numeric("price", { precision: 12, scale: 2 }),
+  quantity: integer("quantity").default(1),
+  totalAmount: numeric("total_amount", { precision: 12, scale: 2 }),
+  paymentMethod: text("payment_method"), // "cod", "qr_pay", "gateway"
+  paymentStatus: text("payment_status").default("pending"), // "pending", "paid", "failed", "pending_verification"
+  paymentGateway: text("payment_gateway"), // "instamojo", "razorpay"
+  paymentGatewayOrderId: text("payment_gateway_order_id"),
+  receiptUrl: text("receipt_url"),
+  status: text("status").default("pending"), // "pending", "processing", "shipped", "delivered", "cancelled"
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const ecommerceSessions = pgTable("ecommerce_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().unique().references(() => conversations.id, { onDelete: "cascade" }),
+  productId: varchar("product_id").references(() => ecommerceProducts.id, { onDelete: "cascade" }),
+  quantity: integer("quantity").default(1),
+  currentStep: text("current_step").notNull(), // "waiting_for_quantity", "waiting_for_field:<fieldName>", "waiting_for_payment_method", "waiting_for_qr_receipt"
+  customerData: jsonb("customer_data").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Zod schemas
+export const insertEcommerceProductSchema = createInsertSchema(ecommerceProducts);
+export const insertEcommerceConfigSchema = createInsertSchema(ecommerceConfigs);
+export const insertEcommerceOrderSchema = createInsertSchema(ecommerceOrders);
+export const insertEcommerceSessionSchema = createInsertSchema(ecommerceSessions);
+
 // TypeScript types
 export type Addon = typeof addons.$inferSelect;
 export type InsertAddon = typeof addons.$inferInsert;
@@ -2500,5 +2577,15 @@ export type WhatsappSupportTicketConfig = typeof whatsappSupportTicketConfigs.$i
 export type InsertWhatsappSupportTicketConfig = typeof whatsappSupportTicketConfigs.$inferInsert;
 export type WhatsappSupportTicketSession = typeof whatsappSupportTicketSessions.$inferSelect;
 export type InsertWhatsappSupportTicketSession = typeof whatsappSupportTicketSessions.$inferInsert;
+
+export type EcommerceProduct = typeof ecommerceProducts.$inferSelect;
+export type InsertEcommerceProduct = typeof ecommerceProducts.$inferInsert;
+export type EcommerceConfig = typeof ecommerceConfigs.$inferSelect;
+export type InsertEcommerceConfig = typeof ecommerceConfigs.$inferInsert;
+export type EcommerceOrder = typeof ecommerceOrders.$inferSelect;
+export type InsertEcommerceOrder = typeof ecommerceOrders.$inferInsert;
+export type EcommerceSession = typeof ecommerceSessions.$inferSelect;
+export type InsertEcommerceSession = typeof ecommerceSessions.$inferInsert;
+
 
 

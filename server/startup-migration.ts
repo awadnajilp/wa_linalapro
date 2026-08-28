@@ -819,6 +819,114 @@ const steps: MigrationStep[] = [
           price = EXCLUDED.price;
     `,
   },
+  {
+    description: "Insert default Ecommerce Module addon (if not exists)",
+    sql: `
+      INSERT INTO addons (id, slug, name, description, price, billing_cycle, ai_key_type, default_credits, is_active)
+      VALUES (
+        'addon-ecommerce-uuid', 
+        'ecommerce', 
+        'Ecommerce Ready Module', 
+        'Enable an ecommerce shop directly inside WhatsApp with store-wise or product-wise flows, checkout links, Cash on Delivery / QR / Gateway payments, PDF order summaries, and email alerts.', 
+        19.99, 
+        'monthly', 
+        'tenant',
+        0,
+        true
+      )
+      ON CONFLICT (slug) DO UPDATE
+      SET name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          price = EXCLUDED.price;
+    `,
+  },
+  {
+    description: "Create table ecommerce_products (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS ecommerce_products (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        price NUMERIC(12, 2) DEFAULT 0,
+        description TEXT,
+        photos JSONB DEFAULT '[]'::jsonb,
+        checkout_link TEXT,
+        trigger_keyword TEXT,
+        is_trigger_enabled BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `,
+  },
+  {
+    description: "Create table ecommerce_configs (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS ecommerce_configs (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        channel_id VARCHAR REFERENCES channels (id) ON DELETE CASCADE,
+        store_trigger_keyword TEXT DEFAULT 'store',
+        is_store_flow_active BOOLEAN DEFAULT true,
+        welcome_message TEXT DEFAULT 'Welcome to our store!',
+        welcome_header_url TEXT,
+        welcome_header_type TEXT DEFAULT 'image',
+        qr_code_url TEXT,
+        checkout_fields JSONB DEFAULT '["name", "phone", "address", "pin"]'::jsonb,
+        instamojo_api_key TEXT,
+        instamojo_auth_token TEXT,
+        instamojo_sandbox BOOLEAN DEFAULT true,
+        razorpay_key_id TEXT,
+        razorpay_key_secret TEXT,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT ecommerce_configs_channel_unique UNIQUE (channel_id)
+      );
+    `,
+  },
+  {
+    description: "Create table ecommerce_orders (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS ecommerce_orders (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_number TEXT NOT NULL UNIQUE,
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        channel_id VARCHAR REFERENCES channels (id) ON DELETE SET NULL,
+        conversation_id VARCHAR REFERENCES conversations (id) ON DELETE SET NULL,
+        customer_phone TEXT NOT NULL,
+        customer_name TEXT,
+        customer_data JSONB DEFAULT '{}'::jsonb,
+        product_id VARCHAR REFERENCES ecommerce_products (id) ON DELETE SET NULL,
+        product_name TEXT,
+        price NUMERIC(12, 2),
+        quantity INTEGER DEFAULT 1,
+        total_amount NUMERIC(12, 2),
+        payment_method TEXT,
+        payment_status TEXT DEFAULT 'pending',
+        payment_gateway TEXT,
+        payment_gateway_order_id TEXT,
+        receipt_url TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `,
+  },
+  {
+    description: "Create table ecommerce_sessions (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS ecommerce_sessions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        conversation_id VARCHAR NOT NULL UNIQUE REFERENCES conversations (id) ON DELETE CASCADE,
+        product_id VARCHAR REFERENCES ecommerce_products (id) ON DELETE CASCADE,
+        quantity INTEGER DEFAULT 1,
+        current_step TEXT NOT NULL,
+        customer_data JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `,
+  },
 ];
 
 /**

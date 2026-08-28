@@ -18,7 +18,7 @@
 import { Request, Response } from "express";
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { db } from "../db";
-import { subscriptions, users, plans } from "@shared/schema";
+import { subscriptions, users, plans, tenantAddons } from "@shared/schema";
 import { eq, and, desc, lt, sql } from "drizzle-orm";
 import {
   cancelStripeSubscription,
@@ -364,6 +364,21 @@ export const updateSubscription = async (req: Request, res: Response) => {
       return res
         .status(404)
         .json({ success: false, message: "Subscription not found" });
+    }
+
+    // Auto-renew active/expired tenant addons to match platform subscription endDate
+    if (updateData.endDate) {
+      const sub = updatedSubscription[0];
+      await db
+        .update(tenantAddons)
+        .set({
+          expiresAt: new Date(updateData.endDate),
+          status: "active",
+          updatedAt: new Date()
+        })
+        .where(
+          eq(tenantAddons.tenantId, sub.userId)
+        );
     }
 
     res.status(200).json({

@@ -318,45 +318,28 @@ export default function Marketplace() {
                 </div>
               )}
 
-              {/* Price & Wallet Balance Validation */}
+              {/* Subscription Price Details */}
               <div className="p-4 bg-gray-50 border border-gray-150 rounded-lg space-y-2.5">
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">Subscription Price:</span>
+                  <span className="text-gray-500">Monthly Addon Price:</span>
                   <span className="font-extrabold text-gray-900">${parseFloat(targetAddon.price).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">Your Wallet Balance:</span>
-                  <span className={`font-bold ${walletBalance >= parseFloat(targetAddon.price) ? "text-green-600" : "text-red-600"}`}>
-                    {walletBalance.toFixed(2)} {currency}
-                  </span>
+                <div className="text-xs text-indigo-700 font-medium flex items-center gap-1.5 pt-1.5 border-t border-indigo-100">
+                  <ShieldAlert className="w-4 h-4 shrink-0" />
+                  This fee will be added to your regular monthly platform subscription invoice. No upfront payment is required today.
                 </div>
-                {walletBalance < parseFloat(targetAddon.price) && (
-                  <div className="text-xs text-red-600 font-medium flex items-center gap-1.5 pt-1.5 border-t border-red-100">
-                    <ShieldAlert className="w-4 h-4 shrink-0" />
-                    Wallet balance is insufficient to complete the transaction.
-                  </div>
-                )}
               </div>
             </div>
 
             <DialogFooter className="flex gap-2">
               <Button variant="outline" onClick={() => setShowPurchaseDialog(false)}>Cancel</Button>
-              {walletBalance >= parseFloat(targetAddon.price) ? (
-                <Button 
-                  onClick={handleConfirmPurchase} 
-                  className="bg-green-600 hover:bg-green-700 text-white font-medium"
-                  disabled={purchasingId !== null}
-                >
-                  {purchasingId ? "Activating..." : "Confirm & Pay via Wallet"}
-                </Button>
-              ) : (
-                <Button 
-                  onClick={() => window.location.href = `/wallet?recharge_required=${parseFloat(targetAddon.price) - walletBalance}`} 
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
-                >
-                  Recharge Wallet
-                </Button>
-              )}
+              <Button 
+                onClick={handleConfirmPurchase} 
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                disabled={purchasingId !== null}
+              >
+                {purchasingId ? "Activating..." : "Confirm & Activate"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

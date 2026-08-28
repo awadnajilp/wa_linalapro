@@ -183,46 +183,24 @@ export function registerAddonsRoutes(app: Express) {
       const isAI = finalType === "ai";
       const initCredits = isAI ? (addon.defaultCredits || 0) : 0;
 
-      // Handle billing structure - Check if Wallet is enabled and has balance
-      const price = parseFloat(addon.price || "0");
-      if (price > 0 && user.walletEnabled) {
-        const [wallet] = await db
-          .select()
-          .from(schema.wallets)
-          .where(eq(schema.wallets.userId, tenantId))
-          .limit(1);
-        
-        const balance = wallet ? parseFloat(wallet.balance || "0") : 0;
-        if (balance < price) {
-          return res.status(400).json({ error: `Insufficient wallet balance. You need ${addon.price} but only have ${balance.toFixed(2)}.` });
-        }
+      // Find the tenant's active platform subscription
+      const [platformSub] = await db
+        .select()
+        .from(schema.subscriptions)
+        .where(
+          and(
+            eq(schema.subscriptions.userId, tenantId),
+            eq(schema.subscriptions.status, "active")
+          )
+        )
+        .limit(1);
 
-        // Deduct balance from wallet
-        await db
-          .update(schema.wallets)
-          .set({
-            balance: String(balance - price),
-            updatedAt: new Date()
-          })
-          .where(eq(schema.wallets.userId, tenantId));
-
-        // Create wallet transaction
-        await db.insert(schema.walletTransactions).values({
-          userId: tenantId,
-          amount: String(-price),
-          currency: wallet?.currency || "USD",
-          type: "debit",
-          paymentMethod: "wallet",
-          status: "completed",
-          description: `Subscription purchase for Addon: ${addon.name} (${finalType.toUpperCase()} mode)`,
-          verifiedAt: new Date()
-        });
+      const expiresAt = platformSub?.endDate ? new Date(platformSub.endDate) : new Date();
+      if (!platformSub?.endDate) {
+        expiresAt.setDate(expiresAt.getDate() + 30); // 30 days fallback
       }
 
       // Upsert tenant_addons mapping
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30); // 30 days expiry
-
       const [existing] = await db
         .select()
         .from(schema.tenantAddons)
@@ -244,7 +222,7 @@ export function registerAddonsRoutes(app: Express) {
             purchaseType: finalType,
             credits: initCredits,
             maxCredits: initCredits,
-            gatewayProvider: price > 0 ? (user.walletEnabled ? "wallet" : "stripe") : "manual",
+            gatewayProvider: "subscription",
             updatedAt: new Date()
           })
           .where(eq(schema.tenantAddons.id, existing.id))
@@ -261,7 +239,7 @@ export function registerAddonsRoutes(app: Express) {
             purchaseType: finalType,
             credits: initCredits,
             maxCredits: initCredits,
-            gatewayProvider: price > 0 ? (user.walletEnabled ? "wallet" : "stripe") : "manual"
+            gatewayProvider: "subscription"
           })
           .returning();
         subscription = created;

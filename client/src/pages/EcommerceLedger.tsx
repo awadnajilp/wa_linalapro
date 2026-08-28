@@ -695,7 +695,7 @@ export default function EcommerceLedger() {
         <TabsList className="bg-gray-100 p-1 rounded-lg border flex w-fit gap-1 mb-4">
           <TabsTrigger value="products" className="flex items-center gap-2">
             <Package className="w-4 h-4" />
-            Products ({products.length})
+            Products ({productsData?.total || 0})
           </TabsTrigger>
           <TabsTrigger value="orders" className="flex items-center gap-2">
             <ClipboardList className="w-4 h-4" />
@@ -703,7 +703,7 @@ export default function EcommerceLedger() {
           </TabsTrigger>
           <TabsTrigger value="customers" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
-            Customers ({customers.length})
+            Customers ({customersData?.total || 0})
           </TabsTrigger>
           <TabsTrigger value="config" className="flex items-center gap-2">
             <Settings className="w-4 h-4" />

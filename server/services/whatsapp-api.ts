@@ -998,15 +998,29 @@ async sendMessage(
       WhatsAppApiService.mediaCache.set(fakeId, { buffer, mimeType, filename });
       return fakeId;
     }
+    let finalBuffer = buffer;
+    let finalMime = mimeType;
+    let finalFilename = filename;
+
+    if (mimeType === "image/webp") {
+      try {
+        const sharp = (await import("sharp")).default;
+        finalBuffer = await sharp(buffer).png().toBuffer();
+        finalMime = "image/png";
+        finalFilename = filename.replace(/\.webp$/i, ".png");
+        console.log("🔄 Transcoded buffer webp to png for WhatsApp Cloud API compatibility.");
+      } catch (sharpError: any) {
+        console.error("❌ Failed to transcode webp buffer using sharp:", sharpError.message);
+      }
+    }
+
     try {
       const FormData = (await import("form-data")).default;
       const form = new FormData();
 
-      
-
-      form.append("file", buffer, {
-        filename: filename,
-        contentType: mimeType,
+      form.append("file", finalBuffer, {
+        filename: finalFilename,
+        contentType: finalMime,
       });
       form.append("messaging_product", "whatsapp");
 
@@ -1202,16 +1216,36 @@ async uploadTemplateMedia(
       WhatsAppApiService.mediaCache.set(fakeId, { url: filePath, mimeType, filename: name });
       return fakeId;
     }
-    const resolvedPath = path.resolve(filePath);
+
+    let localFilePath = filePath;
+    let cleanTemp = false;
+    let uploadMime = mimeType;
+
+    if (mimeType === "image/webp") {
+      try {
+        const sharp = (await import("sharp")).default;
+        const tempPngPath = path.join(path.dirname(filePath), `${randomUUID()}.png`);
+        const buffer = await sharp(filePath).png().toBuffer();
+        fs.writeFileSync(tempPngPath, buffer);
+        localFilePath = tempPngPath;
+        uploadMime = "image/png";
+        cleanTemp = true;
+        console.log("🔄 Transcoded local webp file to png for WhatsApp Cloud API compatibility.");
+      } catch (sharpError: any) {
+        console.error("❌ Failed to transcode webp file using sharp:", sharpError.message);
+      }
+    }
+
+    const resolvedPath = path.resolve(localFilePath);
 
     const formData = new FormData();
     formData.append("messaging_product", "whatsapp");
     formData.append("file", fs.createReadStream(resolvedPath), {
       filename: path.basename(resolvedPath),
-      contentType: mimeType,
+      contentType: uploadMime,
     });
 
-    console.log("Uploading local media:", resolvedPath, mimeType);
+    console.log("Uploading local media:", resolvedPath, uploadMime);
 
     try {
       const response = await axios.post(
@@ -1226,12 +1260,18 @@ async uploadTemplateMedia(
       );
 
       console.log("Media uploaded successfully, ID:", response.data.id);
+      if (cleanTemp && fs.existsSync(resolvedPath)) {
+        try { fs.unlinkSync(resolvedPath); } catch {}
+      }
       return response.data.id;
     } catch (error: any) {
       console.error(
         "WhatsApp upload error:",
         error.response?.data || error.message
       );
+      if (cleanTemp && fs.existsSync(resolvedPath)) {
+        try { fs.unlinkSync(resolvedPath); } catch {}
+      }
       throw new Error(
         error.response?.data?.error?.message || "Failed to upload media"
       );

@@ -235,4 +235,69 @@ export function registerMediaRoutes(app: Express) {
       res.status(500).json({ message: "Failed to generate upload URL" });
     }
   });
+
+  // Secure proxy preview endpoint for S3 / local uploads
+  app.get("/api/media/preview", requireAuth, async (req, res) => {
+    try {
+      const url = req.query.url as string;
+      if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+      }
+
+      // Check if it's a relative local upload path
+      if (url.startsWith("/uploads") || url.startsWith("uploads")) {
+        const cleanPath = url.startsWith("/") ? url.substring(1) : url;
+        const filePath = path.join(process.cwd(), cleanPath);
+        if (fs.existsSync(filePath)) {
+          res.set({
+            'Cache-Control': 'public, max-age=86400',
+          });
+          return res.sendFile(filePath);
+        }
+      }
+
+      // Check if S3 / cloud URL
+      if (url.startsWith("http")) {
+        const { createDOClient } = await import("../config/digitalOceanConfig");
+        const doClient = await createDOClient();
+        if (doClient) {
+          const { s3, bucket, endpoint } = doClient;
+          const isOurBucket = url.includes(bucket!) || (endpoint && url.includes(new URL(endpoint).host));
+          if (isOurBucket) {
+            const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+            const urlObj = new URL(url);
+            const fileKey = decodeURIComponent(urlObj.pathname.substring(1));
+            
+            const s3Res = await s3.send(new GetObjectCommand({
+              Bucket: bucket!,
+              Key: fileKey
+            }));
+            
+            const ext = fileKey.split('.').pop()?.toLowerCase();
+            let mimeType = "application/octet-stream";
+            if (ext === "png") mimeType = "image/png";
+            else if (ext === "jpg" || ext === "jpeg") mimeType = "image/jpeg";
+            else if (ext === "gif") mimeType = "image/gif";
+            else if (ext === "webp") mimeType = "image/webp";
+            
+            res.set({
+              'Content-Type': s3Res.ContentType || mimeType,
+              'Cache-Control': 'public, max-age=86400',
+            });
+            
+            const responseBody = s3Res.Body as any;
+            return responseBody.pipe(res);
+          }
+        }
+        
+        // Fallback to redirecting
+        return res.redirect(url);
+      }
+
+      return res.status(404).json({ error: "File not found" });
+    } catch (err: any) {
+      console.error("Failed to preview media url:", err);
+      res.status(500).json({ error: "Failed to preview media url." });
+    }
+  });
 }

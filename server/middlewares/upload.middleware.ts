@@ -183,7 +183,8 @@ export const handleDigitalOceanUpload = async (
         const { conversationId } = req.params;
         console.log(`   File verified: ${file.path} , conversationId: ${conversationId}`);
         const userId = (req as any).user?.id || (req.body?.userId) || conversationId || "guest";
-        const fileKey = `uploads/${userId}/${Date.now()}-${path.basename(file.originalname)}`;
+        const safeOriginalName = path.basename(file.originalname).replace(/[^a-zA-Z0-9.-]/g, "_");
+        const fileKey = `uploads/${userId}/${Date.now()}-${safeOriginalName}`;
 
         console.log(`   Cloud key: ${fileKey}`);
         console.log(`   File size: ${file.size} bytes`);
@@ -198,9 +199,7 @@ export const handleDigitalOceanUpload = async (
             ContentType: file.mimetype,
           };
 
-          if (!isAws) {
-            putParams.ACL = "public-read";
-          }
+          putParams.ACL = "public-read";
 
           await s3.send(new PutObjectCommand(putParams));
         } catch (s3Error: any) {

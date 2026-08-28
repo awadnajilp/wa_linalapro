@@ -225,6 +225,11 @@ export function registerEcommerceRoutes(app: Express) {
         aiTimeoutMinutes,
         aiAskButtonEnabled,
         welcomeMessages,
+        aiSystemPrompt,
+        storeName,
+        storeAddress,
+        storeWebsite,
+        storeLogo,
         isActive
       } = req.body;
 
@@ -265,7 +270,12 @@ export function registerEcommerceRoutes(app: Express) {
             aiEnabled: aiEnabled !== undefined ? aiEnabled : false,
             aiTimeoutMinutes: aiTimeoutMinutes !== undefined ? parseInt(String(aiTimeoutMinutes)) : 30,
             aiAskButtonEnabled: aiAskButtonEnabled !== undefined ? aiAskButtonEnabled : true,
+            aiSystemPrompt: aiSystemPrompt !== undefined ? aiSystemPrompt : null,
             welcomeMessages: parseWelcomes,
+            storeName: storeName || null,
+            storeAddress: storeAddress || null,
+            storeWebsite: storeWebsite || null,
+            storeLogo: storeLogo || null,
             isActive: isActive !== undefined ? isActive : true,
             updatedAt: new Date()
           })
@@ -296,7 +306,12 @@ export function registerEcommerceRoutes(app: Express) {
             aiEnabled: aiEnabled !== undefined ? aiEnabled : false,
             aiTimeoutMinutes: aiTimeoutMinutes !== undefined ? parseInt(String(aiTimeoutMinutes)) : 30,
             aiAskButtonEnabled: aiAskButtonEnabled !== undefined ? aiAskButtonEnabled : true,
+            aiSystemPrompt: aiSystemPrompt !== undefined ? aiSystemPrompt : null,
             welcomeMessages: parseWelcomes,
+            storeName: storeName || null,
+            storeAddress: storeAddress || null,
+            storeWebsite: storeWebsite || null,
+            storeLogo: storeLogo || null,
             isActive: isActive !== undefined ? isActive : true
           })
           .returning();
@@ -408,6 +423,72 @@ export function registerEcommerceRoutes(app: Express) {
       }
 
       res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Download Order Invoice PDF
+  app.get("/api/ecommerce/orders/:id/invoice", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+
+      const [order] = await db
+        .select()
+        .from(schema.ecommerceOrders)
+        .where(
+          and(
+            eq(schema.ecommerceOrders.id, req.params.id),
+            eq(schema.ecommerceOrders.tenantId, tenantId)
+          )
+        )
+        .limit(1);
+
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      const pdfBuffer = await EcommerceService.generateOrderPdf(order);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename=Invoice-${order.orderNumber}.pdf`);
+      res.send(pdfBuffer);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Download Order Shipping Label PDF
+  app.get("/api/ecommerce/orders/:id/shipping-label", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+
+      const [order] = await db
+        .select()
+        .from(schema.ecommerceOrders)
+        .where(
+          and(
+            eq(schema.ecommerceOrders.id, req.params.id),
+            eq(schema.ecommerceOrders.tenantId, tenantId)
+          )
+        )
+        .limit(1);
+
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      const [merchantUser] = await db
+        .select()
+        .from(schema.users)
+        .where(eq(schema.users.id, order.tenantId))
+        .limit(1);
+
+      const pdfBuffer = await EcommerceService.generateShippingLabelPdf(order, merchantUser);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename=ShippingLabel-${order.orderNumber}.pdf`);
+      res.send(pdfBuffer);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

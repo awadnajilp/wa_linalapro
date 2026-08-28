@@ -892,32 +892,84 @@ async sendMessage(
     }
 
     const formattedPhone = this.formatPhoneNumber(to);
-    const body: any = {
-      messaging_product: "whatsapp",
-      to: formattedPhone,
-      type: type,
-      [type]: {
-        link: absoluteMediaUrl,
-        ...(caption ? { caption } : {}),
-        ...(type === "document" && filename ? { filename } : {}),
-      },
-    };
 
-    const response = await fetch(
-      `${this.baseUrl}/${this.channel.phoneNumberId}/messages`,
-      {
-        method: "POST",
-        headers: this.headers,
-        body: JSON.stringify(body),
+    try {
+      console.log(`[sendMediaMessageByUrl] Uploading media URL to Meta: ${absoluteMediaUrl}`);
+      
+      const getMimeType = (url: string, mediaType: string) => {
+        const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
+        if (mediaType === "image") {
+          return ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
+        }
+        if (mediaType === "video") {
+          return ext === "mov" ? "video/quicktime" : "video/mp4";
+        }
+        if (mediaType === "audio") {
+          return ext === "mp3" ? "audio/mpeg" : ext === "wav" ? "audio/wav" : "audio/ogg";
+        }
+        return "application/pdf";
+      };
+
+      const mimeType = getMimeType(absoluteMediaUrl, type);
+      const mediaId = await this.uploadMediaFromUrl(absoluteMediaUrl, mimeType);
+      
+      const body: any = {
+        messaging_product: "whatsapp",
+        to: formattedPhone,
+        type: type,
+        [type]: {
+          id: mediaId,
+          ...(caption ? { caption } : {}),
+          ...(type === "document" && filename ? { filename } : {}),
+        },
+      };
+
+      const response = await fetch(
+        `${this.baseUrl}/${this.channel.phoneNumberId}/messages`,
+        {
+          method: "POST",
+          headers: this.headers,
+          body: JSON.stringify(body),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || "Failed to send media via Meta ID");
       }
-    );
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || "Failed to send media message by URL");
+      console.log(`[sendMediaMessageByUrl] Successfully sent media via Meta ID: ${mediaId}`);
+      return await response.json();
+    } catch (uploadErr: any) {
+      console.warn(`[sendMediaMessageByUrl] Meta media upload failed, falling back to direct link: ${uploadErr.message}`);
+      
+      const body: any = {
+        messaging_product: "whatsapp",
+        to: formattedPhone,
+        type: type,
+        [type]: {
+          link: absoluteMediaUrl,
+          ...(caption ? { caption } : {}),
+          ...(type === "document" && filename ? { filename } : {}),
+        },
+      };
+
+      const response = await fetch(
+        `${this.baseUrl}/${this.channel.phoneNumberId}/messages`,
+        {
+          method: "POST",
+          headers: this.headers,
+          body: JSON.stringify(body),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || "Failed to send media message by URL link");
+      }
+
+      return await response.json();
     }
-
-    return await response.json();
   }
 
   async getPublicMediaUrl(relativePath: string): Promise<string> {
@@ -1264,6 +1316,9 @@ async resolveMediaBuffer(urlOrPath: string): Promise<Buffer> {
     }
   }
 
+  // Remote URL: sanitize spaces to prevent TypeError / parse exceptions
+  const remoteUrl = urlOrPath.replace(/ /g, "%20");
+
   // Check if it's a cloud storage URL (S3 or DigitalOcean)
   try {
     const { createDOClient } = await import('../config/digitalOceanConfig');
@@ -1272,14 +1327,14 @@ async resolveMediaBuffer(urlOrPath: string): Promise<Buffer> {
     const doClient = await createDOClient();
     if (doClient) {
       const { s3, bucket, endpoint } = doClient;
-      const isOurBucket = urlOrPath.includes(bucket) || (endpoint && urlOrPath.includes(new URL(endpoint).host));
+      const isOurBucket = remoteUrl.includes(bucket) || (endpoint && remoteUrl.includes(new URL(endpoint).host));
       
       if (isOurBucket) {
         let key = "";
-        if (urlOrPath.includes(`/${bucket}/`)) {
-          key = urlOrPath.substring(urlOrPath.indexOf(`/${bucket}/`) + bucket.length + 2);
+        if (remoteUrl.includes(`/${bucket}/`)) {
+          key = remoteUrl.substring(remoteUrl.indexOf(`/${bucket}/`) + bucket.length + 2);
         } else {
-          const parsedUrl = new URL(urlOrPath);
+          const parsedUrl = new URL(remoteUrl);
           key = parsedUrl.pathname.replace(/^\/+/, "");
         }
         key = decodeURIComponent(key);
@@ -1302,8 +1357,8 @@ async resolveMediaBuffer(urlOrPath: string): Promise<Buffer> {
   }
 
   // Fallback to normal HTTP download using Axios
-  console.log(`[resolveMediaBuffer] Downloading via Axios: ${urlOrPath}`);
-  const response = await axios.get(urlOrPath, {
+  console.log(`[resolveMediaBuffer] Downloading via Axios: ${remoteUrl}`);
+  const response = await axios.get(remoteUrl, {
     responseType: 'arraybuffer',
     timeout: 30000,
   });

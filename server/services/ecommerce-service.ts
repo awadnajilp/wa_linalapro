@@ -2,6 +2,8 @@ import { db } from "../db";
 import * as schema from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import OpenAI from "openai";
+import * as path from "path";
+import * as fs from "fs";
 import { AddonManager } from "./addon-manager";
 import { WhatsAppApiService } from "./whatsapp-api";
 import { getTransporter } from "./email.service";
@@ -132,48 +134,85 @@ export class EcommerceService {
       if (session) {
         // If it's a waiting_for_product_selection session
         if (session.currentStep === "waiting_for_product_selection") {
-          const isNumber = /^\d+$/.test(cleanContent);
-          if (isNumber) {
-            const productIndex = parseInt(cleanContent) - 1;
-            const allActiveProducts = await db
-              .select()
-              .from(schema.ecommerceProducts)
-              .where(eq(schema.ecommerceProducts.tenantId, tenantId));
+          if (session.productId) {
+            const isBuy = cleanContent === "1" || cleanContent.includes("buy");
+            const isAi = cleanContent === "2" || cleanContent === "ai" || cleanContent.includes("ask") || cleanContent.includes("learn") || cleanContent.includes("more");
 
-            if (productIndex >= 0 && productIndex < allActiveProducts.length) {
-              const selectedProd = allActiveProducts[productIndex];
-              await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, selectedProd);
-              return true;
+            if (isBuy) {
+              const [selectedProd] = await db
+                .select()
+                .from(schema.ecommerceProducts)
+                .where(eq(schema.ecommerceProducts.id, session.productId))
+                .limit(1);
+              if (selectedProd) {
+                await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, selectedProd);
+                return true;
+              }
+            } else if (isAi && config.aiEnabled) {
+              const [selectedProd] = await db
+                .select()
+                .from(schema.ecommerceProducts)
+                .where(eq(schema.ecommerceProducts.id, session.productId))
+                .limit(1);
+              if (selectedProd) {
+                await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+                await db.insert(schema.ecommerceSessions).values({
+                  conversationId,
+                  productId: selectedProd.id,
+                  quantity: 1,
+                  currentStep: "ai_chat",
+                  customerData: {
+                    aiStartTime: new Date().toISOString(),
+                    aiLastMessageTime: new Date().toISOString()
+                  }
+                });
+                await waApi.sendTextMessage(contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${selectedProd.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
+                return true;
+              }
             }
-          }
-          
-          // QR code IVR Ask AI fallback: e.g. "ai"
-          if (cleanContent === "ai" || cleanContent.includes("ask ai")) {
-            // Find first active product in listing as target
-            const allActiveProducts = await db
-              .select()
-              .from(schema.ecommerceProducts)
-              .where(eq(schema.ecommerceProducts.tenantId, tenantId));
-            if (allActiveProducts.length > 0 && config.aiEnabled) {
-              const firstProd = allActiveProducts[0];
-              await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
-              await db.insert(schema.ecommerceSessions).values({
-                conversationId,
-                productId: firstProd.id,
-                quantity: 1,
-                currentStep: "ai_chat",
-                customerData: {
-                  aiStartTime: new Date().toISOString(),
-                  aiLastMessageTime: new Date().toISOString()
-                }
-              });
-              await waApi.sendTextMessage(contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${firstProd.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
-              return true;
+
+            await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+          } else {
+            const isNumber = /^\d+$/.test(cleanContent);
+            if (isNumber) {
+              const productIndex = parseInt(cleanContent) - 1;
+              const allActiveProducts = await db
+                .select()
+                .from(schema.ecommerceProducts)
+                .where(eq(schema.ecommerceProducts.tenantId, tenantId));
+
+              if (productIndex >= 0 && productIndex < allActiveProducts.length) {
+                const selectedProd = allActiveProducts[productIndex];
+                await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, selectedProd);
+                return true;
+              }
             }
+
+            if (cleanContent === "ai" || cleanContent.includes("ask ai")) {
+              const allActiveProducts = await db
+                .select()
+                .from(schema.ecommerceProducts)
+                .where(eq(schema.ecommerceProducts.tenantId, tenantId));
+              if (allActiveProducts.length > 0 && config.aiEnabled) {
+                const firstProd = allActiveProducts[0];
+                await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+                await db.insert(schema.ecommerceSessions).values({
+                  conversationId,
+                  productId: firstProd.id,
+                  quantity: 1,
+                  currentStep: "ai_chat",
+                  customerData: {
+                    aiStartTime: new Date().toISOString(),
+                    aiLastMessageTime: new Date().toISOString()
+                  }
+                });
+                await waApi.sendTextMessage(contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${firstProd.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
+                return true;
+              }
+            }
+
+            await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
           }
-          
-          // If they typed something else, delete session and let other triggers process
-          await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
         } else {
           // Process active session response (checkout steps, ai chat)
           await this.processSessionInput(channelRow, config, session, content.trim(), message);
@@ -408,52 +447,38 @@ export class EcommerceService {
       photos = [];
     }
 
+    // Send product photos one-by-one with product name as caption
+    for (const photo of photos) {
+      await waApi.sendMediaMessageByUrl(contactPhone, photo, "image", product.name);
+    }
+
     const isQr = channelRow.connectionMethod === "qr_code";
     const showAiButton = config.aiEnabled && config.aiAskButtonEnabled;
+    const descText = `*${product.name}*\nPrice: ${(product as any).currency || 'INR'} ${product.price}\n\n${product.description || ""}`;
 
-    if (!showAiButton) {
-      // Send product photos one-by-one
-      for (const photo of photos) {
-        await waApi.sendMediaMessageByUrl(contactPhone, photo, "image");
+    if (isQr) {
+      let promptMsg = `${descText}\n\nReply with *1* to Buy Now!`;
+      if (showAiButton) {
+        promptMsg += `\nReply with *2* to Learn More!`;
       }
-      // Send details text
-      const descText = `*${product.name}*\nPrice: ${(product as any).currency || 'INR'} ${product.price}\n\n${product.description || ""}`;
-      await waApi.sendTextMessage(contactPhone, descText);
-
-      // Start checkout flow immediately
-      await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, product);
+      await waApi.sendTextMessage(contactPhone, promptMsg);
     } else {
-      const descText = `*${product.name}*\nPrice: ${(product as any).currency || 'INR'} ${product.price}\n\n${product.description || ""}`;
-      
-      if (isQr) {
-        for (const photo of photos) {
-          await waApi.sendMediaMessageByUrl(contactPhone, photo, "image");
-        }
-        await waApi.sendTextMessage(
-          contactPhone, 
-          `${descText}\n\nReply with *1* to Buy Now!\nReply with *AI* to ask questions about this product.`
-        );
-        // Create product selection session to capture reply
-        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
-        await db.insert(schema.ecommerceSessions).values({
-          conversationId,
-          productId: product.id,
-          quantity: 1,
-          currentStep: "waiting_for_product_selection",
-          customerData: {}
-        });
-      } else {
-        // Send intermediate photos
-        for (let p = 0; p < photos.length - 1; p++) {
-          await waApi.sendMediaMessageByUrl(contactPhone, photos[p], "image");
-        }
-        const lastPhoto = photos[photos.length - 1] || null;
-        await this.sendCloudApiButtonMessage(channelRow, contactPhone, descText, lastPhoto, [
-          { id: `buy_${product.id}`, title: "Buy Now" },
-          { id: `ai_ask_${product.id}`, title: "Ask AI" }
-        ]);
+      const buttons = [{ id: `buy_${product.id}`, title: "Buy Now" }];
+      if (showAiButton) {
+        buttons.push({ id: `ai_ask_${product.id}`, title: "Learn More" });
       }
+      await this.sendCloudApiButtonMessage(channelRow, contactPhone, descText, null, buttons);
     }
+
+    // Create product selection session to capture reply/button click
+    await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+    await db.insert(schema.ecommerceSessions).values({
+      conversationId,
+      productId: product.id,
+      quantity: 1,
+      currentStep: "waiting_for_product_selection",
+      customerData: {}
+    });
   }
 
   /**
@@ -481,7 +506,7 @@ export class EcommerceService {
     const waApi = new WhatsAppApiService(channelRow);
     await waApi.sendTextMessage(
       contactPhone,
-      `How many units of *${product.name}* (Price: ${(product as any).currency || 'INR'} ${product.price}) would you like to buy? Please reply with a number.`
+      `How many Qty? (type only number)`
     );
   }
 
@@ -553,60 +578,24 @@ export class EcommerceService {
         return;
       }
 
-      // Load AI training from knowledge articles and FAQ pairs
-      const channelSites = await db
-        .select()
-        .from(schema.sites)
-        .where(eq(schema.sites.channelId, channelRow.id));
-      const siteIds = channelSites.map(s => s.id);
-      let trainingText = "";
-
-      if (siteIds.length > 0) {
-        const qas = await db
-          .select()
-          .from(schema.trainingQaPairs)
-          .where(
-            and(
-              inArray(schema.trainingQaPairs.siteId, siteIds),
-              eq(schema.trainingQaPairs.isActive, true)
-            )
-          );
-        if (qas.length > 0) {
-          trainingText += "\n\nRELEVANT FAQ PAIRS:\n" + qas.map(q => `Q: ${q.question}\nA: ${q.answer}`).join("\n---\n");
-        }
-
-        const categories = await db
-          .select()
-          .from(schema.knowledgeCategories)
-          .where(inArray(schema.knowledgeCategories.siteId, siteIds));
-        const categoryIds = categories.map(c => c.id);
-
-        if (categoryIds.length > 0) {
-          const articles = await db
-            .select()
-            .from(schema.knowledgeArticles)
-            .where(
-              and(
-                inArray(schema.knowledgeArticles.categoryId, categoryIds),
-                eq(schema.knowledgeArticles.published, true)
-              )
-            );
-          if (articles.length > 0) {
-            trainingText += "\n\nRELEVANT KNOWLEDGE BASE & TRAINING ARTICLES:\n" + articles.map(a => `Title: ${a.title}\nContent: ${a.content}`).join("\n---\n");
-          }
-        }
-      }
-
-      const basePrompt = `You are a helpful customer sales AI assistant for this store.
+      // Determine the base system prompt.
+      // Use config.aiSystemPrompt if configured; otherwise use the default prompt.
+      const defaultSystemPrompt = `You are a helpful customer sales AI assistant for this store.
 You are chatting with a customer regarding this product:
-- Name: ${product.name}
-- Price: ${(product as any).currency || "INR"} ${product.price}
-- Description: ${product.description || "N/A"}
-
-Use the store's global training knowledgebase/QA context below to answer questions:
-${trainingText}
+- Name: {product_name}
+- Price: {product_price}
+- Description: {product_description}
 
 CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (under 150 words). Always try to close the sale by encouraging them to buy and proceed to checkout once their queries are addressed. Inform the user they can type 'checkout' or '1' at any time to buy!`;
+
+      const rawPrompt = config.aiSystemPrompt || defaultSystemPrompt;
+
+      // Replace placeholders
+      const productPrice = `${product.currency || "INR"} ${product.price}`;
+      const basePrompt = rawPrompt
+        .replace(/{product_name}/g, product.name)
+        .replace(/{product_price}/g, productPrice)
+        .replace(/{product_description}/g, product.description || "N/A");
 
       const aiSetting = await db
         .select()
@@ -855,6 +844,8 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
           })
           .returning();
 
+        await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
+
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
 
         // Send confirmation WhatsApp message
@@ -899,6 +890,8 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
           })
           .returning();
 
+        await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
+
         // Send direct payment redirect link
         const redirectUrl = `https://wa.linalapro.com/api/ecommerce/checkout/pay?orderId=${order.id}`;
 
@@ -940,6 +933,8 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
           })
           .returning();
 
+        await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
+
         // Send QR code
         await waApi.sendMediaMessageByUrl(to, config.qrCodeUrl, "image");
         await waApi.sendTextMessage(
@@ -978,6 +973,8 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
             })
             .returning();
 
+          await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
+
           await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
 
           await waApi.sendTextMessage(
@@ -1009,7 +1006,13 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
       let fileUrl = "";
       if (mediaId) {
         try {
-          fileUrl = await waApi.fetchMediaUrl(mediaId);
+          if (channelRow.connectionMethod === "qr_code") {
+            fileUrl = await waApi.fetchMediaUrl(mediaId);
+          } else {
+            const mimeType = message.image?.mime_type || "image/jpeg";
+            const savedUrl = await this.saveIncomingMedia(mediaId, mimeType, waApi);
+            fileUrl = savedUrl || (await waApi.fetchMediaUrl(mediaId));
+          }
         } catch (err) {
           console.error("Failed to fetch media url for receipt:", err);
           fileUrl = `baileys_media_${mediaId}`; // Fallback or template reference
@@ -1166,6 +1169,27 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
    * Generate Invoice PDF Kit
    */
   public static async generateOrderPdf(order: any): Promise<Buffer> {
+    const [config] = await db
+      .select()
+      .from(schema.ecommerceConfigs)
+      .where(eq(schema.ecommerceConfigs.channelId, order.channelId))
+      .limit(1);
+
+    const [merchantUser] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, order.tenantId))
+      .limit(1);
+
+    let logoBuffer: Buffer | null = null;
+    if (config?.storeLogo) {
+      try {
+        logoBuffer = await this.resolveMediaBuffer(config.storeLogo);
+      } catch (logoErr) {
+        console.error("Failed to resolve store logo for Invoice PDF:", logoErr);
+      }
+    }
+
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
@@ -1176,12 +1200,37 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         });
         doc.on("error", reject);
 
-        // Header Design
-        doc.fillColor("#111827").fontSize(22).text("ORDER INVOICE", { align: "center" });
-        doc.moveDown(1);
+        // Render Store Logo if available
+        let headerOffset = 50;
+        if (logoBuffer) {
+          try {
+            doc.image(logoBuffer, 50, 45, { fit: [60, 60] });
+            headerOffset = 120;
+          } catch (e) {
+            console.error("Failed to render logo in Invoice PDF:", e);
+          }
+        }
+
+        // Store Identity / Header info
+        const storeName = config?.storeName || merchantUser?.username || "Main Store";
+        const storeAddress = config?.storeAddress || "India";
+        const storeWebsite = config?.storeWebsite || "";
+
+        doc.fillColor("#111827").font("Helvetica-Bold").fontSize(18).text(storeName.toUpperCase(), headerOffset, 45);
+        
+        let subText = storeAddress;
+        if (storeWebsite) subText += `  |  Website: ${storeWebsite}`;
+        doc.fillColor("#4B5563").font("Helvetica").fontSize(8).text(subText, headerOffset, 68);
+
+        // Divider
+        doc.moveTo(50, 115).lineTo(562, 115).lineWidth(1).strokeColor("#E5E7EB").stroke();
+
+        // Title
+        doc.fillColor("#111827").font("Helvetica-Bold").fontSize(20).text("ORDER INVOICE", 50, 135, { align: "right" });
+        doc.moveDown(2);
 
         // Metadata block
-        doc.fontSize(10).fillColor("#4B5563");
+        doc.fontSize(10).fillColor("#4B5563").font("Helvetica");
         doc.text(`Order Reference: ${order.orderNumber}`);
         doc.text(`Invoice Date: ${new Date(order.createdAt).toLocaleString()}`);
         doc.text(`Order Status: ${order.status.toUpperCase()}`);
@@ -1238,6 +1287,129 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         doc.moveDown(3);
 
         doc.fillColor("#9CA3AF").fontSize(9).text("Thank you for shopping with us! If you have questions about this order, please contact the merchant.", { align: "center" });
+
+        doc.end();
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  /**
+   * Generate Standard Indian Shipping Label PDF (Shiprocket / Delhivery style)
+   */
+  public static async generateShippingLabelPdf(order: any, user: any): Promise<Buffer> {
+    const [config] = await db
+      .select()
+      .from(schema.ecommerceConfigs)
+      .where(eq(schema.ecommerceConfigs.channelId, order.channelId))
+      .limit(1);
+
+    let logoBuffer: Buffer | null = null;
+    if (config?.storeLogo) {
+      try {
+        logoBuffer = await this.resolveMediaBuffer(config.storeLogo);
+      } catch (logoErr) {
+        console.error("Failed to resolve store logo for Label PDF:", logoErr);
+      }
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ size: [288, 432], margin: 15 });
+        const buffers: Buffer[] = [];
+        doc.on("data", buffers.push.bind(buffers));
+        doc.on("end", () => {
+          resolve(Buffer.concat(buffers));
+        });
+        doc.on("error", reject);
+
+        // Draw Outer Border
+        doc.lineWidth(1).rect(10, 10, 268, 412).strokeColor("#111827").stroke();
+
+        // Draw Store Logo if available in top-left
+        let headerOffset = 15;
+        if (logoBuffer) {
+          try {
+            doc.image(logoBuffer, 15, 15, { fit: [30, 30] });
+            headerOffset = 50;
+          } catch (e) {
+            console.error("Failed to render logo in Label PDF:", e);
+          }
+        }
+
+        // Store Identity
+        const storeName = config?.storeName || user?.username || "Main Store";
+
+        // 1. Header (Delhivery / Shiprocket style routing header)
+        doc.fillColor("#111827");
+        doc.font("Helvetica-Bold").fontSize(11).text(storeName.toUpperCase(), headerOffset, 18);
+        doc.font("Helvetica").fontSize(7).text(`Ref: ${order.orderNumber}`, headerOffset, 32);
+        doc.font("Helvetica-Bold").fontSize(10).text(order.paymentMethod === "cod" ? "C.O.D." : "PREPAID", 200, 20, { align: "right", width: 70 });
+        
+        // Draw horizontal divider line
+        doc.moveTo(10, 50).lineTo(278, 50).lineWidth(1).strokeColor("#111827").stroke();
+
+        // 2. Barcode simulation box
+        doc.rect(20, 60, 248, 40).fill("#111827");
+        doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(9).text(order.orderNumber, 20, 75, { align: "center", width: 248 });
+        doc.fillColor("#111827");
+
+        // Draw horizontal divider line
+        doc.moveTo(10, 110).lineTo(278, 110).lineWidth(1).strokeColor("#111827").stroke();
+
+        // 3. Deliver To (Customer Details - LARGE PINCODE)
+        const address = order.customerData?.address || "N/A";
+        const pincode = order.customerData?.pin || "N/A";
+        
+        doc.font("Helvetica-Bold").fontSize(9).text("DELIVER TO:", 15, 120);
+        doc.font("Helvetica-Bold").fontSize(11).text(order.customerName || "Customer", 15, 132);
+        doc.font("Helvetica").fontSize(9).text(address, 15, 146, { width: 258, height: 40 });
+        doc.font("Helvetica-Bold").fontSize(9).text(`Phone: ${order.customerPhone}`, 15, 190);
+        
+        // Large Pincode Box for routing sorting
+        doc.rect(15, 210, 258, 25).stroke();
+        doc.font("Helvetica-Bold").fontSize(12).text(`PIN: ${pincode}`, 25, 217);
+
+        // Draw horizontal divider line
+        doc.moveTo(10, 245).lineTo(278, 245).lineWidth(1).stroke();
+
+        // 4. Product description / SKU / Qty
+        doc.font("Helvetica-Bold").fontSize(8).text("ITEM DETAILS", 15, 255);
+        doc.font("Helvetica").fontSize(9).text(`${order.productName || "Product"} (x${order.quantity || 1})`, 15, 267);
+        doc.font("Helvetica").fontSize(8).text(`Declared Value: INR ${order.totalAmount}`, 15, 280);
+
+        // Draw horizontal divider line
+        doc.moveTo(10, 295).lineTo(278, 295).lineWidth(1).stroke();
+
+        // 5. COD Collect Amount
+        if (order.paymentMethod === "cod") {
+          doc.rect(15, 305, 258, 45).fill("#FFF3CD").stroke("#FFEBAA");
+          doc.fillColor("#856404");
+          doc.font("Helvetica-Bold").fontSize(10).text("COD - COLLECT CASH", 20, 312);
+          doc.font("Helvetica-Bold").fontSize(14).text(`INR ${order.totalAmount}`, 20, 326);
+          doc.fillColor("#111827");
+        } else {
+          doc.rect(15, 305, 258, 45).fill("#D4EDDA").stroke("#C3E6CB");
+          doc.fillColor("#155724");
+          doc.font("Helvetica-Bold").fontSize(10).text("PREPAID - DO NOT COLLECT CASH", 20, 318);
+          doc.fillColor("#111827");
+        }
+
+        // Draw horizontal divider line
+        doc.moveTo(10, 360).lineTo(278, 360).lineWidth(1).stroke();
+
+        // 6. Return Address (Merchant Details)
+        const returnName = config?.storeName || user?.username || "Main Store Warehouse";
+        const returnAddress = config?.storeAddress || "India";
+        const returnWebsite = config?.storeWebsite || "";
+
+        doc.font("Helvetica-Bold").fontSize(8).text("RETURN TO / SENDER:", 15, 370);
+        doc.font("Helvetica-Bold").fontSize(8).text(returnName, 15, 380);
+        
+        let returnSub = returnAddress;
+        if (returnWebsite) returnSub += ` | Web: ${returnWebsite}`;
+        doc.font("Helvetica").fontSize(7).text(returnSub, 15, 390, { width: 258 });
 
         doc.end();
       } catch (err) {
@@ -1474,6 +1646,126 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
     if (!response.ok) {
       const err = await response.json();
       throw new Error(err.error?.message || "Interactive list failed");
+    }
+  }
+
+  private static async saveIncomingMedia(
+    mediaId: string,
+    mimeType: string,
+    waApi: WhatsAppApiService
+  ): Promise<string | null> {
+    try {
+      console.log(`[EcommerceService] Downloading receipt media: ${mediaId}`);
+      const buffer = await waApi.getMedia(mediaId);
+      if (!buffer) return null;
+
+      const extension = mimeType.split("/")[1]?.split(";")[0] || "bin";
+      const filename = `${Date.now()}-${mediaId}.${extension}`;
+
+      // Try cloud storage first
+      const { createDOClient } = await import("../config/digitalOceanConfig");
+      const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+      const doClient = await createDOClient();
+      if (doClient) {
+        const { s3, bucket, endpoint } = doClient;
+        const fileKey = `uploads/incoming/${filename}`;
+        console.log(`[EcommerceService] Uploading receipt to cloud storage: ${fileKey}`);
+
+        try {
+          await s3.send(
+            new PutObjectCommand({
+              Bucket: bucket!,
+              Key: fileKey,
+              Body: buffer,
+              ACL: "public-read",
+              ContentType: mimeType,
+            })
+          );
+        } catch (s3Error: any) {
+          if (s3Error.name === "AccessControlListNotSupported" || s3Error.message?.includes("ACL")) {
+            console.warn("[EcommerceService] S3 bucket does not support ACLs. Retrying without public-read ACL...");
+            await s3.send(
+              new PutObjectCommand({
+                Bucket: bucket!,
+                Key: fileKey,
+                Body: buffer,
+                ContentType: mimeType,
+              })
+            );
+          } else {
+            throw s3Error;
+          }
+        }
+
+        const endpointUrl = new URL(endpoint || "");
+        return `https://${bucket}.${endpointUrl.host}/${fileKey}`;
+      }
+
+      // Local storage fallback
+      const uploadDir = path.join(process.cwd(), "uploads", "incoming");
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      const localPath = path.join(uploadDir, filename);
+      fs.writeFileSync(localPath, buffer);
+      
+      const serverUrl = process.env.SERVER_URL || "https://wa.linalapro.com";
+      return `${serverUrl.replace(/\/$/, "")}/uploads/incoming/${filename}`;
+    } catch (err: any) {
+      console.error("[EcommerceService] Failed to download/save incoming media:", err);
+      return null;
+    }
+  }
+
+  private static async addContactToCustomersGroup(
+    channelId: string,
+    phone: string,
+    name: string,
+    tenantId: string
+  ) {
+    try {
+      const [existingContact] = await db
+        .select()
+        .from(schema.contacts)
+        .where(and(eq(schema.contacts.channelId, channelId), eq(schema.contacts.phone, phone)))
+        .limit(1);
+
+      if (existingContact) {
+        const currentGroups = existingContact.groups || [];
+        if (!currentGroups.includes("Customers")) {
+          await db
+            .update(schema.contacts)
+            .set({
+              groups: [...currentGroups, "Customers"],
+              name: name || existingContact.name,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.contacts.id, existingContact.id));
+        } else if (name && existingContact.name !== name) {
+          await db
+            .update(schema.contacts)
+            .set({
+              name,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.contacts.id, existingContact.id));
+        }
+      } else {
+        // Create new contact
+        await db
+          .insert(schema.contacts)
+          .values({
+            channelId,
+            phone,
+            name: name || phone,
+            groups: ["Customers"],
+            source: "chatbot",
+            createdBy: tenantId || "",
+          });
+      }
+      console.log(`[EcommerceService] Added/updated contact ${phone} in Customers group`);
+    } catch (err) {
+      console.error("[EcommerceService] Failed to add contact to Customers group:", err);
     }
   }
 }

@@ -6886,6 +6886,7 @@ export class AutomationTriggerService {
     const whatsappMessageId: string | null =
       message.whatsappMessageId ?? message.id ?? null;
 
+    let triggeredAny = false;
     for (const automation of activeAutomations) {
       if (automation.name === "WhatsApp Expense Tracker Bot" || automation.name === "WhatsApp Income Tracker Bot") {
         // Skip predefined flow triggers if channel/tenant is currently in AI Mode
@@ -7050,6 +7051,7 @@ export class AutomationTriggerService {
         console.log(`✅ Created execution record: ${execution.id}`);
         
         await this.executionService.executeAutomation(execution.id);
+        triggeredAny = true;
         
         console.log(`🎉 Automation ${automation.id} execution completed`);
         
@@ -7059,7 +7061,7 @@ export class AutomationTriggerService {
       }
     }
 
-    return true;
+    return triggeredAny;
   }
 
   /**

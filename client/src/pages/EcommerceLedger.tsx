@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ShoppingCart, Package, Settings, ClipboardList, Users, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles } from "lucide-react";
+import { ShoppingCart, Package, Settings, ClipboardList, Users, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles, Download } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,6 +17,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 import { ChannelSwitcher } from "@/components/channel-switcher";
 import { MediaGalleryDialog } from "@/components/media/MediaGalleryDialog";
+
+const DEFAULT_AI_SYSTEM_PROMPT = `You are a helpful customer sales AI assistant for this store.
+You are chatting with a customer regarding this product:
+- Name: {product_name}
+- Price: {product_price}
+- Description: {product_description}
+
+CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (under 150 words). Always try to close the sale by encouraging them to buy and proceed to checkout once their queries are addressed. Inform the user they can type 'checkout' or '1' at any time to buy!`;
 
 interface Product {
   id: string;
@@ -110,13 +118,18 @@ export default function EcommerceLedger() {
 
   const getPreviewUrl = (url: string | null | undefined) => {
     if (!url) return "";
-    if (url.startsWith("http://") || url.startsWith("https://")) {
+    if (url.startsWith("/api/") || url.startsWith("data:")) {
       return url;
     }
-    if (url.startsWith("/api/")) {
-      return url;
-    }
-    return url.startsWith("/") ? url : "/" + url;
+    return `/api/media/preview?url=${encodeURIComponent(url)}`;
+  };
+
+  const splitPhotos = (input: string): string[] => {
+    if (!input) return [];
+    return input
+      .split(/(?:,\s*|\s+)(?=https?:\/\/|\/uploads)/)
+      .map((p) => p.trim())
+      .filter(Boolean);
   };
 
   // Store Configuration Form states
@@ -141,7 +154,14 @@ export default function EcommerceLedger() {
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiTimeoutMinutes, setAiTimeoutMinutes] = useState(30);
   const [aiAskButtonEnabled, setAiAskButtonEnabled] = useState(true);
+  const [aiSystemPrompt, setAiSystemPrompt] = useState("");
   const [welcomeMessages, setWelcomeMessages] = useState<{ id: string; text: string; mediaType: "none" | "image" | "video" | "audio"; mediaUrl: string; sortOrder: number }[]>([]);
+
+  // Store Identity Profile
+  const [storeName, setStoreName] = useState("");
+  const [storeAddress, setStoreAddress] = useState("");
+  const [storeWebsite, setStoreWebsite] = useState("");
+  const [storeLogo, setStoreLogo] = useState("");
 
   // Queries
   // 1. Fetch Ecommerce Config
@@ -176,7 +196,12 @@ export default function EcommerceLedger() {
       setAiEnabled((config as any).aiEnabled !== undefined ? (config as any).aiEnabled : false);
       setAiTimeoutMinutes((config as any).aiTimeoutMinutes !== undefined ? (config as any).aiTimeoutMinutes : 30);
       setAiAskButtonEnabled((config as any).aiAskButtonEnabled !== undefined ? (config as any).aiAskButtonEnabled : true);
+      setAiSystemPrompt((config as any).aiSystemPrompt || DEFAULT_AI_SYSTEM_PROMPT);
       setWelcomeMessages(Array.isArray((config as any).welcomeMessages) ? (config as any).welcomeMessages : []);
+      setStoreName((config as any).storeName || "");
+      setStoreAddress((config as any).storeAddress || "");
+      setStoreWebsite((config as any).storeWebsite || "");
+      setStoreLogo((config as any).storeLogo || "");
       setConfigActive(config.isActive !== undefined ? config.isActive : true);
 
       // Standardize loaded checkoutFields Q&A objects
@@ -335,10 +360,7 @@ export default function EcommerceLedger() {
 
   const handleProductSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const photosArray = prodPhotos
-      .split(",")
-      .map((p) => p.trim())
-      .filter(Boolean);
+    const photosArray = splitPhotos(prodPhotos);
 
     const payload: any = {
       name: prodName,
@@ -385,7 +407,12 @@ export default function EcommerceLedger() {
       aiEnabled,
       aiTimeoutMinutes,
       aiAskButtonEnabled,
+      aiSystemPrompt,
       welcomeMessages,
+      storeName,
+      storeAddress,
+      storeWebsite,
+      storeLogo,
       isActive: configActive,
     };
 
@@ -520,9 +547,9 @@ export default function EcommerceLedger() {
                   </Button>
                 </div>
 
-                {prodPhotos.split(",").map(p => p.trim()).filter(Boolean).length > 0 && (
+                {splitPhotos(prodPhotos).length > 0 && (
                   <div className="flex flex-wrap gap-2 border p-2 rounded bg-gray-50 max-h-32 overflow-y-auto mt-1">
-                    {prodPhotos.split(",").map(p => p.trim()).filter(Boolean).map((photoUrl, idx) => (
+                    {splitPhotos(prodPhotos).map((photoUrl, idx) => (
                       <div key={idx} className="relative w-14 h-14 border rounded overflow-hidden group">
                         <img src={getPreviewUrl(photoUrl)} className="w-full h-full object-cover" alt="product thumbnail" />
                         <button
@@ -530,7 +557,7 @@ export default function EcommerceLedger() {
                           className="absolute top-0 right-0 bg-red-600 text-white rounded-full flex items-center justify-center p-0.5 opacity-80 hover:opacity-100 transition-opacity"
                           style={{ width: "16px", height: "16px", fontSize: "10px" }}
                           onClick={() => {
-                            const list = prodPhotos.split(",").map(p => p.trim()).filter(Boolean);
+                            const list = splitPhotos(prodPhotos);
                             list.splice(idx, 1);
                             setProdPhotos(list.join(", "));
                           }}
@@ -769,6 +796,7 @@ export default function EcommerceLedger() {
                         <TableHead>Receipt</TableHead>
                         <TableHead>Delivery Status</TableHead>
                         <TableHead>Date</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -844,6 +872,28 @@ export default function EcommerceLedger() {
                             </select>
                           </TableCell>
                           <TableCell className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-right whitespace-nowrap space-x-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[10px] px-2 text-blue-600 hover:text-blue-700"
+                              asChild
+                            >
+                              <a href={`/api/ecommerce/orders/${order.id}/invoice`} target="_blank" rel="noreferrer">
+                                <Download className="w-3 h-3 mr-0.5" /> Invoice
+                              </a>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[10px] px-2 text-emerald-600 hover:text-emerald-700"
+                              asChild
+                            >
+                              <a href={`/api/ecommerce/orders/${order.id}/shipping-label`} target="_blank" rel="noreferrer">
+                                <FileText className="w-3 h-3 mr-0.5" /> Label
+                              </a>
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -912,6 +962,90 @@ export default function EcommerceLedger() {
             <CardContent>
               <form onSubmit={handleConfigSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Store Identity Profile Section */}
+                  <div className="col-span-1 md:col-span-2 space-y-4 border p-4 rounded-lg bg-gray-50/50">
+                    <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
+                      <Settings className="w-4 h-4 text-purple-600" />
+                      Store Identity Profile (Displayed on Invoices & Labels)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="storeName" className="font-semibold text-gray-700">Store Name</Label>
+                        <Input
+                          id="storeName"
+                          value={storeName}
+                          onChange={(e) => setStoreName(e.target.value)}
+                          placeholder="e.g. SKYSECRETARY CLOUD KSA"
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="storeWebsite" className="font-semibold text-gray-700">Store Website</Label>
+                        <Input
+                          id="storeWebsite"
+                          value={storeWebsite}
+                          onChange={(e) => setStoreWebsite(e.target.value)}
+                          placeholder="e.g. www.skysecretary.com"
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="font-semibold text-gray-700">Store Logo URL</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            value={storeLogo}
+                            onChange={(e) => setStoreLogo(e.target.value)}
+                            placeholder="e.g. https://.../logo.png"
+                            className="h-9 text-xs flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-9 text-xs whitespace-nowrap"
+                            onClick={() => {
+                              const inputEl = document.createElement("input");
+                              inputEl.type = "file";
+                              inputEl.accept = "image/*";
+                              inputEl.onchange = async (e: any) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const formData = new FormData();
+                                formData.append("file", file);
+                                try {
+                                  toast({ title: "Uploading...", description: "Uploading logo to storage..." });
+                                  const uploadRes = await fetch("/api/media/upload", {
+                                    method: "POST",
+                                    body: formData,
+                                  });
+                                  if (!uploadRes.ok) throw new Error("Upload failed");
+                                  const data = await uploadRes.json();
+                                  setStoreLogo(data.url);
+                                  toast({ title: "Success", description: "Logo uploaded successfully!", variant: "default" });
+                                } catch (err: any) {
+                                  toast({ title: "Error", description: err.message || "Failed to upload logo", variant: "destructive" });
+                                }
+                              };
+                              inputEl.click();
+                            }}
+                          >
+                            Upload Logo
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="col-span-1 md:col-span-3 space-y-1.5">
+                        <Label htmlFor="storeAddress" className="font-semibold text-gray-700">Store Pickup Address (Displayed on Return Shipping Labels)</Label>
+                        <Textarea
+                          id="storeAddress"
+                          value={storeAddress}
+                          onChange={(e) => setStoreAddress(e.target.value)}
+                          placeholder="e.g. Warehouse A1, Industrial Area, Riyadh, Saudi Arabia"
+                          className="min-h-[60px] text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   {/* General Config */}
                   <div className="space-y-4 border p-4 rounded-lg">
                     <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
@@ -1197,6 +1331,24 @@ export default function EcommerceLedger() {
                               Automatically close AI chat and revert back to store catalog after inactivity.
                             </span>
                           </div>
+
+                          <div className="col-span-1 md:col-span-2 space-y-1.5 pt-2 border-t border-purple-50">
+                            <Label htmlFor="aiSystemPrompt" className="font-semibold text-gray-700">Custom AI System Prompt</Label>
+                            <Textarea
+                              id="aiSystemPrompt"
+                              value={aiSystemPrompt}
+                              onChange={(e) => setAiSystemPrompt(e.target.value)}
+                              placeholder={`You are a helpful customer sales AI assistant for this store.
+You are chatting with a customer regarding this product:
+- Name: {product_name}
+- Price: {product_price}
+- Description: {product_description}`}
+                              className="w-full min-h-[120px] text-xs font-mono"
+                            />
+                            <span className="text-[10px] text-gray-400 block leading-tight">
+                              Configure custom rules/directives for the AI. Use placeholders like <strong>{"{product_name}"}</strong>, <strong>{"{product_price}"}</strong>, and <strong>{"{product_description}"}</strong> to inject product variables dynamically.
+                            </span>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1309,7 +1461,8 @@ export default function EcommerceLedger() {
                               setIsGalleryOpen(true);
                             }}
                           >
-                            </Button>
+                            Gallery
+                          </Button>
                         </div>
                         {qrCodeUrl && (
                           <div className="mt-2 w-20 h-20 border rounded overflow-hidden">

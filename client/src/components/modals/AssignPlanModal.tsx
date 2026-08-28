@@ -51,6 +51,7 @@ export default function AssignPlanModal({
   const [selectedPlan, setSelectedPlan] = useState("");
   const [planDetails, setPlanDetails] = useState<any>(null);
   const [billingCycle, setBillingCycle] = useState("monthly");
+  const [renewAddons, setRenewAddons] = useState(true);
   const [loading, setLoading] = useState(false);
 
   /** -----------------------------------------
@@ -98,6 +99,7 @@ export default function AssignPlanModal({
       setSelectedPlan("");   // reset dropdown
       setPlanDetails(null);  // reset details
       setBillingCycle("monthly"); // reset cycle
+      setRenewAddons(true); // reset renew checkbox
     }
   }, [open]);
 
@@ -136,6 +138,7 @@ export default function AssignPlanModal({
         userId: user.id,
         planId: selectedPlan,
         billingCycle: billingCycle,
+        renewAllAddons: renewAddons,
       });
 
       const data = await res.json();
@@ -210,18 +213,33 @@ export default function AssignPlanModal({
 
             {/* BILLING CYCLE DROPDOWN */}
             {selectedPlan && (
-              <div>
-                <Label>Billing Cycle *</Label>
-                <select
-                  className="border rounded p-2 w-full mt-1 bg-white"
-                  value={billingCycle}
-                  onChange={(e) => setBillingCycle(e.target.value)}
-                >
-                  <option value="monthly">Monthly (1 Month) — ₹{planDetails?.monthlyPrice || 0}</option>
-                  <option value="quarterly">Quarterly (3 Months) — ₹{Number(planDetails?.monthlyPrice || 0) * 3}</option>
-                  <option value="semi-annual">Semi-Annual (6 Months) — ₹{Number(planDetails?.monthlyPrice || 0) * 6}</option>
-                  <option value="annual">Annual (1 Year) — ₹{planDetails?.annualPrice || 0}</option>
-                </select>
+              <div className="space-y-4">
+                <div>
+                  <Label>Billing Cycle *</Label>
+                  <select
+                    className="border rounded p-2 w-full mt-1 bg-white"
+                    value={billingCycle}
+                    onChange={(e) => setBillingCycle(e.target.value)}
+                  >
+                    <option value="monthly">Monthly (1 Month) — ₹{planDetails?.monthlyPrice || 0}</option>
+                    <option value="quarterly">Quarterly (3 Months) — ₹{Number(planDetails?.monthlyPrice || 0) * 3}</option>
+                    <option value="semi-annual">Semi-Annual (6 Months) — ₹{Number(planDetails?.monthlyPrice || 0) * 6}</option>
+                    <option value="annual">Annual (1 Year) — ₹{planDetails?.annualPrice || 0}</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between border p-3 rounded-lg bg-indigo-50/50">
+                  <div className="flex flex-col pr-4">
+                    <span className="text-sm font-semibold text-gray-800">Auto-renew active/expired addons</span>
+                    <span className="text-xs text-gray-500">Align all tenant addons' expiry with this new subscription.</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                    checked={renewAddons}
+                    onChange={(e) => setRenewAddons(e.target.checked)}
+                  />
+                </div>
               </div>
             )}
 

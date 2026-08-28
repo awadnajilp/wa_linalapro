@@ -293,6 +293,20 @@ export const AssignSubscription = async (req: Request, res: Response) => {
       })
       .returning();
 
+    // Renew/Align all active/expired tenant addons with the new plan's endDate
+    if (req.body.renewAllAddons === true) {
+      await db
+        .update(tenantAddons)
+        .set({
+          expiresAt: endDate,
+          status: "active",
+          updatedAt: new Date()
+        })
+        .where(
+          eq(tenantAddons.tenantId, userId)
+        );
+    }
+
     return res.status(201).json({
       success: true,
       message: "Subscription assigned successfully",

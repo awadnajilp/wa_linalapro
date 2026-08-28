@@ -15,7 +15,7 @@
  * ============================================================
  */
 
-import { Crown, Calendar, Check, X, ArrowRightLeft, XCircle } from "lucide-react";
+import { Crown, Calendar, Check, X, ArrowRightLeft, XCircle, Puzzle } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/auth-context";
@@ -72,6 +72,11 @@ export default function BillingSubscriptionPage({ embedded = false }: { embedded
       apiRequest("GET", `api/subscriptions/user/${user?.id}`).then((res) =>
         res.json()
       ),
+    enabled: !!user?.id,
+  });
+
+  const { data: tenantAddons } = useQuery<any[]>({
+    queryKey: ["/api/tenant/addons"],
     enabled: !!user?.id,
   });
 
@@ -334,6 +339,67 @@ export default function BillingSubscriptionPage({ embedded = false }: { embedded
           })
         )}
       </main>
+
+      {/* Subscribed Addons Section */}
+      {tenantAddons && tenantAddons.some((a) => a.subscription?.status === "active") && (
+        <div className="p-6 pt-0 border-t border-gray-100 mt-4">
+          <div className="flex items-center gap-3 mb-4 mt-6">
+            <div className="p-2 bg-indigo-100 rounded-lg">
+              <Puzzle className="w-6 h-6 text-indigo-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">
+              Active Addons Details
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            {tenantAddons
+              .filter((a) => a.subscription?.status === "active")
+              .map((addon) => {
+                const renewsDate = addon.subscription?.expiresAt
+                  ? new Date(addon.subscription.expiresAt).toLocaleDateString()
+                  : "-";
+
+                return (
+                  <div
+                    key={addon.id}
+                    className="bg-white rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col h-full max-w-sm"
+                  >
+                    <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Puzzle className="w-5 h-5 text-yellow-300" />
+                          <h2 className="text-lg font-bold">{addon.name}</h2>
+                        </div>
+                        <span className="bg-white/20 text-white text-xs font-semibold rounded-full px-2.5 py-1 capitalize">
+                          {addon.subscription?.status || "active"}
+                        </span>
+                      </div>
+                      <p className="text-indigo-100 text-xs line-clamp-2">
+                        {addon.description}
+                      </p>
+                    </div>
+
+                    <div className="p-4 flex-grow flex flex-col justify-between space-y-4">
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-indigo-50 rounded-lg p-2 text-center">
+                          <p className="text-gray-500 text-[10px] mb-0.5">Price</p>
+                          <p className="font-semibold text-gray-800">${addon.price}/mo</p>
+                        </div>
+                        <div className="bg-purple-50 rounded-lg p-2 text-center">
+                          <p className="text-gray-500 text-[10px] mb-0.5">Renews/Expires</p>
+                          <p className="font-semibold text-gray-800">{renewsDate}</p>
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-indigo-700 bg-indigo-50 p-2.5 rounded-lg border border-indigo-100 font-medium">
+                        <span className="font-bold">Billing Mode:</span> Invoiced monthly with platform subscription fees.
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {/* Custom Scrollbar */}
       <style>{`

@@ -875,9 +875,16 @@ async sendMessage(
     caption?: string,
     filename?: string
   ): Promise<any> {
+    let absoluteMediaUrl = mediaUrl;
+    if (mediaUrl && !mediaUrl.startsWith("http://") && !mediaUrl.startsWith("https://")) {
+      const serverUrl = process.env.SERVER_URL || "https://wa.linalapro.com";
+      const cleanUrl = mediaUrl.startsWith("/") ? mediaUrl : "/" + mediaUrl;
+      absoluteMediaUrl = `${serverUrl.replace(/\/$/, "")}${cleanUrl}`;
+    }
+
     if (this.channel.connectionMethod === "qr_code") {
       const mediaData = {
-        url: mediaUrl,
+        url: absoluteMediaUrl,
         mimeType: type === "image" ? "image/jpeg" : type === "video" ? "video/mp4" : "application/pdf",
         filename: filename || "file"
       };
@@ -890,7 +897,7 @@ async sendMessage(
       to: formattedPhone,
       type: type,
       [type]: {
-        link: mediaUrl,
+        link: absoluteMediaUrl,
         ...(caption ? { caption } : {}),
         ...(type === "document" && filename ? { filename } : {}),
       },

@@ -106,7 +106,18 @@ export default function EcommerceLedger() {
 
   // Gallery Dialog states
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
-  const [galleryTarget, setGalleryTarget] = useState<"product" | "welcome_header" | "qr_code">("product");
+  const [galleryTarget, setGalleryTarget] = useState<any>("product");
+
+  const getPreviewUrl = (url: string | null | undefined) => {
+    if (!url) return "";
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      return url;
+    }
+    if (url.startsWith("/api/")) {
+      return url;
+    }
+    return url.startsWith("/") ? url : "/" + url;
+  };
 
   // Store Configuration Form states
   const [storeKeyword, setStoreKeyword] = useState("store");
@@ -513,7 +524,7 @@ export default function EcommerceLedger() {
                   <div className="flex flex-wrap gap-2 border p-2 rounded bg-gray-50 max-h-32 overflow-y-auto mt-1">
                     {prodPhotos.split(",").map(p => p.trim()).filter(Boolean).map((photoUrl, idx) => (
                       <div key={idx} className="relative w-14 h-14 border rounded overflow-hidden group">
-                        <img src={photoUrl} className="w-full h-full object-cover" alt="product thumbnail" />
+                        <img src={getPreviewUrl(photoUrl)} className="w-full h-full object-cover" alt="product thumbnail" />
                         <button
                           type="button"
                           className="absolute top-0 right-0 bg-red-600 text-white rounded-full flex items-center justify-center p-0.5 opacity-80 hover:opacity-100 transition-opacity"
@@ -641,7 +652,7 @@ export default function EcommerceLedger() {
                         <TableRow key={prod.id}>
                           <TableCell>
                             {firstPhoto ? (
-                              <img src={firstPhoto} alt={prod.name} className="w-12 h-12 object-cover rounded-lg border" />
+                              <img src={getPreviewUrl(firstPhoto)} alt={prod.name} className="w-12 h-12 object-cover rounded-lg border" />
                             ) : (
                               <div className="w-12 h-12 bg-gray-100 flex items-center justify-center rounded-lg border">
                                 <Package className="w-6 h-6 text-gray-400" />
@@ -991,9 +1002,13 @@ export default function EcommerceLedger() {
                               setIsGalleryOpen(true);
                             }}
                           >
-                            Gallery
-                          </Button>
+                            </Button>
                         </div>
+                        {welcomeHeaderUrl && welcomeHeaderType === "image" && (
+                          <div className="mt-2 w-20 h-20 border rounded overflow-hidden">
+                            <img src={getPreviewUrl(welcomeHeaderUrl)} className="w-full h-full object-cover" alt="header preview" />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1026,11 +1041,11 @@ export default function EcommerceLedger() {
                             </Button>
                           </div>
                           
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div className="space-y-1">
                               <Label className="text-xs">Media Type</Label>
                               <select
-                                value={msg.mediaType}
+                                value={msg.mediaType || "none"}
                                 onChange={(e) => {
                                   const updated = [...welcomeMessages];
                                   updated[idx].mediaType = e.target.value as any;
@@ -1049,7 +1064,7 @@ export default function EcommerceLedger() {
                               <Label className="text-xs">Media URL (Supports Gallery)</Label>
                               <div className="flex gap-2">
                                 <Input
-                                  value={msg.mediaUrl}
+                                  value={msg.mediaUrl || ""}
                                   onChange={(e) => {
                                     const updated = [...welcomeMessages];
                                     updated[idx].mediaUrl = e.target.value;
@@ -1073,6 +1088,11 @@ export default function EcommerceLedger() {
                                   Gallery
                                 </Button>
                               </div>
+                              {msg.mediaType === "image" && msg.mediaUrl && (
+                                <div className="mt-2 w-14 h-14 border rounded overflow-hidden">
+                                  <img src={getPreviewUrl(msg.mediaUrl)} className="w-full h-full object-cover" alt="preview" />
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -1080,7 +1100,7 @@ export default function EcommerceLedger() {
                             <div className="space-y-1 md:col-span-3">
                               <Label className="text-xs font-semibold">Message Text Body</Label>
                               <Textarea
-                                value={msg.text}
+                                value={msg.text || ""}
                                 onChange={(e) => {
                                   const updated = [...welcomeMessages];
                                   updated[idx].text = e.target.value;
@@ -1289,9 +1309,13 @@ export default function EcommerceLedger() {
                               setIsGalleryOpen(true);
                             }}
                           >
-                            Gallery
-                          </Button>
+                            </Button>
                         </div>
+                        {qrCodeUrl && (
+                          <div className="mt-2 w-20 h-20 border rounded overflow-hidden">
+                            <img src={getPreviewUrl(qrCodeUrl)} className="w-full h-full object-cover" alt="QR code preview" />
+                          </div>
+                        )}
                         <span className="text-[10px] text-gray-500 block leading-tight">
                           Will send QR code image to shopper's chat for manual scanning.
                         </span>

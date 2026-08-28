@@ -221,6 +221,10 @@ export function registerEcommerceRoutes(app: Express) {
         upiId,
         upiMerchantName,
         currency,
+        aiEnabled,
+        aiTimeoutMinutes,
+        aiAskButtonEnabled,
+        welcomeMessages,
         isActive
       } = req.body;
 
@@ -236,6 +240,7 @@ export function registerEcommerceRoutes(app: Express) {
         .limit(1);
 
       const fieldsArray = Array.isArray(checkoutFields) ? checkoutFields : ["name", "phone", "address", "pin"];
+      const parseWelcomes = Array.isArray(welcomeMessages) ? welcomeMessages : [];
 
       let config;
       if (existing) {
@@ -257,6 +262,10 @@ export function registerEcommerceRoutes(app: Express) {
             upiId: upiId || null,
             upiMerchantName: upiMerchantName || null,
             currency: currency || "INR",
+            aiEnabled: aiEnabled !== undefined ? aiEnabled : false,
+            aiTimeoutMinutes: aiTimeoutMinutes !== undefined ? parseInt(String(aiTimeoutMinutes)) : 30,
+            aiAskButtonEnabled: aiAskButtonEnabled !== undefined ? aiAskButtonEnabled : true,
+            welcomeMessages: parseWelcomes,
             isActive: isActive !== undefined ? isActive : true,
             updatedAt: new Date()
           })
@@ -284,6 +293,10 @@ export function registerEcommerceRoutes(app: Express) {
             upiId: upiId || null,
             upiMerchantName: upiMerchantName || null,
             currency: currency || "INR",
+            aiEnabled: aiEnabled !== undefined ? aiEnabled : false,
+            aiTimeoutMinutes: aiTimeoutMinutes !== undefined ? parseInt(String(aiTimeoutMinutes)) : 30,
+            aiAskButtonEnabled: aiAskButtonEnabled !== undefined ? aiAskButtonEnabled : true,
+            welcomeMessages: parseWelcomes,
             isActive: isActive !== undefined ? isActive : true
           })
           .returning();

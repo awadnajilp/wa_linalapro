@@ -939,6 +939,15 @@ const steps: MigrationStep[] = [
       ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'INR';
     `,
   },
+  {
+    description: "Add AI settings and welcome messages jsonb to ecommerce_configs (if not exists)",
+    sql: `
+      ALTER TABLE ecommerce_configs ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN DEFAULT false;
+      ALTER TABLE ecommerce_configs ADD COLUMN IF NOT EXISTS ai_timeout_minutes INTEGER DEFAULT 30;
+      ALTER TABLE ecommerce_configs ADD COLUMN IF NOT EXISTS ai_ask_button_enabled BOOLEAN DEFAULT true;
+      ALTER TABLE ecommerce_configs ADD COLUMN IF NOT EXISTS welcome_messages JSONB DEFAULT '[]'::jsonb;
+    `,
+  },
 ];
 
 /**

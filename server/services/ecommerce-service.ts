@@ -1,6 +1,7 @@
 import { db } from "../db";
 import * as schema from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
+import OpenAI from "openai";
 import { AddonManager } from "./addon-manager";
 import { WhatsAppApiService } from "./whatsapp-api";
 import { getTransporter } from "./email.service";
@@ -57,68 +58,10 @@ export class EcommerceService {
       const conversationId = conversation[0].id;
       const contactPhone = conversation[0].contactPhone;
       const cleanContent = content.trim().toLowerCase();
+      const waApi = new WhatsAppApiService(channelRow);
 
-      // Check if there is an active ecommerce session
-      const [session] = await db
-        .select()
-        .from(schema.ecommerceSessions)
-        .where(eq(schema.ecommerceSessions.conversationId, conversationId))
-        .limit(1);
-
-      if (session) {
-        // Process active session response
-        await this.processSessionInput(channelRow, config, session, content.trim(), message);
-        return true;
-      }
-
-      // NO Active session: Check for trigger keywords
-      // 1. Store trigger (Store-wise flow)
-      const storeKeyword = (config.storeTriggerKeyword || "store").toLowerCase();
-      if (config.isStoreFlowActive && cleanContent === storeKeyword) {
-        await this.sendStoreCatalog(channelRow, config, contactPhone);
-        return true;
-      }
-
-      // 2. Individual product trigger
-      const products = await db
-        .select()
-        .from(schema.ecommerceProducts)
-        .where(
-          and(
-            eq(schema.ecommerceProducts.tenantId, tenantId),
-            eq(schema.ecommerceProducts.isTriggerEnabled, true)
-          )
-        );
-
-      // Check for exact matching keyword
-      const matchedProduct = products.find(
-        (p) => p.triggerKeyword && p.triggerKeyword.trim().toLowerCase() === cleanContent
-      );
-
-      if (matchedProduct) {
-        await this.startIndividualProductFlow(channelRow, config, conversationId, contactPhone, matchedProduct);
-        return true;
-      }
-
-      // 3. QR / IVR Number based product selection
-      // If store flow was active and they sent a number, we can check if they are trying to select a product
-      const isNumber = /^\d+$/.test(cleanContent);
-      if (isNumber) {
-        const productIndex = parseInt(cleanContent) - 1;
-        // Retrieve active store products to match index
-        const allActiveProducts = await db
-          .select()
-          .from(schema.ecommerceProducts)
-          .where(eq(schema.ecommerceProducts.tenantId, tenantId));
-
-        if (productIndex >= 0 && productIndex < allActiveProducts.length) {
-          const selectedProd = allActiveProducts[productIndex];
-          await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, selectedProd);
-          return true;
-        }
-      }
-
-      // 4. Interactive button replies (Buy Now)
+      // Check interactive button clicks FIRST (always high priority)
+      // 1. Interactive button replies (Buy Now or Ask AI)
       if (message.interactive?.type === "button_reply") {
         const replyId = message.interactive.button_reply.id;
         if (replyId && replyId.startsWith("buy_")) {
@@ -133,10 +76,35 @@ export class EcommerceService {
             await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, product);
             return true;
           }
+        } else if (replyId && replyId.startsWith("ai_ask_")) {
+          const productId = replyId.replace("ai_ask_", "");
+          const [product] = await db
+            .select()
+            .from(schema.ecommerceProducts)
+            .where(eq(schema.ecommerceProducts.id, productId))
+            .limit(1);
+
+          if (product && config.aiEnabled) {
+            // Delete active sessions
+            await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+            // Create AI chat session
+            await db.insert(schema.ecommerceSessions).values({
+              conversationId,
+              productId: product.id,
+              quantity: 1,
+              currentStep: "ai_chat",
+              customerData: {
+                aiStartTime: new Date().toISOString(),
+                aiLastMessageTime: new Date().toISOString()
+              }
+            });
+            await waApi.sendTextMessage(contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${product.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
+            return true;
+          }
         }
       }
 
-      // 5. Interactive list replies
+      // 2. Interactive list replies
       if (message.interactive?.type === "list_reply") {
         const replyId = message.interactive.list_reply.id;
         if (replyId && replyId.startsWith("prod_")) {
@@ -154,6 +122,103 @@ export class EcommerceService {
         }
       }
 
+      // Check if there is an active ecommerce session
+      const [session] = await db
+        .select()
+        .from(schema.ecommerceSessions)
+        .where(eq(schema.ecommerceSessions.conversationId, conversationId))
+        .limit(1);
+
+      if (session) {
+        // If it's a waiting_for_product_selection session
+        if (session.currentStep === "waiting_for_product_selection") {
+          const isNumber = /^\d+$/.test(cleanContent);
+          if (isNumber) {
+            const productIndex = parseInt(cleanContent) - 1;
+            const allActiveProducts = await db
+              .select()
+              .from(schema.ecommerceProducts)
+              .where(eq(schema.ecommerceProducts.tenantId, tenantId));
+
+            if (productIndex >= 0 && productIndex < allActiveProducts.length) {
+              const selectedProd = allActiveProducts[productIndex];
+              await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, selectedProd);
+              return true;
+            }
+          }
+          
+          // QR code IVR Ask AI fallback: e.g. "ai"
+          if (cleanContent === "ai" || cleanContent.includes("ask ai")) {
+            // Find first active product in listing as target
+            const allActiveProducts = await db
+              .select()
+              .from(schema.ecommerceProducts)
+              .where(eq(schema.ecommerceProducts.tenantId, tenantId));
+            if (allActiveProducts.length > 0 && config.aiEnabled) {
+              const firstProd = allActiveProducts[0];
+              await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+              await db.insert(schema.ecommerceSessions).values({
+                conversationId,
+                productId: firstProd.id,
+                quantity: 1,
+                currentStep: "ai_chat",
+                customerData: {
+                  aiStartTime: new Date().toISOString(),
+                  aiLastMessageTime: new Date().toISOString()
+                }
+              });
+              await waApi.sendTextMessage(contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${firstProd.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
+              return true;
+            }
+          }
+          
+          // If they typed something else, delete session and let other triggers process
+          await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+        } else {
+          // Process active session response (checkout steps, ai chat)
+          await this.processSessionInput(channelRow, config, session, content.trim(), message);
+          return true;
+        }
+      }
+
+      // NO Active session: Check for triggers
+      // 1. Store trigger (Store-wise flow)
+      const storeKeyword = (config.storeTriggerKeyword || "").trim().toLowerCase();
+      // Only trigger if storeKeyword is configured and isStoreFlowActive is true
+      if (config.isStoreFlowActive && storeKeyword && cleanContent === storeKeyword) {
+        // Delete any active sessions first
+        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+        // Create session
+        await db.insert(schema.ecommerceSessions).values({
+          conversationId,
+          quantity: 1,
+          currentStep: "waiting_for_product_selection",
+          customerData: {}
+        });
+        await this.sendStoreCatalog(channelRow, config, contactPhone);
+        return true;
+      }
+
+      // 2. Individual product trigger
+      const products = await db
+        .select()
+        .from(schema.ecommerceProducts)
+        .where(
+          and(
+            eq(schema.ecommerceProducts.tenantId, tenantId),
+            eq(schema.ecommerceProducts.isTriggerEnabled, true)
+          )
+        );
+
+      const matchedProduct = products.find(
+        (p) => p.triggerKeyword && p.triggerKeyword.trim().toLowerCase() === cleanContent
+      );
+
+      if (matchedProduct) {
+        await this.startIndividualProductFlow(channelRow, config, conversationId, contactPhone, matchedProduct);
+        return true;
+      }
+
       return false;
     } catch (err: any) {
       console.error("[Ecommerce Interceptor] Error:", err.message);
@@ -168,16 +233,35 @@ export class EcommerceService {
     const waApi = new WhatsAppApiService(channelRow);
     const isQr = channelRow.connectionMethod === "qr_code";
 
-    // 1. Send Welcome Message
-    if (config.welcomeHeaderUrl && config.welcomeHeaderType !== "none") {
-      await waApi.sendMediaMessageByUrl(
-        to,
-        config.welcomeHeaderUrl,
-        config.welcomeHeaderType as "image" | "video",
-        config.welcomeMessage || "Welcome to our store!"
-      );
+    // 1. Send Welcome Message Sequence
+    const sortedWelcomes = (config.welcomeMessages || [])
+      .map((w: any) => ({
+        text: w.text || "",
+        mediaType: w.mediaType || "none",
+        mediaUrl: w.mediaUrl || "",
+        sortOrder: typeof w.sortOrder === "number" ? w.sortOrder : 0
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    if (sortedWelcomes.length === 0) {
+      if (config.welcomeHeaderUrl && config.welcomeHeaderType !== "none") {
+        await waApi.sendMediaMessageByUrl(
+          to,
+          config.welcomeHeaderUrl,
+          config.welcomeHeaderType as "image" | "video",
+          config.welcomeMessage || "Welcome to our store!"
+        );
+      } else {
+        await waApi.sendTextMessage(to, config.welcomeMessage || "Welcome to our store!");
+      }
     } else {
-      await waApi.sendTextMessage(to, config.welcomeMessage || "Welcome to our store!");
+      for (const msg of sortedWelcomes) {
+        if (msg.mediaType !== "none" && msg.mediaUrl) {
+          await waApi.sendMediaMessageByUrl(to, msg.mediaUrl, msg.mediaType as any, msg.text || "");
+        } else if (msg.text) {
+          await waApi.sendTextMessage(to, msg.text);
+        }
+      }
     }
 
     // 2. Fetch all products
@@ -205,6 +289,11 @@ export class EcommerceService {
 
       if (isQr) {
         // For QR code: send photos then details text containing numerical option
+        let promptMsg = `${descText}\n\nReply with *${i + 1}* to Buy Now!`;
+        if (config.aiEnabled && config.aiAskButtonEnabled) {
+          promptMsg += `\nOr reply with *AI* to ask questions about this product.`;
+        }
+
         if (photos.length > 0) {
           for (let p = 0; p < photos.length; p++) {
             if (p === photos.length - 1) {
@@ -212,17 +301,22 @@ export class EcommerceService {
                 to,
                 photos[p],
                 "image",
-                `${descText}\n\nReply with *${i + 1}* to Buy Now!`
+                promptMsg
               );
             } else {
               await waApi.sendMediaMessageByUrl(to, photos[p], "image");
             }
           }
         } else {
-          await waApi.sendTextMessage(to, `${descText}\n\nReply with *${i + 1}* to Buy Now!`);
+          await waApi.sendTextMessage(to, promptMsg);
         }
       } else {
-        // For Cloud API: send intermediate photos, and send last image / text as interactive button "Buy Now"
+        // For Cloud API: send intermediate photos, and send last image / text as interactive button "Buy Now" / "Ask AI"
+        const buttons = [{ id: `buy_${product.id}`, title: "Buy Now" }];
+        if (config.aiEnabled && config.aiAskButtonEnabled) {
+          buttons.push({ id: `ai_ask_${product.id}`, title: "Ask AI" });
+        }
+
         if (photos.length > 0) {
           // Send first N-1 photos
           for (let p = 0; p < photos.length - 1; p++) {
@@ -230,14 +324,10 @@ export class EcommerceService {
           }
           // Send last photo as header of interactive message
           const lastPhoto = photos[photos.length - 1];
-          await this.sendCloudApiButtonMessage(channelRow, to, descText, lastPhoto, [
-            { id: `buy_${product.id}`, title: "Buy Now" }
-          ]);
+          await this.sendCloudApiButtonMessage(channelRow, to, descText, lastPhoto, buttons);
         } else {
           // Send interactive message without image
-          await this.sendCloudApiButtonMessage(channelRow, to, descText, null, [
-            { id: `buy_${product.id}`, title: "Buy Now" }
-          ]);
+          await this.sendCloudApiButtonMessage(channelRow, to, descText, null, buttons);
         }
       }
     }
@@ -279,6 +369,38 @@ export class EcommerceService {
     product: any
   ) {
     const waApi = new WhatsAppApiService(channelRow);
+    
+    // Send Welcome Messages Sequence first (even if store trigger is off)
+    const sortedWelcomes = (config.welcomeMessages || [])
+      .map((w: any) => ({
+        text: w.text || "",
+        mediaType: w.mediaType || "none",
+        mediaUrl: w.mediaUrl || "",
+        sortOrder: typeof w.sortOrder === "number" ? w.sortOrder : 0
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    if (sortedWelcomes.length === 0) {
+      if (config.welcomeHeaderUrl && config.welcomeHeaderType !== "none") {
+        await waApi.sendMediaMessageByUrl(
+          contactPhone,
+          config.welcomeHeaderUrl,
+          config.welcomeHeaderType as "image" | "video",
+          config.welcomeMessage || "Welcome to our store!"
+        );
+      } else if (config.welcomeMessage) {
+        await waApi.sendTextMessage(contactPhone, config.welcomeMessage);
+      }
+    } else {
+      for (const msg of sortedWelcomes) {
+        if (msg.mediaType !== "none" && msg.mediaUrl) {
+          await waApi.sendMediaMessageByUrl(contactPhone, msg.mediaUrl, msg.mediaType as any, msg.text || "");
+        } else if (msg.text) {
+          await waApi.sendTextMessage(contactPhone, msg.text);
+        }
+      }
+    }
+
     let photos: string[] = [];
     try {
       photos = typeof product.photos === "string" ? JSON.parse(product.photos) : (product.photos || []);
@@ -286,17 +408,52 @@ export class EcommerceService {
       photos = [];
     }
 
-    // Send product photos one-by-one
-    for (const photo of photos) {
-      await waApi.sendMediaMessageByUrl(contactPhone, photo, "image");
+    const isQr = channelRow.connectionMethod === "qr_code";
+    const showAiButton = config.aiEnabled && config.aiAskButtonEnabled;
+
+    if (!showAiButton) {
+      // Send product photos one-by-one
+      for (const photo of photos) {
+        await waApi.sendMediaMessageByUrl(contactPhone, photo, "image");
+      }
+      // Send details text
+      const descText = `*${product.name}*\nPrice: ${(product as any).currency || 'INR'} ${product.price}\n\n${product.description || ""}`;
+      await waApi.sendTextMessage(contactPhone, descText);
+
+      // Start checkout flow immediately
+      await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, product);
+    } else {
+      const descText = `*${product.name}*\nPrice: ${(product as any).currency || 'INR'} ${product.price}\n\n${product.description || ""}`;
+      
+      if (isQr) {
+        for (const photo of photos) {
+          await waApi.sendMediaMessageByUrl(contactPhone, photo, "image");
+        }
+        await waApi.sendTextMessage(
+          contactPhone, 
+          `${descText}\n\nReply with *1* to Buy Now!\nReply with *AI* to ask questions about this product.`
+        );
+        // Create product selection session to capture reply
+        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+        await db.insert(schema.ecommerceSessions).values({
+          conversationId,
+          productId: product.id,
+          quantity: 1,
+          currentStep: "waiting_for_product_selection",
+          customerData: {}
+        });
+      } else {
+        // Send intermediate photos
+        for (let p = 0; p < photos.length - 1; p++) {
+          await waApi.sendMediaMessageByUrl(contactPhone, photos[p], "image");
+        }
+        const lastPhoto = photos[photos.length - 1] || null;
+        await this.sendCloudApiButtonMessage(channelRow, contactPhone, descText, lastPhoto, [
+          { id: `buy_${product.id}`, title: "Buy Now" },
+          { id: `ai_ask_${product.id}`, title: "Ask AI" }
+        ]);
+      }
     }
-
-    // Send details text
-    const descText = `*${product.name}*\nPrice: ${(product as any).currency || 'INR'} ${product.price}\n\n${product.description || ""}`;
-    await waApi.sendTextMessage(contactPhone, descText);
-
-    // Start checkout flow immediately
-    await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, product);
   }
 
   /**
@@ -349,6 +506,146 @@ export class EcommerceService {
       .limit(1);
     
     const to = conv?.contactPhone || contactPhone;
+
+    // AI Chat Step check
+    if (session.currentStep === "ai_chat") {
+      const buyKeywords = ["checkout", "buy", "buy now", "purchase", "1"];
+      if (buyKeywords.includes(input.toLowerCase().trim())) {
+        const [product] = await db
+          .select()
+          .from(schema.ecommerceProducts)
+          .where(eq(schema.ecommerceProducts.id, session.productId))
+          .limit(1);
+        if (product) {
+          await this.startCheckoutFlow(channelRow, config, session.conversationId, to, product);
+          return;
+        }
+      }
+
+      // Check timeout
+      const customerData = session.customerData || {};
+      const lastMsgTime = customerData.aiLastMessageTime ? new Date(customerData.aiLastMessageTime) : new Date(session.updatedAt);
+      const timeoutMin = config.aiTimeoutMinutes || 30;
+      const diffMs = new Date().getTime() - lastMsgTime.getTime();
+      if (diffMs > timeoutMin * 60 * 1000) {
+        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+        await waApi.sendTextMessage(to, "AI session timed out. Please send store trigger word again to browse products.");
+        return;
+      }
+
+      // Update session last active time
+      customerData.aiLastMessageTime = new Date().toISOString();
+      await db
+        .update(schema.ecommerceSessions)
+        .set({ customerData, updatedAt: new Date() })
+        .where(eq(schema.ecommerceSessions.id, session.id));
+
+      // Fetch product details
+      const [product] = await db
+        .select()
+        .from(schema.ecommerceProducts)
+        .where(eq(schema.ecommerceProducts.id, session.productId))
+        .limit(1);
+
+      if (!product) {
+        await waApi.sendTextMessage(to, "Product no longer available. AI chat session closed.");
+        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+        return;
+      }
+
+      // Load AI training from knowledge articles and FAQ pairs
+      const channelSites = await db
+        .select()
+        .from(schema.sites)
+        .where(eq(schema.sites.channelId, channelRow.id));
+      const siteIds = channelSites.map(s => s.id);
+      let trainingText = "";
+
+      if (siteIds.length > 0) {
+        const qas = await db
+          .select()
+          .from(schema.trainingQaPairs)
+          .where(
+            and(
+              inArray(schema.trainingQaPairs.siteId, siteIds),
+              eq(schema.trainingQaPairs.isActive, true)
+            )
+          );
+        if (qas.length > 0) {
+          trainingText += "\n\nRELEVANT FAQ PAIRS:\n" + qas.map(q => `Q: ${q.question}\nA: ${q.answer}`).join("\n---\n");
+        }
+
+        const categories = await db
+          .select()
+          .from(schema.knowledgeCategories)
+          .where(inArray(schema.knowledgeCategories.siteId, siteIds));
+        const categoryIds = categories.map(c => c.id);
+
+        if (categoryIds.length > 0) {
+          const articles = await db
+            .select()
+            .from(schema.knowledgeArticles)
+            .where(
+              and(
+                inArray(schema.knowledgeArticles.categoryId, categoryIds),
+                eq(schema.knowledgeArticles.published, true)
+              )
+            );
+          if (articles.length > 0) {
+            trainingText += "\n\nRELEVANT KNOWLEDGE BASE & TRAINING ARTICLES:\n" + articles.map(a => `Title: ${a.title}\nContent: ${a.content}`).join("\n---\n");
+          }
+        }
+      }
+
+      const basePrompt = `You are a helpful customer sales AI assistant for this store.
+You are chatting with a customer regarding this product:
+- Name: ${product.name}
+- Price: ${(product as any).currency || "INR"} ${product.price}
+- Description: ${product.description || "N/A"}
+
+Use the store's global training knowledgebase/QA context below to answer questions:
+${trainingText}
+
+CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (under 150 words). Always try to close the sale by encouraging them to buy and proceed to checkout once their queries are addressed. Inform the user they can type 'checkout' or '1' at any time to buy!`;
+
+      const aiSetting = await db
+        .select()
+        .from(schema.aiSettings)
+        .where(and(eq(schema.aiSettings.channelId, channelRow.id), eq(schema.aiSettings.isActive, true)))
+        .limit(1);
+      const activeAI = aiSetting?.[0];
+      const apiKey = activeAI?.apiKey || process.env.OPENAI_API_KEY;
+
+      if (!apiKey) {
+        await waApi.sendTextMessage(to, "AI is currently offline. Please try checking out directly by typing 'checkout'.");
+        return;
+      }
+
+      try {
+        const aiClient = new OpenAI({
+          apiKey,
+          baseURL: activeAI?.endpoint || "https://api.openai.com/v1",
+        });
+        const finalModel = activeAI?.model || "gpt-4o-mini";
+        
+        const completion = await aiClient.chat.completions.create({
+          model: finalModel,
+          messages: [
+            { role: "system", content: basePrompt },
+            { role: "user", content: input }
+          ],
+          temperature: 0.7,
+          max_tokens: 300
+        });
+        
+        const aiResponse = completion.choices[0]?.message?.content || "Sorry, I am having trouble answering right now.";
+        await waApi.sendTextMessage(to, aiResponse);
+      } catch (err: any) {
+        console.error("[AI Chat Session Error]", err.message);
+        await waApi.sendTextMessage(to, "Sorry, I encountered an error processing your query. Please reply with 'checkout' to buy the product directly.");
+      }
+      return;
+    }
 
     const rawFields = config.checkoutFields || ["name", "phone", "address", "pin"];
     // Standardize to array of { text: string, variable: string }

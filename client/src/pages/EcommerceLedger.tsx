@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ShoppingCart, Package, Settings, ClipboardList, Users, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink } from "lucide-react";
+import { ShoppingCart, Package, Settings, ClipboardList, Users, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -126,6 +126,12 @@ export default function EcommerceLedger() {
   const [storeCurrency, setStoreCurrency] = useState("INR");
   const [configActive, setConfigActive] = useState(true);
 
+  // AI & Welcome Messages States
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiTimeoutMinutes, setAiTimeoutMinutes] = useState(30);
+  const [aiAskButtonEnabled, setAiAskButtonEnabled] = useState(true);
+  const [welcomeMessages, setWelcomeMessages] = useState<{ id: string; text: string; mediaType: "none" | "image" | "video" | "audio"; mediaUrl: string; sortOrder: number }[]>([]);
+
   // Queries
   // 1. Fetch Ecommerce Config
   const { data: config, isLoading: isConfigLoading } = useQuery<EcommerceConfig | null>({
@@ -156,6 +162,10 @@ export default function EcommerceLedger() {
       setUpiId((config as any).upiId || "");
       setUpiMerchantName((config as any).upiMerchantName || "");
       setStoreCurrency((config as any).currency || "INR");
+      setAiEnabled((config as any).aiEnabled !== undefined ? (config as any).aiEnabled : false);
+      setAiTimeoutMinutes((config as any).aiTimeoutMinutes !== undefined ? (config as any).aiTimeoutMinutes : 30);
+      setAiAskButtonEnabled((config as any).aiAskButtonEnabled !== undefined ? (config as any).aiAskButtonEnabled : true);
+      setWelcomeMessages(Array.isArray((config as any).welcomeMessages) ? (config as any).welcomeMessages : []);
       setConfigActive(config.isActive !== undefined ? config.isActive : true);
 
       // Standardize loaded checkoutFields Q&A objects
@@ -361,6 +371,10 @@ export default function EcommerceLedger() {
       upiId: upiId || null,
       upiMerchantName: upiMerchantName || null,
       currency: storeCurrency,
+      aiEnabled,
+      aiTimeoutMinutes,
+      aiAskButtonEnabled,
+      welcomeMessages,
       isActive: configActive,
     };
 
@@ -984,6 +998,190 @@ export default function EcommerceLedger() {
                     </div>
                   </div>
 
+                  {/* Welcome Message Sequence */}
+                  <div className="space-y-4 border p-4 rounded-lg bg-emerald-50/20">
+                    <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-emerald-600" />
+                      Welcome Messages Sequence (Multiple Messages)
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      Define a sequence of messages sent one-by-one to shoppers when they trigger the catalog or individual products. Order them by Sequence Weight.
+                    </p>
+
+                    <div className="space-y-3">
+                      {welcomeMessages.map((msg, idx) => (
+                        <div key={msg.id || idx} className="border p-3 rounded-md bg-white space-y-3 relative shadow-sm">
+                          <div className="flex justify-between items-center border-b pb-1.5">
+                            <span className="text-xs font-bold text-emerald-700">Message #{idx + 1}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-500 hover:text-red-700 p-1 h-6"
+                              onClick={() => {
+                                setWelcomeMessages(welcomeMessages.filter((_, i) => i !== idx));
+                              }}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Media Type</Label>
+                              <select
+                                value={msg.mediaType}
+                                onChange={(e) => {
+                                  const updated = [...welcomeMessages];
+                                  updated[idx].mediaType = e.target.value as any;
+                                  setWelcomeMessages(updated);
+                                }}
+                                className="w-full border rounded p-1.5 text-xs bg-white"
+                              >
+                                <option value="none">No Media (Text Only)</option>
+                                <option value="image">Image</option>
+                                <option value="video">Video</option>
+                                <option value="audio">Audio</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-1 md:col-span-2">
+                              <Label className="text-xs">Media URL (Supports Gallery)</Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  value={msg.mediaUrl}
+                                  onChange={(e) => {
+                                    const updated = [...welcomeMessages];
+                                    updated[idx].mediaUrl = e.target.value;
+                                    setWelcomeMessages(updated);
+                                  }}
+                                  placeholder="e.g. https://domain.com/image.png"
+                                  className="h-8 text-xs"
+                                  disabled={msg.mediaType === "none"}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs"
+                                  disabled={msg.mediaType === "none"}
+                                  onClick={() => {
+                                    setGalleryTarget(`welcome_seq_${idx}`);
+                                    setIsGalleryOpen(true);
+                                  }}
+                                >
+                                  Gallery
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <div className="space-y-1 md:col-span-3">
+                              <Label className="text-xs font-semibold">Message Text Body</Label>
+                              <Textarea
+                                value={msg.text}
+                                onChange={(e) => {
+                                  const updated = [...welcomeMessages];
+                                  updated[idx].text = e.target.value;
+                                  setWelcomeMessages(updated);
+                                }}
+                                placeholder="Enter message text..."
+                                className="text-xs min-h-[50px]"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Sequence Weight</Label>
+                              <Input
+                                type="number"
+                                value={msg.sortOrder}
+                                onChange={(e) => {
+                                  const updated = [...welcomeMessages];
+                                  updated[idx].sortOrder = parseInt(e.target.value) || 0;
+                                  setWelcomeMessages(updated);
+                                }}
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full border-dashed border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs"
+                        onClick={() => {
+                          setWelcomeMessages([
+                            ...welcomeMessages,
+                            {
+                              id: Math.random().toString(36).substring(7),
+                              text: "",
+                              mediaType: "none",
+                              mediaUrl: "",
+                              sortOrder: welcomeMessages.length + 1
+                            }
+                          ]);
+                        }}
+                      >
+                        + Add Welcome Message
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* AI Chatbot Configuration */}
+                  <div className="space-y-4 border p-4 rounded-lg bg-purple-50/20">
+                    <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-purple-600" />
+                      Product AI Assistant Settings
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      Train an AI assistant to chat with shoppers regarding product details, price, descriptions, and answer FAQs using your sites' training database.
+                    </p>
+
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="font-semibold text-gray-700">Enable Product Q&A AI Chatbot</Label>
+                          <span className="text-[11px] text-gray-500 block leading-tight">
+                            Allow AI chatbot to discuss products with customers when triggered.
+                          </span>
+                        </div>
+                        <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
+                      </div>
+
+                      {aiEnabled && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-purple-100">
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label className="font-semibold text-gray-700">Offer "Ask AI" buttons / choices</Label>
+                              <span className="text-[11px] text-gray-500 block leading-tight">
+                                Show a button / menu prompt next to products so users can opt to chat.
+                              </span>
+                            </div>
+                            <Switch checked={aiAskButtonEnabled} onCheckedChange={setAiAskButtonEnabled} />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="aiTimeout" className="font-semibold text-gray-700">AI Session Timeout (Minutes)</Label>
+                            <Input
+                              id="aiTimeout"
+                              type="number"
+                              value={aiTimeoutMinutes}
+                              onChange={(e) => setAiTimeoutMinutes(parseInt(e.target.value) || 30)}
+                              placeholder="30"
+                              min={1}
+                              className="w-full h-9 text-xs"
+                            />
+                            <span className="text-[10px] text-gray-400 block leading-tight">
+                              Automatically close AI chat and revert back to store catalog after inactivity.
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Checkout & UPI Configuration */}
                   <div className="space-y-4 border p-4 rounded-lg">
                     <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
@@ -1192,6 +1390,13 @@ export default function EcommerceLedger() {
               setProdPhotos(trimmed + ", " + url);
             } else {
               setProdPhotos(url);
+            }
+          } else if (galleryTarget.startsWith("welcome_seq_")) {
+            const idx = parseInt(galleryTarget.replace("welcome_seq_", ""));
+            if (!isNaN(idx) && idx >= 0 && idx < welcomeMessages.length) {
+              const updated = [...welcomeMessages];
+              updated[idx].mediaUrl = url;
+              setWelcomeMessages(updated);
             }
           }
           setIsGalleryOpen(false);

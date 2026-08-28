@@ -54,19 +54,38 @@ export function registerEcommerceRoutes(app: Express) {
   // PRODUCTS CRUD
   // ============================================================
 
-  // Get all products for tenant
+  // Get all products for tenant (with pagination)
   app.get("/api/ecommerce/products", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { page = "1", limit = "10" } = req.query;
+
+      const pageNum = parseInt(page as string) || 1;
+      const limitNum = parseInt(limit as string) || 10;
+      const offset = (pageNum - 1) * limitNum;
+
+      // Count total products
+      const [countResult] = await db
+        .select({ count: sql`count(*)` })
+        .from(schema.ecommerceProducts)
+        .where(eq(schema.ecommerceProducts.tenantId, tenantId));
+      const total = parseInt(String(countResult?.count || "0"));
 
       const list = await db
         .select()
         .from(schema.ecommerceProducts)
         .where(eq(schema.ecommerceProducts.tenantId, tenantId))
-        .orderBy(desc(schema.ecommerceProducts.createdAt));
+        .orderBy(desc(schema.ecommerceProducts.createdAt))
+        .limit(limitNum)
+        .offset(offset);
 
-      res.json(list);
+      res.json({
+        products: list,
+        total,
+        page: pageNum,
+        limit: limitNum
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -441,7 +460,9 @@ export function registerEcommerceRoutes(app: Express) {
         totalAmount,
         paymentMethod,
         paymentStatus,
-        status
+        status,
+        quantity,
+        price
       } = req.body;
 
       const [existing] = await db
@@ -466,6 +487,8 @@ export function registerEcommerceRoutes(app: Express) {
       if (paymentMethod !== undefined) updates.paymentMethod = paymentMethod;
       if (paymentStatus !== undefined) updates.paymentStatus = paymentStatus;
       if (status !== undefined) updates.status = status;
+      if (quantity !== undefined) updates.quantity = parseInt(String(quantity)) || 1;
+      if (price !== undefined) updates.price = String(price);
 
       const existingData = existing.customerData || {};
       const updatedData = {
@@ -602,6 +625,18 @@ export function registerEcommerceRoutes(app: Express) {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { page = "1", limit = "10" } = req.query;
+
+      const pageNum = parseInt(page as string) || 1;
+      const limitNum = parseInt(limit as string) || 10;
+      const offset = (pageNum - 1) * limitNum;
+
+      // Count total distinct customers
+      const [countResult] = await db
+        .select({ count: sql`count(distinct ${schema.ecommerceOrders.customerPhone})` })
+        .from(schema.ecommerceOrders)
+        .where(eq(schema.ecommerceOrders.tenantId, tenantId));
+      const total = parseInt(String(countResult?.count || "0"));
 
       const list = await db
         .select({
@@ -614,9 +649,16 @@ export function registerEcommerceRoutes(app: Express) {
         .from(schema.ecommerceOrders)
         .where(eq(schema.ecommerceOrders.tenantId, tenantId))
         .groupBy(schema.ecommerceOrders.customerPhone)
-        .orderBy(desc(sql`max(${schema.ecommerceOrders.createdAt})`));
+        .orderBy(desc(sql`max(${schema.ecommerceOrders.createdAt})`))
+        .limit(limitNum)
+        .offset(offset);
 
-      res.json(list);
+      res.json({
+        customers: list,
+        total,
+        page: pageNum,
+        limit: limitNum
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

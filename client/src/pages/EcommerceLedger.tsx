@@ -100,6 +100,8 @@ export default function EcommerceLedger() {
   const [orderStatus, setOrderStatus] = useState("all");
   const [paymentStatus, setPaymentStatus] = useState("all");
   const [page, setPage] = useState(1);
+  const [productsPage, setProductsPage] = useState(1);
+  const [customersPage, setCustomersPage] = useState(1);
   const limit = 10;
 
   // Product Form states
@@ -170,6 +172,8 @@ export default function EcommerceLedger() {
   const [editOrderAddress, setEditOrderAddress] = useState("");
   const [editOrderPin, setEditOrderPin] = useState("");
   const [editOrderAmount, setEditOrderAmount] = useState("");
+  const [editOrderQty, setEditOrderQty] = useState("");
+  const [editOrderPrice, setEditOrderPrice] = useState("");
   const [editOrderPaymentMethod, setEditOrderPaymentMethod] = useState("");
   const [editOrderPaymentStatus, setEditOrderPaymentStatus] = useState("");
   const [editOrderStatus, setEditOrderStatus] = useState("");
@@ -242,10 +246,10 @@ export default function EcommerceLedger() {
   }, [config]);
 
   // 2. Fetch Products
-  const { data: products = [], isLoading: isProductsLoading } = useQuery<Product[]>({
-    queryKey: ["/api/ecommerce/products"],
+  const { data: productsData, isLoading: isProductsLoading } = useQuery<{ products: Product[]; total: number }>({
+    queryKey: ["/api/ecommerce/products", productsPage],
     queryFn: async () => {
-      const res = await fetch("/api/ecommerce/products");
+      const res = await fetch(`/api/ecommerce/products?page=${productsPage}&limit=${limit}`);
       if (!res.ok) throw new Error("Failed to fetch products");
       return res.json();
     },
@@ -269,10 +273,10 @@ export default function EcommerceLedger() {
   });
 
   // 4. Fetch Customers
-  const { data: customers = [], isLoading: isCustomersLoading } = useQuery<Customer[]>({
-    queryKey: ["/api/ecommerce/customers"],
+  const { data: customersData, isLoading: isCustomersLoading } = useQuery<{ customers: Customer[]; total: number }>({
+    queryKey: ["/api/ecommerce/customers", customersPage],
     queryFn: async () => {
-      const res = await fetch("/api/ecommerce/customers");
+      const res = await fetch(`/api/ecommerce/customers?page=${customersPage}&limit=${limit}`);
       if (!res.ok) throw new Error("Failed to fetch customers");
       return res.json();
     },
@@ -392,6 +396,8 @@ export default function EcommerceLedger() {
     setEditOrderAddress(order.customerData?.address || "");
     setEditOrderPin(order.customerData?.pin || "");
     setEditOrderAmount(order.totalAmount || "0");
+    setEditOrderQty(String(order.quantity || "1"));
+    setEditOrderPrice(String(order.price || "0"));
     setEditOrderPaymentMethod(order.paymentMethod || "cod");
     setEditOrderPaymentStatus(order.paymentStatus || "pending");
     setEditOrderStatus(order.status || "pending");
@@ -719,84 +725,92 @@ export default function EcommerceLedger() {
                 <div className="text-center py-6 flex items-center justify-center gap-2 text-gray-500">
                   <RefreshCw className="w-4 h-4 animate-spin" /> Loading products...
                 </div>
-              ) : products.length === 0 ? (
+              ) : !productsData?.products || productsData.products.length === 0 ? (
                 <div className="text-center py-8 text-gray-400">
                   No products added yet. Click "Add Product" to create one.
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Image</TableHead>
-                      <TableHead>Product Name</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead>Keyword Trigger</TableHead>
-                      <TableHead>External Checkout</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {products.map((prod) => {
-                      let firstPhoto = "";
-                      try {
-                        const photosArray = typeof prod.photos === "string" ? JSON.parse(prod.photos) : prod.photos;
-                        if (Array.isArray(photosArray) && photosArray.length > 0) {
-                          firstPhoto = photosArray[0];
-                        }
-                      } catch {}
+                <div className="space-y-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Image</TableHead>
+                        <TableHead>Product Name</TableHead>
+                        <TableHead>Price</TableHead>
+                        <TableHead>Keyword Trigger</TableHead>
+                        <TableHead>External Checkout</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {productsData.products.map((prod) => {
+                        let firstPhoto = "";
+                        try {
+                          const photosArray = typeof prod.photos === "string" ? JSON.parse(prod.photos) : prod.photos;
+                          if (Array.isArray(photosArray) && photosArray.length > 0) {
+                            firstPhoto = photosArray[0];
+                          }
+                        } catch {}
 
-                      return (
-                        <TableRow key={prod.id}>
-                          <TableCell>
-                            {firstPhoto ? (
-                              <img src={getPreviewUrl(firstPhoto)} alt={prod.name} className="w-12 h-12 object-cover rounded-lg border" />
-                            ) : (
-                              <div className="w-12 h-12 bg-gray-100 flex items-center justify-center rounded-lg border">
-                                <Package className="w-6 h-6 text-gray-400" />
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="font-semibold">{prod.name}</TableCell>
-                          <TableCell className="text-emerald-600 font-medium">
-                            {(prod as any).currency || "INR"} {prod.price}
-                          </TableCell>
-                          <TableCell>
-                            {prod.isTriggerEnabled ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800">
-                                Active: {prod.triggerKeyword}
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                Disabled
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {prod.checkoutLink ? (
-                              <a href={prod.checkoutLink} target="_blank" rel="noreferrer" className="text-blue-500 flex items-center gap-1 text-sm hover:underline">
-                                Link <ExternalLink className="w-3 h-3" />
-                              </a>
-                            ) : (
-                              <span className="text-gray-400 text-xs">Standard Chat</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right space-x-2">
-                            <Button size="icon" variant="ghost" className="text-gray-600" onClick={() => handleEditProductClick(prod)}>
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="text-red-500" onClick={() => {
-                              if (confirm("Are you sure you want to delete this product?")) {
-                                deleteProductMutation.mutate(prod.id);
-                              }
-                            }}>
-                              <Trash className="w-4 h-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                        return (
+                          <TableRow key={prod.id}>
+                            <TableCell>
+                              {firstPhoto ? (
+                                <img src={getPreviewUrl(firstPhoto)} alt={prod.name} className="w-12 h-12 object-cover rounded-lg border" />
+                              ) : (
+                                <div className="w-12 h-12 bg-gray-100 flex items-center justify-center rounded-lg border">
+                                  <Package className="w-6 h-6 text-gray-400" />
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="font-semibold">{prod.name}</TableCell>
+                            <TableCell className="text-emerald-600 font-medium">
+                              {(prod as any).currency || "INR"} {prod.price}
+                            </TableCell>
+                            <TableCell>
+                              {prod.isTriggerEnabled ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800">
+                                  Active: {prod.triggerKeyword}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                  Disabled
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {prod.checkoutLink ? (
+                                <a href={prod.checkoutLink} target="_blank" rel="noreferrer" className="text-blue-500 flex items-center gap-1 text-sm hover:underline">
+                                  Link <ExternalLink className="w-3 h-3" />
+                                </a>
+                              ) : (
+                                <span className="text-gray-400 text-xs">Standard Chat</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right space-x-2">
+                              <Button size="icon" variant="ghost" className="text-gray-600" onClick={() => handleEditProductClick(prod)}>
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="text-red-500" onClick={() => {
+                                if (confirm("Are you sure you want to delete this product?")) {
+                                  deleteProductMutation.mutate(prod.id);
+                                }
+                              }}>
+                                <Trash className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                  {productsData.total > limit && (
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button size="sm" variant="outline" disabled={productsPage === 1} onClick={() => setProductsPage(p => p - 1)}>Prev</Button>
+                      <Button size="sm" variant="outline" disabled={productsPage * limit >= productsData.total} onClick={() => setProductsPage(p => p + 1)}>Next</Button>
+                    </div>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -1012,31 +1026,39 @@ export default function EcommerceLedger() {
                 <div className="text-center py-6 flex items-center justify-center gap-2 text-gray-500">
                   <RefreshCw className="w-4 h-4 animate-spin" /> Loading customers...
                 </div>
-              ) : customers.length === 0 ? (
+              ) : !customersData?.customers || customersData.customers.length === 0 ? (
                 <div className="text-center py-8 text-gray-400">No checkout customers found.</div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Customer Phone</TableHead>
-                      <TableHead>Customer Name</TableHead>
-                      <TableHead>Total Orders</TableHead>
-                      <TableHead>Total Spent</TableHead>
-                      <TableHead>Last Order Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {customers.map((cust) => (
-                      <TableRow key={cust.phone}>
-                        <TableCell className="font-mono">{cust.phone}</TableCell>
-                        <TableCell>{cust.name || "Customer"}</TableCell>
-                        <TableCell className="font-semibold text-gray-700">{cust.totalOrders}</TableCell>
-                        <TableCell className="font-bold text-emerald-600">${parseFloat(cust.totalSpent || "0").toFixed(2)}</TableCell>
-                        <TableCell className="text-gray-500 text-sm">{new Date(cust.lastOrderDate).toLocaleString()}</TableCell>
+                <div className="space-y-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Customer Phone</TableHead>
+                        <TableHead>Customer Name</TableHead>
+                        <TableHead>Total Orders</TableHead>
+                        <TableHead>Total Spent</TableHead>
+                        <TableHead>Last Order Date</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {customersData.customers.map((cust) => (
+                        <TableRow key={cust.phone}>
+                          <TableCell className="font-mono">{cust.phone}</TableCell>
+                          <TableCell>{cust.name || "Customer"}</TableCell>
+                          <TableCell className="font-semibold text-gray-700">{cust.totalOrders}</TableCell>
+                          <TableCell className="font-bold text-emerald-600">INR {parseFloat(cust.totalSpent || "0").toFixed(2)}</TableCell>
+                          <TableCell className="text-gray-500 text-sm">{new Date(cust.lastOrderDate).toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {customersData.total > limit && (
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button size="sm" variant="outline" disabled={customersPage === 1} onClick={() => setCustomersPage(p => p - 1)}>Prev</Button>
+                      <Button size="sm" variant="outline" disabled={customersPage * limit >= customersData.total} onClick={() => setCustomersPage(p => p + 1)}>Next</Button>
+                    </div>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -1708,6 +1730,41 @@ You are chatting with a customer regarding this product:
                 placeholder="Total Amount"
               />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="editOrderPrice">Price</Label>
+                <Input
+                  id="editOrderPrice"
+                  type="number"
+                  step="0.01"
+                  value={editOrderPrice}
+                  onChange={(e) => {
+                    const newPrice = e.target.value;
+                    setEditOrderPrice(newPrice);
+                    const qtyVal = parseFloat(editOrderQty) || 1;
+                    const priceVal = parseFloat(newPrice) || 0;
+                    setEditOrderAmount(String((qtyVal * priceVal).toFixed(2)));
+                  }}
+                  placeholder="Price"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="editOrderQty">Quantity</Label>
+                <Input
+                  id="editOrderQty"
+                  type="number"
+                  value={editOrderQty}
+                  onChange={(e) => {
+                    const newQty = e.target.value;
+                    setEditOrderQty(newQty);
+                    const qtyVal = parseInt(newQty) || 1;
+                    const priceVal = parseFloat(editOrderPrice) || 0;
+                    setEditOrderAmount(String((qtyVal * priceVal).toFixed(2)));
+                  }}
+                  placeholder="Qty"
+                />
+              </div>
+            </div>
             <div className="space-y-1">
               <Label htmlFor="editOrderAddress">Shipping Address</Label>
               <Textarea
@@ -1786,6 +1843,8 @@ You are chatting with a customer regarding this product:
                     customerName: editOrderName,
                     customerPhone: editOrderPhone,
                     totalAmount: editOrderAmount,
+                    quantity: parseInt(editOrderQty) || 1,
+                    price: editOrderPrice,
                     address: editOrderAddress,
                     pin: editOrderPin,
                     paymentMethod: editOrderPaymentMethod,

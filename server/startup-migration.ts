@@ -924,6 +924,21 @@ const steps: MigrationStep[] = [
       );
     `,
   },
+  {
+    description: "Add upi_id and upi_merchant_name columns to ecommerce_configs (if not exists)",
+    sql: `
+      ALTER TABLE ecommerce_configs ADD COLUMN IF NOT EXISTS upi_id TEXT;
+      ALTER TABLE ecommerce_configs ADD COLUMN IF NOT EXISTS upi_merchant_name TEXT;
+    `,
+  },
+  {
+    description: "Add currency column to ecommerce_products and ecommerce_configs (if not exists)",
+    sql: `
+      ALTER TABLE ecommerce_products ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'INR';
+      ALTER TABLE ecommerce_configs ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'INR';
+      ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'INR';
+    `,
+  },
 ];
 
 /**

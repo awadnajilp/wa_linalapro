@@ -6,6 +6,50 @@ import { requireAuth } from "../middlewares/auth.middleware";
 import { EcommerceService } from "../services/ecommerce-service";
 
 export function registerEcommerceRoutes(app: Express) {
+  // Redirect to UPI deep link for customer checkouts
+  app.get("/api/ecommerce/checkout/pay", async (req: Request, res: Response) => {
+    try {
+      const { orderId } = req.query;
+      if (!orderId || typeof orderId !== "string") {
+        return res.status(400).send("<h1>Error</h1><p>Missing order identifier.</p>");
+      }
+
+      // Fetch order
+      const [order] = await db
+        .select()
+        .from(schema.ecommerceOrders)
+        .where(eq(schema.ecommerceOrders.id, orderId))
+        .limit(1);
+
+      if (!order) {
+        return res.status(404).send("<h1>Error</h1><p>Order not found.</p>");
+      }
+
+      // Fetch config for that channel
+      if (!order.channelId) {
+        return res.status(400).send("<h1>Error</h1><p>Channel mismatch.</p>");
+      }
+
+      const [config] = await db
+        .select()
+        .from(schema.ecommerceConfigs)
+        .where(eq(schema.ecommerceConfigs.channelId, order.channelId))
+        .limit(1);
+
+      if (!config || !config.upiId) {
+        return res.status(400).send("<h1>Error</h1><p>UPI payment is not configured for this store.</p>");
+      }
+
+      // Construct upi://pay URI scheme
+      const payUrl = `upi://pay?pa=${config.upiId}&pn=${encodeURIComponent(config.upiMerchantName || "Store")}&am=${order.totalAmount}&tr=${order.orderNumber}&cu=INR`;
+
+      // Redirect directly to the upi protocol
+      res.redirect(302, payUrl);
+    } catch (err: any) {
+      res.status(500).send(`<h1>Error</h1><p>${err.message}</p>`);
+    }
+  });
+
   // ============================================================
   // PRODUCTS CRUD
   // ============================================================
@@ -33,7 +77,7 @@ export function registerEcommerceRoutes(app: Express) {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
-      const { id, name, price, description, photos, checkoutLink, triggerKeyword, isTriggerEnabled } = req.body;
+      const { id, name, price, description, photos, checkoutLink, triggerKeyword, isTriggerEnabled, currency } = req.body;
 
       if (!name) {
         return res.status(400).json({ error: "Product name is required" });
@@ -53,6 +97,7 @@ export function registerEcommerceRoutes(app: Express) {
             checkoutLink: checkoutLink || null,
             triggerKeyword: triggerKeyword || null,
             isTriggerEnabled: isTriggerEnabled !== undefined ? isTriggerEnabled : false,
+            currency: currency || "INR",
             updatedAt: new Date()
           })
           .where(
@@ -79,7 +124,8 @@ export function registerEcommerceRoutes(app: Express) {
             photos: parsedPhotos,
             checkoutLink: checkoutLink || null,
             triggerKeyword: triggerKeyword || null,
-            isTriggerEnabled: isTriggerEnabled !== undefined ? isTriggerEnabled : false
+            isTriggerEnabled: isTriggerEnabled !== undefined ? isTriggerEnabled : false,
+            currency: currency || "INR"
           })
           .returning();
 
@@ -172,6 +218,9 @@ export function registerEcommerceRoutes(app: Express) {
         instamojoSandbox,
         razorpayKeyId,
         razorpayKeySecret,
+        upiId,
+        upiMerchantName,
+        currency,
         isActive
       } = req.body;
 
@@ -205,6 +254,9 @@ export function registerEcommerceRoutes(app: Express) {
             instamojoSandbox: instamojoSandbox !== undefined ? instamojoSandbox : true,
             razorpayKeyId: razorpayKeyId || null,
             razorpayKeySecret: razorpayKeySecret || null,
+            upiId: upiId || null,
+            upiMerchantName: upiMerchantName || null,
+            currency: currency || "INR",
             isActive: isActive !== undefined ? isActive : true,
             updatedAt: new Date()
           })
@@ -229,6 +281,9 @@ export function registerEcommerceRoutes(app: Express) {
             instamojoSandbox: instamojoSandbox !== undefined ? instamojoSandbox : true,
             razorpayKeyId: razorpayKeyId || null,
             razorpayKeySecret: razorpayKeySecret || null,
+            upiId: upiId || null,
+            upiMerchantName: upiMerchantName || null,
+            currency: currency || "INR",
             isActive: isActive !== undefined ? isActive : true
           })
           .returning();

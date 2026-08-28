@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { ChannelSwitcher } from "@/components/channel-switcher";
+import { MediaGalleryDialog } from "@/components/media/MediaGalleryDialog";
 
 interface Product {
   id: string;
@@ -101,6 +102,11 @@ export default function EcommerceLedger() {
   const [prodCheckoutLink, setProdCheckoutLink] = useState("");
   const [prodTrigger, setProdTrigger] = useState("");
   const [prodTriggerEnabled, setProdTriggerEnabled] = useState(false);
+  const [prodCurrency, setProdCurrency] = useState("INR");
+
+  // Gallery Dialog states
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [galleryTarget, setGalleryTarget] = useState<"product" | "welcome_header" | "qr_code">("product");
 
   // Store Configuration Form states
   const [storeKeyword, setStoreKeyword] = useState("store");
@@ -109,12 +115,15 @@ export default function EcommerceLedger() {
   const [welcomeHeaderUrl, setWelcomeHeaderUrl] = useState("");
   const [welcomeHeaderType, setWelcomeHeaderType] = useState("image");
   const [qrCodeUrl, setQrCodeUrl] = useState("");
-  const [checkoutFieldsText, setCheckoutFieldsText] = useState("name, phone, address, pin");
+  const [checkoutFields, setCheckoutFields] = useState<{ text: string; variable: string }[]>([]);
   const [instaKey, setInstaKey] = useState("");
   const [instaToken, setInstaToken] = useState("");
   const [instaSandbox, setInstaSandbox] = useState(true);
   const [rzpKeyId, setRzpKeyId] = useState("");
   const [rzpKeySecret, setRzpKeySecret] = useState("");
+  const [upiId, setUpiId] = useState("");
+  const [upiMerchantName, setUpiMerchantName] = useState("");
+  const [storeCurrency, setStoreCurrency] = useState("INR");
   const [configActive, setConfigActive] = useState(true);
 
   // Queries
@@ -139,17 +148,39 @@ export default function EcommerceLedger() {
       setWelcomeHeaderUrl(config.welcomeHeaderUrl || "");
       setWelcomeHeaderType(config.welcomeHeaderType || "image");
       setQrCodeUrl(config.qrCodeUrl || "");
-      setCheckoutFieldsText(
-        Array.isArray(config.checkoutFields)
-          ? config.checkoutFields.join(", ")
-          : "name, phone, address, pin"
-      );
       setInstaKey(config.instamojoApiKey || "");
       setInstaToken(config.instamojoAuthToken || "");
       setInstaSandbox(config.instamojoSandbox !== undefined ? config.instamojoSandbox : true);
       setRzpKeyId(config.razorpayKeyId || "");
       setRzpKeySecret(config.razorpayKeySecret || "");
+      setUpiId((config as any).upiId || "");
+      setUpiMerchantName((config as any).upiMerchantName || "");
+      setStoreCurrency((config as any).currency || "INR");
       setConfigActive(config.isActive !== undefined ? config.isActive : true);
+
+      // Standardize loaded checkoutFields Q&A objects
+      if (Array.isArray(config.checkoutFields)) {
+        const parsed = config.checkoutFields.map((f: any) => {
+          if (typeof f === "string") {
+            const capitalized = f.charAt(0).toUpperCase() + f.slice(1);
+            let promptText = `Please enter your *${capitalized}*:`;
+            if (f === "pin") promptText = "Please enter your *PIN / Zip Code*:";
+            if (f === "phone") promptText = "Please enter your *Contact Phone*:";
+            if (f === "address") promptText = "Please enter your *Shipping Address*:";
+            if (f === "name") promptText = "Please enter your *Full Name*:";
+            return { text: promptText, variable: f };
+          }
+          return { text: f.text || "", variable: f.variable || "" };
+        });
+        setCheckoutFields(parsed);
+      } else {
+        setCheckoutFields([
+          { text: "Please enter your Full Name:", variable: "name" },
+          { text: "Please enter your Contact Phone:", variable: "phone" },
+          { text: "Please enter your Shipping Address:", variable: "address" },
+          { text: "Please enter your PIN / Zip Code:", variable: "pin" }
+        ]);
+      }
     }
   }, [config]);
 
@@ -259,9 +290,10 @@ export default function EcommerceLedger() {
     setProdCheckoutLink("");
     setProdTrigger("");
     setProdTriggerEnabled(false);
+    setProdCurrency("INR");
   };
 
-  const handleEditProductClick = (product: Product) => {
+  const handleEditProductClick = (product: any) => {
     setEditingProduct(product);
     setProdName(product.name);
     setProdPrice(product.price);
@@ -276,6 +308,7 @@ export default function EcommerceLedger() {
     setProdCheckoutLink(product.checkoutLink || "");
     setProdTrigger(product.triggerKeyword || "");
     setProdTriggerEnabled(product.isTriggerEnabled);
+    setProdCurrency(product.currency || "INR");
     setIsProductModalOpen(true);
   };
 
@@ -294,6 +327,7 @@ export default function EcommerceLedger() {
       checkoutLink: prodCheckoutLink,
       triggerKeyword: prodTrigger,
       isTriggerEnabled: prodTriggerEnabled,
+      currency: prodCurrency,
     };
 
     if (editingProduct) {
@@ -310,11 +344,6 @@ export default function EcommerceLedger() {
       return;
     }
 
-    const fieldsArray = checkoutFieldsText
-      .split(",")
-      .map((f) => f.trim().toLowerCase())
-      .filter(Boolean);
-
     const payload = {
       channelId,
       storeTriggerKeyword: storeKeyword,
@@ -323,12 +352,15 @@ export default function EcommerceLedger() {
       welcomeHeaderUrl,
       welcomeHeaderType,
       qrCodeUrl,
-      checkoutFields: fieldsArray,
+      checkoutFields: checkoutFields.filter(f => f.text.trim() && f.variable.trim()),
       instamojoApiKey: instaKey,
       instamojoAuthToken: instaToken,
       instamojoSandbox: instaSandbox,
       razorpayKeyId: rzpKeyId,
       razorpayKeySecret: rzpKeySecret,
+      upiId: upiId || null,
+      upiMerchantName: upiMerchantName || null,
+      currency: storeCurrency,
       isActive: configActive,
     };
 
@@ -392,17 +424,41 @@ export default function EcommerceLedger() {
                 />
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="price">Price ($ or INR) *</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  step="0.01"
-                  value={prodPrice}
-                  onChange={(e) => setProdPrice(e.target.value)}
-                  placeholder="e.g. 29.99"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="price">Price *</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    step="0.01"
+                    value={prodPrice}
+                    onChange={(e) => setProdPrice(e.target.value)}
+                    placeholder="e.g. 29.99"
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="prodCurrency">Currency *</Label>
+                  <select
+                    id="prodCurrency"
+                    value={prodCurrency}
+                    onChange={(e) => setProdCurrency(e.target.value)}
+                    className="w-full border rounded p-2 text-sm bg-white"
+                  >
+                    <option value="INR">INR (₹)</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="GBP">GBP (£)</option>
+                    <option value="AED">AED (AED)</option>
+                    <option value="SAR">SAR (SAR)</option>
+                    <option value="AUD">AUD (A$)</option>
+                    <option value="CAD">CAD (C$)</option>
+                    <option value="JPY">JPY (¥)</option>
+                    <option value="SGD">SGD (S$)</option>
+                    <option value="QAR">QAR (QAR)</option>
+                    <option value="OMR">OMR (OMR)</option>
+                  </select>
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -415,14 +471,51 @@ export default function EcommerceLedger() {
                 />
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="photos">Product Photos (comma-separated URLs)</Label>
-                <Textarea
-                  id="photos"
-                  value={prodPhotos}
-                  onChange={(e) => setProdPhotos(e.target.value)}
-                  placeholder="e.g. https://img.com/1.png, https://img.com/2.png"
-                />
+              <div className="space-y-2">
+                <Label htmlFor="photos">Product Photos</Label>
+                <div className="flex gap-2">
+                  <Textarea
+                    id="photos"
+                    value={prodPhotos}
+                    onChange={(e) => setProdPhotos(e.target.value)}
+                    placeholder="URLs (comma-separated)"
+                    className="text-xs"
+                    rows={2}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="self-stretch"
+                    onClick={() => {
+                       setGalleryTarget("product");
+                       setIsGalleryOpen(true);
+                    }}
+                  >
+                    Gallery
+                  </Button>
+                </div>
+
+                {prodPhotos.split(",").map(p => p.trim()).filter(Boolean).length > 0 && (
+                  <div className="flex flex-wrap gap-2 border p-2 rounded bg-gray-50 max-h-32 overflow-y-auto mt-1">
+                    {prodPhotos.split(",").map(p => p.trim()).filter(Boolean).map((photoUrl, idx) => (
+                      <div key={idx} className="relative w-14 h-14 border rounded overflow-hidden group">
+                        <img src={photoUrl} className="w-full h-full object-cover" alt="product thumbnail" />
+                        <button
+                          type="button"
+                          className="absolute top-0 right-0 bg-red-600 text-white rounded-full flex items-center justify-center p-0.5 opacity-80 hover:opacity-100 transition-opacity"
+                          style={{ width: "16px", height: "16px", fontSize: "10px" }}
+                          onClick={() => {
+                            const list = prodPhotos.split(",").map(p => p.trim()).filter(Boolean);
+                            list.splice(idx, 1);
+                            setProdPhotos(list.join(", "));
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -542,7 +635,9 @@ export default function EcommerceLedger() {
                             )}
                           </TableCell>
                           <TableCell className="font-semibold">{prod.name}</TableCell>
-                          <TableCell className="text-emerald-600 font-medium">${prod.price}</TableCell>
+                          <TableCell className="text-emerald-600 font-medium">
+                            {(prod as any).currency || "INR"} {prod.price}
+                          </TableCell>
                           <TableCell>
                             {prod.isTriggerEnabled ? (
                               <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800">
@@ -807,14 +902,38 @@ export default function EcommerceLedger() {
                       <Switch checked={storeFlowActive} onCheckedChange={setStoreFlowActive} />
                     </div>
 
-                    <div className="space-y-1">
-                      <Label htmlFor="storeKeyword">Store Trigger Keyword</Label>
-                      <Input
-                        id="storeKeyword"
-                        value={storeKeyword}
-                        onChange={(e) => setStoreKeyword(e.target.value)}
-                        placeholder="e.g. store, shop, catalogue"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="storeKeyword">Store Trigger Keyword</Label>
+                        <Input
+                          id="storeKeyword"
+                          value={storeKeyword}
+                          onChange={(e) => setStoreKeyword(e.target.value)}
+                          placeholder="e.g. store, shop, catalogue"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="storeCurrency">Store Base Currency</Label>
+                        <select
+                          id="storeCurrency"
+                          value={storeCurrency}
+                          onChange={(e) => setStoreCurrency(e.target.value)}
+                          className="w-full border rounded p-2 text-sm bg-white"
+                        >
+                          <option value="INR">INR (₹)</option>
+                          <option value="USD">USD ($)</option>
+                          <option value="EUR">EUR (€)</option>
+                          <option value="GBP">GBP (£)</option>
+                          <option value="AED">AED (AED)</option>
+                          <option value="SAR">SAR (SAR)</option>
+                          <option value="AUD">AUD (A$)</option>
+                          <option value="CAD">CAD (C$)</option>
+                          <option value="JPY">JPY (¥)</option>
+                          <option value="SGD">SGD (S$)</option>
+                          <option value="QAR">QAR (QAR)</option>
+                          <option value="OMR">OMR (OMR)</option>
+                        </select>
+                      </div>
                     </div>
 
                     <div className="space-y-1">
@@ -827,14 +946,14 @@ export default function EcommerceLedger() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label htmlFor="headerType">Header Media Type</Label>
                         <select
                           id="headerType"
                           value={welcomeHeaderType}
                           onChange={(e) => setWelcomeHeaderType(e.target.value)}
-                          className="w-full border rounded p-2 text-sm"
+                          className="w-full border rounded p-2 text-sm bg-white"
                         >
                           <option value="none">No Header</option>
                           <option value="image">Image Header</option>
@@ -843,47 +962,142 @@ export default function EcommerceLedger() {
                       </div>
                       <div className="space-y-1">
                         <Label htmlFor="headerUrl">Header Media URL</Label>
-                        <Input
-                          id="headerUrl"
-                          value={welcomeHeaderUrl}
-                          onChange={(e) => setWelcomeHeaderUrl(e.target.value)}
-                          placeholder="e.g. https://img.com/header.jpg"
-                        />
+                        <div className="flex gap-2">
+                          <Input
+                            id="headerUrl"
+                            value={welcomeHeaderUrl}
+                            onChange={(e) => setWelcomeHeaderUrl(e.target.value)}
+                            placeholder="e.g. https://img.com/header.jpg"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setGalleryTarget("welcome_header");
+                              setIsGalleryOpen(true);
+                            }}
+                          >
+                            Gallery
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Checkout & QR */}
+                  {/* Checkout & UPI Configuration */}
                   <div className="space-y-4 border p-4 rounded-lg">
                     <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
                       <ClipboardList className="w-4 h-4 text-emerald-600" />
-                      Checkout Questions
+                      Checkout Questions Flow
                     </h3>
 
-                    <div className="space-y-1">
-                      <Label htmlFor="fields">Checkout Form Fields (comma-separated)</Label>
-                      <Input
-                        id="fields"
-                        value={checkoutFieldsText}
-                        onChange={(e) => setCheckoutFieldsText(e.target.value)}
-                        placeholder="e.g. name, phone, address, pin"
-                      />
-                      <span className="text-xs text-gray-500 block">
-                        Default variables: name, phone, address, pin. You can add customized variables.
-                      </span>
+                    <div className="space-y-3">
+                      <Label className="font-semibold text-gray-700 block">Checkout Fields (Q&A List)</Label>
+                      {checkoutFields.map((field, index) => (
+                        <div key={index} className="flex flex-col sm:flex-row gap-2 border p-3 rounded-md bg-gray-50/50 relative">
+                          <div className="flex-grow space-y-1">
+                            <Label className="text-[10px] text-gray-500 font-bold uppercase">Question Prompt Text</Label>
+                            <Input
+                              value={field.text}
+                              onChange={(e) => {
+                                const copy = [...checkoutFields];
+                                copy[index].text = e.target.value;
+                                setCheckoutFields(copy);
+                              }}
+                              placeholder="Please enter your full name:"
+                              className="text-xs bg-white"
+                            />
+                          </div>
+                          <div className="w-full sm:w-1/3 space-y-1">
+                            <Label className="text-[10px] text-gray-500 font-bold uppercase">Variable Key Name</Label>
+                            <Input
+                              value={field.variable}
+                              onChange={(e) => {
+                                const copy = [...checkoutFields];
+                                copy[index].variable = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "");
+                                setCheckoutFields(copy);
+                              }}
+                              placeholder="name"
+                              className="text-xs bg-white"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 self-end"
+                            onClick={() => {
+                              setCheckoutFields(checkoutFields.filter((_, i) => i !== index));
+                            }}
+                          >
+                            <Trash className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-indigo-600 hover:text-indigo-700 border-indigo-200 hover:bg-indigo-50/50 flex items-center justify-center gap-1 mt-2 text-xs"
+                        onClick={() => {
+                          setCheckoutFields([...checkoutFields, { text: "", variable: "" }]);
+                        }}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add New Question
+                      </Button>
                     </div>
 
-                    <div className="space-y-1 pt-2">
-                      <Label htmlFor="qr">UPI Payment Scan QR Code URL</Label>
-                      <Input
-                        id="qr"
-                        value={qrCodeUrl}
-                        onChange={(e) => setQrCodeUrl(e.target.value)}
-                        placeholder="e.g. https://img.com/upi-qr-code.jpg"
-                      />
-                      <span className="text-xs text-gray-500 block">
-                        Provide a URL to the UPI payment QR code image (GPay/PhonePe). Customers will pay and upload screenshot.
-                      </span>
+                    <div className="space-y-4 pt-2 border-t">
+                      <Label className="font-bold text-gray-800">UPI Payment Configurations</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="upiId">Merchant UPI ID (for Direct Pay redirection)</Label>
+                          <Input
+                            id="upiId"
+                            value={upiId}
+                            onChange={(e) => setUpiId(e.target.value)}
+                            placeholder="e.g. merchant@upi"
+                          />
+                          <span className="text-[10px] text-gray-500 block leading-tight">
+                            Generates direct deep-links that launch GPay/PhonePe automatically on mobile checkouts.
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="upiMerchant">Payee Merchant/Display Name</Label>
+                          <Input
+                            id="upiMerchant"
+                            value={upiMerchantName}
+                            onChange={(e) => setUpiMerchantName(e.target.value)}
+                            placeholder="e.g. Store Name"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 pt-2">
+                        <Label htmlFor="qr">UPI Payment Scan QR Code Image URL</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="qr"
+                            value={qrCodeUrl}
+                            onChange={(e) => setQrCodeUrl(e.target.value)}
+                            placeholder="e.g. https://img.com/upi-qr-code.jpg"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setGalleryTarget("qr_code");
+                              setIsGalleryOpen(true);
+                            }}
+                          >
+                            Gallery
+                          </Button>
+                        </div>
+                        <span className="text-[10px] text-gray-500 block leading-tight">
+                          Will send QR code image to shopper's chat for manual scanning.
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -962,6 +1176,28 @@ export default function EcommerceLedger() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Media Gallery Picker */}
+      <MediaGalleryDialog
+        open={isGalleryOpen}
+        onOpenChange={setIsGalleryOpen}
+        onSelect={(url) => {
+          if (galleryTarget === "welcome_header") {
+            setWelcomeHeaderUrl(url);
+          } else if (galleryTarget === "qr_code") {
+            setQrCodeUrl(url);
+          } else if (galleryTarget === "product") {
+            const trimmed = prodPhotos.trim();
+            if (trimmed) {
+              setProdPhotos(trimmed + ", " + url);
+            } else {
+              setProdPhotos(url);
+            }
+          }
+          setIsGalleryOpen(false);
+        }}
+        allowedTypes={["image"]}
+      />
     </div>
   );
 }

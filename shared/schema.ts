@@ -2492,6 +2492,7 @@ export const ecommerceProducts = pgTable("ecommerce_products", {
   checkoutLink: text("checkout_link"),
   triggerKeyword: text("trigger_keyword"),
   isTriggerEnabled: boolean("is_trigger_enabled").default(false),
+  currency: text("currency").default("INR"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2512,6 +2513,9 @@ export const ecommerceConfigs = pgTable("ecommerce_configs", {
   instamojoSandbox: boolean("instamojo_sandbox").default(true),
   razorpayKeyId: text("razorpay_key_id"),
   razorpayKeySecret: text("razorpay_key_secret"),
+  upiId: text("upi_id"),
+  upiMerchantName: text("upi_merchant_name"),
+  currency: text("currency").default("INR"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -2528,10 +2532,11 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   customerData: jsonb("customer_data").default({}),
   productId: varchar("product_id").references(() => ecommerceProducts.id, { onDelete: "set null" }),
   productName: text("product_name"),
-  price: numeric("price", { precision: 12, scale: 2 }),
-  quantity: integer("quantity").default(1),
-  totalAmount: numeric("total_amount", { precision: 12, scale: 2 }),
-  paymentMethod: text("payment_method"), // "cod", "qr_pay", "gateway"
+  price: numeric("price", { precision: 12, scale: 2 }).default("0").notNull(),
+  quantity: integer("quantity").default(1).notNull(),
+  totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).default("0").notNull(),
+  currency: text("currency").default("INR"),
+  paymentMethod: text("payment_method").notNull(), // "cod", "qr_pay", "gateway"
   paymentStatus: text("payment_status").default("pending"), // "pending", "paid", "failed", "pending_verification"
   paymentGateway: text("payment_gateway"), // "instamojo", "razorpay"
   paymentGatewayOrderId: text("payment_gateway_order_id"),

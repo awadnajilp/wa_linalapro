@@ -201,7 +201,7 @@ export class EcommerceService {
         photos = [];
       }
 
-      const descText = `*${product.name}*\nPrice: $${product.price}\n\n${product.description || ""}`;
+      const descText = `*${product.name}*\nPrice: ${(product as any).currency || 'INR'} ${product.price}\n\n${product.description || ""}`;
 
       if (isQr) {
         // For QR code: send photos then details text containing numerical option
@@ -244,7 +244,7 @@ export class EcommerceService {
 
     // 4. Send Store-wide List Message / IVR listing
     if (isQr) {
-      const listText = `*Product List:*\n\n` + products.map((p, idx) => `${idx + 1}. ${p.name} - $${p.price}`).join("\n") + `\n\nReply with the product number (e.g. 1) to start checkout.`;
+      const listText = `*Product List:*\n\n` + products.map((p, idx) => `${idx + 1}. ${p.name} - ${(p as any).currency || 'INR'} ${p.price}`).join("\n") + `\n\nReply with the product number (e.g. 1) to start checkout.`;
       await waApi.sendTextMessage(to, listText);
     } else {
       // Cloud API: Send interactive list message
@@ -260,7 +260,7 @@ export class EcommerceService {
             rows: products.map((p) => ({
               id: `prod_${p.id}`,
               title: p.name.substring(0, 24),
-              description: `Price: $${p.price}`.substring(0, 72)
+              description: `Price: ${(p as any).currency || 'INR'} ${p.price}`.substring(0, 72)
             }))
           }
         ]
@@ -292,7 +292,7 @@ export class EcommerceService {
     }
 
     // Send details text
-    const descText = `*${product.name}*\nPrice: $${product.price}\n\n${product.description || ""}`;
+    const descText = `*${product.name}*\nPrice: ${(product as any).currency || 'INR'} ${product.price}\n\n${product.description || ""}`;
     await waApi.sendTextMessage(contactPhone, descText);
 
     // Start checkout flow immediately
@@ -324,7 +324,7 @@ export class EcommerceService {
     const waApi = new WhatsAppApiService(channelRow);
     await waApi.sendTextMessage(
       contactPhone,
-      `How many units of *${product.name}* (Price: $${product.price}) would you like to buy? Please reply with a number.`
+      `How many units of *${product.name}* (Price: ${(product as any).currency || 'INR'} ${product.price}) would you like to buy? Please reply with a number.`
     );
   }
 
@@ -350,7 +350,17 @@ export class EcommerceService {
     
     const to = conv?.contactPhone || contactPhone;
 
-    const fields = config.checkoutFields || ["name", "phone", "address", "pin"];
+    const rawFields = config.checkoutFields || ["name", "phone", "address", "pin"];
+    // Standardize to array of { text: string, variable: string }
+    const fields = rawFields.map((f: any) => {
+      if (typeof f === "string") {
+        return { text: `Please enter your *${this.getFieldLabel(f)}*:`, variable: f };
+      }
+      return { 
+        text: f.text || `Please enter your *${this.getFieldLabel(f.variable)}*:`, 
+        variable: f.variable || "custom_field" 
+      };
+    });
 
     // 1. STEP: WAITING FOR QUANTITY
     if (session.currentStep === "waiting_for_quantity") {
@@ -360,40 +370,48 @@ export class EcommerceService {
         return;
       }
 
-      await db
-        .update(schema.ecommerceSessions)
-        .set({
-          quantity,
-          currentStep: `waiting_for_field:${fields[0]}`
-        })
-        .where(eq(schema.ecommerceSessions.id, session.id));
+      if (fields.length === 0) {
+        await db
+          .update(schema.ecommerceSessions)
+          .set({
+            quantity,
+            currentStep: "waiting_for_payment_method"
+          })
+          .where(eq(schema.ecommerceSessions.id, session.id));
+      } else {
+        await db
+          .update(schema.ecommerceSessions)
+          .set({
+            quantity,
+            currentStep: `waiting_for_field:${fields[0].variable}`
+          })
+          .where(eq(schema.ecommerceSessions.id, session.id));
 
-      const firstLabel = this.getFieldLabel(fields[0]);
-      await waApi.sendTextMessage(to, `Please enter your *${firstLabel}*:`);
-      return;
+        await waApi.sendTextMessage(to, fields[0].text);
+        return;
+      }
     }
 
     // 2. STEP: WAITING FOR CUSTOM FIELDS
     if (session.currentStep.startsWith("waiting_for_field:")) {
-      const currentField = session.currentStep.replace("waiting_for_field:", "");
+      const currentFieldVar = session.currentStep.replace("waiting_for_field:", "");
       const customerData = session.customerData || {};
-      customerData[currentField] = input;
+      customerData[currentFieldVar] = input;
 
-      const currentIndex = fields.indexOf(currentField);
+      const currentIndex = fields.findIndex((f) => f.variable === currentFieldVar);
       const nextIndex = currentIndex + 1;
 
-      if (nextIndex < fields.length) {
+      if (nextIndex < fields.length && currentIndex !== -1) {
         const nextField = fields[nextIndex];
         await db
           .update(schema.ecommerceSessions)
           .set({
             customerData,
-            currentStep: `waiting_for_field:${nextField}`
+            currentStep: `waiting_for_field:${nextField.variable}`
           })
           .where(eq(schema.ecommerceSessions.id, session.id));
 
-        const nextLabel = this.getFieldLabel(nextField);
-        await waApi.sendTextMessage(to, `Please enter your *${nextLabel}*:`);
+        await waApi.sendTextMessage(to, nextField.text);
       } else {
         // All fields collected, ask for payment method
         await db
@@ -407,6 +425,9 @@ export class EcommerceService {
         // Generate payment options
         const paymentOptions = [];
         paymentOptions.push({ id: "cod", title: "Cash on Delivery (COD)" });
+        if (config.upiId) {
+          paymentOptions.push({ id: "upi_direct", title: "UPI Direct Mobile Pay" });
+        }
         if (config.qrCodeUrl) {
           paymentOptions.push({ id: "qr_pay", title: "UPI (Pay via QR Code)" });
         }
@@ -419,9 +440,29 @@ export class EcommerceService {
 
         const promptText = "Please select your preferred checkout payment method:";
 
-        if (channelRow.connectionMethod === "qr_code") {
-          const listOpts = promptText + "\n\n" + paymentOptions.map((opt, idx) => `${idx + 1}. ${opt.title}`).join("\n") + "\n\nReply with option number (e.g. 1):";
-          await waApi.sendTextMessage(to, listOpts);
+        if (channelRow.connectionMethod === "qr_code" || paymentOptions.length > 3) {
+          if (channelRow.connectionMethod === "qr_code") {
+            const listOpts = promptText + "\n\n" + paymentOptions.map((opt, idx) => `${idx + 1}. ${opt.title}`).join("\n") + "\n\nReply with option number (e.g. 1):";
+            await waApi.sendTextMessage(to, listOpts);
+          } else {
+            // Cloud API: Send interactive list message since button count > 3
+            await this.sendCloudApiListMessage(
+              channelRow,
+              to,
+              "Payment Options",
+              promptText,
+              "Select Payment",
+              [
+                {
+                  title: "Available Options",
+                  rows: paymentOptions.map(opt => ({
+                    id: opt.id,
+                    title: opt.title.substring(0, 24)
+                  }))
+                }
+              ]
+            );
+          }
         } else {
           // Cloud API: Send interactive buttons
           await this.sendCloudApiButtonMessage(channelRow, to, promptText, null, paymentOptions);
@@ -436,6 +477,9 @@ export class EcommerceService {
 
       const paymentOptions = [];
       paymentOptions.push({ id: "cod", title: "Cash on Delivery (COD)" });
+      if (config.upiId) {
+        paymentOptions.push({ id: "upi_direct", title: "UPI Direct Mobile Pay" });
+      }
       if (config.qrCodeUrl) {
         paymentOptions.push({ id: "qr_pay", title: "UPI (Pay via QR Code)" });
       }
@@ -448,6 +492,8 @@ export class EcommerceService {
 
       if (message.interactive?.type === "button_reply") {
         selectedMethod = message.interactive.button_reply.id;
+      } else if (message.interactive?.type === "list_reply") {
+        selectedMethod = message.interactive.list_reply.id;
       } else {
         // IVR selection matching index
         const matchIdx = parseInt(input) - 1;
@@ -458,6 +504,8 @@ export class EcommerceService {
           const lowerVal = input.toLowerCase();
           if (lowerVal.includes("cod") || lowerVal.includes("cash")) {
             selectedMethod = "cod";
+          } else if (lowerVal.includes("direct") || lowerVal.includes("mobile")) {
+            selectedMethod = "upi_direct";
           } else if (lowerVal.includes("qr") || lowerVal.includes("upi")) {
             selectedMethod = "qr_pay";
           } else if (lowerVal.includes("online") || lowerVal.includes("gateway")) {
@@ -467,7 +515,7 @@ export class EcommerceService {
       }
 
       if (!selectedMethod || !paymentOptions.find(o => o.id === selectedMethod)) {
-        await waApi.sendTextMessage(to, "Invalid payment method. Please reply with the correct option number.");
+        await waApi.sendTextMessage(to, "Invalid payment method. Please select or reply with the correct option.");
         return;
       }
 
@@ -503,6 +551,7 @@ export class EcommerceService {
             price: product.price,
             quantity: session.quantity,
             totalAmount: String(totalAmount),
+            currency: (product as any).currency || "INR",
             paymentMethod: "cod",
             paymentStatus: "pending",
             status: "pending"
@@ -514,12 +563,53 @@ export class EcommerceService {
         // Send confirmation WhatsApp message
         await waApi.sendTextMessage(
           to,
-          `🎉 *Order Placed Successfully!*\n\nOrder Number: *${orderNumber}*\nProduct: *${product.name}* (x${session.quantity})\nTotal Amount: *${totalAmount}*\nPayment Mode: *Cash on Delivery (COD)*\n\nWe will update you as soon as your order status changes!`
+          `🎉 *Order Placed Successfully!*\n\nOrder Number: *${orderNumber}*\nProduct: *${product.name}* (x${session.quantity})\nTotal Amount: *${(product as any).currency || "INR"} ${totalAmount}*\nPayment Mode: *Cash on Delivery (COD)*\n\nWe will update you as soon as your order status changes!`
         );
 
         // Send email with PDF to merchant
         await this.sendOrderEmail(order);
       } 
+      else if (selectedMethod === "upi_direct") {
+        // Transition to QR payment receipt upload
+        await db
+          .update(schema.ecommerceSessions)
+          .set({
+            currentStep: "waiting_for_qr_receipt"
+          })
+          .where(eq(schema.ecommerceSessions.id, session.id));
+
+        // Create the order as pending payment
+        const orderNumber = "ORD-" + Math.floor(100000 + Math.random() * 900000);
+        const [order] = await db
+          .insert(schema.ecommerceOrders)
+          .values({
+            orderNumber,
+            tenantId: config.tenantId,
+            channelId: config.channelId,
+            conversationId: session.conversationId,
+            customerPhone: to,
+            customerName: session.customerData?.name || conv?.contactName || "Customer",
+            customerData: session.customerData,
+            productId: product.id,
+            productName: product.name,
+            price: product.price,
+            quantity: session.quantity,
+            totalAmount: String(totalAmount),
+            currency: (product as any).currency || "INR",
+            paymentMethod: "upi_direct",
+            paymentStatus: "pending_verification",
+            status: "pending"
+          })
+          .returning();
+
+        // Send direct payment redirect link
+        const redirectUrl = `https://wa.linalapro.com/api/ecommerce/checkout/pay?orderId=${order.id}`;
+
+        await waApi.sendTextMessage(
+          to,
+          `📱 *UPI Mobile Direct Pay*\n\nTo pay *${(product as any).currency || "INR"} ${totalAmount}* directly using GPay / PhonePe / Paytm:\n\n👉 *Click here to Pay:* ${redirectUrl}\n\nOnce paid, *please send the receipt/payment screenshot here* to verify and complete your order.`
+        );
+      }
       else if (selectedMethod === "qr_pay") {
         // Transition to QR payment receipt upload
         await db
@@ -529,11 +619,35 @@ export class EcommerceService {
           })
           .where(eq(schema.ecommerceSessions.id, session.id));
 
+        // Create order first
+        const orderNumber = "ORD-" + Math.floor(100000 + Math.random() * 900000);
+        const [order] = await db
+          .insert(schema.ecommerceOrders)
+          .values({
+            orderNumber,
+            tenantId: config.tenantId,
+            channelId: config.channelId,
+            conversationId: session.conversationId,
+            customerPhone: to,
+            customerName: session.customerData?.name || conv?.contactName || "Customer",
+            customerData: session.customerData,
+            productId: product.id,
+            productName: product.name,
+            price: product.price,
+            quantity: session.quantity,
+            totalAmount: String(totalAmount),
+            currency: (product as any).currency || "INR",
+            paymentMethod: "qr_pay",
+            paymentStatus: "pending_verification",
+            status: "pending"
+          })
+          .returning();
+
         // Send QR code
         await waApi.sendMediaMessageByUrl(to, config.qrCodeUrl, "image");
         await waApi.sendTextMessage(
           to,
-          `Please scan the QR code to pay a total of *$${totalAmount}* via GPAY / PhonePe.\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.`
+          `Please scan the QR code to pay a total of *${(product as any).currency || "INR"} ${totalAmount}* via GPAY / PhonePe.\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.`
         );
       } 
       else if (selectedMethod === "gateway") {
@@ -558,6 +672,7 @@ export class EcommerceService {
               price: product.price,
               quantity: session.quantity,
               totalAmount: String(totalAmount),
+              currency: (product as any).currency || "INR",
               paymentMethod: "gateway",
               paymentStatus: "pending_payment",
               paymentGateway: paymentLinkData.gateway,
@@ -570,7 +685,7 @@ export class EcommerceService {
 
           await waApi.sendTextMessage(
             to,
-            `🔗 *Complete Your Payment*\n\nOrder Number: *${orderNumber}*\nTotal Amount: *${totalAmount}*\n\nPlease complete your payment using this secure link:\n${paymentLinkData.url}\n\nYour order will be verified automatically once paid.`
+            `🔗 *Complete Your Payment*\n\nOrder Number: *${orderNumber}*\nTotal Amount: *${(product as any).currency || "INR"} ${totalAmount}*\n\nPlease complete your payment using this secure link:\n${paymentLinkData.url}\n\nYour order will be verified automatically once paid.`
           );
 
           // Email notification of pending order
@@ -808,8 +923,8 @@ export class EcommerceService {
         const rowTop = tableTop + 25;
         doc.text(order.productName || "Unknown Product", 50, rowTop);
         doc.text(String(order.quantity || 1), 250, rowTop);
-        doc.text(`$${order.price || "0"}`, 320, rowTop);
-        doc.text(`$${order.totalAmount || "0"}`, 420, rowTop);
+        doc.text(`${order.currency || "INR"} ${order.price || "0"}`, 320, rowTop);
+        doc.text(`${order.currency || "INR"} ${order.totalAmount || "0"}`, 420, rowTop);
 
         doc.moveTo(50, rowTop + 15).lineTo(500, rowTop + 15).stroke();
         doc.moveDown(3);
@@ -861,7 +976,7 @@ export class EcommerceService {
       const mailOptions = {
         from: process.env.SMTP_FROM || '"Marketplace Store" <no-reply@example.com>',
         to: user.email,
-        subject: `[New Store Order] ${order.orderNumber} - $${order.totalAmount}`,
+        subject: `[New Store Order] ${order.orderNumber} - ${order.currency || "INR"} ${order.totalAmount}`,
         html: `
           <div style="font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #E5E7EB; border-radius: 8px;">
             <h2 style="color: #10B981; margin-top: 0;">New Order Placed!</h2>
@@ -883,7 +998,7 @@ export class EcommerceService {
               </tr>
               <tr>
                 <td style="font-weight: bold;">Total Amount</td>
-                <td style="color: #10B981; font-weight: bold;">$${order.totalAmount}</td>
+                <td style="color: #10B981; font-weight: bold;">${order.currency || "INR"} ${order.totalAmount}</td>
               </tr>
               <tr>
                 <td style="font-weight: bold;">Payment Method</td>

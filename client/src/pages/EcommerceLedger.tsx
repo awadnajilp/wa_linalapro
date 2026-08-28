@@ -163,6 +163,17 @@ export default function EcommerceLedger() {
   const [storeWebsite, setStoreWebsite] = useState("");
   const [storeLogo, setStoreLogo] = useState("");
 
+  // Order editing states
+  const [editingOrder, setEditingOrder] = useState<any | null>(null);
+  const [editOrderName, setEditOrderName] = useState("");
+  const [editOrderPhone, setEditOrderPhone] = useState("");
+  const [editOrderAddress, setEditOrderAddress] = useState("");
+  const [editOrderPin, setEditOrderPin] = useState("");
+  const [editOrderAmount, setEditOrderAmount] = useState("");
+  const [editOrderPaymentMethod, setEditOrderPaymentMethod] = useState("");
+  const [editOrderPaymentStatus, setEditOrderPaymentStatus] = useState("");
+  const [editOrderStatus, setEditOrderStatus] = useState("");
+
   // Queries
   // 1. Fetch Ecommerce Config
   const { data: config, isLoading: isConfigLoading } = useQuery<EcommerceConfig | null>({
@@ -326,6 +337,65 @@ export default function EcommerceLedger() {
       toast({ title: "Failed to update order", description: err.message, variant: "destructive" });
     },
   });
+
+  // Edit Order Details Mutation
+  const editOrderMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: any }) => {
+      const res = await fetch(`/api/ecommerce/orders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update order");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/customers"] });
+      toast({ title: "Success", description: "Order updated successfully." });
+      setEditingOrder(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to update order", description: err.message, variant: "destructive" });
+    }
+  });
+
+  // Delete Order Mutation
+  const deleteOrderMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/ecommerce/orders/${id}`, {
+        method: "DELETE"
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete order");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/customers"] });
+      toast({ title: "Success", description: "Order deleted successfully." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to delete order", description: err.message, variant: "destructive" });
+    }
+  });
+
+  const handleEditOrderClick = (order: any) => {
+    setEditingOrder(order);
+    setEditOrderName(order.customerName || "");
+    setEditOrderPhone(order.customerPhone || "");
+    setEditOrderAddress(order.customerData?.address || "");
+    setEditOrderPin(order.customerData?.pin || "");
+    setEditOrderAmount(order.totalAmount || "0");
+    setEditOrderPaymentMethod(order.paymentMethod || "cod");
+    setEditOrderPaymentStatus(order.paymentStatus || "pending");
+    setEditOrderStatus(order.status || "pending");
+  };
 
   const resetProductForm = () => {
     setEditingProduct(null);
@@ -892,6 +962,26 @@ export default function EcommerceLedger() {
                               <a href={`/api/ecommerce/orders/${order.id}/shipping-label`} target="_blank" rel="noreferrer">
                                 <FileText className="w-3 h-3 mr-0.5" /> Label
                               </a>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[10px] px-2 text-amber-600 hover:text-amber-700"
+                              onClick={() => handleEditOrderClick(order)}
+                            >
+                              <Edit className="w-3 h-3 mr-0.5" /> Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[10px] px-2 text-destructive hover:text-red-700"
+                              onClick={() => {
+                                if (confirm("Are you sure you want to delete this order?")) {
+                                  deleteOrderMutation.mutate(order.id);
+                                }
+                              }}
+                            >
+                              <Trash className="w-3 h-3 mr-0.5" /> Delete
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -1580,6 +1670,136 @@ You are chatting with a customer regarding this product:
         }}
         allowedTypes={["image"]}
       />
+
+      {/* Edit Order Dialog */}
+      <Dialog open={editingOrder !== null} onOpenChange={(open) => { if (!open) setEditingOrder(null); }}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Order Details</DialogTitle>
+            <DialogDescription>Modify customer data, total value, and status for order {editingOrder?.orderNumber}.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1">
+              <Label htmlFor="editOrderName">Customer Name</Label>
+              <Input
+                id="editOrderName"
+                value={editOrderName}
+                onChange={(e) => setEditOrderName(e.target.value)}
+                placeholder="Customer Name"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="editOrderPhone">Customer Phone</Label>
+              <Input
+                id="editOrderPhone"
+                value={editOrderPhone}
+                onChange={(e) => setEditOrderPhone(e.target.value)}
+                placeholder="Phone (e.g. 919633348491)"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="editOrderAmount">Total Amount</Label>
+              <Input
+                id="editOrderAmount"
+                type="number"
+                step="0.01"
+                value={editOrderAmount}
+                onChange={(e) => setEditOrderAmount(e.target.value)}
+                placeholder="Total Amount"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="editOrderAddress">Shipping Address</Label>
+              <Textarea
+                id="editOrderAddress"
+                value={editOrderAddress}
+                onChange={(e) => setEditOrderAddress(e.target.value)}
+                placeholder="Shipping Address"
+                className="min-h-[60px]"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="editOrderPin">PIN / Zip Code</Label>
+              <Input
+                id="editOrderPin"
+                value={editOrderPin}
+                onChange={(e) => setEditOrderPin(e.target.value)}
+                placeholder="PIN / Zip Code"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="editOrderPaymentMethod">Payment Method</Label>
+                <select
+                  id="editOrderPaymentMethod"
+                  value={editOrderPaymentMethod}
+                  onChange={(e) => setEditOrderPaymentMethod(e.target.value)}
+                  className="w-full h-9 text-xs border rounded p-1"
+                >
+                  <option value="cod">Cash on Delivery (COD)</option>
+                  <option value="upi_direct">UPI Direct</option>
+                  <option value="qr_pay">QR Pay</option>
+                  <option value="gateway">Online Gateway</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="editOrderPaymentStatus">Payment Status</Label>
+                <select
+                  id="editOrderPaymentStatus"
+                  value={editOrderPaymentStatus}
+                  onChange={(e) => setEditOrderPaymentStatus(e.target.value)}
+                  className="w-full h-9 text-xs border rounded p-1"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="pending_verification">Verification Req</option>
+                  <option value="pending_payment">Link Pending</option>
+                  <option value="paid">Paid</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="editOrderStatus">Delivery / Order Status</Label>
+              <select
+                id="editOrderStatus"
+                value={editOrderStatus}
+                onChange={(e) => setEditOrderStatus(e.target.value)}
+                className="w-full h-9 text-xs border rounded p-1 font-semibold text-emerald-800 bg-emerald-50"
+              >
+                <option value="pending">Pending</option>
+                <option value="processing">Processing</option>
+                <option value="shipped">Shipped</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingOrder(null)}>Cancel</Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              disabled={editOrderMutation.isPending}
+              onClick={() => {
+                editOrderMutation.mutate({
+                  id: editingOrder.id,
+                  payload: {
+                    customerName: editOrderName,
+                    customerPhone: editOrderPhone,
+                    totalAmount: editOrderAmount,
+                    address: editOrderAddress,
+                    pin: editOrderPin,
+                    paymentMethod: editOrderPaymentMethod,
+                    paymentStatus: editOrderPaymentStatus,
+                    status: editOrderStatus
+                  }
+                });
+              }}
+            >
+              {editOrderMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

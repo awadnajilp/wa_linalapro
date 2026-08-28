@@ -428,6 +428,105 @@ export function registerEcommerceRoutes(app: Express) {
     }
   });
 
+  // Edit/Update Order details
+  app.patch("/api/ecommerce/orders/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const {
+        customerName,
+        customerPhone,
+        address,
+        pin,
+        totalAmount,
+        paymentMethod,
+        paymentStatus,
+        status
+      } = req.body;
+
+      const [existing] = await db
+        .select()
+        .from(schema.ecommerceOrders)
+        .where(
+          and(
+            eq(schema.ecommerceOrders.id, req.params.id),
+            eq(schema.ecommerceOrders.tenantId, tenantId)
+          )
+        )
+        .limit(1);
+
+      if (!existing) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      const updates: any = {};
+      if (customerName !== undefined) updates.customerName = customerName;
+      if (customerPhone !== undefined) updates.customerPhone = customerPhone;
+      if (totalAmount !== undefined) updates.totalAmount = String(totalAmount);
+      if (paymentMethod !== undefined) updates.paymentMethod = paymentMethod;
+      if (paymentStatus !== undefined) updates.paymentStatus = paymentStatus;
+      if (status !== undefined) updates.status = status;
+
+      const existingData = existing.customerData || {};
+      const updatedData = {
+        ...existingData,
+        ...(address !== undefined ? { address } : {}),
+        ...(pin !== undefined ? { pin } : {})
+      };
+      updates.customerData = updatedData;
+      updates.updatedAt = new Date();
+
+      const [updated] = await db
+        .update(schema.ecommerceOrders)
+        .set(updates)
+        .where(eq(schema.ecommerceOrders.id, req.params.id))
+        .returning();
+
+      if (status && status !== existing.status) {
+        try {
+          await EcommerceService.sendOrderStatusUpdateNotification(updated.id, status);
+        } catch (e) {
+          console.error("Failed to send order status update notification:", e);
+        }
+      }
+
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Delete Order
+  app.delete("/api/ecommerce/orders/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+
+      const [existing] = await db
+        .select()
+        .from(schema.ecommerceOrders)
+        .where(
+          and(
+            eq(schema.ecommerceOrders.id, req.params.id),
+            eq(schema.ecommerceOrders.tenantId, tenantId)
+          )
+        )
+        .limit(1);
+
+      if (!existing) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      await db
+        .delete(schema.ecommerceOrders)
+        .where(eq(schema.ecommerceOrders.id, req.params.id));
+
+      res.json({ success: true, message: "Order deleted successfully" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Download Order Invoice PDF
   app.get("/api/ecommerce/orders/:id/invoice", requireAuth, async (req: Request, res: Response) => {
     try {

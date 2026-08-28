@@ -86,7 +86,7 @@ export class AiAssistantProfileService {
       const channelRecord = await db.query.channels.findFirst({
         where: eq(channels.id, channelId),
       });
-      if (!channelRecord) return false;
+      if (!channelRecord || !channelRecord.aiEnabled) return false;
 
       const creatorId = channelRecord.createdBy;
       if (!creatorId) return false;

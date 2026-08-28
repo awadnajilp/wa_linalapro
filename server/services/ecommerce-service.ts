@@ -62,6 +62,44 @@ export class EcommerceService {
       const cleanContent = content.trim().toLowerCase();
       const waApi = new WhatsAppApiService(channelRow);
 
+      // Check for trigger keywords first to allow resetting/starting fresh
+      const storeKeyword = (config.storeTriggerKeyword || "").trim().toLowerCase();
+      if (config.isStoreFlowActive && storeKeyword && cleanContent === storeKeyword) {
+        // Delete any active sessions first
+        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+        // Create session
+        await db.insert(schema.ecommerceSessions).values({
+          conversationId,
+          quantity: 1,
+          currentStep: "waiting_for_product_selection",
+          customerData: {}
+        });
+        await this.sendStoreCatalog(channelRow, config, contactPhone);
+        return true;
+      }
+
+      // Check individual product trigger
+      const products = await db
+        .select()
+        .from(schema.ecommerceProducts)
+        .where(
+          and(
+            eq(schema.ecommerceProducts.tenantId, tenantId),
+            eq(schema.ecommerceProducts.isTriggerEnabled, true)
+          )
+        );
+
+      const matchedProduct = products.find(
+        (p) => p.triggerKeyword && p.triggerKeyword.trim().toLowerCase() === cleanContent
+      );
+
+      if (matchedProduct) {
+        // Delete any active sessions first
+        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+        await this.startIndividualProductFlow(channelRow, config, conversationId, contactPhone, matchedProduct);
+        return true;
+      }
+
       // Check interactive button clicks FIRST (always high priority)
       // 1. Interactive button replies (Buy Now or Ask AI)
       if (message.interactive?.type === "button_reply") {
@@ -218,44 +256,6 @@ export class EcommerceService {
           await this.processSessionInput(channelRow, config, session, content.trim(), message);
           return true;
         }
-      }
-
-      // NO Active session: Check for triggers
-      // 1. Store trigger (Store-wise flow)
-      const storeKeyword = (config.storeTriggerKeyword || "").trim().toLowerCase();
-      // Only trigger if storeKeyword is configured and isStoreFlowActive is true
-      if (config.isStoreFlowActive && storeKeyword && cleanContent === storeKeyword) {
-        // Delete any active sessions first
-        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
-        // Create session
-        await db.insert(schema.ecommerceSessions).values({
-          conversationId,
-          quantity: 1,
-          currentStep: "waiting_for_product_selection",
-          customerData: {}
-        });
-        await this.sendStoreCatalog(channelRow, config, contactPhone);
-        return true;
-      }
-
-      // 2. Individual product trigger
-      const products = await db
-        .select()
-        .from(schema.ecommerceProducts)
-        .where(
-          and(
-            eq(schema.ecommerceProducts.tenantId, tenantId),
-            eq(schema.ecommerceProducts.isTriggerEnabled, true)
-          )
-        );
-
-      const matchedProduct = products.find(
-        (p) => p.triggerKeyword && p.triggerKeyword.trim().toLowerCase() === cleanContent
-      );
-
-      if (matchedProduct) {
-        await this.startIndividualProductFlow(channelRow, config, conversationId, contactPhone, matchedProduct);
-        return true;
       }
 
       return false;

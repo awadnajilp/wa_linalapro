@@ -377,6 +377,11 @@ router.get("/members/:id", requireAuth,
 router.post("/members",requireAuth,
 requirePermission(PERMISSIONS.TEAM_CREATE), validateRequest(createUserSchema), async (req, res) => {
   try {
+    const loggedInUser = req.user as any;
+    const ownerUserId = loggedInUser.role === "superadmin"
+      ? null
+      : (loggedInUser.role === "team" ? loggedInUser.createdBy : loggedInUser.id);
+
     const {
       username,
       email,
@@ -398,10 +403,9 @@ requirePermission(PERMISSIONS.TEAM_CREATE), validateRequest(createUserSchema), a
       if (!channel) {
         return res.status(404).json({ error: "Channel not found" });
       }
-      const loggedInUser = req.user as any;
-      if (loggedInUser.role !== "superadmin") {
-        const ownerId = loggedInUser.role === "team" ? loggedInUser.createdBy : loggedInUser.id;
-        if (channel.createdBy !== ownerId) {
+
+      if (loggedInUser.role !== "superadmin" && ownerUserId) {
+        if (channel.createdBy !== ownerUserId) {
           return res.status(403).json({ error: "Not authorized for this channel" });
         }
       }
@@ -432,7 +436,7 @@ requirePermission(PERMISSIONS.TEAM_CREATE), validateRequest(createUserSchema), a
         avatar: avatar || null,
         status: "active",
         isEmailVerified: true,
-        createdBy: (req.user as { id: string }).id,
+        createdBy: ownerUserId || (req.user as { id: string }).id,
         channelId: channelId || null,
         showOnlyAssigned: showOnlyAssigned ?? false,
         isAdminMember: isAdminMember ?? false,

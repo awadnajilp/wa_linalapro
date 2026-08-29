@@ -668,6 +668,76 @@ const steps: MigrationStep[] = [
       );
     `,
   },
+  {
+    description: "Create table reminders (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS reminders (
+        id                 VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id          VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        channel_id         VARCHAR REFERENCES channels (id) ON DELETE CASCADE,
+        contact_phone      TEXT NOT NULL,
+        contact_name       TEXT,
+        title              TEXT NOT NULL,
+        due_time           TIMESTAMP NOT NULL,
+        lead_time_minutes  INTEGER DEFAULT 15,
+        status             TEXT DEFAULT 'pending',
+        media_url          TEXT,
+        voice_transcript   TEXT,
+        created_at         TIMESTAMP DEFAULT NOW(),
+        updated_at         TIMESTAMP DEFAULT NOW()
+      );
+    `,
+  },
+  {
+    description: "Create table reminder_configs (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS reminder_configs (
+        id                 VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id          VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        channel_id         VARCHAR REFERENCES channels (id) ON DELETE CASCADE,
+        trigger_keyword    TEXT DEFAULT 'remind',
+        todo_keyword       TEXT DEFAULT 'todo',
+        default_lead_time_minutes INTEGER DEFAULT 15,
+        ai_prompt          TEXT DEFAULT 'You are a helper AI for a Reminders and To-Do app. Extract the task description (What) and the scheduled time (When) from the user''s message. Interpret natural dates like ''tomorrow at 5pm'' or ''next week 12th at 1pm'' correctly.',
+        is_active          BOOLEAN DEFAULT true,
+        created_at         TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT reminder_configs_channel_unique UNIQUE (channel_id)
+      );
+    `,
+  },
+  {
+    description: "Create table reminder_sessions (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS reminder_sessions (
+        id                 VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        conversation_id    VARCHAR NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
+        status             TEXT NOT NULL,
+        title              TEXT,
+        due_time           TIMESTAMP,
+        created_at         TIMESTAMP DEFAULT NOW()
+      );
+    `,
+  },
+  {
+    description: "Insert default Reminders Module addon (if not exists)",
+    sql: `
+      INSERT INTO addons (id, slug, name, description, price, billing_cycle, ai_key_type, default_credits, is_active)
+      VALUES (
+        'addon-reminders-module-uuid', 
+        'reminders-module', 
+        'Reminders & To-Do Module', 
+        'Configure trigger keywords (e.g. remind, todo) to initiate reminders flow. Supports natural date/time typing (e.g. tomorrow at 5pm) and AI conversational helper to process voice, image, or text reminders.', 
+        14.99, 
+        'monthly', 
+        'tenant',
+        0,
+        true
+      )
+      ON CONFLICT (slug) DO UPDATE
+      SET name = EXCLUDED.name,
+          description = EXCLUDED.description;
+    `,
+  },
   addColumnIfNotExists("expense_configs", "is_active", "BOOLEAN DEFAULT true"),
   addColumnIfNotExists("expense_configs", "ai_prompt", "TEXT DEFAULT 'You are a helper AI for an Expense Tracker app. Analyze the text representing an expense description or raw chat, and extract the amount, category, account, and description.'"),
   addColumnIfNotExists("expense_configs", "income_keyword", "TEXT DEFAULT 'income'"),

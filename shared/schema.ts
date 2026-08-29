@@ -2601,5 +2601,53 @@ export type InsertEcommerceOrder = typeof ecommerceOrders.$inferInsert;
 export type EcommerceSession = typeof ecommerceSessions.$inferSelect;
 export type InsertEcommerceSession = typeof ecommerceSessions.$inferInsert;
 
+export const reminders = pgTable("reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  contactPhone: text("contact_phone").notNull(),
+  contactName: text("contact_name"),
+  title: text("title").notNull(),
+  dueTime: timestamp("due_time").notNull(),
+  leadTimeMinutes: integer("lead_time_minutes").default(15),
+  status: text("status").default("pending"), // "pending", "reminded_early", "reminded_main", "cancelled"
+  mediaUrl: text("media_url"),
+  voiceTranscript: text("voice_transcript"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const reminderConfigs = pgTable("reminder_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  triggerKeyword: text("trigger_keyword").default("remind"),
+  todoKeyword: text("todo_keyword").default("todo"),
+  defaultLeadTimeMinutes: integer("default_lead_time_minutes").default(15),
+  aiPrompt: text("ai_prompt").default("You are a helper AI for a Reminders and To-Do app. Extract the task description (What) and the scheduled time (When) from the user's message. Interpret natural dates like 'tomorrow at 5pm' or 'next week 12th at 1pm' correctly."),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const reminderSessions = pgTable("reminder_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  status: text("status").notNull(), // "waiting_for_what", "waiting_for_when"
+  title: text("title"),
+  dueTime: timestamp("due_time"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertReminderSchema = createInsertSchema(reminders);
+export const insertReminderConfigSchema = createInsertSchema(reminderConfigs);
+export const insertReminderSessionSchema = createInsertSchema(reminderSessions);
+
+export type Reminder = typeof reminders.$inferSelect;
+export type InsertReminder = typeof reminders.$inferInsert;
+export type ReminderConfig = typeof reminderConfigs.$inferSelect;
+export type InsertReminderConfig = typeof reminderConfigs.$inferInsert;
+export type ReminderSession = typeof reminderSessions.$inferSelect;
+export type InsertReminderSession = typeof reminderSessions.$inferInsert;
+
 
 

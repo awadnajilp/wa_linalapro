@@ -46,6 +46,7 @@ import { startCrmFollowupCron } from "./cron/crm-followups.cron";
 import { startCrmReportsCron } from "./cron/crm-reports.cron";
 import { startDeleteAccountCleanupCron } from "./cron/delete-account-cleanup.cron";
 import { startExchangeRatesCron } from "./cron/exchange-rates.cron";
+import { startRemindersCron } from "./cron/reminders.cron";
 import { startCampaignExecution } from "./controllers/campaigns.controller";
 import { startUnrepliedAlertService } from "./services/unreplied-alert-service";
 import { BaileysManager } from "./services/baileys-manager";
@@ -799,6 +800,7 @@ app.use((req, res, next) => {
       startDeleteAccountCleanupCron();
       startExchangeRatesCron();
       startUnrepliedAlertService();
+      startRemindersCron();
        initExpenseReportCron();
        initTicketReportCron();
 

@@ -28,6 +28,7 @@ import { WhatsAppApiService } from "./whatsapp-api";
 import { triggerService } from "./automation-execution-service";
 import { VoiceManager } from "./voice";
 import { AddonManager } from "./addon-manager";
+import { ReminderAIService } from "./reminder-ai-service";
 import { ExpenseAIService } from "./expense-ai-service";
 import { TicketAIService } from "./ticket-ai-service";
 import { getTransporter } from "./email.service";
@@ -911,6 +912,297 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
 }
     }
 
+    return automationHandled;
+  }
+
+  // Static helper to execute Reminders & To-Do interceptor
+  public static async interceptReminders(
+    channelId: string,
+    conversation: any[],
+    contact: any[],
+    message: any,
+    content: string,
+    isGroupMessage: boolean,
+    channelRow: any
+  ): Promise<boolean> {
+    let automationHandled = false;
+    if (channelId && conversation.length > 0 && !isGroupMessage) {
+      try {
+        const tenantId = channelRow?.createdBy;
+        if (tenantId) {
+          const [addon] = await db
+            .select()
+            .from(schema.addons)
+            .where(and(eq(schema.addons.slug, "reminders-module"), eq(schema.addons.isActive, true)))
+            .limit(1);
+
+          if (addon) {
+            const [subscription] = await db
+              .select()
+              .from(schema.tenantAddons)
+              .where(
+                and(
+                  eq(schema.tenantAddons.tenantId, tenantId),
+                  eq(schema.tenantAddons.addonId, addon.id)
+                )
+              )
+              .limit(1);
+
+            const [user] = await db
+              .select()
+              .from(schema.users)
+              .where(eq(schema.users.id, tenantId))
+              .limit(1);
+
+            const isSubscriptionActive = subscription
+              ? (subscription.status === "active" || user?.role === "superadmin")
+              : (user?.role === "superadmin" ? true : false);
+
+            const purchaseType = subscription?.purchaseType || (user?.role === "superadmin" ? "ai" : "flow");
+
+            if (isSubscriptionActive) {
+              const [reminderConfig] = await db
+                .select()
+                .from(schema.reminderConfigs)
+                .where(eq(schema.reminderConfigs.channelId, channelId))
+                .limit(1);
+
+              if (reminderConfig && reminderConfig.isActive) {
+                const triggerKeyword = (reminderConfig.triggerKeyword || "remind").toLowerCase();
+                const todoKeyword = (reminderConfig.todoKeyword || "todo").toLowerCase();
+                const cleanContent = content.trim();
+                const lowerContent = cleanContent.toLowerCase();
+                const waApi = new WhatsAppApiService(channelRow);
+
+                // 1. Check if there is an active session
+                const [activeSession] = await db
+                  .select()
+                  .from(schema.reminderSessions)
+                  .where(eq(schema.reminderSessions.conversationId, conversation[0].id))
+                  .limit(1);
+
+                if (activeSession) {
+                  automationHandled = true;
+                  
+                  if (lowerContent === "cancel" || lowerContent === "exit") {
+                    await db.delete(schema.reminderSessions).where(eq(schema.reminderSessions.id, activeSession.id));
+                    await db
+                      .update(schema.conversations)
+                      .set({ aiEnabled: false })
+                      .where(eq(schema.conversations.id, conversation[0].id));
+
+                    await waApi.sendDirectMessage({
+                      to: message.from,
+                      type: "text",
+                      text: { body: "❌ *Reminder flow cancelled.*" }
+                    });
+                    return true;
+                  }
+
+                  if (purchaseType === "ai") {
+                    // AI mode: process the message text or voice note/image via LLM
+                    let textToParse = cleanContent;
+
+                    const parsed = await ReminderAIService.parseReminder(tenantId, channelId, textToParse);
+                    if (parsed && !parsed.error && parsed.title && parsed.dueTime) {
+                      const dueD = new Date(parsed.dueTime.replace(" ", "T"));
+                      
+                      await db.insert(schema.reminders).values({
+                        tenantId,
+                        channelId,
+                        contactPhone: message.from,
+                        contactName: contact[0]?.name || contact[0]?.phone || "Unknown",
+                        title: parsed.title,
+                        dueTime: dueD,
+                        leadTimeMinutes: parsed.leadTimeMinutes || reminderConfig.defaultLeadTimeMinutes || 15,
+                        status: "pending"
+                      });
+
+                      await db.delete(schema.reminderSessions).where(eq(schema.reminderSessions.id, activeSession.id));
+                      await db
+                        .update(schema.conversations)
+                        .set({ aiEnabled: false })
+                        .where(eq(schema.conversations.id, conversation[0].id));
+
+                      await waApi.sendDirectMessage({
+                        to: message.from,
+                        type: "text",
+                        text: {
+                          body: `✅ *Reminder Scheduled!*\n\n📝 *Task:* ${parsed.title}\n📅 *Time:* ${dueD.toLocaleString()}\n🔔 *Alert:* You will be reminded 15m before and at the event time.`
+                        }
+                      });
+                    } else {
+                      await waApi.sendDirectMessage({
+                        to: message.from,
+                        type: "text",
+                        text: {
+                          body: `⚠️ *Could not extract reminder details.* Please type: *What* and *When* clearly (e.g. "Call dentist tomorrow at 5pm"), or reply *exit* to cancel.`
+                        }
+                      });
+                    }
+                  } else {
+                    // Flow mode: structured questions
+                    if (activeSession.status === "waiting_for_what") {
+                      if (!cleanContent) {
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: { body: "⚠️ Please enter a valid task description." }
+                        });
+                        return true;
+                      }
+
+                      await db
+                        .update(schema.reminderSessions)
+                        .set({
+                          title: cleanContent,
+                          status: "waiting_for_when"
+                        })
+                        .where(eq(schema.reminderSessions.id, activeSession.id));
+
+                      await waApi.sendDirectMessage({
+                        to: message.from,
+                        type: "text",
+                        text: {
+                          body: `⏰ Great! Now please reply with *when* you want to be reminded (e.g. *tomorrow 5pm*, *2pm 05/11*, or *next Friday at 1pm*).`
+                        }
+                      });
+                    } else if (activeSession.status === "waiting_for_when") {
+                      const combinedText = `Remind me to ${activeSession.title} on ${cleanContent}`;
+                      const parsed = await ReminderAIService.parseReminder(tenantId, channelId, combinedText);
+
+                      if (parsed && !parsed.error && parsed.dueTime) {
+                        const dueD = new Date(parsed.dueTime.replace(" ", "T"));
+                        
+                        await db.insert(schema.reminders).values({
+                          tenantId,
+                          channelId,
+                          contactPhone: message.from,
+                          contactName: contact[0]?.name || contact[0]?.phone || "Unknown",
+                          title: activeSession.title || "Reminder Task",
+                          dueTime: dueD,
+                          leadTimeMinutes: reminderConfig.defaultLeadTimeMinutes || 15,
+                          status: "pending"
+                        });
+
+                        await db.delete(schema.reminderSessions).where(eq(schema.reminderSessions.id, activeSession.id));
+                        await db
+                          .update(schema.conversations)
+                          .set({ aiEnabled: false })
+                          .where(eq(schema.conversations.id, conversation[0].id));
+
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: {
+                            body: `✅ *Reminder Scheduled!*\n\n📝 *Task:* ${activeSession.title}\n📅 *Time:* ${dueD.toLocaleString()}\n🔔 *Alert:* You will be reminded 15m before and at the event time.`
+                          }
+                        });
+                      } else {
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: {
+                            body: `⚠️ *Could not understand the date/time.* Please reply with a clear date (e.g. *tomorrow 5pm*, *2pm 05/11*, or *next Friday 1pm*).`
+                          }
+                        });
+                      }
+                    }
+                  }
+                } else {
+                  // 2. Check for Trigger Keyword
+                  const isTrigger = lowerContent.startsWith(triggerKeyword);
+                  const isTodoTrigger = lowerContent.startsWith(todoKeyword);
+
+                  if (isTrigger || isTodoTrigger) {
+                    automationHandled = true;
+                    console.log(`[Reminders Module] Triggered reminder flow.`);
+
+                    const keywordToStrip = isTrigger ? triggerKeyword : todoKeyword;
+                    const promptText = cleanContent.substring(keywordToStrip.length).trim();
+
+                    if (promptText.length === 0) {
+                      // Create a new session
+                      await db.insert(schema.reminderSessions).values({
+                        conversationId: conversation[0].id,
+                        status: purchaseType === "ai" ? "waiting_for_details" : "waiting_for_what"
+                      });
+
+                      // Enable AI messaging context so webhook doesn't override with other templates
+                      await db
+                        .update(schema.conversations)
+                        .set({ aiEnabled: true })
+                        .where(eq(schema.conversations.id, conversation[0].id));
+
+                      await waApi.sendDirectMessage({
+                        to: message.from,
+                        type: "text",
+                        text: {
+                          body: purchaseType === "ai"
+                            ? `📅 *Reminders & To-Do AI*\n\nPlease reply with what you want to be reminded of and when (e.g., 'call dentist tomorrow at 5pm'). You can also send a voice message or upload a document/image!`
+                            : `📝 *Reminders & To-Do Flow*\n\nWhat would you like to be reminded of? (Type the task description)`
+                        }
+                      });
+                    } else {
+                      // Direct inline reminder parsing (e.g., "remind call boss at 5pm")
+                      const parsed = await ReminderAIService.parseReminder(tenantId, channelId, promptText);
+                      
+                      if (parsed && !parsed.error && parsed.title && parsed.dueTime) {
+                        const dueD = new Date(parsed.dueTime.replace(" ", "T"));
+                        
+                        await db.insert(schema.reminders).values({
+                          tenantId,
+                          channelId,
+                          contactPhone: message.from,
+                          contactName: contact[0]?.name || contact[0]?.phone || "Unknown",
+                          title: parsed.title,
+                          dueTime: dueD,
+                          leadTimeMinutes: parsed.leadTimeMinutes || reminderConfig.defaultLeadTimeMinutes || 15,
+                          status: "pending"
+                        });
+
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: {
+                            body: `✅ *Reminder Scheduled!*\n\n📝 *Task:* ${parsed.title}\n📅 *Time:* ${dueD.toLocaleString()}\n🔔 *Alert:* You will be reminded 15m before and at the event time.`
+                          }
+                        });
+                      } else {
+                        // Start session since inline parsing failed
+                        await db.insert(schema.reminderSessions).values({
+                          conversationId: conversation[0].id,
+                          status: purchaseType === "ai" ? "waiting_for_details" : "waiting_for_what"
+                        });
+
+                        await db
+                          .update(schema.conversations)
+                          .set({ aiEnabled: true })
+                          .where(eq(schema.conversations.id, conversation[0].id));
+
+                        await waApi.sendDirectMessage({
+                          to: message.from,
+                          type: "text",
+                          text: {
+                            body: `⚠️ *Could not parse inline reminder.* Starting reminder flow.\n\n${
+                              purchaseType === "ai"
+                                ? "Please reply with what you want to be reminded of and when (e.g., 'call dentist tomorrow at 5pm')."
+                                : "What would you like to be reminded of? (Type the task description)"
+                            }`
+                          }
+                        });
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+        console.error(`[Reminders Interceptor] Error logging reminder via bot:`, err.message);
+      }
+    }
     return automationHandled;
   }
 
@@ -2053,6 +2345,19 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
       // ==================== SUPPORT TICKETS INTERCEPTOR ====================
       if (!automationHandled) {
         automationHandled = await WebhookHandler.interceptSupportTickets(
+          channelId,
+          conversation,
+          contact,
+          message,
+          content,
+          isGroupMessage,
+          channel[0]
+        );
+      }
+
+      // ==================== REMINDERS MODULE INTERCEPTOR ====================
+      if (!automationHandled) {
+        automationHandled = await WebhookHandler.interceptReminders(
           channelId,
           conversation,
           contact,

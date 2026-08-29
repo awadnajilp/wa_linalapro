@@ -242,6 +242,14 @@ export default function Marketplace() {
                           Open Module
                         </Button>
                       )}
+                      {addon.slug === "reminders-module" && (
+                        <Button 
+                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                          onClick={() => window.location.href = "/reminders"}
+                        >
+                          Open Module
+                        </Button>
+                      )}
                     </>
                   ) : (
                     <Button 
@@ -277,7 +285,7 @@ export default function Marketplace() {
 
             <div className="py-4 space-y-5">
               {/* Option Mode Selector */}
-              {(targetAddon.slug === "expense-tracker" || targetAddon.slug === "support-tickets") && (
+              {(targetAddon.slug === "expense-tracker" || targetAddon.slug === "support-tickets" || targetAddon.slug === "reminders-module") && (
                 <div className="space-y-3">
                   <Label className="text-sm font-bold text-gray-700">Select Addon Mode</Label>
                   <div className="grid grid-cols-1 gap-3">
@@ -293,6 +301,8 @@ export default function Marketplace() {
                         <p className="text-xs text-gray-500 mt-0.5">
                           {targetAddon.slug === "support-tickets" 
                             ? "Collects support details sequentially using the predefined Q&A canvas flow. No credit constraints." 
+                            : targetAddon.slug === "reminders-module"
+                            ? "Collects reminder details sequentially by asking What? and When? in sequence. No credit constraints."
                             : "Collects logs sequentially using the predefined Q&A canvas flow. No credit constraints."}
                         </p>
                       </div>
@@ -310,6 +320,8 @@ export default function Marketplace() {
                         <p className="text-xs text-gray-500 mt-0.5">
                           {targetAddon.slug === "support-tickets"
                             ? "Unlocks voice message transcription and instant AI support ticket extraction. Requires credit recharges (Includes 100 default credits)."
+                            : targetAddon.slug === "reminders-module"
+                            ? "Unlocks voice note transcription, image/PDF reading, and direct natural language reminders extraction (e.g. tomorrow at 5pm). Requires credit recharges."
                             : "Unlocks voice message transcription and instant AI expense extraction. Requires credit recharges (Includes 100 default credits)."}
                         </p>
                       </div>

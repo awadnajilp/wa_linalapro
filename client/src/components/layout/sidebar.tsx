@@ -244,6 +244,13 @@ function getNavItems(role: string): NavItem[] {
         color: "text-emerald-500",
         allowedRoles: ["admin"],
       },
+      {
+        href: "/reminders",
+        icon: Bell,
+        labelKey: "Reminders Ledger",
+        color: "text-indigo-600",
+        allowedRoles: ["admin"],
+      },
     ];
   } else {
     // Team or default role
@@ -499,6 +506,10 @@ export default function Sidebar() {
 
   const isEcommerceActive = user?.role === "superadmin" || tenantAddons?.some(
     (a) => a.slug === "ecommerce" && a.subscription?.status === "active"
+  );
+
+  const isRemindersActive = user?.role === "superadmin" || tenantAddons?.some(
+    (a) => a.slug === "reminders-module" && a.subscription?.status === "active"
   );
 
   const {
@@ -800,6 +811,7 @@ export default function Sidebar() {
                   .filter((item) => !(item.href === "/expenses" && !isExpenseActive))
                   .filter((item) => !(item.href === "/tickets" && !isTicketsActive))
                   .filter((item) => !(item.href === "/ecommerce" && !isEcommerceActive))
+                  .filter((item) => !(item.href === "/reminders" && !isRemindersActive))
                   .map((item) =>
                     renderLink(
                       t(item.labelKey),

@@ -67,6 +67,14 @@ export default function ExpenseLedger() {
   const [isExpenseOpen, setIsExpenseOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [showGuide, setShowGuide] = useState(() => {
+    return localStorage.getItem("linala_dismiss_expense_guide") !== "true";
+  });
+
+  const dismissGuide = () => {
+    localStorage.setItem("linala_dismiss_expense_guide", "true");
+    setShowGuide(false);
+  };
 
   // Forms states
   const [expenseAmount, setExpenseAmount] = useState("");
@@ -636,6 +644,86 @@ export default function ExpenseLedger() {
           </Dialog>
         </div>
       </div>
+
+      {showGuide && (
+        <Card className="bg-gradient-to-r from-indigo-50/70 via-white to-sky-50/50 border border-indigo-100 shadow-sm relative overflow-hidden transition-all duration-300">
+          <button
+            onClick={dismissGuide}
+            className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 bg-white hover:bg-slate-100 rounded-full p-1.5 border border-slate-150 transition-colors cursor-pointer z-10"
+            title="Permanently close guide"
+          >
+            <span className="text-xs font-bold leading-none block w-3 h-3 flex items-center justify-center">✕</span>
+          </button>
+          
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+              {/* Left Column: Heading and Context */}
+              <div className="space-y-3 lg:col-span-2">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold uppercase tracking-wider">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Phone Guide: Manage Expenses via WhatsApp
+                </div>
+                <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">
+                  Log Transactions Instantly From Your Phone
+                </h2>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Your team members and you can interact with your WhatsApp business number directly to record cash flow, upload receipts, or fetch accounts reports instantly. Follow the steps below:
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                  {/* Step 1 */}
+                  <div className="space-y-1 bg-white p-3 rounded-lg border border-slate-100 shadow-sm text-xs">
+                    <span className="font-bold text-indigo-650 text-xs block">01. Setup Bot mode</span>
+                    <p className="text-slate-500 text-[11px] leading-normal">
+                      Click <strong>Bot Configurations</strong>. Set up trigger keywords like <code className="bg-slate-100 px-1 py-0.5 rounded text-[10px] text-slate-650 font-mono font-bold">expense</code> or <code className="bg-slate-100 px-1 py-0.5 rounded text-[10px] text-slate-650 font-mono font-bold">income</code>.
+                    </p>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="space-y-1 bg-white p-3 rounded-lg border border-slate-100 shadow-sm text-xs">
+                    <span className="font-bold text-indigo-650 text-xs block">02. Send natural chats</span>
+                    <p className="text-slate-500 text-[11px] leading-normal">
+                      Send a message to your WhatsApp number: <br/>
+                      <em>&quot;Spent $120 for team lunch&quot;</em> or send a <strong>voice note</strong> / <strong>receipt image</strong>!
+                    </p>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="space-y-1 bg-white p-3 rounded-lg border border-slate-100 shadow-sm text-xs">
+                    <span className="font-bold text-indigo-650 text-xs block">03. Retrieve ledgers</span>
+                    <p className="text-slate-500 text-[11px] leading-normal">
+                      Text your retrieval keyword (e.g. <code className="bg-slate-100 px-1 py-0.5 rounded text-[10px] text-slate-650 font-mono font-bold">getexpense</code>) to get full ledger details directly in WhatsApp.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Visual WhatsApp Phone Mockup */}
+              <div className="flex justify-center lg:justify-end">
+                <div className="w-[280px] bg-slate-900 border-[6px] border-slate-800 rounded-[32px] p-2.5 shadow-xl relative overflow-hidden">
+                  {/* Phone camera notch */}
+                  <div className="absolute top-1.5 left-1/2 -translate-x-1/2 bg-slate-800 h-3 w-16 rounded-full z-20"></div>
+
+                  <div className="bg-emerald-50 rounded-[22px] p-3 pt-4 min-h-[170px] flex flex-col justify-between font-sans relative">
+                    <span className="text-[9px] font-bold text-emerald-800 uppercase block mb-1.5 text-center tracking-wide border-b border-emerald-100 pb-1">
+                      📱 WhatsApp Expense Tracker
+                    </span>
+                    
+                    {/* Chat Bubble 1 (User Input) */}
+                    <div className="bg-emerald-100 text-slate-800 text-[10px] p-2 rounded-lg rounded-tr-none self-end max-w-[85%] shadow-sm leading-normal mb-2 font-medium">
+                      🍔 spent 45 USD for office snacks today
+                    </div>
+
+                    {/* Chat Bubble 2 (AI Response) */}
+                    <div className="bg-white text-slate-800 text-[10px] p-2 rounded-lg rounded-tl-none self-start max-w-[85%] shadow-sm leading-normal border border-emerald-100 font-medium">
+                      ✅ Logged: <strong>$45.00</strong> under <strong>Food</strong>. Cash account updated.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Accounts & Metrics widgets */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

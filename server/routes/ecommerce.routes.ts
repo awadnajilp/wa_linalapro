@@ -201,7 +201,7 @@ export function registerEcommerceRoutes(app: Express) {
         return res.status(400).json({ error: "ChannelId is required" });
       }
 
-      const [config] = await db
+      let [config] = await db
         .select()
         .from(schema.ecommerceConfigs)
         .where(
@@ -212,7 +212,27 @@ export function registerEcommerceRoutes(app: Express) {
         )
         .limit(1);
 
-      res.json(config || null);
+      if (!config) {
+        const [inserted] = await db
+          .insert(schema.ecommerceConfigs)
+          .values({
+            tenantId,
+            channelId: String(channelId),
+            storeTriggerKeyword: "store",
+            isStoreFlowActive: true,
+            welcomeMessage: "Welcome to our store!",
+            checkoutFields: ["name", "phone", "address", "pin"],
+            currency: "INR",
+            aiEnabled: false,
+            aiTimeoutMinutes: 30,
+            aiAskButtonEnabled: true,
+            isActive: true
+          })
+          .returning();
+        config = inserted;
+      }
+
+      res.json(config);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

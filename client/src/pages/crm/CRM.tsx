@@ -67,6 +67,8 @@ export default function CRM() {
   // CRM Settings state
   const [isLeadQualificationEnabled, setIsLeadQualificationEnabled] = useState(false);
   const [qualificationFlowId, setQualificationFlowId] = useState<string | null>(null);
+  const [showContactDropdown, setShowContactDropdown] = useState(false);
+  const [showEditContactDropdown, setShowEditContactDropdown] = useState(false);
 
   // New Deal Form states
   const [newDealTitle, setNewDealTitle] = useState("");
@@ -659,7 +661,7 @@ export default function CRM() {
     setEditNotes(deal.notes || "");
     setEditTags(Array.isArray(deal.tags) ? deal.tags.join(", ") : "");
     setEditContactId(deal.contactId || "");
-    setEditContactSearchQuery("");
+    setEditContactSearchQuery(deal.contactName ? `${deal.contactName} (${deal.contactPhone})` : "");
     
     if (deal.customFollowUpDate) {
       const d = new Date(deal.customFollowUpDate);
@@ -1408,33 +1410,63 @@ export default function CRM() {
             </div>
 
             {!isCreateNewContact ? (
-              <>
-                <div className="space-y-1.5">
-                  <Label className="font-semibold text-slate-700">Search Lead Contact</Label>
+              <div className="space-y-1.5 relative">
+                <Label className="font-semibold text-slate-700">Lead Contact</Label>
+                <div className="relative">
                   <Input
-                    placeholder="Type name or phone to search..."
+                    placeholder="Type name or phone to search contacts..."
                     value={contactSearchQuery}
-                    onChange={(e) => setContactSearchQuery(e.target.value)}
-                    className="border-slate-200 text-xs"
+                    onChange={(e) => {
+                      setContactSearchQuery(e.target.value);
+                      setShowContactDropdown(true);
+                      if (newDealContactId) {
+                        setNewDealContactId("");
+                      }
+                    }}
+                    onFocus={() => setShowContactDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowContactDropdown(false), 200)}
+                    className="border-slate-200 text-xs pr-8 bg-white h-9"
                   />
+                  {newDealContactId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewDealContactId("");
+                        setContactSearchQuery("");
+                      }}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-650 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="font-semibold text-slate-700">Select Contact</Label>
-                  <Select value={newDealContactId} onValueChange={setNewDealContactId}>
-                    <SelectTrigger className="w-full bg-white border-slate-200 text-xs">
-                      <SelectValue placeholder="Select active lead contact" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {contacts.map((c: any) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name} ({c.phone})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
+                {showContactDropdown && (
+                  <div className="absolute z-[100] w-full bg-white border border-slate-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto divide-y divide-slate-100 animate-in fade-in duration-100">
+                    {contacts.length === 0 ? (
+                      <div className="p-3 text-center text-slate-400 text-[11px] font-medium">
+                        No matching contacts found.
+                      </div>
+                    ) : (
+                      contacts.map((c: any) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setNewDealContactId(c.id);
+                            setContactSearchQuery(`${c.name} (${c.phone})`);
+                            setShowContactDropdown(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex flex-col cursor-pointer"
+                        >
+                          <span className="font-semibold">{c.name}</span>
+                          <span className="text-[10px] text-slate-500 font-medium">{c.phone}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             ) : (
               <>
                 <div className="space-y-1.5">
@@ -1643,36 +1675,62 @@ export default function CRM() {
                   />
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Linked Lead Contact</span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-semibold text-slate-600">Search Contacts</Label>
+                <div className="space-y-1.5 relative bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Linked Lead Contact</Label>
+                  <div className="relative">
                     <Input
-                      placeholder="Type name or phone to find contacts..."
+                      placeholder="Type name or phone to search contacts..."
                       value={editContactSearchQuery}
-                      onChange={(e) => setEditContactSearchQuery(e.target.value)}
-                      className="border-slate-200 text-xs h-8 bg-white"
+                      onChange={(e) => {
+                        setEditContactSearchQuery(e.target.value);
+                        setShowEditContactDropdown(true);
+                        if (editContactId) {
+                          setEditContactId("");
+                        }
+                      }}
+                      onFocus={() => setShowEditContactDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowEditContactDropdown(false), 200)}
+                      className="border-slate-200 text-xs pr-8 bg-white h-8 mt-1"
                     />
+                    {editContactId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditContactId("");
+                          setEditContactSearchQuery("");
+                        }}
+                        className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-650 cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-semibold text-slate-600">Select Contact</Label>
-                    <Select value={editContactId} onValueChange={setEditContactId}>
-                      <SelectTrigger className="w-full bg-white border-slate-200 text-xs h-8">
-                        <SelectValue placeholder="Select contact to link" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {editContacts.map((c: any) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name} ({c.phone})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {showEditContactDropdown && (
+                    <div className="absolute z-[100] w-full left-0 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto divide-y divide-slate-100 animate-in fade-in duration-100">
+                      {editContacts.length === 0 ? (
+                        <div className="p-3 text-center text-slate-400 text-[11px] font-medium">
+                          No matching contacts found.
+                        </div>
+                      ) : (
+                        editContacts.map((c: any) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              setEditContactId(c.id);
+                              setEditContactSearchQuery(`${c.name} (${c.phone})`);
+                              setShowEditContactDropdown(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex flex-col cursor-pointer"
+                          >
+                            <span className="font-semibold">{c.name}</span>
+                            <span className="text-[10px] text-slate-500 font-medium">{c.phone}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

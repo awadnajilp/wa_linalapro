@@ -88,6 +88,8 @@ export default function CRM() {
   // Deal Details Modal states
   const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [editContactId, setEditContactId] = useState("");
+  const [editContactSearchQuery, setEditContactSearchQuery] = useState("");
   const [editPreferredContactMethod, setEditPreferredContactMethod] = useState<string>("both");
   const [editTitle, setEditTitle] = useState("");
   const [editValue, setEditValue] = useState("");
@@ -190,6 +192,62 @@ export default function CRM() {
     });
   }, [deals, selectedAgentId, masterSearchQuery]);
 
+
+
+  // Query: contacts for deal creation selector (on-demand)
+  const { data: contactsData } = useQuery<any>({
+    queryKey: ["/api/contacts", channelId, contactSearchQuery],
+    queryFn: async () => {
+      if (!channelId) return { data: [] };
+      const res = await apiRequest("GET", `/api/contacts?channelId=${channelId}&limit=50&search=${encodeURIComponent(contactSearchQuery)}`);
+      if (!res.ok) return { data: [] };
+      return res.json();
+    },
+    enabled: !!channelId,
+  });
+
+  const contacts = contactsData?.data || [];
+
+  // Query: contacts for deal details selector (on-demand)
+  const { data: editContactsData } = useQuery<any>({
+    queryKey: ["/api/contacts", channelId, "edit", editContactSearchQuery],
+    queryFn: async () => {
+      if (!channelId) return { data: [] };
+      const res = await apiRequest("GET", `/api/contacts?channelId=${channelId}&limit=50&search=${encodeURIComponent(editContactSearchQuery)}`);
+      if (!res.ok) return { data: [] };
+      return res.json();
+    },
+    enabled: isDetailsOpen && !!channelId,
+  });
+
+  const editContacts = editContactsData?.data || [];
+
+  // Query: automations for qualification select dropdown
+  const { data: automations = [] } = useQuery<any[]>({
+    queryKey: ["/api/automations", channelId],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/automations?channelId=${channelId}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!channelId,
+  });
+
+  // Query: team members
+  const { data: teamMembers = [] } = useQuery<any>({
+    queryKey: ["/api/team/members"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/team/members?limit=1000");
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.data || [];
+    },
+  });
+
+  const membersArray = useMemo(() => {
+    return Array.isArray(teamMembers) ? teamMembers : ((teamMembers as any)?.data || []);
+  }, [teamMembers]);
+
   // Leads List helper maps and filtering/pagination logic
   const stageNameMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -230,46 +288,6 @@ export default function CRM() {
   const paginatedListDeals = useMemo(() => {
     return listFilteredDeals.slice((listPage - 1) * listLimit, listPage * listLimit);
   }, [listFilteredDeals, listPage]);
-
-  // Query: contacts for deal creation selector (on-demand)
-  const { data: contactsData } = useQuery<any>({
-    queryKey: ["/api/contacts", channelId, contactSearchQuery],
-    queryFn: async () => {
-      if (!channelId) return { data: [] };
-      const res = await apiRequest("GET", `/api/contacts?channelId=${channelId}&limit=50&search=${encodeURIComponent(contactSearchQuery)}`);
-      if (!res.ok) return { data: [] };
-      return res.json();
-    },
-    enabled: !!channelId,
-  });
-
-  const contacts = contactsData?.data || [];
-
-  // Query: automations for qualification select dropdown
-  const { data: automations = [] } = useQuery<any[]>({
-    queryKey: ["/api/automations", channelId],
-    queryFn: async () => {
-      const res = await apiRequest("GET", `/api/automations?channelId=${channelId}`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!channelId,
-  });
-
-  // Query: team members
-  const { data: teamMembers = [] } = useQuery<any>({
-    queryKey: ["/api/team/members"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/api/team/members?limit=1000");
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.data || [];
-    },
-  });
-
-  const membersArray = useMemo(() => {
-    return Array.isArray(teamMembers) ? teamMembers : ((teamMembers as any)?.data || []);
-  }, [teamMembers]);
 
   // Load CRM settings to state
   useEffect(() => {
@@ -640,6 +658,8 @@ export default function CRM() {
     setEditLostReason(deal.lostReason || "");
     setEditNotes(deal.notes || "");
     setEditTags(Array.isArray(deal.tags) ? deal.tags.join(", ") : "");
+    setEditContactId(deal.contactId || "");
+    setEditContactSearchQuery("");
     
     if (deal.customFollowUpDate) {
       const d = new Date(deal.customFollowUpDate);
@@ -691,6 +711,7 @@ export default function CRM() {
         title: editTitle.trim(),
         value: editValue || "0.00",
         currency: editCurrency,
+        contactId: editContactId,
         assignedTo: editAssignedTo === "_empty" ? null : editAssignedTo,
         status: editStatus,
         lostReason: editStatus === "lost" ? editLostReason.trim() : null,
@@ -1620,6 +1641,38 @@ export default function CRM() {
                     onChange={(e) => setEditTitle(e.target.value)}
                     className="border-slate-200"
                   />
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Linked Lead Contact</span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-semibold text-slate-600">Search Contacts</Label>
+                    <Input
+                      placeholder="Type name or phone to find contacts..."
+                      value={editContactSearchQuery}
+                      onChange={(e) => setEditContactSearchQuery(e.target.value)}
+                      className="border-slate-200 text-xs h-8 bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-semibold text-slate-600">Select Contact</Label>
+                    <Select value={editContactId} onValueChange={setEditContactId}>
+                      <SelectTrigger className="w-full bg-white border-slate-200 text-xs h-8">
+                        <SelectValue placeholder="Select contact to link" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {editContacts.map((c: any) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name} ({c.phone})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

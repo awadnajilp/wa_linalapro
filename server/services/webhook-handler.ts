@@ -28,7 +28,7 @@ import { WhatsAppApiService } from "./whatsapp-api";
 import { triggerService } from "./automation-execution-service";
 import { VoiceManager } from "./voice";
 import { AddonManager } from "./addon-manager";
-import { ReminderAIService } from "./reminder-ai-service";
+import { ReminderAIService, getContactTimezoneOffset, getTimezoneLabel, formatLocalTime } from "./reminder-ai-service";
 import { ExpenseAIService } from "./expense-ai-service";
 import { TicketAIService } from "./ticket-ai-service";
 import { getTransporter } from "./email.service";
@@ -926,9 +926,11 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
     channelRow: any
   ): Promise<boolean> {
     let automationHandled = false;
+    console.log(`🔍 [Reminders Interceptor] Entered for message: "${content}" (Channel: ${channelId})`);
     if (channelId && conversation.length > 0 && !isGroupMessage) {
       try {
         const tenantId = channelRow?.createdBy;
+        console.log(`🔍 [Reminders Interceptor] tenantId resolved: ${tenantId}`);
         if (tenantId) {
           const [addon] = await db
             .select()
@@ -936,6 +938,7 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
             .where(and(eq(schema.addons.slug, "reminders-module"), eq(schema.addons.isActive, true)))
             .limit(1);
 
+          console.log(`🔍 [Reminders Interceptor] Addon details:`, addon ? `ID=${addon.id}, Slug=${addon.slug}` : "Addon Not Found");
           if (addon) {
             const [subscription] = await db
               .select()
@@ -959,20 +962,83 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
               : (user?.role === "superadmin" ? true : false);
 
             const purchaseType = subscription?.purchaseType || (user?.role === "superadmin" ? "ai" : "flow");
+            console.log(`🔍 [Reminders Interceptor] Subscription info: active=${isSubscriptionActive}, purchaseType=${purchaseType}`);
 
             if (isSubscriptionActive) {
-              const [reminderConfig] = await db
+               const [reminderConfig] = await db
                 .select()
                 .from(schema.reminderConfigs)
                 .where(eq(schema.reminderConfigs.channelId, channelId))
                 .limit(1);
 
+              console.log(`🔍 [Reminders Interceptor] Config details: configFound=${!!reminderConfig}, active=${reminderConfig?.isActive}`);
               if (reminderConfig && reminderConfig.isActive) {
                 const triggerKeyword = (reminderConfig.triggerKeyword || "remind").toLowerCase();
                 const todoKeyword = (reminderConfig.todoKeyword || "todo").toLowerCase();
                 const cleanContent = content.trim();
                 const lowerContent = cleanContent.toLowerCase();
                 const waApi = new WhatsAppApiService(channelRow);
+
+                // Timezone change command
+                const isTimezoneCmd = lowerContent === "timezone" || lowerContent.startsWith("timezone ");
+                if (isTimezoneCmd) {
+                  automationHandled = true;
+                  const val = cleanContent.substring(8).trim().toLowerCase();
+                  let offset: number | null = null;
+
+                  if (!val) {
+                    const currentOffset = await getContactTimezoneOffset(message.from, channelId);
+                    const currentLabel = getTimezoneLabel(currentOffset);
+                    await waApi.sendDirectMessage({
+                      to: message.from,
+                      type: "text",
+                      text: { body: `🌐 *Your current timezone:* ${currentLabel}\n\nTo change it, reply with:\n• *timezone KSA* (or *timezone 3*)\n• *timezone India* (or *timezone 5.5*)\n• *timezone UAE* (or *timezone 4*)\n• *timezone -5* (for New York/EST)` }
+                    });
+                    return true;
+                  }
+
+                  if (val === "ksa" || val === "saudi" || val === "ast" || val === "riyadh") {
+                    offset = 3;
+                  } else if (val === "dubai" || val === "uae" || val === "gst") {
+                    offset = 4;
+                  } else if (val === "india" || val === "ist" || val === "delhi") {
+                    offset = 5.5;
+                  } else if (val === "gmt" || val === "utc") {
+                    offset = 0;
+                  } else {
+                    const valClean = val.replace(/utc|gmt/gi, "").replace("+", "").trim();
+                    const parsedNum = parseFloat(valClean);
+                    if (!isNaN(parsedNum) && parsedNum >= -12 && parsedNum <= 14) {
+                      offset = parsedNum;
+                    }
+                  }
+
+                  if (offset !== null) {
+                    const existingContact = contact[0];
+                    if (existingContact) {
+                      const updatedVars = { ...(existingContact.variables || {}), timezoneOffset: String(offset) };
+                      await db
+                        .update(schema.contacts)
+                        .set({ variables: updatedVars })
+                        .where(eq(schema.contacts.id, existingContact.id));
+
+                      const tzLabel = getTimezoneLabel(offset);
+                      await waApi.sendDirectMessage({
+                        to: message.from,
+                        type: "text",
+                        text: { body: `✅ *Timezone updated!* Your timezone is now set to *${tzLabel}*.\n\nAll your future reminders will be processed and notified relative to this timezone.` }
+                      });
+                      return true;
+                    }
+                  } else {
+                    await waApi.sendDirectMessage({
+                      to: message.from,
+                      type: "text",
+                      text: { body: `⚠️ *Invalid timezone!* Please type:\n• *timezone KSA* (for UTC+3)\n• *timezone India* (for UTC+5.5)\n• *timezone UAE* (for UTC+4)\n• *timezone <offset>* (e.g. *timezone 3* or *timezone -5*)` }
+                    });
+                    return true;
+                  }
+                }
 
                 // 1. Check if there is an active session
                 const [activeSession] = await db
@@ -1003,7 +1069,7 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                     // AI mode: process the message text or voice note/image via LLM
                     let textToParse = cleanContent;
 
-                    const parsed = await ReminderAIService.parseReminder(tenantId, channelId, textToParse);
+                    const parsed = await ReminderAIService.parseReminder(tenantId, channelId, textToParse, message.from);
                     if (parsed && !parsed.error && parsed.title && parsed.dueTime) {
                       const dueD = new Date(parsed.dueTime.replace(" ", "T"));
                       
@@ -1024,11 +1090,15 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                         .set({ aiEnabled: false })
                         .where(eq(schema.conversations.id, conversation[0].id));
 
+                      const offset = await getContactTimezoneOffset(message.from, channelId);
+                      const localTimeStr = formatLocalTime(dueD, offset);
+                      const tzLabel = getTimezoneLabel(offset);
+
                       await waApi.sendDirectMessage({
                         to: message.from,
                         type: "text",
                         text: {
-                          body: `✅ *Reminder Scheduled!*\n\n📝 *Task:* ${parsed.title}\n📅 *Time:* ${dueD.toLocaleString()}\n🔔 *Alert:* You will be reminded 15m before and at the event time.`
+                          body: `✅ *Reminder Scheduled!*\n\n📝 *Task:* ${parsed.title}\n📅 *Time:* ${localTimeStr}\n🔔 *Alert:* You will be reminded 15m before and at the event time.\n\n🌐 _Tz: ${tzLabel} (reply "timezone KSA" to change)_`
                         }
                       });
                     } else {
@@ -1064,12 +1134,12 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                         to: message.from,
                         type: "text",
                         text: {
-                          body: `⏰ Great! Now please reply with *when* you want to be reminded (e.g. *tomorrow 5pm*, *2pm 05/11*, or *next Friday at 1pm*).`
+                          body: `⏰ *When to remind? (e.g., Today 10pm or 2pm 01/08)*`
                         }
                       });
-                    } else if (activeSession.status === "waiting_for_when") {
-                      const combinedText = `Remind me to ${activeSession.title} on ${cleanContent}`;
-                      const parsed = await ReminderAIService.parseReminder(tenantId, channelId, combinedText);
+                     } else if (activeSession.status === "waiting_for_when") {
+                       const combinedText = `Remind me to ${activeSession.title} at ${cleanContent}`;
+                       const parsed = await ReminderAIService.parseReminder(tenantId, channelId, combinedText, message.from);
 
                       if (parsed && !parsed.error && parsed.dueTime) {
                         const dueD = new Date(parsed.dueTime.replace(" ", "T"));
@@ -1091,11 +1161,15 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                           .set({ aiEnabled: false })
                           .where(eq(schema.conversations.id, conversation[0].id));
 
+                        const offset = await getContactTimezoneOffset(message.from, channelId);
+                        const localTimeStr = formatLocalTime(dueD, offset);
+                        const tzLabel = getTimezoneLabel(offset);
+
                         await waApi.sendDirectMessage({
                           to: message.from,
                           type: "text",
                           text: {
-                            body: `✅ *Reminder Scheduled!*\n\n📝 *Task:* ${activeSession.title}\n📅 *Time:* ${dueD.toLocaleString()}\n🔔 *Alert:* You will be reminded 15m before and at the event time.`
+                            body: `✅ *Reminder Scheduled!*\n\n📝 *Task:* ${activeSession.title}\n📅 *Time:* ${localTimeStr}\n🔔 *Alert:* You will be reminded 15m before and at the event time.\n\n🌐 _Tz: ${tzLabel} (reply "timezone KSA" to change)_`
                           }
                         });
                       } else {
@@ -1103,7 +1177,7 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                           to: message.from,
                           type: "text",
                           text: {
-                            body: `⚠️ *Could not understand the date/time.* Please reply with a clear date (e.g. *tomorrow 5pm*, *2pm 05/11*, or *next Friday 1pm*).`
+                            body: `⚠️ *Could not understand the date/time.* Please reply with a clear format (e.g., *Today 10pm* or *2pm 01/08*).`
                           }
                         });
                       }
@@ -1139,13 +1213,13 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                         type: "text",
                         text: {
                           body: purchaseType === "ai"
-                            ? `📅 *Reminders & To-Do AI*\n\nPlease reply with what you want to be reminded of and when (e.g., 'call dentist tomorrow at 5pm'). You can also send a voice message or upload a document/image!`
-                            : `📝 *Reminders & To-Do Flow*\n\nWhat would you like to be reminded of? (Type the task description)`
+                            ? `📅 *Reminders & To-Do AI*\n\nPlease reply with what you want to be reminded of and when (e.g., 'call dentist tomorrow at 5pm').`
+                            : `📝 *What to remind? (Enter task/event description)*`
                         }
                       });
                     } else {
                       // Direct inline reminder parsing (e.g., "remind call boss at 5pm")
-                      const parsed = await ReminderAIService.parseReminder(tenantId, channelId, promptText);
+                      const parsed = await ReminderAIService.parseReminder(tenantId, channelId, promptText, message.from);
                       
                       if (parsed && !parsed.error && parsed.title && parsed.dueTime) {
                         const dueD = new Date(parsed.dueTime.replace(" ", "T"));
@@ -1161,11 +1235,15 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                           status: "pending"
                         });
 
+                        const offset = await getContactTimezoneOffset(message.from, channelId);
+                        const localTimeStr = formatLocalTime(dueD, offset);
+                        const tzLabel = getTimezoneLabel(offset);
+
                         await waApi.sendDirectMessage({
                           to: message.from,
                           type: "text",
                           text: {
-                            body: `✅ *Reminder Scheduled!*\n\n📝 *Task:* ${parsed.title}\n📅 *Time:* ${dueD.toLocaleString()}\n🔔 *Alert:* You will be reminded 15m before and at the event time.`
+                            body: `✅ *Reminder Scheduled!*\n\n📝 *Task:* ${parsed.title}\n📅 *Time:* ${localTimeStr}\n🔔 *Alert:* You will be reminded 15m before and at the event time.\n\n🌐 _Tz: ${tzLabel} (reply "timezone KSA" to change)_`
                           }
                         });
                       } else {
@@ -1187,7 +1265,7 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                             body: `⚠️ *Could not parse inline reminder.* Starting reminder flow.\n\n${
                               purchaseType === "ai"
                                 ? "Please reply with what you want to be reminded of and when (e.g., 'call dentist tomorrow at 5pm')."
-                                : "What would you like to be reminded of? (Type the task description)"
+                                : "What to remind? (Enter task/event description)"
                             }`
                           }
                         });

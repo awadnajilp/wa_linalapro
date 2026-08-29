@@ -1507,9 +1507,10 @@ function TeamMemberDialog({
                 <Input
                   id="username"
                   value={formData.username}
-                  onChange={(e) =>
-                    setFormData({ ...formData, username: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const formatted = e.target.value.replace(/\s+/g, "").toLowerCase();
+                    setFormData({ ...formData, username: formatted });
+                  }}
                   required
                 />
               </div>

@@ -70,6 +70,10 @@ export default function CRM() {
   const [newDealContactId, setNewDealContactId] = useState("");
   const [contactSearchQuery, setContactSearchQuery] = useState("");
   const [newDealAgentId, setNewDealAgentId] = useState<string | null>(null);
+  const [isCreateNewContact, setIsCreateNewContact] = useState(false);
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactPhone, setNewContactPhone] = useState("");
+  const [newContactEmail, setNewContactEmail] = useState("");
 
   // New Pipeline Form states
   const [isCreatePipelineOpen, setIsCreatePipelineOpen] = useState(false);
@@ -350,6 +354,10 @@ export default function CRM() {
       setNewDealValue("0.00");
       setNewDealContactId("");
       setNewDealAgentId(null);
+      setIsCreateNewContact(false);
+      setNewContactName("");
+      setNewContactPhone("");
+      setNewContactEmail("");
       queryClient.invalidateQueries({ queryKey: ["/api/crm/deals", channelId] });
     },
   });
@@ -393,21 +401,64 @@ export default function CRM() {
     setIsAddDealOpen(true);
   };
 
-  const submitCreateDeal = () => {
-    if (!newDealContactId) {
-      toast({
-        title: "Contact Required",
-        description: "Please select a contact to link this deal to.",
-        variant: "destructive",
-      });
-      return;
+  const submitCreateDeal = async () => {
+    let contactIdToUse = newDealContactId;
+    let contactNameToUse = "";
+
+    if (isCreateNewContact) {
+      if (!newContactName.trim() || !newContactPhone.trim()) {
+        toast({
+          title: "Fields Required",
+          description: "Please enter contact name and phone number.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        const createContactRes = await apiRequest("POST", `/api/contacts?channelId=${channelId}`, {
+          name: newContactName,
+          phone: newContactPhone,
+          email: newContactEmail || undefined,
+          channelId
+        });
+
+        if (!createContactRes.ok) {
+          const errData = await createContactRes.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to create new contact.");
+        }
+
+        const newContact = await createContactRes.json();
+        contactIdToUse = newContact.id;
+        contactNameToUse = newContact.name;
+
+        queryClient.invalidateQueries({ queryKey: ["/api/contacts", channelId] });
+      } catch (e: any) {
+        toast({
+          title: "Contact Creation Failed",
+          description: e.message,
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      if (!contactIdToUse) {
+        toast({
+          title: "Contact Required",
+          description: "Please select an existing contact or create a new one.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const existingContact = contacts.find((c) => c.id === contactIdToUse);
+      contactNameToUse = existingContact?.name || "New Lead";
     }
-    const contact = contacts.find((c) => c.id === newDealContactId);
+
     createDealMutation.mutate({
-      contactId: newDealContactId,
+      contactId: contactIdToUse,
       channelId,
       stageId: targetAddStageId,
-      title: newDealTitle || `${contact?.name || "New Lead"} Deal`,
+      title: newDealTitle || `${contactNameToUse} Deal`,
       value: newDealValue,
       currency: newDealCurrency,
       assignedTo: newDealAgentId === "_empty" ? null : newDealAgentId,
@@ -1079,31 +1130,72 @@ export default function CRM() {
           </DialogHeader>
 
           <div className="space-y-4 py-3 text-xs">
-            <div className="space-y-1.5">
-              <Label className="font-semibold text-slate-700">Search Lead Contact</Label>
-              <Input
-                placeholder="Type name or phone to search..."
-                value={contactSearchQuery}
-                onChange={(e) => setContactSearchQuery(e.target.value)}
-                className="border-slate-200 text-xs"
-              />
+            <div className="flex items-center justify-between pb-2 border-b border-dashed border-slate-100">
+              <Label className="font-semibold text-slate-700">Create New Contact instead of selecting?</Label>
+              <Switch checked={isCreateNewContact} onCheckedChange={setIsCreateNewContact} />
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="font-semibold text-slate-700">Select Contact</Label>
-              <Select value={newDealContactId} onValueChange={setNewDealContactId}>
-                <SelectTrigger className="w-full bg-white border-slate-200 text-xs">
-                  <SelectValue placeholder="Select active lead contact" />
-                </SelectTrigger>
-                <SelectContent>
-                  {contacts.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name} ({c.phone})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!isCreateNewContact ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-slate-700">Search Lead Contact</Label>
+                  <Input
+                    placeholder="Type name or phone to search..."
+                    value={contactSearchQuery}
+                    onChange={(e) => setContactSearchQuery(e.target.value)}
+                    className="border-slate-200 text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-slate-700">Select Contact</Label>
+                  <Select value={newDealContactId} onValueChange={setNewDealContactId}>
+                    <SelectTrigger className="w-full bg-white border-slate-200 text-xs">
+                      <SelectValue placeholder="Select active lead contact" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contacts.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} ({c.phone})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-slate-700">New Contact Name</Label>
+                  <Input
+                    placeholder="E.g. John Doe"
+                    value={newContactName}
+                    onChange={(e) => setNewContactName(e.target.value)}
+                    className="border-slate-200 text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-slate-700">Phone Number (Required)</Label>
+                  <Input
+                    placeholder="E.g. 919633348491"
+                    value={newContactPhone}
+                    onChange={(e) => setNewContactPhone(e.target.value)}
+                    className="border-slate-200 text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-slate-700">Email Address (Optional)</Label>
+                  <Input
+                    placeholder="E.g. john@example.com"
+                    value={newContactEmail}
+                    onChange={(e) => setNewContactEmail(e.target.value)}
+                    className="border-slate-200 text-xs"
+                  />
+                </div>
+              </>
+            )}
 
             <div className="space-y-1.5">
               <Label className="font-semibold text-slate-700">Deal Title (Optional)</Label>

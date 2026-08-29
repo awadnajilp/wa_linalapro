@@ -26,7 +26,8 @@ import {
   ArrowRight,
   Filter,
   Clock,
-  MessageSquare
+  MessageSquare,
+  Search
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,7 +41,11 @@ export default function CRM() {
   const { selectedChannel } = useChannelContext();
   const channelId = selectedChannel?.id;
 
-  const [viewMode, setViewMode] = useState<"board" | "performance">("board");
+  const [viewMode, setViewMode] = useState<"board" | "list" | "performance">("board");
+  const [listStageFilter, setListStageFilter] = useState("all");
+  const [listPage, setListPage] = useState(1);
+  const listLimit = 10;
+  const [masterSearchQuery, setMasterSearchQuery] = useState("");
   const [performancePeriod, setPerformancePeriod] = useState<"daily" | "weekly" | "monthly">("monthly");
   const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -159,9 +164,72 @@ export default function CRM() {
       if (selectedAgentId !== "all" && deal.assignedTo !== selectedAgentId) {
         return false;
       }
+
+      if (masterSearchQuery.trim()) {
+        const query = masterSearchQuery.toLowerCase().trim();
+        const matchTitle = (deal.title || "").toLowerCase().includes(query);
+        const matchContactName = (deal.contactName || "").toLowerCase().includes(query);
+        const matchContactPhone = (deal.contactPhone || "").toLowerCase().includes(query);
+        const matchContactEmail = (deal.contactEmail || "").toLowerCase().includes(query);
+        const matchNotes = (deal.notes || "").toLowerCase().includes(query);
+
+        let matchTags = false;
+        try {
+          const tagsArray = Array.isArray(deal.tags)
+            ? deal.tags
+            : (typeof deal.tags === "string" ? JSON.parse(deal.tags) : []);
+          matchTags = tagsArray.some((t: string) => t.toLowerCase().includes(query));
+        } catch {}
+
+        if (!matchTitle && !matchContactName && !matchContactPhone && !matchContactEmail && !matchNotes && !matchTags) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [deals, selectedAgentId]);
+  }, [deals, selectedAgentId, masterSearchQuery]);
+
+  // Leads List helper maps and filtering/pagination logic
+  const stageNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (stages || []).forEach((s) => {
+      map[s.id] = s.name;
+    });
+    return map;
+  }, [stages]);
+
+  const agentNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (membersArray || []).forEach((m: any) => {
+      map[m.id] = `${m.firstName || ""} ${m.lastName || m.username}`.trim();
+    });
+    return map;
+  }, [membersArray]);
+
+  const listFilteredDeals = useMemo(() => {
+    const activeStageIds = new Set(stages.map((s) => s.id));
+    return (filteredDeals || []).filter((deal: any) => {
+      // 1. Active pipeline stages only
+      if (!activeStageIds.has(deal.stageId)) {
+        return false;
+      }
+      // 2. Stage filter
+      if (listStageFilter !== "all" && deal.stageId !== listStageFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [filteredDeals, stages, listStageFilter]);
+
+  useEffect(() => {
+    setListPage(1);
+  }, [masterSearchQuery, listStageFilter]);
+
+  const totalListPages = Math.ceil(listFilteredDeals.length / listLimit) || 1;
+  const paginatedListDeals = useMemo(() => {
+    return listFilteredDeals.slice((listPage - 1) * listLimit, listPage * listLimit);
+  }, [listFilteredDeals, listPage]);
 
   // Query: contacts for deal creation selector (on-demand)
   const { data: contactsData } = useQuery<any>({
@@ -678,22 +746,28 @@ export default function CRM() {
           <p className="text-xs text-slate-500">
             Pipeline total: <span className="font-semibold text-slate-800">${totalPipelineValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span> | Active Deals: <span className="font-semibold text-slate-800">{activeDealsCount}</span>
           </p>
-          {(user?.role === "admin" || user?.isAdminMember === true || user?.role === "superadmin") && (
-            <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 mt-2 max-w-[280px] w-full">
-              <button
-                onClick={() => setViewMode("board")}
-                className={`flex-1 text-center py-1.5 px-3 rounded-md text-xs font-semibold transition-all ${viewMode === "board" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
-              >
-                Kanban Board
-              </button>
+          <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 mt-2 max-w-[360px] w-full">
+            <button
+              onClick={() => setViewMode("board")}
+              className={`flex-1 text-center py-1.5 px-3 rounded-md text-xs font-semibold transition-all ${viewMode === "board" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+            >
+              Kanban Board
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`flex-1 text-center py-1.5 px-3 rounded-md text-xs font-semibold transition-all ${viewMode === "list" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+            >
+              Leads List
+            </button>
+            {(user?.role === "admin" || user?.isAdminMember === true || user?.role === "superadmin") && (
               <button
                 onClick={() => setViewMode("performance")}
                 className={`flex-1 text-center py-1.5 px-3 rounded-md text-xs font-semibold transition-all ${viewMode === "performance" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
               >
                 Team Performance
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -741,6 +815,17 @@ export default function CRM() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Master Search Input */}
+          <div className="relative w-full sm:w-[220px]">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+            <Input
+              placeholder="Search leads (title, name, phone, tags, notes...)"
+              value={masterSearchQuery}
+              onChange={(e) => setMasterSearchQuery(e.target.value)}
+              className="pl-9 bg-white border-slate-200 text-xs h-9 w-full focus-visible:ring-indigo-500"
+            />
           </div>
 
           {/* CRM Settings trigger */}
@@ -953,6 +1038,172 @@ export default function CRM() {
               </Card>
             </>
           )}
+        </div>
+      ) : viewMode === "list" ? (
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 flex flex-col">
+          {/* Filters card */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-xs">
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+              <span className="text-slate-500 font-semibold uppercase tracking-wider text-[10px]">Filter Stage:</span>
+              <div className="w-[180px]">
+                <Select value={listStageFilter} onValueChange={setListStageFilter}>
+                  <SelectTrigger className="w-full bg-slate-50/50 border-slate-200 text-xs h-9">
+                    <SelectValue placeholder="All Stages" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Stages</SelectItem>
+                    {stages.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id}>
+                        {stage.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="text-slate-500 font-medium whitespace-nowrap">
+              Found <span className="font-bold text-slate-800">{listFilteredDeals.length}</span> leads
+            </div>
+          </div>
+
+          {/* List Table Card */}
+          <Card className="border-slate-200/85 shadow-sm bg-white overflow-hidden flex-1 flex flex-col">
+            <CardContent className="p-0 flex-1 overflow-y-auto min-h-[300px]">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-150 bg-slate-50/75 text-slate-500 text-[10px] font-bold uppercase tracking-wider select-none">
+                      <th className="p-4">Lead Title</th>
+                      <th className="p-4">Contact Details</th>
+                      <th className="p-4">Stage</th>
+                      <th className="p-4 text-right">Value</th>
+                      <th className="p-4">Assigned Agent</th>
+                      <th className="p-4">Tags</th>
+                      <th className="p-4">Created Date</th>
+                      <th className="p-4 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {paginatedListDeals.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-12 text-center text-slate-400">
+                          <div className="flex flex-col items-center justify-center space-y-2">
+                            <Briefcase className="w-8 h-8 text-slate-300" />
+                            <p className="text-sm font-medium">No leads found</p>
+                            <p className="text-xs">Try adjusting your filters or active pipeline.</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedListDeals.map((deal: any) => {
+                        let parsedTags: string[] = [];
+                        try {
+                          parsedTags = Array.isArray(deal.tags)
+                            ? deal.tags
+                            : (typeof deal.tags === "string" ? JSON.parse(deal.tags) : []);
+                        } catch {}
+
+                        const stageName = stageNameMap[deal.stageId] || "Unknown Stage";
+                        const agentName = agentNameMap[deal.assignedTo] || "Unassigned";
+
+                        return (
+                          <tr key={deal.id} className="hover:bg-slate-50/50 transition-colors group">
+                            <td className="p-4">
+                              <button
+                                onClick={() => handleOpenDetails(deal)}
+                                className="font-semibold text-slate-800 hover:text-indigo-600 hover:underline text-left"
+                              >
+                                {deal.title || `${deal.contactName || "New Lead"} Deal`}
+                              </button>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-slate-800">{deal.contactName}</span>
+                                <span className="text-[10px] text-slate-500 font-medium">{deal.contactPhone}</span>
+                                {deal.contactEmail && (
+                                  <span className="text-[10px] text-slate-400">{deal.contactEmail}</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                {stageName}
+                              </span>
+                            </td>
+                            <td className="p-4 text-right font-bold text-slate-800">
+                              {Number(deal.value).toLocaleString(undefined, { minimumFractionDigits: 2 })} {deal.currency || "USD"}
+                            </td>
+                            <td className="p-4 text-slate-600 font-medium">
+                              {agentName}
+                            </td>
+                            <td className="p-4">
+                              <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                {parsedTags.length === 0 ? (
+                                  <span className="text-[10px] text-slate-400 italic">-</span>
+                                ) : (
+                                  parsedTags.map((tag: string, idx: number) => (
+                                    <span
+                                      key={idx}
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[9px] font-medium border border-slate-200"
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-4 text-slate-500 font-medium">
+                              {new Date(deal.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="p-4 text-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenDetails(deal)}
+                                className="h-7 text-[10px] font-semibold text-indigo-600 hover:bg-indigo-50"
+                              >
+                                View Details
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+
+            {/* Pagination Controls */}
+            {totalListPages > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-150 p-4 bg-slate-50/50">
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Showing page <span className="font-semibold text-slate-800">{listPage}</span> of <span className="font-semibold text-slate-800">{totalListPages}</span>
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={listPage <= 1}
+                    onClick={() => setListPage((prev) => prev - 1)}
+                    className="h-8 font-semibold text-xs border-slate-200 text-slate-700 bg-white"
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={listPage >= totalListPages}
+                    onClick={() => setListPage((prev) => prev + 1)}
+                    className="h-8 font-semibold text-xs border-slate-200 text-slate-700 bg-white"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
         </div>
       ) : (
         <div className="flex-1 overflow-x-auto p-6 flex gap-6 items-start select-none">

@@ -210,7 +210,7 @@ export default function NotificationTemplatesSettings() {
       </Card>
 
       <div className="grid grid-cols-1 gap-4">
-        {templates.length === 0 ? (
+        {!Array.isArray(templates) || templates.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
               <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -277,7 +277,7 @@ export default function NotificationTemplatesSettings() {
                 </div>
 
                 {/* Variables */}
-                {template.variables.length > 0 && (
+                {Array.isArray(template.variables) && template.variables.length > 0 && (
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Available Variables</Label>
                     <div className="flex flex-wrap gap-2">
@@ -349,7 +349,7 @@ export default function NotificationTemplatesSettings() {
             </div>
 
             {/* Variables Info */}
-            {editingTemplate && editingTemplate.variables && editingTemplate.variables.length > 0 && (
+            {editingTemplate && Array.isArray(editingTemplate.variables) && editingTemplate.variables.length > 0 && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-xs font-semibold text-blue-900 mb-2">
                   Available Variables to Use:

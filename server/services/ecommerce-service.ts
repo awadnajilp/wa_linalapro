@@ -11,6 +11,7 @@ import PDFDocument from "pdfkit";
 import axios from "axios";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import { VoiceManager } from "./voice";
 
 export class EcommerceService {
   /**
@@ -81,6 +82,69 @@ export class EcommerceService {
       timeout: 30000,
     });
     return Buffer.from(response.data);
+  }
+
+  /**
+   * Upload synthesized speech buffer to cloud storage or local fallback.
+   */
+  private static async uploadAudioBufferHelper(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
+    const localDir = path.join(process.cwd(), "public/uploads/audio");
+    if (!fs.existsSync(localDir)) {
+      fs.mkdirSync(localDir, { recursive: true });
+    }
+    const localPath = path.join(localDir, filename);
+    fs.writeFileSync(localPath, buffer);
+
+    let fileUrl = `/uploads/audio/${filename}`;
+
+    try {
+      const { createDOClient } = await import("../config/digitalOceanConfig");
+      const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+      const doClient = await createDOClient();
+      if (doClient) {
+        const { s3, bucket, endpoint } = doClient;
+        const fileKey = `uploads/audio/${filename}`;
+
+        try {
+          await s3.send(
+            new PutObjectCommand({
+              Bucket: bucket!,
+              Key: fileKey,
+              Body: buffer,
+              ACL: "public-read",
+              ContentType: mimeType,
+            })
+          );
+        } catch (s3Error: any) {
+          if (s3Error.name === "AccessControlListNotSupported" || s3Error.message?.includes("ACL")) {
+            await s3.send(
+              new PutObjectCommand({
+                Bucket: bucket!,
+                Key: fileKey,
+                Body: buffer,
+                ContentType: mimeType,
+              })
+            );
+          } else {
+            throw s3Error;
+          }
+        }
+
+        const endpointUrl = new URL(endpoint || "");
+        fileUrl = `https://${bucket}.${endpointUrl.host}/${fileKey}`;
+        
+        // Clean local fallback
+        if (fs.existsSync(localPath)) {
+          fs.unlinkSync(localPath);
+        }
+      }
+    } catch (err: any) {
+      console.warn("[EcommerceService] Cloud voice upload failed, using local URL:", err.message);
+      const port = process.env.PORT || 5000;
+      fileUrl = `http://localhost:${port}/uploads/audio/${filename}`;
+    }
+
+    return fileUrl;
   }
 
   /**
@@ -396,7 +460,7 @@ export class EcommerceService {
           }
         } else {
           // Process active session response (checkout steps, ai chat)
-          await this.processSessionInput(channelRow, config, session, content.trim(), message);
+          await this.processSessionInput(channelRow, config, session, (content || "").trim(), message);
           return true;
         }
       }
@@ -665,8 +729,10 @@ export class EcommerceService {
     message: any
   ) {
     const waApi = new WhatsAppApiService(channelRow);
-    const conversationId = session.conversationId;
-    const contactPhone = channelRow.connectionMethod === "qr_code" ? session.conversationId.split("@")[0] : session.conversationId; // Fallback or handle phone extraction
+    const conversationId = session?.conversationId;
+    const contactPhone = (channelRow.connectionMethod === "qr_code" && conversationId) 
+      ? conversationId.split("@")[0] 
+      : (conversationId || "");
     // Actually, get contact phone from session's conversation mapping or directly
     const [conv] = await db
       .select()
@@ -787,13 +853,69 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         .replace(/{product_price}/g, productPrice)
         .replace(/{product_description}/g, product.description || "N/A");
 
-      const aiSetting = await db
+      // 1. Fetch channel-specific active AI Settings
+      let aiSetting = await db
         .select()
         .from(schema.aiSettings)
         .where(and(eq(schema.aiSettings.channelId, channelRow.id), eq(schema.aiSettings.isActive, true)))
         .limit(1);
+
+      if (aiSetting.length === 0) {
+        aiSetting = await db
+          .select()
+          .from(schema.aiSettings)
+          .where(eq(schema.aiSettings.channelId, channelRow.id))
+          .limit(1);
+      }
+
       const activeAI = aiSetting?.[0];
-      const apiKey = activeAI?.apiKey || process.env.OPENAI_API_KEY;
+
+      // 2. Fetch owner user config to get Groq/Sarvam/ElevenLabs keys
+      const [ownerUser] = await db
+        .select()
+        .from(schema.users)
+        .where(eq(schema.users.id, config.tenantId))
+        .limit(1);
+
+      let provider = activeAI?.provider || "openai";
+      let apiKey = activeAI?.apiKey || "";
+      let endpoint = activeAI?.endpoint || "";
+      let model = activeAI?.model || "";
+
+      // If activeAI provider is Groq/Sarvam but apiKey is missing/empty, load it from the owner user or env
+      if (provider === "groq") {
+        apiKey = apiKey || ownerUser?.groqApiKey || process.env.GROQ_API_KEY || "";
+        endpoint = endpoint || "https://api.groq.com/openai/v1";
+        model = model || "llama-3.3-70b-versatile";
+      } else if (provider === "sarvam") {
+        apiKey = apiKey || ownerUser?.sarvamApiKey || process.env.SARVAM_API_KEY || "";
+        endpoint = endpoint || "https://api.sarvam.ai/v1";
+        model = model || "sarvam-105b-conversations";
+      } else {
+        apiKey = apiKey || process.env.OPENAI_API_KEY || "";
+        endpoint = endpoint || "https://api.openai.com/v1";
+        model = model || "gpt-4o-mini";
+      }
+
+      // If apiKey is still missing, fallback to owner user config priorities (e.g. sample awadnajilp key)
+      if (!apiKey) {
+        if (ownerUser?.groqApiKey) {
+          provider = "groq";
+          apiKey = ownerUser.groqApiKey;
+          endpoint = "https://api.groq.com/openai/v1";
+          model = "llama-3.3-70b-versatile";
+        } else if (ownerUser?.sarvamApiKey) {
+          provider = "sarvam";
+          apiKey = ownerUser.sarvamApiKey;
+          endpoint = "https://api.sarvam.ai/v1";
+          model = "sarvam-105b-conversations";
+        } else if (process.env.OPENAI_API_KEY) {
+          provider = "openai";
+          apiKey = process.env.OPENAI_API_KEY;
+          endpoint = "https://api.openai.com/v1";
+          model = "gpt-4o-mini";
+        }
+      }
 
       if (!apiKey) {
         await waApi.sendTextMessage(to, "AI is currently offline. Please try checking out directly by typing 'checkout'.");
@@ -801,14 +923,14 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
       }
 
       try {
+        console.log(`🤖 [Ecommerce AI] Invoking LLM via ${provider} (${model}) at ${endpoint}...`);
         const aiClient = new OpenAI({
           apiKey,
-          baseURL: activeAI?.endpoint || "https://api.openai.com/v1",
+          baseURL: endpoint,
         });
-        const finalModel = activeAI?.model || "gpt-4o-mini";
         
         const completion = await aiClient.chat.completions.create({
-          model: finalModel,
+          model: model,
           messages: [
             { role: "system", content: basePrompt },
             { role: "user", content: input }
@@ -818,7 +940,49 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         });
         
         const aiResponse = completion.choices[0]?.message?.content || "Sorry, I am having trouble answering right now.";
-        await waApi.sendTextMessage(to, aiResponse);
+        
+        // 3. Audio note response check (if the customer's incoming message was an audio note)
+        const isIncomingAudio = message?.type === "audio" || (message?.audio && message?.type === "audio");
+        let voiceMediaUrl: string | null = null;
+
+        if (isIncomingAudio) {
+          try {
+            // Find a voice profile for synthesis (Sarvam, ElevenLabs, etc.)
+            const voiceProfile = await db.query.voiceProfiles.findFirst();
+            if (voiceProfile) {
+              console.log(`🎙️ [Ecommerce AI] Synthesizing speech via ${voiceProfile.provider}...`);
+              const pInstance = VoiceManager.getProvider(voiceProfile.provider);
+              
+              let synthesizeKey = "";
+              if (voiceProfile.provider === "elevenlabs") {
+                synthesizeKey = ownerUser?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || "";
+              } else if (voiceProfile.provider === "sarvam") {
+                synthesizeKey = ownerUser?.sarvamApiKey || process.env.SARVAM_API_KEY || "";
+              }
+
+              const audioBuffer = await pInstance.synthesize(
+                aiResponse,
+                voiceProfile.voiceId || "anushka",
+                "en-IN",
+                { apiKey: synthesizeKey }
+              );
+
+              if (audioBuffer) {
+                const filename = `ecommerce_ai_voice_${Date.now()}.ogg`;
+                voiceMediaUrl = await this.uploadAudioBufferHelper(audioBuffer, filename, "audio/ogg");
+              }
+            }
+          } catch (vErr: any) {
+            console.error("❌ [Ecommerce AI] Voice synthesis failed:", vErr.message);
+          }
+        }
+
+        if (voiceMediaUrl) {
+          console.log(`🤖 [Ecommerce AI] Sending voice note reply: ${voiceMediaUrl}`);
+          await waApi.sendVoiceNote(to, voiceMediaUrl);
+        } else {
+          await waApi.sendTextMessage(to, aiResponse);
+        }
       } catch (err: any) {
         console.error("[AI Chat Session Error]", err.message);
         await waApi.sendTextMessage(to, "Sorry, I encountered an error processing your query. Please reply with 'checkout' to buy the product directly.");

@@ -2128,9 +2128,18 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
           const settings = (conversation[0].aiSettings || {}) as any;
           const chanSettings = (channel[0]?.inboxAiSettings || {}) as any;
           const isChannelAiEnabled = channel[0]?.inboxAiSettings && chanSettings.aiEnabled === true;
-
           const sttEnabled = settings.sttEnabled !== undefined ? settings.sttEnabled : chanSettings.sttEnabled;
-          
+ 
+          // Check if there is an active ecommerce AI session
+          const [ecomSession] = await db
+            .select()
+            .from(schema.ecommerceSessions)
+            .where(and(
+              eq(schema.ecommerceSessions.conversationId, conversation[0].id),
+              eq(schema.ecommerceSessions.currentStep, "ai_chat")
+            ))
+            .limit(1);
+
           if (sttEnabled === true) {
             voiceLanguage = settings.sttLanguage || chanSettings.sttLanguage || "en-IN";
             voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
@@ -2142,7 +2151,13 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
               }
             }
           } else {
-            if (node && node.type === "ai_agent" && (node.data as any)?.aiVoiceEnabled === true) {
+            if (ecomSession) {
+              const firstProfile = await db.query.voiceProfiles.findFirst();
+              if (firstProfile) {
+                voiceProfileId = firstProfile.id;
+                voiceLanguage = "en-IN";
+              }
+            } else if (node && node.type === "ai_agent" && (node.data as any)?.aiVoiceEnabled === true) {
               const nodeData = node.data as any;
               voiceProfileId = nodeData.voiceProfileId;
               voiceLanguage = nodeData.voiceLanguage || "en-IN";

@@ -901,6 +901,46 @@ export function ConfigPanel({
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                    <UserX className="w-3.5 h-3.5 text-indigo-500" /> Exclude Agents (Optional)
+                  </Label>
+                  <div className="bg-white rounded-lg border border-indigo-100/50 p-2.5 max-h-[140px] overflow-y-auto space-y-1.5 shadow-sm">
+                    {members.map((m) => {
+                      const memberName = m.name || `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.email || "Agent";
+                      const excludeList = Array.isArray(d.excludeUserIds) ? d.excludeUserIds : [];
+                      const isExcluded = excludeList.includes(m.id);
+
+                      return (
+                        <label key={m.id} className="flex items-center gap-2 text-xs text-slate-600 hover:text-slate-900 cursor-pointer py-0.5">
+                          <input
+                            type="checkbox"
+                            checked={isExcluded}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              let newList = [...excludeList];
+                              if (checked) {
+                                newList.push(m.id);
+                              } else {
+                                newList = newList.filter(id => id !== m.id);
+                              }
+                              onChange({ excludeUserIds: newList });
+                            }}
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+                          />
+                          <span className="font-medium">{memberName}</span>
+                          <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full capitalize">
+                            {m.role || "Agent"}
+                          </span>
+                        </label>
+                      );
+                    })}
+                    {members.length === 0 && (
+                      <p className="text-[10px] text-slate-400 italic py-1">No agents found</p>
+                    )}
+                  </div>
+                </div>
               </div>
             </>
           )}

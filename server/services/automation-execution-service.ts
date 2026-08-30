@@ -6476,7 +6476,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     const ownerUserId = channel.createdBy || "";
 
     // 3. Find candidates (active & online team members under same tenant)
-    const candidates = await db
+    const rawCandidates = await db
       .select()
       .from(users)
       .where(and(
@@ -6487,6 +6487,15 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
           eq(users.createdBy, ownerUserId)
         )
       ));
+
+    // Exclude specific user IDs if configured in node settings (excludeUserIds)
+    const excludeIds = Array.isArray(node.data?.excludeUserIds) ? node.data.excludeUserIds : [];
+    let candidates = rawCandidates.filter((c) => !excludeIds.includes(c.id));
+
+    // Fallback: If all candidates are excluded, restore to prevent assignment failure
+    if (candidates.length === 0) {
+      candidates = rawCandidates;
+    }
 
     let assignedUserId = ownerUserId;
 

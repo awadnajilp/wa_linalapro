@@ -36,7 +36,7 @@ interface ReminderConfig {
 export default function RemindersLedger() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { activeChannel } = useChannelContext();
+  const { selectedChannel } = useChannelContext();
 
   // Filters
   const [statusFilter, setStatusFilter] = useState("all");
@@ -46,7 +46,7 @@ export default function RemindersLedger() {
 
   React.useEffect(() => {
     setPage(1);
-  }, [statusFilter, searchQuery, activeChannel]);
+  }, [statusFilter, searchQuery, selectedChannel]);
 
   // Modals open state
   const [isReminderOpen, setIsReminderOpen] = useState(false);
@@ -90,10 +90,10 @@ export default function RemindersLedger() {
 
   // Bind active channel when it changes
   React.useEffect(() => {
-    if (activeChannel?.id) {
-      setConfigChannelId(activeChannel.id);
+    if (selectedChannel?.id) {
+      setConfigChannelId(selectedChannel.id);
     }
-  }, [activeChannel?.id]);
+  }, [selectedChannel?.id]);
 
   // Fetch Config
   const { data: config } = useQuery<ReminderConfig>({
@@ -125,14 +125,14 @@ export default function RemindersLedger() {
   }>({
     queryKey: [
       "/api/reminders",
-      activeChannel?.id,
+      selectedChannel?.id,
       statusFilter,
       searchQuery,
       page
     ],
     queryFn: async () => {
       const q = new URLSearchParams();
-      if (activeChannel?.id) q.set("channelId", activeChannel.id);
+      if (selectedChannel?.id) q.set("channelId", selectedChannel.id);
       if (statusFilter !== "all") q.set("status", statusFilter);
       if (searchQuery) q.set("search", searchQuery);
       q.set("page", page.toString());
@@ -142,7 +142,7 @@ export default function RemindersLedger() {
       if (!res.ok) throw new Error("Failed to fetch reminders list");
       return res.json();
     },
-    enabled: !!activeChannel?.id,
+    enabled: !!selectedChannel?.id,
   });
 
   const reminders = data?.data || [];
@@ -200,7 +200,7 @@ export default function RemindersLedger() {
       return;
     }
     createReminderMutation.mutate({
-      channelId: activeChannel?.id,
+      channelId: selectedChannel?.id,
       contactPhone: newPhone,
       contactName: newName || null,
       title: newTitle,
@@ -241,7 +241,7 @@ export default function RemindersLedger() {
           </p>
           <div className="flex items-center gap-2 mt-1.5">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-              Channel: <strong className="text-gray-700 font-bold">{activeChannel?.name || "None Selected"}</strong>
+              Channel: <strong className="text-gray-700 font-bold">{selectedChannel?.name || "None Selected"}</strong>
             </span>
             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
               botActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"

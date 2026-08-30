@@ -21,6 +21,7 @@ import type { Channel } from "@shared/schema";
 interface ChannelContextType {
   selectedChannel: Channel | null;
   setSelectedChannel: (channel: Channel | null) => void;
+  activeChannel: Channel | null;
 }
 
 const ChannelContext = createContext<ChannelContextType | undefined>(undefined);
@@ -29,7 +30,11 @@ export function ChannelProvider({ children }: { children: ReactNode }) {
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
 
   return (
-    <ChannelContext.Provider value={{ selectedChannel, setSelectedChannel }}>
+    <ChannelContext.Provider value={{ 
+      selectedChannel, 
+      setSelectedChannel, 
+      activeChannel: selectedChannel 
+    }}>
       {children}
     </ChannelContext.Provider>
   );

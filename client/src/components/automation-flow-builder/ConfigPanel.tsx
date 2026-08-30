@@ -836,7 +836,7 @@ export function ConfigPanel({
                   <Select value={d.assigneeId || ""} onValueChange={(v) => onChange({ assigneeId: v })}>
                     <SelectTrigger className="h-9 text-sm bg-white rounded-lg"><SelectValue placeholder="Select agent" /></SelectTrigger>
                     <SelectContent>
-                      {members.map((m) => (
+                      {(members || []).map((m) => (
                         <SelectItem key={m.id} value={m.id}>
                           {m.name || `${m.firstName || ""} ${m.lastName || ""}`}
                         </SelectItem>
@@ -907,7 +907,7 @@ export function ConfigPanel({
                     <UserX className="w-3.5 h-3.5 text-indigo-500" /> Exclude Agents (Optional)
                   </Label>
                   <div className="bg-white rounded-lg border border-indigo-100/50 p-2.5 max-h-[140px] overflow-y-auto space-y-1.5 shadow-sm">
-                    {members.map((m) => {
+                    {(members || []).map((m) => {
                       const memberName = m.name || `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.email || "Agent";
                       const excludeList = Array.isArray(d.excludeUserIds) ? d.excludeUserIds : [];
                       const isExcluded = excludeList.includes(m.id);
@@ -936,7 +936,7 @@ export function ConfigPanel({
                         </label>
                       );
                     })}
-                    {members.length === 0 && (
+                    {(members || []).length === 0 && (
                       <p className="text-[10px] text-slate-400 italic py-1">No agents found</p>
                     )}
                   </div>

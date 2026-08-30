@@ -2152,10 +2152,15 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
             }
           } else {
             if (ecomSession) {
-              const firstProfile = await db.query.voiceProfiles.findFirst();
-              if (firstProfile) {
-                voiceProfileId = firstProfile.id;
-                voiceLanguage = "en-IN";
+              voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
+              voiceLanguage = settings.voiceLanguage || chanSettings.voiceLanguage || "en-IN";
+
+              if (!voiceProfileId) {
+                const firstProfile = await db.query.voiceProfiles.findFirst();
+                if (firstProfile) {
+                  voiceProfileId = firstProfile.id;
+                  voiceLanguage = firstProfile.languageCode || voiceLanguage;
+                }
               }
             } else if (node && node.type === "ai_agent" && (node.data as any)?.aiVoiceEnabled === true) {
               const nodeData = node.data as any;

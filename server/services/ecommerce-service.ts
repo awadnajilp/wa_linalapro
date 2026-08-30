@@ -929,12 +929,23 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
           baseURL: endpoint,
         });
         
+        const isIncomingAudio = message?.type === "audio" || (message?.audio && message?.type === "audio");
+        const messages: any[] = [
+          { role: "system", content: basePrompt }
+        ];
+
+        if (isIncomingAudio) {
+          messages.push({
+            role: "system",
+            content: "CRITICAL: The customer spoke to you via a WhatsApp voice note. You MUST respond in the EXACT same language they spoke to you in (e.g. if they spoke in Hindi, respond in Hindi. If they spoke in Arabic, respond in Arabic. If they spoke in French, respond in French). Keep the response conversational and under 80 words."
+          });
+        }
+
+        messages.push({ role: "user", content: input });
+
         const completion = await aiClient.chat.completions.create({
           model: model,
-          messages: [
-            { role: "system", content: basePrompt },
-            { role: "user", content: input }
-          ],
+          messages,
           temperature: 0.7,
           max_tokens: 300
         });
@@ -942,13 +953,25 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         const aiResponse = completion.choices[0]?.message?.content || "Sorry, I am having trouble answering right now.";
         
         // 3. Audio note response check (if the customer's incoming message was an audio note)
-        const isIncomingAudio = message?.type === "audio" || (message?.audio && message?.type === "audio");
         let voiceMediaUrl: string | null = null;
 
         if (isIncomingAudio) {
           try {
-            // Find a voice profile for synthesis (Sarvam, ElevenLabs, etc.)
-            const voiceProfile = await db.query.voiceProfiles.findFirst();
+            // Find a voice profile for synthesis dynamically
+            let voiceProfileId = activeAI?.voiceProfileId || channelRow.inboxAiSettings?.voiceProfileId;
+            let voiceProfile = null;
+            if (voiceProfileId) {
+              const [found] = await db
+                .select()
+                .from(schema.voiceProfiles)
+                .where(eq(schema.voiceProfiles.id, voiceProfileId))
+                .limit(1);
+              voiceProfile = found;
+            }
+            if (!voiceProfile) {
+              voiceProfile = await db.query.voiceProfiles.findFirst();
+            }
+
             if (voiceProfile) {
               console.log(`🎙️ [Ecommerce AI] Synthesizing speech via ${voiceProfile.provider}...`);
               const pInstance = VoiceManager.getProvider(voiceProfile.provider);
@@ -963,7 +986,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
               const audioBuffer = await pInstance.synthesize(
                 aiResponse,
                 voiceProfile.voiceId || "anushka",
-                "en-IN",
+                voiceProfile.languageCode || "en-IN",
                 { apiKey: synthesizeKey }
               );
 

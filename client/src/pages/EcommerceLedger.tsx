@@ -89,6 +89,18 @@ const countriesList = [
   { code: "IN", name: "India" },
   { code: "SA", name: "Saudi Arabia" },
   { code: "AE", name: "United Arab Emirates" },
+  { code: "BH", name: "Bahrain" },
+  { code: "QA", name: "Qatar" },
+  { code: "KW", name: "Kuwait" },
+  { code: "OM", name: "Oman" },
+  { code: "EG", name: "Egypt" },
+  { code: "MA", name: "Morocco" },
+  { code: "GB", name: "United Kingdom" },
+  { code: "FR", name: "France" },
+  { code: "DE", name: "Germany" },
+  { code: "ES", name: "Spain" },
+  { code: "PT", name: "Portugal" },
+  { code: "BR", name: "Brazil" },
   { code: "US", name: "United States" }
 ];
 
@@ -106,6 +118,42 @@ const countryStates: Record<string, string[]> = {
   ],
   AE: [
     "Abu Dhabi", "Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"
+  ],
+  BH: [
+    "Capital Governorate", "Muharraq Governorate", "Northern Governorate", "Southern Governorate"
+  ],
+  QA: [
+    "Doha", "Al Rayyan", "Al Wakra", "Al Khor", "Al Daayen", "Al Shahaniya", "Umm Salal", "Madinat ash Shamal"
+  ],
+  KW: [
+    "Capital", "Hawalli", "Farwaniya", "Ahmadi", "Jahra", "Mubarak Al-Kabeer"
+  ],
+  OM: [
+    "Muscat", "Dhofar", "Musandam", "Buraimi", "Ad Dakhiliyah", "Al Batinah North", "Al Batinah South", "Al Wusta", "Ash Sharqiyah North", "Ash Sharqiyah South", "Ad Dhahirah"
+  ],
+  EG: [
+    "Cairo", "Alexandria", "Giza", "Qalyubia", "Gharbia", "Dakahlia", "Monufia", "Sharqia", "Beheira", "Damietta", "Kafr El Sheikh", "Matrouh", "Port Said", "Ismailia", "Suez", "North Sinai", "South Sinai", "Fayoum", "Beni Suef", "Minya", "Assiut", "Sohag", "Qena", "Luxor", "Aswan", "Red Sea", "New Valley"
+  ],
+  MA: [
+    "Tanger-Tetouan-Al Hoceima", "Oriental", "Fes-Meknes", "Rabat-Sale-Kenitra", "Beni Mellal-Khenifra", "Casablanca-Settat", "Marrakesh-Safi", "Draa-Tafilalet", "Souss-Massa", "Guelmim-Oued Noun", "Laayoune-Sakia El Hamra", "Dakhla-Oued Ed-Dahab"
+  ],
+  GB: [
+    "England", "Scotland", "Wales", "Northern Ireland"
+  ],
+  FR: [
+    "Auvergne-Rhone-Alpes", "Bourgogne-Franche-Comte", "Brittany", "Centre-Val de Loire", "Corsica", "Grand Est", "Hauts-de-France", "Ile-de-France", "Normandy", "Nouvelle-Aquitaine", "Occitanie", "Pays de la Loire", "Provence-Alpes-Cote d'Azur"
+  ],
+  DE: [
+    "Baden-Württemberg", "Bavaria", "Berlin", "Brandenburg", "Bremen", "Hamburg", "Hesse", "Lower Saxony", "Mecklenburg-Vorpommern", "North Rhine-Westphalia", "Rhineland-Palatinate", "Saarland", "Saxony", "Saxony-Anhalt", "Schleswig-Holstein", "Thuringia"
+  ],
+  ES: [
+    "Andalusia", "Aragon", "Asturias", "Balearic Islands", "Basque Country", "Canary Islands", "Cantabria", "Castile and Leon", "Castile-La Mancha", "Catalonia", "Extremadura", "Galicia", "La Rioja", "Madrid", "Murcia", "Navarre", "Valencian Community", "Ceuta", "Melilla"
+  ],
+  PT: [
+    "Aveiro", "Beja", "Braga", "Braganca", "Castelo Branco", "Coimbra", "Evora", "Faro", "Guarda", "Leiria", "Lisbon", "Portalegre", "Porto", "Santarem", "Setubal", "Viana do Castelo", "Vila Real", "Viseu", "Azores", "Madeira"
+  ],
+  BR: [
+    "Acre", "Alagoas", "Amapa", "Amazonas", "Bahia", "Ceara", "Distrito Federal", "Espirito Santo", "Goias", "Maranhao", "Mato Grosso", "Mato Grosso do Sul", "Minas Gerais", "Para", "Paraiba", "Parana", "Pernambuco", "Piaui", "Rio de Janeiro", "Rio Grande do Norte", "Rio Grande do Sul", "Rondonia", "Roraima", "Santa Catarina", "Sao Paulo", "Sergipe", "Tocantins"
   ],
   US: [
     "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware", 

@@ -243,6 +243,7 @@ router.get(
           channelId: users.channelId,
           showOnlyAssigned: users.showOnlyAssigned,
           isAdminMember: users.isAdminMember,
+          roundRobinCapacity: users.roundRobinCapacity,
         })
         .from(users)
         .where(
@@ -328,6 +329,7 @@ router.post("/membersByUserId", requireAuth, requirePermission(PERMISSIONS.TEAM_
         channelId: users.channelId,
         showOnlyAssigned: users.showOnlyAssigned,
         isAdminMember: users.isAdminMember,
+        roundRobinCapacity: users.roundRobinCapacity,
       })
       .from(users)
       .where(eq(users.createdBy, userId))
@@ -469,7 +471,7 @@ router.put(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { channelId, showOnlyAssigned, isAdminMember, ...otherUpdates } = req.body;
+      const { channelId, showOnlyAssigned, isAdminMember, roundRobinCapacity, ...otherUpdates } = req.body;
       const loggedInUser = req.user as any;
 
       const [existingMember] = await db.select().from(users).where(eq(users.id, id));
@@ -504,6 +506,7 @@ router.put(
           ...(channelId !== undefined ? { channelId: channelId || null } : {}),
           ...(showOnlyAssigned !== undefined ? { showOnlyAssigned } : {}),
           ...(isAdminMember !== undefined ? { isAdminMember } : {}),
+          ...(roundRobinCapacity !== undefined ? { roundRobinCapacity: parseInt(String(roundRobinCapacity)) || 0 } : {}),
           updatedAt: new Date(),
         })
         .where(eq(users.id, id))

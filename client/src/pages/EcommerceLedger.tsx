@@ -99,10 +99,17 @@ export default function EcommerceLedger() {
   const [search, setSearch] = useState("");
   const [orderStatus, setOrderStatus] = useState("all");
   const [paymentStatus, setPaymentStatus] = useState("all");
+  const [orderStartDate, setOrderStartDate] = useState("");
+  const [orderEndDate, setOrderEndDate] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
   const [page, setPage] = useState(1);
   const [productsPage, setProductsPage] = useState(1);
   const [customersPage, setCustomersPage] = useState(1);
   const limit = 10;
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [search, orderStatus, paymentStatus, orderStartDate, orderEndDate]);
 
   // Product Form states
   const [prodName, setProdName] = useState("");
@@ -257,7 +264,7 @@ export default function EcommerceLedger() {
 
   // 3. Fetch Orders
   const { data: ordersData, isLoading: isOrdersLoading } = useQuery<{ orders: Order[]; total: number }>({
-    queryKey: ["/api/ecommerce/orders", search, orderStatus, paymentStatus, page],
+    queryKey: ["/api/ecommerce/orders", search, orderStatus, paymentStatus, orderStartDate, orderEndDate, page],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: String(page),
@@ -266,6 +273,9 @@ export default function EcommerceLedger() {
         status: orderStatus,
         paymentStatus,
       });
+      if (orderStartDate) params.set("startDate", orderStartDate);
+      if (orderEndDate) params.set("endDate", orderEndDate);
+
       const res = await fetch(`/api/ecommerce/orders?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch orders");
       return res.json();
@@ -454,6 +464,87 @@ export default function EcommerceLedger() {
     }
 
     saveProductMutation.mutate(payload);
+  };
+
+  const handleExportOrders = async () => {
+    try {
+      setIsExporting(true);
+      const params = new URLSearchParams({
+        search,
+        status: orderStatus,
+        paymentStatus,
+        export: "true"
+      });
+      if (orderStartDate) params.set("startDate", orderStartDate);
+      if (orderEndDate) params.set("endDate", orderEndDate);
+
+      const res = await fetch(`/api/ecommerce/orders?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to download export data");
+      
+      const { orders } = await res.json();
+      
+      // Convert to CSV
+      const headers = [
+        "Order Number",
+        "Date",
+        "Customer Name",
+        "Customer Phone",
+        "Product Name",
+        "Quantity",
+        "Price",
+        "Total Amount",
+        "Payment Method",
+        "Payment Status",
+        "Order Status",
+        "Address",
+        "PIN Code"
+      ];
+      
+      const rows = orders.map((o: any) => [
+        o.orderNumber,
+        new Date(o.createdAt).toLocaleString(),
+        o.customerName || "",
+        o.customerPhone,
+        o.productName || "",
+        o.quantity,
+        o.price,
+        o.totalAmount,
+        o.paymentMethod,
+        o.paymentStatus,
+        o.status,
+        o.customerData?.address || "",
+        o.customerData?.pin || ""
+      ]);
+      
+      const csvContent = [
+        headers.join(","),
+        ...rows.map((row: any[]) => 
+          row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")
+        )
+      ].join("\n");
+      
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `orders_export_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Export Success",
+        description: `Successfully exported ${orders.length} orders to Excel/CSV.`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Export Failed",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleConfigSubmit = (e: React.FormEvent) => {
@@ -819,20 +910,39 @@ export default function EcommerceLedger() {
         {/* 2. ORDERS TAB */}
         <TabsContent value="orders">
           <Card>
-            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0">
+            <CardHeader className="flex flex-col lg:flex-row items-start lg:items-center justify-between space-y-4 lg:space-y-0 gap-4">
               <div>
                 <CardTitle>Orders Ledger</CardTitle>
                 <CardDescription>Manage status updates, trace payment receipts, and dispatch notifications.</CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="date"
+                    className="w-[125px] h-9 text-xs"
+                    value={orderStartDate}
+                    onChange={(e) => setOrderStartDate(e.target.value)}
+                    placeholder="Start Date"
+                    title="Start Date"
+                  />
+                  <span className="text-gray-400 text-xs">to</span>
+                  <Input
+                    type="date"
+                    className="w-[125px] h-9 text-xs"
+                    value={orderEndDate}
+                    onChange={(e) => setOrderEndDate(e.target.value)}
+                    placeholder="End Date"
+                    title="End Date"
+                  />
+                </div>
                 <Input
-                  className="max-w-xs h-9"
-                  placeholder="Search order no, phone..."
+                  className="max-w-[200px] h-9 text-xs"
+                  placeholder="Search order, phone..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
                 <Select value={orderStatus} onValueChange={setOrderStatus}>
-                  <SelectTrigger className="w-[140px] h-9">
+                  <SelectTrigger className="w-[120px] h-9 text-xs">
                     <SelectValue placeholder="Order Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -845,7 +955,7 @@ export default function EcommerceLedger() {
                   </SelectContent>
                 </Select>
                 <Select value={paymentStatus} onValueChange={setPaymentStatus}>
-                  <SelectTrigger className="w-[140px] h-9">
+                  <SelectTrigger className="w-[120px] h-9 text-xs">
                     <SelectValue placeholder="Payment" />
                   </SelectTrigger>
                   <SelectContent>
@@ -857,6 +967,16 @@ export default function EcommerceLedger() {
                     <SelectItem value="failed">Failed</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportOrders}
+                  disabled={isExporting || isOrdersLoading}
+                  className="flex items-center gap-1.5 h-9 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                >
+                  <Download className="w-4 h-4" />
+                  {isExporting ? "Exporting..." : "Export Excel"}
+                </Button>
               </div>
             </CardHeader>
             <CardContent>

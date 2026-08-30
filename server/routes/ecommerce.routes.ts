@@ -1,7 +1,7 @@
 import { Express, Request, Response } from "express";
 import { db } from "../db";
 import * as schema from "@shared/schema";
-import { eq, and, desc, sql, like } from "drizzle-orm";
+import { eq, and, desc, sql, like, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { EcommerceService } from "../services/ecommerce-service";
 
@@ -367,12 +367,12 @@ export function registerEcommerceRoutes(app: Express) {
   // ORDERS
   // ============================================================
 
-  // Get orders list with search & filters
+  // Get orders list with search, date filters, and export
   app.get("/api/ecommerce/orders", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
-      const { search, status, paymentStatus, page = "1", limit = "10" } = req.query;
+      const { search, status, paymentStatus, startDate, endDate, export: isExport, page = "1", limit = "10" } = req.query;
 
       const pageNum = parseInt(page as string) || 1;
       const limitNum = parseInt(limit as string) || 10;
@@ -385,6 +385,14 @@ export function registerEcommerceRoutes(app: Express) {
       }
       if (paymentStatus && paymentStatus !== "all") {
         conditions.push(eq(schema.ecommerceOrders.paymentStatus, String(paymentStatus)));
+      }
+      if (startDate) {
+        conditions.push(gte(schema.ecommerceOrders.createdAt, new Date(startDate as string)));
+      }
+      if (endDate) {
+        const end = new Date(endDate as string);
+        end.setHours(23, 59, 59, 999);
+        conditions.push(lte(schema.ecommerceOrders.createdAt, end));
       }
       if (search) {
         conditions.push(
@@ -404,13 +412,17 @@ export function registerEcommerceRoutes(app: Express) {
       const total = parseInt(String(countResult?.count || "0"));
 
       // Fetch list
-      const list = await db
+      let queryBuilder = db
         .select()
         .from(schema.ecommerceOrders)
         .where(and(...conditions))
-        .orderBy(desc(schema.ecommerceOrders.createdAt))
-        .limit(limitNum)
-        .offset(offset);
+        .orderBy(desc(schema.ecommerceOrders.createdAt));
+
+      if (isExport !== "true") {
+        queryBuilder = queryBuilder.limit(limitNum).offset(offset) as any;
+      }
+
+      const list = await queryBuilder;
 
       res.json({
         orders: list,

@@ -268,7 +268,9 @@ export class AiAssistantProfileService {
       } else {
         const aiClient = new OpenAI({
           apiKey: finalApiKey,
-          baseURL: isGroq ? "https://api.groq.com/openai/v1" : "https://api.openai.com/v1",
+          baseURL: isSarvam
+            ? "https://api.sarvam.ai/v1"
+            : (isGroq ? "https://api.groq.com/openai/v1" : "https://api.openai.com/v1"),
         });
 
         const messagesToSend = [
@@ -276,7 +278,7 @@ export class AiAssistantProfileService {
           ...chatHistory,
         ];
 
-        const finalModel = profile.model || (isGroq ? "llama-3.3-70b-versatile" : "gpt-4o");
+        const finalModel = profile.model || (isSarvam ? "sarvam-105b-conversations" : (isGroq ? "llama-3.3-70b-versatile" : "gpt-4o"));
 
         const completion = await aiClient.chat.completions.create({
           model: finalModel,

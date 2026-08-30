@@ -287,6 +287,10 @@ export function registerEcommerceRoutes(app: Express) {
         defaultDeliveryFee,
         stateDeliveryFees,
         storeCountry,
+        labelCod,
+        labelUpiDirect,
+        labelQrPay,
+        labelGateway,
         isActive
       } = req.body;
 
@@ -338,6 +342,10 @@ export function registerEcommerceRoutes(app: Express) {
             defaultDeliveryFee: String(defaultDeliveryFee || "0"),
             stateDeliveryFees: stateDeliveryFees || {},
             storeCountry: storeCountry || "IN",
+            labelCod: labelCod || "Cash on Delivery (COD)",
+            labelUpiDirect: labelUpiDirect || "UPI Direct Mobile Pay",
+            labelQrPay: labelQrPay || "UPI (Pay via QR Code)",
+            labelGateway: labelGateway || "Online Payment",
             isActive: isActive !== undefined ? isActive : true,
             updatedAt: new Date()
           })
@@ -379,6 +387,10 @@ export function registerEcommerceRoutes(app: Express) {
             defaultDeliveryFee: String(defaultDeliveryFee || "0"),
             stateDeliveryFees: stateDeliveryFees || {},
             storeCountry: storeCountry || "IN",
+            labelCod: labelCod || "Cash on Delivery (COD)",
+            labelUpiDirect: labelUpiDirect || "UPI Direct Mobile Pay",
+            labelQrPay: labelQrPay || "UPI (Pay via QR Code)",
+            labelGateway: labelGateway || "Online Payment",
             isActive: isActive !== undefined ? isActive : true
           })
           .returning();
@@ -501,6 +513,14 @@ export function registerEcommerceRoutes(app: Express) {
         await EcommerceService.sendOrderStatusUpdateNotification(updated.id, status);
       }
 
+      if (paymentStatus === "paid" && existing.paymentStatus !== "paid") {
+        try {
+          await EcommerceService.sendInvoiceToCustomer(updated.id);
+        } catch (e) {
+          console.error("Failed to send customer invoice:", e);
+        }
+      }
+
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -570,6 +590,14 @@ export function registerEcommerceRoutes(app: Express) {
           await EcommerceService.sendOrderStatusUpdateNotification(updated.id, status);
         } catch (e) {
           console.error("Failed to send order status update notification:", e);
+        }
+      }
+
+      if (paymentStatus === "paid" && existing.paymentStatus !== "paid") {
+        try {
+          await EcommerceService.sendInvoiceToCustomer(updated.id);
+        } catch (e) {
+          console.error("Failed to send customer invoice:", e);
         }
       }
 

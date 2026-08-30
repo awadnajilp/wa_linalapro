@@ -286,6 +286,10 @@ export default function EcommerceLedger() {
   const [defaultDeliveryFee, setDefaultDeliveryFee] = useState("0");
   const [stateDeliveryFees, setStateDeliveryFees] = useState<Record<string, string>>({});
   const [storeCountry, setStoreCountry] = useState("IN");
+  const [labelCod, setLabelCod] = useState("Cash on Delivery (COD)");
+  const [labelUpiDirect, setLabelUpiDirect] = useState("UPI Direct Mobile Pay");
+  const [labelQrPay, setLabelQrPay] = useState("UPI (Pay via QR Code)");
+  const [labelGateway, setLabelGateway] = useState("Online Payment");
   const [selectedStateOverride, setSelectedStateOverride] = useState("");
   const [overrideFeeInput, setOverrideFeeInput] = useState("");
 
@@ -347,6 +351,10 @@ export default function EcommerceLedger() {
       setDefaultDeliveryFee((config as any).defaultDeliveryFee || "0");
       setStateDeliveryFees((config as any).stateDeliveryFees || {});
       setStoreCountry((config as any).storeCountry || "IN");
+      setLabelCod((config as any).labelCod || "Cash on Delivery (COD)");
+      setLabelUpiDirect((config as any).labelUpiDirect || "UPI Direct Mobile Pay");
+      setLabelQrPay((config as any).labelQrPay || "UPI (Pay via QR Code)");
+      setLabelGateway((config as any).labelGateway || "Online Payment");
 
       // Standardize loaded checkoutFields Q&A objects
       if (Array.isArray(config.checkoutFields)) {
@@ -705,6 +713,10 @@ export default function EcommerceLedger() {
       defaultDeliveryFee,
       stateDeliveryFees,
       storeCountry,
+      labelCod,
+      labelUpiDirect,
+      labelQrPay,
+      labelGateway,
       isActive: configActive,
     };
 
@@ -1628,6 +1640,52 @@ export default function EcommerceLedger() {
                           <option value="QAR">QAR (QAR)</option>
                           <option value="OMR">OMR (OMR)</option>
                         </select>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-emerald-100/50 pt-4 mt-4 space-y-3">
+                      <h4 className="font-semibold text-sm text-slate-700">💳 Custom Payment Option Labels</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="labelCod">Cash on Delivery (COD) Label</Label>
+                          <Input
+                            id="labelCod"
+                            value={labelCod}
+                            onChange={(e) => setLabelCod(e.target.value)}
+                            placeholder="e.g. Cash on Delivery (COD)"
+                            className="h-9 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="labelUpiDirect">UPI Direct Pay Label</Label>
+                          <Input
+                            id="labelUpiDirect"
+                            value={labelUpiDirect}
+                            onChange={(e) => setLabelUpiDirect(e.target.value)}
+                            placeholder="e.g. UPI Direct Mobile Pay"
+                            className="h-9 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="labelQrPay">UPI QR Code Pay Label</Label>
+                          <Input
+                            id="labelQrPay"
+                            value={labelQrPay}
+                            onChange={(e) => setLabelQrPay(e.target.value)}
+                            placeholder="e.g. UPI (Pay via QR Code)"
+                            className="h-9 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="labelGateway">Online Gateway Pay Label</Label>
+                          <Input
+                            id="labelGateway"
+                            value={labelGateway}
+                            onChange={(e) => setLabelGateway(e.target.value)}
+                            placeholder="e.g. Online Payment"
+                            className="h-9 text-xs"
+                          />
+                        </div>
                       </div>
                     </div>
 

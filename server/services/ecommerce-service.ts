@@ -1,6 +1,6 @@
 import { db } from "../db";
 import * as schema from "@shared/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import OpenAI from "openai";
 import * as path from "path";
 import * as fs from "fs";
@@ -18,6 +18,69 @@ export class EcommerceService {
    */
   public static async isEcommerceActive(tenantId: string): Promise<boolean> {
     return await AddonManager.isAddonActive(tenantId, "ecommerce");
+  }
+
+  /**
+   * Resolve media buffer from local path, S3/DigitalOcean bucket, or remote HTTP URL.
+   */
+  public static async resolveMediaBuffer(urlOrPath: string): Promise<Buffer> {
+    const isLocal = !urlOrPath.startsWith("http://") && !urlOrPath.startsWith("https://");
+    
+    if (isLocal) {
+      const cleanPath = urlOrPath.startsWith("/") ? urlOrPath.substring(1) : urlOrPath;
+      const resolvedPath = path.resolve(cleanPath);
+      if (fs.existsSync(resolvedPath)) {
+        console.log(`[EcommerceService.resolveMediaBuffer] Reading local file: ${resolvedPath}`);
+        return fs.readFileSync(resolvedPath);
+      } else {
+        throw new Error(`Local file not found at path: ${resolvedPath}`);
+      }
+    }
+
+    const remoteUrl = urlOrPath.replace(/ /g, "%20");
+
+    try {
+      const { createDOClient } = await import('../config/digitalOceanConfig');
+      const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+      
+      const doClient = await createDOClient();
+      if (doClient) {
+        const { s3, bucket, endpoint } = doClient;
+        const isOurBucket = remoteUrl.includes(bucket) || (endpoint && remoteUrl.includes(new URL(endpoint).host));
+        
+        if (isOurBucket) {
+          let key = "";
+          if (remoteUrl.includes(`/${bucket}/`)) {
+            key = remoteUrl.substring(remoteUrl.indexOf(`/${bucket}/`) + bucket.length + 2);
+          } else {
+            const parsedUrl = new URL(remoteUrl);
+            key = parsedUrl.pathname.replace(/^\/+/, "");
+          }
+          key = decodeURIComponent(key);
+          
+          console.log(`[EcommerceService.resolveMediaBuffer] Cloud storage match found! Downloading object: ${key}`);
+          const response = await s3.send(
+            new GetObjectCommand({
+              Bucket: bucket,
+              Key: key,
+            })
+          );
+          if (response.Body) {
+            const byteArray = await response.Body.transformToByteArray();
+            return Buffer.from(byteArray);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[EcommerceService.resolveMediaBuffer] Failed to download from S3, falling back to HTTP fetch:", err);
+    }
+
+    console.log(`[EcommerceService.resolveMediaBuffer] Downloading via Axios: ${remoteUrl}`);
+    const response = await axios.get(remoteUrl, {
+      responseType: 'arraybuffer',
+      timeout: 30000,
+    });
+    return Buffer.from(response.data);
   }
 
   /**
@@ -62,6 +125,20 @@ export class EcommerceService {
     }
 
     return { fee, state: resolvedState };
+  }
+
+  /**
+   * Generate sequential store/tenant based order numbers starting from ORD-1001
+   */
+  public static async generateNextOrderNumber(tenantId: string): Promise<string> {
+    const [result] = await db
+      .select({ count: sql`count(*)` })
+      .from(schema.ecommerceOrders)
+      .where(eq(schema.ecommerceOrders.tenantId, tenantId));
+    
+    const count = parseInt(String(result?.count || "0"), 10);
+    const nextSequence = 1000 + count + 1;
+    return `ORD-${nextSequence}`;
   }
 
   /**
@@ -204,6 +281,21 @@ export class EcommerceService {
             return true;
           }
         }
+      }
+
+      // Check for order tracking trigger keywords
+      if (cleanContent === "track" || cleanContent === "status") {
+        // Delete any active sessions first
+        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+        // Create session in tracking mode
+        await db.insert(schema.ecommerceSessions).values({
+          conversationId,
+          quantity: 1,
+          currentStep: "waiting_for_tracking_ordernumber",
+          customerData: {}
+        });
+        await waApi.sendTextMessage(contactPhone, "🔍 *Order Tracking*\n\nPlease reply with your *Order Number* (e.g. `ORD-123456`) to check its status:");
+        return true;
       }
 
       // Check if there is an active ecommerce session
@@ -584,6 +676,44 @@ export class EcommerceService {
     
     const to = conv?.contactPhone || contactPhone;
 
+    // Tracking Step check
+    if (session.currentStep === "waiting_for_tracking_ordernumber") {
+      const orderNumberUpper = input.trim().toUpperCase();
+      
+      const [order] = await db
+        .select()
+        .from(schema.ecommerceOrders)
+        .where(
+          and(
+            eq(schema.ecommerceOrders.tenantId, config.tenantId),
+            eq(schema.ecommerceOrders.orderNumber, orderNumberUpper)
+          )
+        )
+        .limit(1);
+
+      if (order) {
+        const getStatusEmoji = (status: string) => {
+          switch (status.toLowerCase()) {
+            case "pending": return "⏳";
+            case "processing": return "⚙️";
+            case "shipped": return "🚚";
+            case "delivered": return "✅";
+            case "cancelled": return "❌";
+            default: return "📦";
+          }
+        };
+
+        const statusEmoji = getStatusEmoji(order.status || "");
+        const trackingMsg = `📦 *Order Tracking: ${order.orderNumber}*\nProduct: *${order.productName}* (x${order.quantity})\nTotal Amount: *${order.currency || "INR"} ${order.totalAmount}*\nPayment Mode: *${order.paymentMethod ? order.paymentMethod.toUpperCase() : "N/A"}*\n\nOrder Status: ${statusEmoji} *${(order.status || "pending").toUpperCase()}*\nPayment Status: *${(order.paymentStatus || "pending").toUpperCase()}*\n\nCreated on: _${new Date(order.createdAt).toLocaleDateString()}_`;
+
+        await waApi.sendTextMessage(to, trackingMsg);
+        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+      } else {
+        await waApi.sendTextMessage(to, `❌ Order *${orderNumberUpper}* not found for this store. Please verify your order number and reply again, or send *exit* to cancel tracking.`);
+      }
+      return;
+    }
+
     // Support cancelling/resetting active checkout session
     const cleanInput = input.trim().toLowerCase();
     if (cleanInput === "cancel" || cleanInput === "exit" || cleanInput === "reset") {
@@ -787,18 +917,18 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
 
         // Generate payment options
         const paymentOptions = [];
-        paymentOptions.push({ id: "cod", title: "Cash on Delivery (COD)" });
+        paymentOptions.push({ id: "cod", title: config.labelCod || "Cash on Delivery (COD)" });
         if (config.upiId) {
-          paymentOptions.push({ id: "upi_direct", title: "UPI Direct Mobile Pay" });
+          paymentOptions.push({ id: "upi_direct", title: config.labelUpiDirect || "UPI Direct Mobile Pay" });
         }
         if (config.qrCodeUrl) {
-          paymentOptions.push({ id: "qr_pay", title: "UPI (Pay via QR Code)" });
+          paymentOptions.push({ id: "qr_pay", title: config.labelQrPay || "UPI (Pay via QR Code)" });
         }
         if (
           (config.razorpayKeyId && config.razorpayKeySecret) ||
           (config.instamojoApiKey && config.instamojoAuthToken)
         ) {
-          paymentOptions.push({ id: "gateway", title: "Online Payment" });
+          paymentOptions.push({ id: "gateway", title: config.labelGateway || "Online Payment" });
         }
 
         const promptText = "Please select your preferred checkout payment method:";
@@ -839,18 +969,18 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
       let selectedMethod = "";
 
       const paymentOptions = [];
-      paymentOptions.push({ id: "cod", title: "Cash on Delivery (COD)" });
+      paymentOptions.push({ id: "cod", title: config.labelCod || "Cash on Delivery (COD)" });
       if (config.upiId) {
-        paymentOptions.push({ id: "upi_direct", title: "UPI Direct Mobile Pay" });
+        paymentOptions.push({ id: "upi_direct", title: config.labelUpiDirect || "UPI Direct Mobile Pay" });
       }
       if (config.qrCodeUrl) {
-        paymentOptions.push({ id: "qr_pay", title: "UPI (Pay via QR Code)" });
+        paymentOptions.push({ id: "qr_pay", title: config.labelQrPay || "UPI (Pay via QR Code)" });
       }
       if (
         (config.razorpayKeyId && config.razorpayKeySecret) ||
         (config.instamojoApiKey && config.instamojoAuthToken)
       ) {
-        paymentOptions.push({ id: "gateway", title: "Online Payment" });
+        paymentOptions.push({ id: "gateway", title: config.labelGateway || "Online Payment" });
       }
 
       if (message.interactive?.type === "button_reply") {
@@ -865,13 +995,13 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         } else {
           // Fallback to text matching
           const lowerVal = input.toLowerCase();
-          if (lowerVal.includes("cod") || lowerVal.includes("cash")) {
+          if (lowerVal.includes("cod") || lowerVal.includes("cash") || (config.labelCod && lowerVal.includes(config.labelCod.toLowerCase()))) {
             selectedMethod = "cod";
-          } else if (lowerVal.includes("direct") || lowerVal.includes("mobile")) {
+          } else if (lowerVal.includes("direct") || lowerVal.includes("mobile") || (config.labelUpiDirect && lowerVal.includes(config.labelUpiDirect.toLowerCase()))) {
             selectedMethod = "upi_direct";
-          } else if (lowerVal.includes("qr") || lowerVal.includes("upi")) {
+          } else if (lowerVal.includes("qr") || lowerVal.includes("upi") || (config.labelQrPay && lowerVal.includes(config.labelQrPay.toLowerCase()))) {
             selectedMethod = "qr_pay";
-          } else if (lowerVal.includes("online") || lowerVal.includes("gateway")) {
+          } else if (lowerVal.includes("online") || lowerVal.includes("gateway") || (config.labelGateway && lowerVal.includes(config.labelGateway.toLowerCase()))) {
             selectedMethod = "gateway";
           }
         }
@@ -900,7 +1030,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
 
       if (selectedMethod === "cod") {
         // Complete Order COD
-        const orderNumber = "ORD-" + Math.floor(100000 + Math.random() * 900000);
+        const orderNumber = await this.generateNextOrderNumber(config.tenantId);
         const [order] = await db
           .insert(schema.ecommerceOrders)
           .values({
@@ -947,7 +1077,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
           .where(eq(schema.ecommerceSessions.id, session.id));
 
         // Create the order as pending payment
-        const orderNumber = "ORD-" + Math.floor(100000 + Math.random() * 900000);
+        const orderNumber = await this.generateNextOrderNumber(config.tenantId);
         const [order] = await db
           .insert(schema.ecommerceOrders)
           .values({
@@ -991,7 +1121,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
           .where(eq(schema.ecommerceSessions.id, session.id));
 
         // Create order first
-        const orderNumber = "ORD-" + Math.floor(100000 + Math.random() * 900000);
+        const orderNumber = await this.generateNextOrderNumber(config.tenantId);
         const [order] = await db
           .insert(schema.ecommerceOrders)
           .values({
@@ -1018,7 +1148,16 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
 
         // Send QR code
-        await waApi.sendMediaMessageByUrl(to, config.qrCodeUrl, "image");
+        if (config.qrCodeUrl) {
+          try {
+            await waApi.sendMediaMessageByUrl(to, config.qrCodeUrl, "image");
+          } catch (mediaErr: any) {
+            console.error("[EcommerceService] Failed to send QR code image:", mediaErr.message);
+            await waApi.sendTextMessage(to, `⚠️ Could not display QR code image. Please proceed with payment using details below.`);
+          }
+        } else {
+          await waApi.sendTextMessage(to, `⚠️ No store QR code is uploaded. Please proceed using the instructions below.`);
+        }
         await waApi.sendTextMessage(
           to,
           `Please scan the QR code to pay a total of *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) via GPAY / PhonePe.\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.`
@@ -1030,7 +1169,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
           await waApi.sendTextMessage(to, "Generating your secure online checkout link, please wait...");
           const paymentLinkData = await this.createPaymentLink(config, product, session.quantity, session.customerData?.name || "Customer", to, deliveryFee);
 
-          const orderNumber = "ORD-" + Math.floor(100000 + Math.random() * 900000);
+          const orderNumber = await this.generateNextOrderNumber(config.tenantId);
           const [order] = await db
             .insert(schema.ecommerceOrders)
             .values({
@@ -1111,7 +1250,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
       const deliveryFee = parseFloat(session.customerData?.deliveryFee || "0");
       const baseAmount = parseFloat(product?.price || "0") * session.quantity;
       const totalAmount = baseAmount + deliveryFee;
-      const orderNumber = "ORD-" + Math.floor(100000 + Math.random() * 900000);
+      const orderNumber = await this.generateNextOrderNumber(config.tenantId);
 
       const [order] = await db
         .insert(schema.ecommerceOrders)
@@ -1620,6 +1759,41 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
       console.log(`[EcommerceService] WhatsApp notification status sent to ${order.customerPhone} for order ${order.orderNumber}`);
     } catch (err: any) {
       console.error("[EcommerceService] Failed to send status WhatsApp update:", err.message);
+    }
+  }
+
+  /**
+   * Generate and send customer order invoice PDF over WhatsApp upon successful payment verification.
+   */
+  public static async sendInvoiceToCustomer(orderId: string): Promise<void> {
+    try {
+      const [order] = await db
+        .select()
+        .from(schema.ecommerceOrders)
+        .where(eq(schema.ecommerceOrders.id, orderId))
+        .limit(1);
+
+      if (!order) return;
+
+      const [channel] = await db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, order.channelId || ""))
+        .limit(1);
+
+      if (!channel) return;
+
+      const waApi = new WhatsAppApiService(channel);
+      console.log(`[EcommerceService] Generating and sending invoice PDF for order ${order.orderNumber}...`);
+      const pdfBuffer = await this.generateOrderPdf(order);
+      
+      const fileName = `Invoice_${order.orderNumber}.pdf`;
+      const caption = `📄 *Payment Verified!* Here is your invoice for order *${order.orderNumber}*. Thank you for shopping with us!`;
+
+      await waApi.sendDocumentBuffer(order.customerPhone, pdfBuffer, fileName, caption);
+      console.log(`[EcommerceService] Invoice PDF sent successfully to ${order.customerPhone}!`);
+    } catch (err: any) {
+      console.error(`[EcommerceService] Failed to send invoice PDF to customer:`, err.message);
     }
   }
 

@@ -968,6 +968,33 @@ if (io) {
       }
     }
 
+    // AI Reminders Interceptor for Cloud API
+    if (channel.id && conversation && contact && !isGroupMessage && !automationHandled) {
+      try {
+        const { WebhookHandler } = await import("../services/webhook-handler");
+        const intercepted = await WebhookHandler.interceptReminders(
+          channel.id,
+          [conversation],
+          [contact],
+          {
+            from,
+            type,
+            mediaId: (message as any).image?.id || (message as any).audio?.id || null,
+            image: (message as any).image || null,
+            audio: (message as any).audio || null
+          },
+          messageContent,
+          isGroupMessage,
+          channel
+        );
+        if (intercepted) {
+          automationHandled = true;
+        }
+      } catch (err: any) {
+        console.error("Failed to execute AI Reminders interceptor for Cloud API:", err.message);
+      }
+    }
+
     // AI Ecommerce Interceptor for Cloud API
     if (channel.id && conversation && contact && !isGroupMessage && !automationHandled) {
       try {

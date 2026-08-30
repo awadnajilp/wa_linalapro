@@ -4,6 +4,7 @@ import * as schema from "@shared/schema";
 import { eq, and, or, lte, sql } from "drizzle-orm";
 import { WhatsAppApiService } from "../services/whatsapp-api";
 import { AddonManager } from "../services/addon-manager";
+import { getContactTimezoneOffset } from "../services/reminder-ai-service";
 
 export function startRemindersCron() {
   console.log("⏰ [Reminders Cron] Starting background reminders check job...");
@@ -51,7 +52,14 @@ export function startRemindersCron() {
           if (r.status === "pending" && leadTimeMs > 0 && nowMs >= earlyTimeMs && nowMs < dueTimeMs) {
             console.log(`⏰ [Reminders Cron] Sending early reminder for task: "${r.title}" to ${r.contactPhone}`);
             
-            const dueTimeStr = new Date(r.dueTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const offset = await getContactTimezoneOffset(r.contactPhone, r.channelId);
+            const localDate = new Date(dueTimeMs + offset * 60 * 60 * 1000);
+            const pad = (n: number) => String(n).padStart(2, "0");
+            const hours = localDate.getUTCHours();
+            const minutes = localDate.getUTCMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12;
+            const dueTimeStr = `${displayHours}:${pad(minutes)} ${ampm}`;
             
             await waApi.sendDirectMessage({
               to: r.contactPhone,

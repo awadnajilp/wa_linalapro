@@ -972,6 +972,52 @@ async sendMessage(
     }
   }
 
+  async sendDocumentBuffer(
+    to: string,
+    buffer: Buffer,
+    filename: string,
+    caption?: string
+  ): Promise<any> {
+    if (this.channel.connectionMethod === "qr_code") {
+      const mediaData = {
+        buffer: buffer,
+        mimeType: "application/pdf",
+        filename: filename
+      };
+      return BaileysManager.sendMediaMessage(this.channel.id, to, mediaData, caption || undefined);
+    }
+
+    const mediaId = await this.uploadMediaBufferHeader(buffer, "application/pdf", filename);
+
+    const formattedPhone = this.formatPhoneNumber(to);
+    const body = {
+      messaging_product: "whatsapp",
+      to: formattedPhone,
+      type: "document",
+      document: {
+        id: mediaId,
+        filename,
+        ...(caption ? { caption } : {}),
+      },
+    };
+
+    const response = await fetch(
+      `${this.baseUrl}/${this.channel.phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: this.headers,
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || "Failed to send document message via Meta ID");
+    }
+
+    return await response.json();
+  }
+
   async getPublicMediaUrl(relativePath: string): Promise<string> {
     // Assuming your uploads are served at /uploads endpoint
     // Adjust this based on your server configuration

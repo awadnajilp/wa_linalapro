@@ -94,6 +94,7 @@ export class ExpenseAIService {
           } else if (tenant.sarvamApiKey) {
             apiKey = tenant.sarvamApiKey;
             baseURL = "https://api.sarvam.ai/v1"; // Mock or custom LLM endpoint
+            model = "sarvam-105b-conversations";
           } else {
             // Check if there is an active channel AI setting
             const [aiSetting] = await db

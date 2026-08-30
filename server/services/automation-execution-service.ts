@@ -6154,7 +6154,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         : isSarvamLlm 
         ? "https://api.sarvam.ai/v1"
         : "https://api.openai.com/v1";
-      let finalModel = aiModel || (isGroqLlm ? "llama-3.3-70b-versatile" : isElevenLabsLlm ? "conversational-ai" : "gpt-4o");
+      let finalModel = aiModel || (isGroqLlm ? "llama-3.3-70b-versatile" : isSarvamLlm ? "sarvam-105b-conversations" : isElevenLabsLlm ? "conversational-ai" : "gpt-4o");
 
       if (isElevenLabsLlm) {
         let userKey = "";

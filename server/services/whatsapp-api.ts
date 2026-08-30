@@ -1571,10 +1571,11 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
       }
 
       // Then, download the media content from Meta
-      const response = await fetch(mediaUrl, {
+      const separator = mediaUrl.includes("?") ? "&" : "?";
+      const authenticatedUrl = `${mediaUrl}${separator}access_token=${encodeURIComponent(this.channel.accessToken || "")}`;
+      const response = await fetch(authenticatedUrl, {
         headers: {
-          Authorization: `Bearer ${this.channel.accessToken}`,
-          "User-Agent": "WhatsAppBusinessAPI/1.0",
+          "User-Agent": "curl/7.64.1",
         },
       });
 
@@ -1730,10 +1731,11 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
       return { buffer, mimeType: "audio/ogg" };
     }
 
-    const response = await fetch(mediaUrl, {
+    const separator = mediaUrl.includes("?") ? "&" : "?";
+    const authenticatedUrl = `${mediaUrl}${separator}access_token=${encodeURIComponent(this.channel.accessToken || "")}`;
+    const response = await fetch(authenticatedUrl, {
       headers: {
-        Authorization: `Bearer ${this.channel.accessToken}`,
-        "User-Agent": "WhatsAppBusinessAPI/1.0",
+        "User-Agent": "curl/7.64.1",
       },
     });
 

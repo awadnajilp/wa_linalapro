@@ -205,11 +205,33 @@ export default function EcommerceLedger() {
   const [prodCheckoutLink, setProdCheckoutLink] = useState("");
   const [prodTrigger, setProdTrigger] = useState("");
   const [prodTriggerEnabled, setProdTriggerEnabled] = useState(false);
-  const [prodCurrency, setProdCurrency] = useState("INR");
 
   // Gallery Dialog states
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [galleryTarget, setGalleryTarget] = useState<any>("product");
+
+  const getCurrencySymbol = (currencyCode: string | null | undefined) => {
+    const code = currencyCode || storeCurrency || "INR";
+    const symbols: Record<string, string> = {
+      USD: "$",
+      EUR: "€",
+      GBP: "£",
+      AED: "AED",
+      SAR: "SAR",
+      INR: "₹",
+      AUD: "A$",
+      CAD: "C$",
+      JPY: "¥",
+      SGD: "S$",
+      QAR: "QAR",
+      OMR: "OMR",
+      BHD: "BHD",
+      KWD: "KWD",
+      EGP: "EGP",
+      MAD: "MAD"
+    };
+    return symbols[code] || code;
+  };
 
   const getPreviewUrl = (url: string | null | undefined) => {
     if (!url) return "";
@@ -522,7 +544,6 @@ export default function EcommerceLedger() {
     setProdCheckoutLink("");
     setProdTrigger("");
     setProdTriggerEnabled(false);
-    setProdCurrency("INR");
   };
 
   const handleEditProductClick = (product: any) => {
@@ -540,7 +561,6 @@ export default function EcommerceLedger() {
     setProdCheckoutLink(product.checkoutLink || "");
     setProdTrigger(product.triggerKeyword || "");
     setProdTriggerEnabled(product.isTriggerEnabled);
-    setProdCurrency(product.currency || "INR");
     setIsProductModalOpen(true);
   };
 
@@ -556,7 +576,7 @@ export default function EcommerceLedger() {
       checkoutLink: prodCheckoutLink,
       triggerKeyword: prodTrigger,
       isTriggerEnabled: prodTriggerEnabled,
-      currency: prodCurrency,
+      currency: storeCurrency,
     };
 
     if (editingProduct) {
@@ -769,40 +789,20 @@ export default function EcommerceLedger() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="price">Price *</Label>
+              <div className="space-y-1">
+                <Label htmlFor="price">Price *</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs text-gray-500 font-semibold">{storeCurrency}</span>
                   <Input
                     id="price"
                     type="number"
                     step="0.01"
                     value={prodPrice}
                     onChange={(e) => setProdPrice(e.target.value)}
-                    placeholder="e.g. 29.99"
+                    placeholder="0.00"
+                    className="pl-12 text-xs h-9"
                     required
                   />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="prodCurrency">Currency *</Label>
-                  <select
-                    id="prodCurrency"
-                    value={prodCurrency}
-                    onChange={(e) => setProdCurrency(e.target.value)}
-                    className="w-full border rounded p-2 text-sm bg-white"
-                  >
-                    <option value="INR">INR (₹)</option>
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="GBP">GBP (£)</option>
-                    <option value="AED">AED (AED)</option>
-                    <option value="SAR">SAR (SAR)</option>
-                    <option value="AUD">AUD (A$)</option>
-                    <option value="CAD">CAD (C$)</option>
-                    <option value="JPY">JPY (¥)</option>
-                    <option value="SGD">SGD (S$)</option>
-                    <option value="QAR">QAR (QAR)</option>
-                    <option value="OMR">OMR (OMR)</option>
-                  </select>
                 </div>
               </div>
 
@@ -982,7 +982,7 @@ export default function EcommerceLedger() {
                             </TableCell>
                             <TableCell className="font-semibold">{prod.name}</TableCell>
                             <TableCell className="text-emerald-600 font-medium">
-                              {(prod as any).currency || "INR"} {prod.price}
+                              {getCurrencySymbol(prod.currency)} {prod.price}
                             </TableCell>
                             <TableCell>
                               {prod.isTriggerEnabled ? (
@@ -1198,7 +1198,7 @@ export default function EcommerceLedger() {
                             <div className="text-sm font-medium">{order.productName}</div>
                             <div className="text-xs text-gray-400">Qty: {order.quantity}</div>
                           </TableCell>
-                          <TableCell className="font-medium">${order.totalAmount}</TableCell>
+                          <TableCell className="font-medium">{getCurrencySymbol(order.currency)} {order.totalAmount}</TableCell>
                           <TableCell className="uppercase text-xs">{order.paymentMethod}</TableCell>
                           <TableCell>
                             <select
@@ -2145,32 +2145,40 @@ You are chatting with a customer regarding this product:
             </div>
             <div className="space-y-1">
               <Label htmlFor="editOrderAmount">Total Amount</Label>
-              <Input
-                id="editOrderAmount"
-                type="number"
-                step="0.01"
-                value={editOrderAmount}
-                onChange={(e) => setEditOrderAmount(e.target.value)}
-                placeholder="Total Amount"
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-xs text-gray-500 font-semibold">{storeCurrency}</span>
+                <Input
+                  id="editOrderAmount"
+                  type="number"
+                  step="0.01"
+                  value={editOrderAmount}
+                  onChange={(e) => setEditOrderAmount(e.target.value)}
+                  placeholder="Total Amount"
+                  className="pl-12 text-xs h-9"
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <Label htmlFor="editOrderPrice">Price</Label>
-                <Input
-                  id="editOrderPrice"
-                  type="number"
-                  step="0.01"
-                  value={editOrderPrice}
-                  onChange={(e) => {
-                    const newPrice = e.target.value;
-                    setEditOrderPrice(newPrice);
-                    const qtyVal = parseFloat(editOrderQty) || 1;
-                    const priceVal = parseFloat(newPrice) || 0;
-                    setEditOrderAmount(String((qtyVal * priceVal).toFixed(2)));
-                  }}
-                  placeholder="Price"
-                />
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs text-gray-500 font-semibold">{storeCurrency}</span>
+                  <Input
+                    id="editOrderPrice"
+                    type="number"
+                    step="0.01"
+                    value={editOrderPrice}
+                    onChange={(e) => {
+                      const newPrice = e.target.value;
+                      setEditOrderPrice(newPrice);
+                      const qtyVal = parseFloat(editOrderQty) || 1;
+                      const priceVal = parseFloat(newPrice) || 0;
+                      setEditOrderAmount(String((qtyVal * priceVal).toFixed(2)));
+                    }}
+                    placeholder="Price"
+                    className="pl-12 text-xs h-9"
+                  />
+                </div>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="editOrderQty">Quantity</Label>

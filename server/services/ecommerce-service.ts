@@ -917,7 +917,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
             quantity: session.quantity,
             deliveryFee: String(deliveryFee),
             totalAmount: String(totalAmount),
-            currency: (product as any).currency || "INR",
+            currency: config.currency || "INR",
             paymentMethod: "cod",
             paymentStatus: "pending",
             status: "pending"
@@ -931,7 +931,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         // Send confirmation WhatsApp message
         await waApi.sendTextMessage(
           to,
-          `🎉 *Order Placed Successfully!*\n\nOrder Number: *${orderNumber}*\nProduct: *${product.name}* (x${session.quantity})\nDelivery Fee: *${(product as any).currency || "INR"} ${deliveryFee}*\nTotal Amount: *${(product as any).currency || "INR"} ${totalAmount}*\nPayment Mode: *Cash on Delivery (COD)*\n\nWe will update you as soon as your order status changes!`
+          `🎉 *Order Placed Successfully!*\n\nOrder Number: *${orderNumber}*\nProduct: *${product.name}* (x${session.quantity})\nDelivery Fee: *${config.currency || "INR"} ${deliveryFee}*\nTotal Amount: *${config.currency || "INR"} ${totalAmount}*\nPayment Mode: *Cash on Delivery (COD)*\n\nWe will update you as soon as your order status changes!`
         );
 
         // Send email with PDF to merchant
@@ -964,7 +964,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
             quantity: session.quantity,
             deliveryFee: String(deliveryFee),
             totalAmount: String(totalAmount),
-            currency: (product as any).currency || "INR",
+            currency: config.currency || "INR",
             paymentMethod: "upi_direct",
             paymentStatus: "pending_verification",
             status: "pending"
@@ -978,7 +978,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
 
         await waApi.sendTextMessage(
           to,
-          `📱 *UPI Mobile Direct Pay*\n\nTo pay *${(product as any).currency || "INR"} ${totalAmount}* (includes delivery fee: *${(product as any).currency || "INR"} ${deliveryFee}*) directly using GPay / PhonePe / Paytm:\n\n👉 *Click here to Pay:* ${redirectUrl}\n\nOnce paid, *please send the receipt/payment screenshot here* to verify and complete your order.`
+          `📱 *UPI Mobile Direct Pay*\n\nTo pay *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) directly using GPay / PhonePe / Paytm:\n\n👉 *Click here to Pay:* ${redirectUrl}\n\nOnce paid, *please send the receipt/payment screenshot here* to verify and complete your order.`
         );
       }
       else if (selectedMethod === "qr_pay") {
@@ -1008,7 +1008,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
             quantity: session.quantity,
             deliveryFee: String(deliveryFee),
             totalAmount: String(totalAmount),
-            currency: (product as any).currency || "INR",
+            currency: config.currency || "INR",
             paymentMethod: "qr_pay",
             paymentStatus: "pending_verification",
             status: "pending"
@@ -1021,7 +1021,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         await waApi.sendMediaMessageByUrl(to, config.qrCodeUrl, "image");
         await waApi.sendTextMessage(
           to,
-          `Please scan the QR code to pay a total of *${(product as any).currency || "INR"} ${totalAmount}* (includes delivery fee: *${(product as any).currency || "INR"} ${deliveryFee}*) via GPAY / PhonePe.\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.`
+          `Please scan the QR code to pay a total of *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) via GPAY / PhonePe.\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.`
         );
       } 
       else if (selectedMethod === "gateway") {
@@ -1047,7 +1047,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
               quantity: session.quantity,
               deliveryFee: String(deliveryFee),
               totalAmount: String(totalAmount),
-              currency: (product as any).currency || "INR",
+              currency: config.currency || "INR",
               paymentMethod: "gateway",
               paymentStatus: "pending_payment",
               paymentGateway: paymentLinkData.gateway,
@@ -1062,7 +1062,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
 
           await waApi.sendTextMessage(
             to,
-            `🔗 *Complete Your Payment*\n\nOrder Number: *${orderNumber}*\nTotal Amount: *${(product as any).currency || "INR"} ${totalAmount}* (includes delivery fee: *${(product as any).currency || "INR"} ${deliveryFee}*)\n\nPlease complete your payment using this secure link:\n${paymentLinkData.url}\n\nYour order will be verified automatically once paid.`
+            `🔗 *Complete Your Payment*\n\nOrder Number: *${orderNumber}*\nTotal Amount: *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*)\n\nPlease complete your payment using this secure link:\n${paymentLinkData.url}\n\nYour order will be verified automatically once paid.`
           );
 
           // Email notification of pending order
@@ -1129,6 +1129,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
           quantity: session.quantity,
           deliveryFee: String(deliveryFee),
           totalAmount: String(totalAmount),
+          currency: config.currency || "INR",
           paymentMethod: "qr_pay",
           paymentStatus: "pending_verification",
           receiptUrl: fileUrl || null,
@@ -1464,7 +1465,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         // 4. Product description / SKU / Qty
         doc.font("Helvetica-Bold").fontSize(8).text("ITEM DETAILS", 15, 255);
         doc.font("Helvetica").fontSize(9).text(`${order.productName || "Product"} (x${order.quantity || 1})`, 15, 267);
-        doc.font("Helvetica").fontSize(8).text(`Declared Value: INR ${order.totalAmount}`, 15, 280);
+        doc.font("Helvetica").fontSize(8).text(`Declared Value: ${order.currency || "INR"} ${order.totalAmount}`, 15, 280);
 
         // Draw horizontal divider line
         doc.moveTo(10, 295).lineTo(278, 295).lineWidth(1).stroke();
@@ -1474,7 +1475,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
           doc.rect(15, 305, 258, 45).fill("#FFF3CD").stroke("#FFEBAA");
           doc.fillColor("#856404");
           doc.font("Helvetica-Bold").fontSize(10).text("COD - COLLECT CASH", 20, 312);
-          doc.font("Helvetica-Bold").fontSize(14).text(`INR ${order.totalAmount}`, 20, 326);
+          doc.font("Helvetica-Bold").fontSize(14).text(`${order.currency || "INR"} ${order.totalAmount}`, 20, 326);
           doc.fillColor("#111827");
         } else {
           doc.rect(15, 305, 258, 45).fill("#D4EDDA").stroke("#C3E6CB");

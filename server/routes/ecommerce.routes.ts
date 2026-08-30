@@ -96,12 +96,20 @@ export function registerEcommerceRoutes(app: Express) {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
-      const { id, name, price, description, photos, checkoutLink, triggerKeyword, isTriggerEnabled, currency } = req.body;
+      const { id, name, price, description, photos, checkoutLink, triggerKeyword, isTriggerEnabled } = req.body;
 
       if (!name) {
         return res.status(400).json({ error: "Product name is required" });
       }
 
+      // Load tenant's configured store currency
+      const [tenantConfig] = await db
+        .select({ currency: schema.ecommerceConfigs.currency })
+        .from(schema.ecommerceConfigs)
+        .where(eq(schema.ecommerceConfigs.tenantId, tenantId))
+        .limit(1);
+
+      const storeCurrency = tenantConfig?.currency || "INR";
       const parsedPhotos = Array.isArray(photos) ? photos : [];
 
       if (id) {
@@ -116,7 +124,7 @@ export function registerEcommerceRoutes(app: Express) {
             checkoutLink: checkoutLink || null,
             triggerKeyword: triggerKeyword || null,
             isTriggerEnabled: isTriggerEnabled !== undefined ? isTriggerEnabled : false,
-            currency: currency || "INR",
+            currency: storeCurrency,
             updatedAt: new Date()
           })
           .where(
@@ -144,7 +152,7 @@ export function registerEcommerceRoutes(app: Express) {
             checkoutLink: checkoutLink || null,
             triggerKeyword: triggerKeyword || null,
             isTriggerEnabled: isTriggerEnabled !== undefined ? isTriggerEnabled : false,
-            currency: currency || "INR"
+            currency: storeCurrency
           })
           .returning();
 

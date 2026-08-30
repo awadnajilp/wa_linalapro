@@ -952,10 +952,10 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         
         const aiResponse = completion.choices[0]?.message?.content || "Sorry, I am having trouble answering right now.";
         
-        // 3. Audio note response check (if the customer's incoming message was an audio note)
+        // 3. Audio note response check (if the customer's incoming message was an audio note and config has aiVoiceEnabled true)
         let voiceMediaUrl: string | null = null;
 
-        if (isIncomingAudio) {
+        if (isIncomingAudio && config.aiVoiceEnabled === true) {
           try {
             // Find a voice profile for synthesis dynamically
             let voiceProfileId = activeAI?.voiceProfileId || channelRow.inboxAiSettings?.voiceProfileId;

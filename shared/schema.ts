@@ -2517,6 +2517,7 @@ export const ecommerceConfigs = pgTable("ecommerce_configs", {
   upiMerchantName: text("upi_merchant_name"),
   currency: text("currency").default("INR"),
   aiEnabled: boolean("ai_enabled").default(false),
+  aiVoiceEnabled: boolean("ai_voice_enabled").default(false),
   aiTimeoutMinutes: integer("ai_timeout_minutes").default(30),
   aiAskButtonEnabled: boolean("ai_ask_button_enabled").default(true),
   aiSystemPrompt: text("ai_system_prompt"),

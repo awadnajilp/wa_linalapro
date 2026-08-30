@@ -269,6 +269,7 @@ export default function EcommerceLedger() {
 
   // AI & Welcome Messages States
   const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiVoiceEnabled, setAiVoiceEnabled] = useState(false);
   const [aiTimeoutMinutes, setAiTimeoutMinutes] = useState(30);
   const [aiAskButtonEnabled, setAiAskButtonEnabled] = useState(true);
   const [aiSystemPrompt, setAiSystemPrompt] = useState("");
@@ -337,6 +338,7 @@ export default function EcommerceLedger() {
       setUpiMerchantName((config as any).upiMerchantName || "");
       setStoreCurrency((config as any).currency || "INR");
       setAiEnabled((config as any).aiEnabled !== undefined ? (config as any).aiEnabled : false);
+      setAiVoiceEnabled((config as any).aiVoiceEnabled !== undefined ? (config as any).aiVoiceEnabled : false);
       setAiTimeoutMinutes((config as any).aiTimeoutMinutes !== undefined ? (config as any).aiTimeoutMinutes : 30);
       setAiAskButtonEnabled((config as any).aiAskButtonEnabled !== undefined ? (config as any).aiAskButtonEnabled : true);
       setAiSystemPrompt((config as any).aiSystemPrompt || DEFAULT_AI_SYSTEM_PROMPT);
@@ -700,6 +702,7 @@ export default function EcommerceLedger() {
       upiMerchantName: upiMerchantName || null,
       currency: storeCurrency,
       aiEnabled,
+      aiVoiceEnabled,
       aiTimeoutMinutes,
       aiAskButtonEnabled,
       aiSystemPrompt,
@@ -1908,6 +1911,16 @@ export default function EcommerceLedger() {
                               </span>
                             </div>
                             <Switch checked={aiAskButtonEnabled} onCheckedChange={setAiAskButtonEnabled} />
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label className="font-semibold text-gray-700">Respond with Audio / Voice Notes</Label>
+                              <span className="text-[11px] text-gray-500 block leading-tight">
+                                Reply to incoming customer voice notes with synthesized speech.
+                              </span>
+                            </div>
+                            <Switch checked={aiVoiceEnabled} onCheckedChange={setAiVoiceEnabled} />
                           </div>
 
                           <div className="space-y-1.5">

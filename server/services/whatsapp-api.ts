@@ -1571,8 +1571,10 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
       }
 
       // Then, download the media content from Meta
+      const token = this.channel.accessToken || (this.channel as any).access_token || "";
+      console.log(`📥 [WhatsAppApiService] getMedia - Media URL: ${mediaUrl}, Token Length: ${token.length}`);
       const separator = mediaUrl.includes("?") ? "&" : "?";
-      const authenticatedUrl = `${mediaUrl}${separator}access_token=${encodeURIComponent(this.channel.accessToken || "")}`;
+      const authenticatedUrl = `${mediaUrl}${separator}access_token=${encodeURIComponent(token)}`;
       const response = await fetch(authenticatedUrl, {
         headers: {
           "User-Agent": "curl/7.64.1",
@@ -1731,8 +1733,10 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
       return { buffer, mimeType: "audio/ogg" };
     }
 
+    const token = this.channel.accessToken || (this.channel as any).access_token || "";
+    console.log(`📥 [WhatsAppApiService] getMediaBuffer - Media URL: ${mediaUrl}, Token Length: ${token.length}`);
     const separator = mediaUrl.includes("?") ? "&" : "?";
-    const authenticatedUrl = `${mediaUrl}${separator}access_token=${encodeURIComponent(this.channel.accessToken || "")}`;
+    const authenticatedUrl = `${mediaUrl}${separator}access_token=${encodeURIComponent(token)}`;
     const response = await fetch(authenticatedUrl, {
       headers: {
         "User-Agent": "curl/7.64.1",

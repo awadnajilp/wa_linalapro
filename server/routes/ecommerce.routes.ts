@@ -226,6 +226,11 @@ export function registerEcommerceRoutes(app: Express) {
             aiEnabled: false,
             aiTimeoutMinutes: 30,
             aiAskButtonEnabled: true,
+            deliveryFeeType: "flat",
+            flatDeliveryFee: "0",
+            defaultDeliveryFee: "0",
+            stateDeliveryFees: {},
+            storeCountry: "IN",
             isActive: true
           })
           .returning();
@@ -269,6 +274,11 @@ export function registerEcommerceRoutes(app: Express) {
         storeAddress,
         storeWebsite,
         storeLogo,
+        deliveryFeeType,
+        flatDeliveryFee,
+        defaultDeliveryFee,
+        stateDeliveryFees,
+        storeCountry,
         isActive
       } = req.body;
 
@@ -315,6 +325,11 @@ export function registerEcommerceRoutes(app: Express) {
             storeAddress: storeAddress || null,
             storeWebsite: storeWebsite || null,
             storeLogo: storeLogo || null,
+            deliveryFeeType: deliveryFeeType || "flat",
+            flatDeliveryFee: String(flatDeliveryFee || "0"),
+            defaultDeliveryFee: String(defaultDeliveryFee || "0"),
+            stateDeliveryFees: stateDeliveryFees || {},
+            storeCountry: storeCountry || "IN",
             isActive: isActive !== undefined ? isActive : true,
             updatedAt: new Date()
           })
@@ -351,6 +366,11 @@ export function registerEcommerceRoutes(app: Express) {
             storeAddress: storeAddress || null,
             storeWebsite: storeWebsite || null,
             storeLogo: storeLogo || null,
+            deliveryFeeType: deliveryFeeType || "flat",
+            flatDeliveryFee: String(flatDeliveryFee || "0"),
+            defaultDeliveryFee: String(defaultDeliveryFee || "0"),
+            stateDeliveryFees: stateDeliveryFees || {},
+            storeCountry: storeCountry || "IN",
             isActive: isActive !== undefined ? isActive : true
           })
           .returning();

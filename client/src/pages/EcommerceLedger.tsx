@@ -8,12 +8,16 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ShoppingCart, Package, Settings, ClipboardList, Users, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles, Download } from "lucide-react";
+import { ShoppingCart, Package, Settings, ClipboardList, Users, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles, Download, Truck, Calendar as CalendarIcon } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 import { ChannelSwitcher } from "@/components/channel-switcher";
 import { MediaGalleryDialog } from "@/components/media/MediaGalleryDialog";
@@ -80,6 +84,40 @@ interface EcommerceConfig {
   razorpayKeySecret: string | null;
   isActive: boolean;
 }
+
+const countriesList = [
+  { code: "IN", name: "India" },
+  { code: "SA", name: "Saudi Arabia" },
+  { code: "AE", name: "United Arab Emirates" },
+  { code: "US", name: "United States" }
+];
+
+const countryStates: Record<string, string[]> = {
+  IN: [
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", 
+    "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", 
+    "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", 
+    "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", 
+    "West Bengal", "Delhi", "Chandigarh", "Jammu and Kashmir", "Ladakh", "Puducherry"
+  ],
+  SA: [
+    "Riyadh", "Makkah", "Madinah", "Eastern Province", "Qassim", "Asir", "Tabuk", "Hail", 
+    "Northern Borders", "Jazan", "Najran", "Baha", "Jawf"
+  ],
+  AE: [
+    "Abu Dhabi", "Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"
+  ],
+  US: [
+    "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware", 
+    "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", 
+    "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi", 
+    "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico", 
+    "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania", 
+    "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", 
+    "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming"
+  ]
+};
+
 
 export default function EcommerceLedger() {
   const { toast } = useToast();
@@ -172,6 +210,15 @@ export default function EcommerceLedger() {
   const [storeWebsite, setStoreWebsite] = useState("");
   const [storeLogo, setStoreLogo] = useState("");
 
+  // Delivery Fee States
+  const [deliveryFeeType, setDeliveryFeeType] = useState("flat");
+  const [flatDeliveryFee, setFlatDeliveryFee] = useState("0");
+  const [defaultDeliveryFee, setDefaultDeliveryFee] = useState("0");
+  const [stateDeliveryFees, setStateDeliveryFees] = useState<Record<string, string>>({});
+  const [storeCountry, setStoreCountry] = useState("IN");
+  const [selectedStateOverride, setSelectedStateOverride] = useState("");
+  const [overrideFeeInput, setOverrideFeeInput] = useState("");
+
   // Order editing states
   const [editingOrder, setEditingOrder] = useState<any | null>(null);
   const [editOrderName, setEditOrderName] = useState("");
@@ -225,6 +272,11 @@ export default function EcommerceLedger() {
       setStoreWebsite((config as any).storeWebsite || "");
       setStoreLogo((config as any).storeLogo || "");
       setConfigActive(config.isActive !== undefined ? config.isActive : true);
+      setDeliveryFeeType((config as any).deliveryFeeType || "flat");
+      setFlatDeliveryFee((config as any).flatDeliveryFee || "0");
+      setDefaultDeliveryFee((config as any).defaultDeliveryFee || "0");
+      setStateDeliveryFees((config as any).stateDeliveryFees || {});
+      setStoreCountry((config as any).storeCountry || "IN");
 
       // Standardize loaded checkoutFields Q&A objects
       if (Array.isArray(config.checkoutFields)) {
@@ -580,10 +632,36 @@ export default function EcommerceLedger() {
       storeAddress,
       storeWebsite,
       storeLogo,
+      deliveryFeeType,
+      flatDeliveryFee,
+      defaultDeliveryFee,
+      stateDeliveryFees,
+      storeCountry,
       isActive: configActive,
     };
 
     saveConfigMutation.mutate(payload);
+  };
+
+  const handleAddStateOverride = () => {
+    if (!selectedStateOverride || !overrideFeeInput) {
+      toast({ title: "Invalid Input", description: "Please select a state and enter a delivery fee.", variant: "destructive" });
+      return;
+    }
+    setStateDeliveryFees(prev => ({
+      ...prev,
+      [selectedStateOverride]: overrideFeeInput
+    }));
+    setSelectedStateOverride("");
+    setOverrideFeeInput("");
+  };
+
+  const handleRemoveStateOverride = (state: string) => {
+    setStateDeliveryFees(prev => {
+      const next = { ...prev };
+      delete next[state];
+      return next;
+    });
   };
 
   if (!channelId) {
@@ -917,23 +995,57 @@ export default function EcommerceLedger() {
               </div>
               <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
                 <div className="flex items-center gap-1.5">
-                  <Input
-                    type="date"
-                    className="w-[125px] h-9 text-xs"
-                    value={orderStartDate}
-                    onChange={(e) => setOrderStartDate(e.target.value)}
-                    placeholder="Start Date"
-                    title="Start Date"
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "w-[125px] h-9 text-xs justify-start font-normal border-slate-200 bg-white",
+                          !orderStartDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-1.5 h-3.5 w-3.5 text-slate-500" />
+                        {orderStartDate ? orderStartDate : <span>Start Date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={orderStartDate ? new Date(orderStartDate) : undefined}
+                        onSelect={(date) => {
+                          setOrderStartDate(date ? format(date, "yyyy-MM-dd") : "");
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <span className="text-gray-400 text-xs">to</span>
-                  <Input
-                    type="date"
-                    className="w-[125px] h-9 text-xs"
-                    value={orderEndDate}
-                    onChange={(e) => setOrderEndDate(e.target.value)}
-                    placeholder="End Date"
-                    title="End Date"
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "w-[125px] h-9 text-xs justify-start font-normal border-slate-200 bg-white",
+                          !orderEndDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-1.5 h-3.5 w-3.5 text-slate-500" />
+                        {orderEndDate ? orderEndDate : <span>End Date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={orderEndDate ? new Date(orderEndDate) : undefined}
+                        onSelect={(date) => {
+                          setOrderEndDate(date ? format(date, "yyyy-MM-dd") : "");
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <Input
                   className="max-w-[200px] h-9 text-xs"
@@ -1055,7 +1167,7 @@ export default function EcommerceLedger() {
                           </TableCell>
                           <TableCell>
                             {order.receiptUrl ? (
-                              <a href={order.receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 flex items-center gap-1 hover:underline">
+                              <a href={getPreviewUrl(order.receiptUrl)} target="_blank" rel="noreferrer" className="text-xs text-blue-600 flex items-center gap-1 hover:underline">
                                 View <ExternalLink className="w-3 h-3" />
                               </a>
                             ) : (
@@ -1276,6 +1388,150 @@ export default function EcommerceLedger() {
                         />
                       </div>
                     </div>
+                  </div>
+
+                  {/* Delivery Fee Configuration Section */}
+                  <div className="col-span-1 md:col-span-2 space-y-4 border p-4 rounded-lg bg-emerald-50/20 border-emerald-100">
+                    <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
+                      <Truck className="w-4 h-4 text-emerald-600" />
+                      Delivery & Shipping Configuration
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="storeCountry" className="font-semibold text-gray-700">Store Region / Country</Label>
+                        <select
+                          id="storeCountry"
+                          value={storeCountry}
+                          onChange={(e) => {
+                            setStoreCountry(e.target.value);
+                            setStateDeliveryFees({}); // clear overrides on country change
+                          }}
+                          className="w-full border rounded h-9 text-xs p-2 bg-white"
+                        >
+                          {countriesList.map(c => (
+                            <option key={c.code} value={c.code}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="deliveryFeeType" className="font-semibold text-gray-700">Delivery Fee Calculation Type</Label>
+                        <select
+                          id="deliveryFeeType"
+                          value={deliveryFeeType}
+                          onChange={(e) => setDeliveryFeeType(e.target.value)}
+                          className="w-full border rounded h-9 text-xs p-2 bg-white"
+                        >
+                          <option value="flat">Flat Shipping Fee (Default)</option>
+                          <option value="statewise">State-wise Shipping Fee</option>
+                        </select>
+                      </div>
+
+                      {deliveryFeeType === "flat" ? (
+                        <div className="space-y-1.5">
+                          <Label htmlFor="flatDeliveryFee" className="font-semibold text-gray-700">Flat Delivery Fee ({storeCurrency})</Label>
+                          <Input
+                            id="flatDeliveryFee"
+                            type="number"
+                            step="0.01"
+                            value={flatDeliveryFee}
+                            onChange={(e) => setFlatDeliveryFee(e.target.value)}
+                            placeholder="0"
+                            className="h-9 text-xs"
+                          />
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <Label htmlFor="defaultDeliveryFee" className="font-semibold text-gray-700">Default State Delivery Fee ({storeCurrency})</Label>
+                          <Input
+                            id="defaultDeliveryFee"
+                            type="number"
+                            step="0.01"
+                            value={defaultDeliveryFee}
+                            onChange={(e) => setDefaultDeliveryFee(e.target.value)}
+                            placeholder="0"
+                            className="h-9 text-xs"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {deliveryFeeType === "statewise" && (
+                      <div className="mt-4 pt-4 border-t border-emerald-100/50 space-y-4">
+                        <h4 className="font-semibold text-sm text-slate-700">State-specific Delivery Fee Overrides</h4>
+                        <div className="flex flex-wrap items-end gap-3 bg-white p-3 rounded border border-emerald-100">
+                          <div className="space-y-1.5 w-[200px]">
+                            <Label htmlFor="overrideState" className="text-xs text-gray-600">Select State</Label>
+                            <select
+                              id="overrideState"
+                              value={selectedStateOverride}
+                              onChange={(e) => setSelectedStateOverride(e.target.value)}
+                              className="w-full border rounded h-8 text-xs p-1 bg-white"
+                            >
+                              <option value="">-- Choose State --</option>
+                              {(countryStates[storeCountry] || []).map(st => (
+                                <option key={st} value={st} disabled={!!stateDeliveryFees[st]}>{st}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1.5 w-[150px]">
+                            <Label htmlFor="overrideFee" className="text-xs text-gray-600">Delivery Fee ({storeCurrency})</Label>
+                            <Input
+                              id="overrideFee"
+                              type="number"
+                              step="0.01"
+                              value={overrideFeeInput}
+                              onChange={(e) => setOverrideFeeInput(e.target.value)}
+                              placeholder="Fee"
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                            onClick={handleAddStateOverride}
+                          >
+                            Add Override
+                          </Button>
+                        </div>
+
+                        {Object.keys(stateDeliveryFees).length > 0 ? (
+                          <div className="border rounded-md overflow-hidden bg-white max-w-lg">
+                            <Table className="text-xs">
+                              <TableHeader>
+                                <TableRow className="bg-slate-50">
+                                  <TableHead className="py-2 h-8">State</TableHead>
+                                  <TableHead className="py-2 h-8">Fee ({storeCurrency})</TableHead>
+                                  <TableHead className="py-2 h-8 text-right">Actions</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {Object.entries(stateDeliveryFees).map(([state, fee]) => (
+                                  <TableRow key={state} className="hover:bg-slate-50/50">
+                                    <TableCell className="py-1.5 font-medium">{state}</TableCell>
+                                    <TableCell className="py-1.5">{fee}</TableCell>
+                                    <TableCell className="py-1.5 text-right">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                        onClick={() => handleRemoveStateOverride(state)}
+                                      >
+                                        <Trash className="w-3.5 h-3.5" />
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-400 italic">No specific state delivery fees configured yet. Default state fee will apply to all regions.</p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* General Config */}

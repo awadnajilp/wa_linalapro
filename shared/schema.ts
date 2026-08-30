@@ -2525,6 +2525,11 @@ export const ecommerceConfigs = pgTable("ecommerce_configs", {
   storeAddress: text("store_address"),
   storeWebsite: text("store_website"),
   storeLogo: text("store_logo"),
+  deliveryFeeType: text("delivery_fee_type").default("flat"),
+  flatDeliveryFee: numeric("flat_delivery_fee", { precision: 12, scale: 2 }).default("0"),
+  defaultDeliveryFee: numeric("default_delivery_fee", { precision: 12, scale: 2 }).default("0"),
+  stateDeliveryFees: jsonb("state_delivery_fees").$type<Record<string, string>>().default({}),
+  storeCountry: text("store_country").default("IN"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -2550,6 +2555,7 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   paymentGateway: text("payment_gateway"), // "instamojo", "razorpay"
   paymentGatewayOrderId: text("payment_gateway_order_id"),
   receiptUrl: text("receipt_url"),
+  deliveryFee: numeric("delivery_fee", { precision: 12, scale: 2 }).default("0").notNull(),
   status: text("status").default("pending"), // "pending", "processing", "shipped", "delivered", "cancelled"
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

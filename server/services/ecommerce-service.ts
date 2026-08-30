@@ -21,6 +21,50 @@ export class EcommerceService {
   }
 
   /**
+   * Calculate Delivery Fee via ZIP/PIN matching
+   */
+  public static async calculateDeliveryFee(
+    config: any,
+    pincode: string
+  ): Promise<{ fee: number; state: string | null }> {
+    if (!config.deliveryFeeType || config.deliveryFeeType === "flat") {
+      return { fee: parseFloat(config.flatDeliveryFee || "0"), state: null };
+    }
+
+    let resolvedState: string | null = null;
+    try {
+      const countryCode = (config.storeCountry || "IN").toLowerCase();
+      console.log(`[EcommerceService] Fetching state for zip code ${pincode} in country ${countryCode}...`);
+      const response = await fetch(`https://api.zippopotam.us/${countryCode}/${encodeURIComponent(pincode)}`);
+      if (response.ok) {
+        const data = await response.json();
+        resolvedState = data.places?.[0]?.state || null;
+        console.log(`[EcommerceService] Resolved state: ${resolvedState}`);
+      }
+    } catch (err: any) {
+      console.error(`[EcommerceService] Failed to resolve state from pincode:`, err.message);
+    }
+
+    let fee = parseFloat(config.defaultDeliveryFee || "0");
+    if (resolvedState && config.stateDeliveryFees) {
+      const cleanState = resolvedState.trim().toLowerCase();
+      const stateFees = config.stateDeliveryFees as Record<string, string>;
+      const matchingKey = Object.keys(stateFees).find(
+        (key) => key.trim().toLowerCase() === cleanState
+      );
+      if (matchingKey) {
+        const overrideFee = parseFloat(stateFees[matchingKey]);
+        if (!isNaN(overrideFee)) {
+          fee = overrideFee;
+          console.log(`[EcommerceService] Found state-specific delivery fee override for ${resolvedState}: ${fee}`);
+        }
+      }
+    }
+
+    return { fee, state: resolvedState };
+  }
+
+  /**
    * Intercept incoming message for Ecommerce addon
    */
   public static async interceptEcommerce(
@@ -700,6 +744,12 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
       const customerData = session.customerData || {};
       customerData[currentFieldVar] = input;
 
+      if (currentFieldVar === "pin") {
+        const { fee, state } = await this.calculateDeliveryFee(config, input);
+        customerData.resolvedState = state || "Unknown";
+        customerData.deliveryFee = String(fee);
+      }
+
       const currentIndex = fields.findIndex((f) => f.variable === currentFieldVar);
       const nextIndex = currentIndex + 1;
 
@@ -716,6 +766,17 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         await waApi.sendTextMessage(to, nextField.text);
       } else {
         // All fields collected, ask for payment method
+        if (customerData.deliveryFee === undefined) {
+          const pincodeVal = customerData.pin || customerData.pincode || customerData.zip || customerData.zipcode;
+          if (pincodeVal) {
+            const { fee, state } = await this.calculateDeliveryFee(config, pincodeVal);
+            customerData.resolvedState = state || "Unknown";
+            customerData.deliveryFee = String(fee);
+          } else {
+            customerData.deliveryFee = "0";
+          }
+        }
+
         await db
           .update(schema.ecommerceSessions)
           .set({
@@ -833,7 +894,9 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         return;
       }
 
-      const totalAmount = parseFloat(product.price || "0") * session.quantity;
+      const deliveryFee = parseFloat(session.customerData?.deliveryFee || "0");
+      const baseAmount = parseFloat(product.price || "0") * session.quantity;
+      const totalAmount = baseAmount + deliveryFee;
 
       if (selectedMethod === "cod") {
         // Complete Order COD
@@ -852,6 +915,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
             productName: product.name,
             price: product.price,
             quantity: session.quantity,
+            deliveryFee: String(deliveryFee),
             totalAmount: String(totalAmount),
             currency: (product as any).currency || "INR",
             paymentMethod: "cod",
@@ -867,7 +931,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         // Send confirmation WhatsApp message
         await waApi.sendTextMessage(
           to,
-          `🎉 *Order Placed Successfully!*\n\nOrder Number: *${orderNumber}*\nProduct: *${product.name}* (x${session.quantity})\nTotal Amount: *${(product as any).currency || "INR"} ${totalAmount}*\nPayment Mode: *Cash on Delivery (COD)*\n\nWe will update you as soon as your order status changes!`
+          `🎉 *Order Placed Successfully!*\n\nOrder Number: *${orderNumber}*\nProduct: *${product.name}* (x${session.quantity})\nDelivery Fee: *${(product as any).currency || "INR"} ${deliveryFee}*\nTotal Amount: *${(product as any).currency || "INR"} ${totalAmount}*\nPayment Mode: *Cash on Delivery (COD)*\n\nWe will update you as soon as your order status changes!`
         );
 
         // Send email with PDF to merchant
@@ -898,6 +962,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
             productName: product.name,
             price: product.price,
             quantity: session.quantity,
+            deliveryFee: String(deliveryFee),
             totalAmount: String(totalAmount),
             currency: (product as any).currency || "INR",
             paymentMethod: "upi_direct",
@@ -913,7 +978,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
 
         await waApi.sendTextMessage(
           to,
-          `📱 *UPI Mobile Direct Pay*\n\nTo pay *${(product as any).currency || "INR"} ${totalAmount}* directly using GPay / PhonePe / Paytm:\n\n👉 *Click here to Pay:* ${redirectUrl}\n\nOnce paid, *please send the receipt/payment screenshot here* to verify and complete your order.`
+          `📱 *UPI Mobile Direct Pay*\n\nTo pay *${(product as any).currency || "INR"} ${totalAmount}* (includes delivery fee: *${(product as any).currency || "INR"} ${deliveryFee}*) directly using GPay / PhonePe / Paytm:\n\n👉 *Click here to Pay:* ${redirectUrl}\n\nOnce paid, *please send the receipt/payment screenshot here* to verify and complete your order.`
         );
       }
       else if (selectedMethod === "qr_pay") {
@@ -941,6 +1006,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
             productName: product.name,
             price: product.price,
             quantity: session.quantity,
+            deliveryFee: String(deliveryFee),
             totalAmount: String(totalAmount),
             currency: (product as any).currency || "INR",
             paymentMethod: "qr_pay",
@@ -955,14 +1021,14 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         await waApi.sendMediaMessageByUrl(to, config.qrCodeUrl, "image");
         await waApi.sendTextMessage(
           to,
-          `Please scan the QR code to pay a total of *${(product as any).currency || "INR"} ${totalAmount}* via GPAY / PhonePe.\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.`
+          `Please scan the QR code to pay a total of *${(product as any).currency || "INR"} ${totalAmount}* (includes delivery fee: *${(product as any).currency || "INR"} ${deliveryFee}*) via GPAY / PhonePe.\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.`
         );
       } 
       else if (selectedMethod === "gateway") {
         // Transition to gateway creation
         try {
           await waApi.sendTextMessage(to, "Generating your secure online checkout link, please wait...");
-          const paymentLinkData = await this.createPaymentLink(config, product, session.quantity, session.customerData?.name || "Customer", to);
+          const paymentLinkData = await this.createPaymentLink(config, product, session.quantity, session.customerData?.name || "Customer", to, deliveryFee);
 
           const orderNumber = "ORD-" + Math.floor(100000 + Math.random() * 900000);
           const [order] = await db
@@ -979,6 +1045,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
               productName: product.name,
               price: product.price,
               quantity: session.quantity,
+              deliveryFee: String(deliveryFee),
               totalAmount: String(totalAmount),
               currency: (product as any).currency || "INR",
               paymentMethod: "gateway",
@@ -995,7 +1062,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
 
           await waApi.sendTextMessage(
             to,
-            `🔗 *Complete Your Payment*\n\nOrder Number: *${orderNumber}*\nTotal Amount: *${(product as any).currency || "INR"} ${totalAmount}*\n\nPlease complete your payment using this secure link:\n${paymentLinkData.url}\n\nYour order will be verified automatically once paid.`
+            `🔗 *Complete Your Payment*\n\nOrder Number: *${orderNumber}*\nTotal Amount: *${(product as any).currency || "INR"} ${totalAmount}* (includes delivery fee: *${(product as any).currency || "INR"} ${deliveryFee}*)\n\nPlease complete your payment using this secure link:\n${paymentLinkData.url}\n\nYour order will be verified automatically once paid.`
           );
 
           // Email notification of pending order
@@ -1041,7 +1108,9 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         .where(eq(schema.ecommerceProducts.id, session.productId))
         .limit(1);
 
-      const totalAmount = parseFloat(product?.price || "0") * session.quantity;
+      const deliveryFee = parseFloat(session.customerData?.deliveryFee || "0");
+      const baseAmount = parseFloat(product?.price || "0") * session.quantity;
+      const totalAmount = baseAmount + deliveryFee;
       const orderNumber = "ORD-" + Math.floor(100000 + Math.random() * 900000);
 
       const [order] = await db
@@ -1058,6 +1127,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
           productName: product?.name,
           price: product?.price,
           quantity: session.quantity,
+          deliveryFee: String(deliveryFee),
           totalAmount: String(totalAmount),
           paymentMethod: "qr_pay",
           paymentStatus: "pending_verification",
@@ -1086,9 +1156,10 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
     product: any,
     quantity: number,
     customerName: string,
-    customerPhone: string
+    customerPhone: string,
+    deliveryFee: number = 0
   ): Promise<{ url: string; orderId: string; gateway: string }> {
-    const totalAmount = parseFloat(product.price || "0") * quantity;
+    const totalAmount = (parseFloat(product.price || "0") * quantity) + deliveryFee;
 
     // Razorpay Integration
     if (config.razorpayKeyId && config.razorpayKeySecret) {

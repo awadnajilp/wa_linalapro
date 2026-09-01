@@ -7,6 +7,9 @@ async function test() {
     "a5566d97-5557-4773-a9c4-a5fc7668d973",
     "skysecretary"
   );
+  const settingsRes = await client.query("SELECT * FROM ai_settings WHERE channel_id = '48b128d7-6662-4604-9b5f-a61756c6a9f3'");
+  console.log("SKYSECRETARY AI Settings:");
+  console.table(settingsRes.rows);
   console.log("Skysecretary search results:", JSON.stringify(res1, null, 2));
 
   console.log("\n=== TESTING SEARCH FOR URBAN KISSAN ===");

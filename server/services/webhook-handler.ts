@@ -2159,7 +2159,7 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                 const firstProfile = await db.query.voiceProfiles.findFirst();
                 if (firstProfile) {
                   voiceProfileId = firstProfile.id;
-                  voiceLanguage = firstProfile.languageCode || voiceLanguage;
+                  voiceLanguage = (firstProfile.languageCode as string) || voiceLanguage;
                 }
               }
             } else if (node && node.type === "ai_agent" && (node.data as any)?.aiVoiceEnabled === true) {

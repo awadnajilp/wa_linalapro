@@ -24,6 +24,12 @@ export function registerContactCampaignRoutes(app: Express) {
   // Delete a contact campaign
   app.delete("/api/contacts/campaigns/:id", requireAuth, controller.deleteContactCampaign);
 
+  // Send / Retry a specific contact campaign message now
+  app.post("/api/contacts/campaigns/:id/send-now", requireAuth, controller.sendContactCampaignNow);
+
+  // Retry all failed recurring campaign messages for a channel
+  app.post("/api/channels/:channelId/contact-campaigns/retry-failed", requireAuth, controller.retryFailedContactCampaigns);
+
   // Get campaign templates for a channel
   app.get("/api/contacts/campaign-templates", requireAuth, controller.getContactCampaignTemplates);
 

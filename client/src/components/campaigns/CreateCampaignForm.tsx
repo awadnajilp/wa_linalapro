@@ -141,6 +141,9 @@ export function CreateCampaignForm({
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState("");
 
+  const [messageCompositionMode, setMessageCompositionMode] = useState<"template" | "custom">(
+    isQr ? "custom" : "template"
+  );
   const [isCadence, setIsCadence] = useState(false);
   const [activeMediaStepIndex, setActiveMediaStepIndex] = useState<number | null>(null);
   const [cadenceSteps, setCadenceSteps] = useState<any[]>([
@@ -402,7 +405,7 @@ export function CreateCampaignForm({
     const campaignData = {
       name: formData.get("name") as string,
       description: formData.get("description") as string,
-      variableMapping: isQr ? {} : buildVariableMapping(),
+      variableMapping: isQr || messageCompositionMode === "custom" ? {} : buildVariableMapping(),
       delayBetweenMessages: finalDelayBetweenMessages,
       chunkSize: finalChunkSize,
       delayBetweenChunks: finalDelayBetweenChunks,
@@ -412,11 +415,11 @@ export function CreateCampaignForm({
       isCadence: isCadence,
       cadenceSteps: isCadence ? cadenceSteps : [],
       followUpOnlyAfterReply24h: isCadence ? followUpOnlyAfterReply24h : false,
+      customMessage: customMessage || null,
+      mediaUrl: mediaUrl || null,
+      mediaMimeType: mediaMimeType || null,
+      mediaName: mediaName || null,
       ...(isQr ? {
-        customMessage,
-        mediaUrl: mediaUrl || null,
-        mediaMimeType: mediaMimeType || null,
-        mediaName: mediaName || null,
         warmerEnabled,
         selectedWarmerMessages: selectedWarmerMsgs,
       } : {})
@@ -824,406 +827,385 @@ export function CreateCampaignForm({
       </Card>
 
       {!isCadence && (
-        !isQr ? (
-          <Card>
-            <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Eye className="h-4 w-4" />
-              Template
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-3">
-              <TemplatePickerDialog
-                channelId={channelId}
-                onSelectTemplate={handleSelectTemplate}
-                submitLabel="Use Template"
-                categoryFilter={utilityCategoryHelperEnabled ? undefined : "MARKETING"}
-                trigger={
-                  <Button type="button" variant="outline" className="gap-2">
-                    <FileText className="h-4 w-4" />
-                    {selectedTemplate ? "Change Template" : "Select Template"}
-                  </Button>
-                }
-              />
-              {selectedTemplate && (
-                <div className="flex items-center gap-2 text-sm text-green-700">
-                  <Check className="h-4 w-4" />
-                  <span className="font-medium">{selectedTemplate.name}</span>
-                </div>
-              )}
+        <div className="space-y-4">
+          {!isQr && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 bg-white border rounded-xl shadow-sm gap-3">
+              <div>
+                <Label className="text-xs font-bold text-gray-800">Message Composition Mode</Label>
+                <p className="text-[11px] text-gray-500">Choose between a Meta-approved template or custom message/media composer</p>
+              </div>
+              <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-lg">
+                <Button
+                  type="button"
+                  variant={messageCompositionMode === "template" ? "default" : "ghost"}
+                  size="sm"
+                  className={`h-7 text-xs px-3 font-medium transition ${
+                    messageCompositionMode === "template"
+                      ? "bg-purple-600 text-white hover:bg-purple-700 shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                  onClick={() => setMessageCompositionMode("template")}
+                >
+                  <Eye className="w-3.5 h-3.5 mr-1.5" /> WhatsApp Template
+                </Button>
+                <Button
+                  type="button"
+                  variant={messageCompositionMode === "custom" ? "default" : "ghost"}
+                  size="sm"
+                  className={`h-7 text-xs px-3 font-medium transition ${
+                    messageCompositionMode === "custom"
+                      ? "bg-purple-600 text-white hover:bg-purple-700 shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                  onClick={() => setMessageCompositionMode("custom")}
+                >
+                  <FileText className="w-3.5 h-3.5 mr-1.5" /> Custom Message & Media
+                </Button>
+              </div>
             </div>
+          )}
 
-            {selectedTemplate && (
-              <div className="rounded-lg border bg-muted/50 p-4 space-y-1.5">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Preview</p>
-                {selectedTemplate.headerType === "text" && selectedTemplate.headerText && (
-                  <div className="font-semibold text-sm">{selectedTemplate.headerText}</div>
-                )}
-                <div className="whitespace-pre-wrap text-sm">{selectedTemplate.body}</div>
-                {selectedTemplate.footerText && (
-                  <div className="text-xs text-muted-foreground">{selectedTemplate.footerText}</div>
-                )}
-                {templateConfig && (
-                  <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
-                    {templateConfig.variables.length > 0 && (
-                      <p className="text-xs text-gray-500">
-                        {templateConfig.variables.length} variable(s) configured
-                      </p>
-                    )}
-                    {templateConfig.mediaId && (
-                      <p className="text-xs text-green-600">Header media uploaded</p>
-                    )}
-                    {templateConfig.buttonParameters && templateConfig.buttonParameters.length > 0 && (
-                      <p className="text-xs text-gray-500">
-                        {templateConfig.buttonParameters.length} button parameter(s) set
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Utility Campaign Optimizer & Tips */}
-            {utilityCategoryHelperEnabled && !isQr && selectedTemplate && (
-              <div className="space-y-3 p-4 rounded-xl border border-blue-200 bg-blue-50/50 mt-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Wrench className="h-4 w-4 text-blue-600 animate-pulse" />
-                    <h4 className="text-sm font-semibold text-blue-900">
-                      Utility Campaign Optimizer
-                    </h4>
-                  </div>
-                  <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-[10px]">
-                    Premium Active
-                  </Badge>
-                </div>
-
-                <div className="flex items-start space-x-2.5 bg-white/60 p-3 rounded-lg border border-blue-100">
-                  <Checkbox
-                    id="optimizeCampaignToUtility"
-                    checked={optimizeCampaignToUtility}
-                    onCheckedChange={(checked) => setOptimizeCampaignToUtility(!!checked)}
-                    className="mt-0.5"
+          {(!isQr && messageCompositionMode === "template") ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Eye className="h-4 w-4" />
+                  Template
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <TemplatePickerDialog
+                    channelId={channelId}
+                    onSelectTemplate={handleSelectTemplate}
+                    submitLabel="Use Template"
+                    categoryFilter={utilityCategoryHelperEnabled ? undefined : "MARKETING"}
+                    trigger={
+                      <Button type="button" variant="outline" className="gap-2">
+                        <FileText className="h-4 w-4" />
+                        {selectedTemplate ? "Change Template" : "Select Template"}
+                      </Button>
+                    }
                   />
-                  <div className="grid gap-1.5 leading-none">
-                    <Label htmlFor="optimizeCampaignToUtility" className="text-xs font-semibold text-blue-900 cursor-pointer">
-                      Auto-Optimize Variables for Utility Category
-                    </Label>
-                    <p className="text-[11px] text-blue-700">
-                      System will automatically append reference numbers (e.g. <code>Ref: 837194</code>) to custom variable values to align with Meta's automated utility classification.
-                    </p>
-                  </div>
+                  {selectedTemplate && (
+                    <div className="flex items-center gap-2 text-sm text-green-700">
+                      <Check className="h-4 w-4" />
+                      <span className="font-medium">{selectedTemplate.name}</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Utility category tips */}
-                <div className="space-y-1.5 bg-white/40 p-3 rounded-lg border border-blue-50 text-[11px] text-blue-800">
-                  <h5 className="font-semibold text-blue-900 flex items-center gap-1.5">
-                    <Info className="h-3.5 w-3.5 text-blue-600" />
-                    Tips to keep campaigns in Utility Category:
-                  </h5>
-                  <ul className="list-disc pl-4 space-y-1">
-                    <li><strong>Avoid Marketing Words:</strong> Do not use discount, sale, promo, buy, or shop in your custom inputs.</li>
-                    <li><strong>Make it Transactional:</strong> Make the message look like an update, receipt, or status notification.</li>
-                    <li><strong>Unique Identifiers:</strong> Make sure you map transaction/reference IDs to variables where possible.</li>
-                  </ul>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Composer Card */}
-          <Card className="flex flex-col h-full">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <FileText className="h-4 w-4 text-green-600" />
-                Message Composer
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
-              {/* Media Upload Section */}
-              {(requiresHeaderImage || isQr) && (
-                <div className="space-y-3">
-                  <Label className="text-xs font-semibold text-gray-700 block">Header Media File (Optional)</Label>
-                  <div className="flex flex-col md:flex-row gap-3 items-stretch">
-                    <div 
-                      onClick={() => setShowMediaGallery(true)}
-                      className="flex-1 flex items-center justify-center border-2 border-dashed rounded-lg p-4 bg-gray-50/50 hover:bg-purple-50/30 hover:border-purple-300 cursor-pointer transition min-h-[100px]"
-                    >
-                      <div className="flex flex-col items-center text-center gap-1.5">
-                        {isUploading ? (
-                          <>
-                            <Loader2 className="h-6 w-6 text-purple-600 animate-spin" />
-                            <span className="text-xs font-medium text-gray-600">Uploading file...</span>
-                          </>
-                        ) : mediaUrl ? (
-                          <>
-                            <Check className="h-6 w-6 text-purple-600" />
-                            <span className="text-xs font-semibold text-gray-800 max-w-[150px] truncate">{mediaName || "File uploaded"}</span>
-                            <span className="text-[10px] text-gray-500">Click to change</span>
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="h-6 w-6 text-gray-400" />
-                            <span className="text-xs font-semibold text-purple-700">Open Media Gallery</span>
-                            <span className="text-[10px] text-gray-500">Select or upload (Max 100MB)</span>
-                          </>
+                {selectedTemplate && (
+                  <div className="rounded-lg border bg-muted/50 p-4 space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Preview</p>
+                    {selectedTemplate.headerType === "text" && selectedTemplate.headerText && (
+                      <div className="font-semibold text-sm">{selectedTemplate.headerText}</div>
+                    )}
+                    <div className="whitespace-pre-wrap text-sm">{selectedTemplate.body}</div>
+                    {selectedTemplate.footerText && (
+                      <div className="text-xs text-muted-foreground">{selectedTemplate.footerText}</div>
+                    )}
+                    {templateConfig && (
+                      <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
+                        {templateConfig.variables.length > 0 && (
+                          <p className="text-xs text-gray-500">
+                            {templateConfig.variables.length} variable(s) configured
+                          </p>
+                        )}
+                        {templateConfig.mediaId && (
+                          <p className="text-xs text-green-600">Header media uploaded</p>
+                        )}
+                        {templateConfig.buttonParameters && templateConfig.buttonParameters.length > 0 && (
+                          <p className="text-xs text-gray-500">
+                            {templateConfig.buttonParameters.length} button parameter(s) set
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Utility Campaign Optimizer & Tips */}
+                {utilityCategoryHelperEnabled && !isQr && selectedTemplate && (
+                  <div className="space-y-3 p-4 rounded-xl border border-blue-200 bg-blue-50/50 mt-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Wrench className="h-4 w-4 text-blue-600 animate-pulse" />
+                        <h4 className="text-sm font-semibold text-blue-900">
+                          Utility Campaign Optimizer
+                        </h4>
+                      </div>
+                      <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-[10px]">
+                        Premium Active
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-start space-x-2.5 bg-white/60 p-3 rounded-lg border border-blue-100">
+                      <Checkbox
+                        id="optimizeCampaignToUtility"
+                        checked={optimizeCampaignToUtility}
+                        onCheckedChange={(checked) => setOptimizeCampaignToUtility(!!checked)}
+                        className="mt-0.5"
+                      />
+                      <div className="grid gap-1.5 leading-none">
+                        <Label htmlFor="optimizeCampaignToUtility" className="text-xs font-semibold text-blue-900 cursor-pointer">
+                          Auto-Optimize Variables for Utility Category
+                        </Label>
+                        <p className="text-[11px] text-blue-700">
+                          System will automatically append reference numbers (e.g. <code>Ref: 837194</code>) to custom variable values to align with Meta's automated utility classification.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Utility category tips */}
+                    <div className="space-y-1.5 bg-white/40 p-3 rounded-lg border border-blue-50 text-[11px] text-blue-800">
+                      <h5 className="font-semibold text-blue-900 flex items-center gap-1.5">
+                        <Info className="h-3.5 w-3.5 text-blue-600" />
+                        Tips to keep campaigns in Utility Category:
+                      </h5>
+                      <ul className="list-disc pl-4 space-y-1">
+                        <li><strong>Avoid Marketing Words:</strong> Do not use discount, sale, promo, buy, or shop in your custom inputs.</li>
+                        <li><strong>Make it Transactional:</strong> Make the message look like an update, receipt, or status notification.</li>
+                        <li><strong>Unique Identifiers:</strong> Make sure you map transaction/reference IDs to variables where possible.</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Composer Card */}
+              <Card className="flex flex-col h-full">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-green-600" />
+                    Message Composer
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
+                  {/* Media Upload Section */}
+                  <div className="space-y-3">
+                    <Label className="text-xs font-semibold text-gray-700 block">Header Media File (Optional)</Label>
+                    <div className="flex flex-col md:flex-row gap-3 items-stretch">
+                      <div 
+                        onClick={() => setShowMediaGallery(true)}
+                        className="flex-1 flex items-center justify-center border-2 border-dashed rounded-lg p-4 bg-gray-50/50 hover:bg-purple-50/30 hover:border-purple-300 cursor-pointer transition min-h-[100px]"
+                      >
+                        <div className="flex flex-col items-center text-center gap-1.5">
+                          {isUploading ? (
+                            <>
+                              <Loader2 className="h-6 w-6 text-purple-600 animate-spin" />
+                              <span className="text-xs font-medium text-gray-600">Uploading file...</span>
+                            </>
+                          ) : mediaUrl ? (
+                            <>
+                              <Check className="h-6 w-6 text-purple-600" />
+                              <span className="text-xs font-semibold text-gray-800 max-w-[150px] truncate">{mediaName || "File uploaded"}</span>
+                              <span className="text-[10px] text-gray-500">Click to change</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-6 w-6 text-gray-400" />
+                              <span className="text-xs font-semibold text-purple-700">Open Media Gallery</span>
+                              <span className="text-[10px] text-gray-500">Select or upload (Max 100MB)</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex-1 flex flex-col justify-between space-y-2">
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="mediaUrlInput" className="text-[11px] font-medium text-gray-500">Or Media URL directly</Label>
+                            <Button
+                              type="button"
+                              variant="link"
+                              className="h-auto p-0 text-[10px] text-purple-600 hover:text-purple-700 font-semibold"
+                              onClick={() => setShowMediaGallery(true)}
+                            >
+                              Choose from Gallery
+                            </Button>
+                          </div>
+                          <Input
+                            id="mediaUrlInput"
+                            placeholder="https://example.com/image.jpg"
+                            value={mediaUrl}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setMediaUrl(val);
+                              if (!val) {
+                                setMediaMimeType("");
+                                setMediaName("");
+                              } else {
+                                const ext = val.split("?")[0].split(".").pop()?.toLowerCase();
+                                let guessedMime = "image/jpeg";
+                                if (ext === "png") guessedMime = "image/png";
+                                else if (ext === "gif") guessedMime = "image/gif";
+                                else if (ext === "mp4") guessedMime = "video/mp4";
+                                else if (ext === "pdf") guessedMime = "application/pdf";
+                                else if (ext === "doc" || ext === "docx") guessedMime = "application/msword";
+                                setMediaMimeType(guessedMime);
+                                setMediaName(val.substring(val.lastIndexOf("/") + 1));
+                              }
+                            }}
+                            className="mt-1 h-8 text-xs"
+                          />
+                        </div>
+                        {mediaUrl && (
+                          <div className="flex items-center justify-between text-xs text-gray-500 border rounded px-2.5 py-1 bg-gray-50">
+                            <span className="truncate max-w-[120px] font-medium">{mediaName}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMediaUrl("");
+                                setMediaName("");
+                                setMediaMimeType("");
+                              }}
+                              className="text-red-500 hover:text-red-700 font-semibold"
+                            >
+                              Remove
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
+                  </div>
 
-                    <div className="flex-1 flex flex-col justify-between space-y-2">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="mediaUrlInput" className="text-[11px] font-medium text-gray-500">Or Media URL directly</Label>
-                          <Button
-                            type="button"
-                            variant="link"
-                            className="h-auto p-0 text-[10px] text-purple-600 hover:text-purple-700 font-semibold"
-                            onClick={() => setShowMediaGallery(true)}
-                          >
-                            Choose from Gallery
-                          </Button>
-                        </div>
-                        <Input
-                          id="mediaUrlInput"
-                          placeholder="https://example.com/image.jpg"
-                          value={mediaUrl}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setMediaUrl(val);
-                            if (!val) {
-                              setMediaMimeType("");
-                              setMediaName("");
-                            } else {
-                              const ext = val.split("?")[0].split(".").pop()?.toLowerCase();
-                              let guessedMime = "image/jpeg";
-                              if (ext === "png") guessedMime = "image/png";
-                              else if (ext === "gif") guessedMime = "image/gif";
-                              else if (ext === "mp4") guessedMime = "video/mp4";
-                              else if (ext === "pdf") guessedMime = "application/pdf";
-                              else if (ext === "doc" || ext === "docx") guessedMime = "application/msword";
-                              setMediaMimeType(guessedMime);
-                              setMediaName(val.substring(val.lastIndexOf("/") + 1));
+                  {/* Text composer */}
+                  <div className="space-y-2 mt-2">
+                    {isQr && localTemplates && localTemplates.length > 0 && (
+                      <div className="mb-3">
+                        <Label className="text-xs font-semibold text-gray-700 block mb-1">Apply Saved QR Template</Label>
+                        <Select
+                          onValueChange={(val) => {
+                            const selected = localTemplates.find((t: any) => t.id === val);
+                            if (selected) {
+                              setCustomMessage(selected.body);
+                              if (selected.mediaUrl) {
+                                setMediaUrl(selected.mediaUrl);
+                                setMediaName("Template Attachment");
+                                setMediaMimeType("image/png");
+                              } else {
+                                setMediaUrl("");
+                                setMediaName("");
+                                setMediaMimeType("");
+                              }
                             }
                           }}
-                          className="mt-1 h-8 text-xs"
-                        />
+                        >
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select a template to auto-fill..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {localTemplates.map((t: any) => (
+                              <SelectItem key={t.id} value={t.id}>
+                                {t.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      {mediaUrl && (
-                        <div className="flex items-center justify-between text-xs text-gray-500 border rounded px-2.5 py-1 bg-gray-50">
-                          <span className="truncate max-w-[120px] font-medium">{mediaName}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setMediaUrl("");
-                              setMediaName("");
-                              setMediaMimeType("");
-                            }}
-                            className="text-red-500 hover:text-red-700 font-semibold"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Text composer */}
-              <div className="space-y-2 mt-2">
-                {isQr && localTemplates && localTemplates.length > 0 && (
-                  <div className="mb-3">
-                    <Label className="text-xs font-semibold text-gray-700 block mb-1">Apply Saved QR Template</Label>
-                    <Select
-                      onValueChange={(val) => {
-                        const selected = localTemplates.find((t: any) => t.id === val);
-                        if (selected) {
-                          setCustomMessage(selected.body);
-                          if (selected.mediaUrl) {
-                            setMediaUrl(selected.mediaUrl);
-                            setMediaName("Template Attachment");
-                            setMediaMimeType("image/png");
-                          } else {
-                            setMediaUrl("");
-                            setMediaName("");
-                            setMediaMimeType("");
-                          }
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-9 text-xs">
-                        <SelectValue placeholder="Select a template to auto-fill..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {localTemplates.map((t: any) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="customMessageTextarea" className="text-xs font-semibold text-gray-700">Message Body</Label>
-                  <div className="flex gap-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6 text-[10px] px-1.5"
-                      onClick={() => insertFormatting("<b>", "</b>")}
-                    >
-                      Bold
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6 text-[10px] px-1.5"
-                      onClick={() => insertFormatting("<i>", "</i>")}
-                    >
-                      Italic
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6 text-[10px] px-1.5"
-                      onClick={() => insertFormatting("<del>", "</del>")}
-                    >
-                      Strike
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6 text-[10px] px-1.5"
-                      onClick={() => insertFormatting("<code>", "</code>")}
-                    >
-                      Mono
-                    </Button>
-                    <Popover>
-                      <PopoverTrigger asChild>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="customMessageTextarea" className="text-xs font-semibold text-gray-700">Message Body</Label>
+                      <div className="flex gap-1">
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-6 text-[10px] px-1.5 flex items-center gap-1"
+                          className="h-6 text-[10px] px-1.5"
+                          onClick={() => insertFormatting("<b>", "</b>")}
                         >
-                          <Smile className="w-3 h-3 text-purple-600" /> Emojis
+                          Bold
                         </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-64 p-2" align="end">
-                        <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
-                          {POPULAR_EMOJIS.map((emoji) => (
-                            <button
-                              key={emoji}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 text-[10px] px-1.5"
+                          onClick={() => insertFormatting("<i>", "</i>")}
+                        >
+                          Italic
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 text-[10px] px-1.5"
+                          onClick={() => insertFormatting("<del>", "</del>")}
+                        >
+                          Strike
+                        </Button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
                               type="button"
-                              onClick={() => insertEmoji(emoji)}
-                              className="text-lg p-1 hover:bg-purple-100 rounded transition-colors text-center"
+                              variant="outline"
+                              size="sm"
+                              className="h-6 text-[10px] px-1.5 flex items-center gap-1"
                             >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                <Textarea
-                  id="customMessageTextarea"
-                  rows={5}
-                  placeholder="Compose message..."
-                  value={customMessage}
-                  onChange={(e) => setCustomMessage(e.target.value)}
-                  className="font-sans text-xs resize-none"
-                />
-                <p className="text-[10px] text-gray-500 mt-1 leading-normal">
-                  💡 <strong>Tip:</strong> Use contact variables by writing their column/field names inside double brackets (e.g. <code>{"{{name}}"}</code>, <code>{"{{phone}}"}</code>, <code>{"{{company}}"}</code>, or <code>{"{{city}}"}</code>).
-                </p>
-
-                {isQr && (
-                  <>
-                    <div className="flex items-center space-x-2 mt-3 p-2 bg-gray-50 border border-gray-100 rounded-md">
-                      <Checkbox
-                        id="saveAsTemplateCheckbox"
-                        checked={saveAsTemplate}
-                        onCheckedChange={(checked) => setSaveAsTemplate(!!checked)}
-                      />
-                      <Label htmlFor="saveAsTemplateCheckbox" className="text-xs font-medium text-gray-600 cursor-pointer">
-                        Save this message as a QR template
-                      </Label>
+                              <Smile className="h-3 w-3 text-amber-500" />
+                              Emoji
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-2" align="end">
+                            <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
+                              {POPULAR_EMOJIS.map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  type="button"
+                                  className="h-6 w-6 flex items-center justify-center hover:bg-gray-100 rounded text-sm transition"
+                                  onClick={() => insertEmoji(emoji)}
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </div>
 
-                    {saveAsTemplate && (
-                      <div className="mt-2 space-y-1">
-                        <Label htmlFor="newTemplateNameInput" className="text-xs font-semibold text-gray-700">Template Name</Label>
-                        <Input
-                          id="newTemplateNameInput"
-                          placeholder="e.g. welcome_message"
-                          value={newTemplateName}
-                          onChange={(e) => setNewTemplateName(e.target.value)}
-                          className="h-8 text-xs"
-                        />
+                    <Textarea
+                      id="customMessageTextarea"
+                      placeholder="Type your message here... Use {{name}}, {{phone}} or custom variables below."
+                      value={customMessage}
+                      onChange={(e) => setCustomMessage(e.target.value)}
+                      rows={5}
+                      className="text-xs focus:border-green-500"
+                    />
+
+                    {isQr && (
+                      <div className="pt-2 border-t border-gray-100">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="saveAsTemplateCheckbox"
+                            checked={saveAsTemplate}
+                            onCheckedChange={(checked) => setSaveAsTemplate(!!checked)}
+                          />
+                          <Label htmlFor="saveAsTemplateCheckbox" className="text-xs font-semibold text-gray-700 cursor-pointer">
+                            Save as reusable QR Template
+                          </Label>
+                        </div>
+                        {saveAsTemplate && (
+                          <div className="mt-2">
+                            <Input
+                              placeholder="Template Name (e.g. Festival Greeting)"
+                              value={newTemplateName}
+                              onChange={(e) => setNewTemplateName(e.target.value)}
+                              className="h-8 text-xs bg-white"
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
-                  </>
-                )}
+                  </div>
 
-                <div className="flex gap-2 justify-end">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[10px] px-1.5 hover:bg-green-50 hover:text-green-700"
-                    onClick={() => {
-                      const textarea = document.getElementById("customMessageTextarea") as HTMLTextAreaElement;
-                      if (!textarea) return;
-                      const start = textarea.selectionStart;
-                      const end = textarea.selectionEnd;
-                      const text = textarea.value;
-                      const replacement = "{{name}}";
-                      const newValue = text.substring(0, start) + replacement + text.substring(end);
-                      setCustomMessage(newValue);
-                      setTimeout(() => {
-                        textarea.focus();
-                        textarea.setSelectionRange(start + replacement.length, start + replacement.length);
-                      }, 0);
-                    }}
-                  >
-                    + Name
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[10px] px-1.5 hover:bg-green-50 hover:text-green-700"
-                    onClick={() => {
-                      const textarea = document.getElementById("customMessageTextarea") as HTMLTextAreaElement;
-                      if (!textarea) return;
-                      const start = textarea.selectionStart;
-                      const end = textarea.selectionEnd;
-                      const text = textarea.value;
-                      const replacement = "{{phone}}";
-                      const newValue = text.substring(0, start) + replacement + text.substring(end);
-                      setCustomMessage(newValue);
-                      setTimeout(() => {
-                        textarea.focus();
-                        textarea.setSelectionRange(start + replacement.length, start + replacement.length);
-                      }, 0);
-                    }}
-                  >
-                    + Phone
-                  </Button>
-                  {customVariables.map((cVar) => (
+                  {/* Variable insertion buttons */}
+                  <div className="flex flex-wrap gap-1.5 items-center pt-2">
+                    <span className="text-[11px] font-medium text-gray-500 mr-1">Insert Variables:</span>
                     <Button
-                      key={cVar}
                       type="button"
                       variant="ghost"
                       size="sm"
@@ -1234,7 +1216,7 @@ export function CreateCampaignForm({
                         const start = textarea.selectionStart;
                         const end = textarea.selectionEnd;
                         const text = textarea.value;
-                        const replacement = `{{${cVar}}}`;
+                        const replacement = "{{name}}";
                         const newValue = text.substring(0, start) + replacement + text.substring(end);
                         setCustomMessage(newValue);
                         setTimeout(() => {
@@ -1243,59 +1225,105 @@ export function CreateCampaignForm({
                         }, 0);
                       }}
                     >
-                      + {cVar.charAt(0).toUpperCase() + cVar.slice(1)}
+                      + Name
                     </Button>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-[10px] px-1.5 hover:bg-green-50 hover:text-green-700"
+                      onClick={() => {
+                        const textarea = document.getElementById("customMessageTextarea") as HTMLTextAreaElement;
+                        if (!textarea) return;
+                        const start = textarea.selectionStart;
+                        const end = textarea.selectionEnd;
+                        const text = textarea.value;
+                        const replacement = "{{phone}}";
+                        const newValue = text.substring(0, start) + replacement + text.substring(end);
+                        setCustomMessage(newValue);
+                        setTimeout(() => {
+                          textarea.focus();
+                          textarea.setSelectionRange(start + replacement.length, start + replacement.length);
+                        }, 0);
+                      }}
+                    >
+                      + Phone
+                    </Button>
+                    {customVariables.map((cVar) => (
+                      <Button
+                        key={cVar}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[10px] px-1.5 hover:bg-green-50 hover:text-green-700"
+                        onClick={() => {
+                          const textarea = document.getElementById("customMessageTextarea") as HTMLTextAreaElement;
+                          if (!textarea) return;
+                          const start = textarea.selectionStart;
+                          const end = textarea.selectionEnd;
+                          const text = textarea.value;
+                          const replacement = `{{${cVar}}}`;
+                          const newValue = text.substring(0, start) + replacement + text.substring(end);
+                          setCustomMessage(newValue);
+                          setTimeout(() => {
+                            textarea.focus();
+                            textarea.setSelectionRange(start + replacement.length, start + replacement.length);
+                          }, 0);
+                        }}
+                      >
+                        + {cVar.charAt(0).toUpperCase() + cVar.slice(1)}
+                      </Button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Live Preview Card */}
-          <Card className="flex flex-col h-full">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Eye className="h-4 w-4 text-blue-600" />
-                Live Preview
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex-1 flex flex-col justify-start">
-              <div 
-                className="bg-[#efeae2] border rounded-lg p-4 flex flex-col justify-between min-h-[220px] font-sans relative overflow-hidden" 
-                style={{ 
-                  backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')",
-                  backgroundSize: "cover"
-                }}
-              >
-                <div className="bg-white/95 backdrop-blur-sm self-start rounded-lg rounded-tl-none p-2.5 shadow-sm max-w-[85%] relative border border-gray-100">
-                  {mediaUrl && (
-                    <div className="mb-2 rounded overflow-hidden max-h-[140px] bg-gray-100 border flex items-center justify-center">
-                      {mediaMimeType?.startsWith("image/") ? (
-                        <img src={encodeURI(mediaUrl)} alt="Header Preview" className="w-full h-full object-cover max-h-[140px]" />
-                      ) : mediaMimeType?.startsWith("video/") ? (
-                        <video src={encodeURI(mediaUrl)} className="w-full h-full object-cover max-h-[140px]" controls />
-                      ) : (
-                        <div className="flex items-center gap-2 p-3 text-xs text-gray-600 w-full">
-                          <FileText className="h-6 w-6 text-blue-500 shrink-0" />
-                          <div className="truncate flex-1">
-                            <p className="font-semibold truncate text-[11px]">{mediaName || "Document"}</p>
-                            <p className="text-[9px] text-gray-500 truncate">{mediaMimeType || "application/pdf"}</p>
+              {/* Live Preview Card */}
+            <Card className="flex flex-col h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Eye className="h-4 w-4 text-blue-600" />
+                  Live Preview
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col justify-start">
+                <div 
+                  className="bg-[#efeae2] border rounded-lg p-4 flex flex-col justify-between min-h-[220px] font-sans relative overflow-hidden" 
+                  style={{ 
+                    backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')",
+                    backgroundSize: "cover"
+                  }}
+                >
+                  <div className="bg-white/95 backdrop-blur-sm self-start rounded-lg rounded-tl-none p-2.5 shadow-sm max-w-[85%] relative border border-gray-100">
+                    {mediaUrl && (
+                      <div className="mb-2 rounded overflow-hidden max-h-[140px] bg-gray-100 border flex items-center justify-center">
+                        {mediaMimeType?.startsWith("image/") ? (
+                          <img src={encodeURI(mediaUrl)} alt="Header Preview" className="w-full h-full object-cover max-h-[140px]" />
+                        ) : mediaMimeType?.startsWith("video/") ? (
+                          <video src={encodeURI(mediaUrl)} className="w-full h-full object-cover max-h-[140px]" controls />
+                        ) : (
+                          <div className="flex items-center gap-2 p-3 text-xs text-gray-600 w-full">
+                            <FileText className="h-6 w-6 text-blue-500 shrink-0" />
+                            <div className="truncate flex-1">
+                              <p className="font-semibold truncate text-[11px]">{mediaName || "Document"}</p>
+                              <p className="text-[9px] text-gray-500 truncate">{mediaMimeType || "application/pdf"}</p>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
+                    )}
+                    {customMessage ? renderPreviewText(customMessage) : <span className="text-gray-400 text-xs italic">Type a message to preview...</span>}
+                    <div className="text-[9px] text-gray-400 text-right mt-1 flex items-center justify-end gap-0.5">
+                      <span>12:00 PM</span>
+                      <Check className="h-3 w-3 text-blue-500" />
                     </div>
-                  )}
-                  {customMessage ? renderPreviewText(customMessage) : <span className="text-gray-400 text-xs italic">Type a message to preview...</span>}
-                  <div className="text-[9px] text-gray-400 text-right mt-1 flex items-center justify-end gap-0.5">
-                    <span>12:00 PM</span>
-                    <Check className="h-3 w-3 text-blue-500" />
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
     )}
 
       {(isQr || (utilityCategoryHelperEnabled && selectedTemplate)) && (
@@ -1634,7 +1662,7 @@ export function CreateCampaignForm({
           disabled={
             user?.username === 'demouser' 
               ? true 
-              : isCreating || (!isQr && !selectedTemplate)
+              : isCreating || (!isQr && !isCadence && messageCompositionMode === "template" && !selectedTemplate) || (!isQr && !isCadence && messageCompositionMode === "custom" && !customMessage?.trim() && !mediaUrl)
           }
         >
           {scheduledTime ? "Schedule Campaign" : "Start Campaign"}

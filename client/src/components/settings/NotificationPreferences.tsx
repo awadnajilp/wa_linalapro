@@ -202,7 +202,7 @@ export default function NotificationPreferences() {
 
   // Group templates by category
   const groupedTemplates = useMemo(() => {
-    if (!templates) return {};
+    if (!Array.isArray(templates)) return {};
 
     const grouped: Record<string, NotificationTemplate[]> = {};
     templates.forEach((template) => {

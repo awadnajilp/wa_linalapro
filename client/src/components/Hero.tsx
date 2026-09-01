@@ -22,9 +22,11 @@ import { useTranslation } from "@/lib/i18n";
 import { Link } from "wouter";
 
 const TYPING_WORDS = [
-  "WhatsApp Marketing",
-  "Customer Engagement",
-  "Business Growth",
+  "WhatsApp E-Commerce",
+  "AI Autopilot Chatbots",
+  "Smart Lead Routing",
+  "CRM Sales Pipelines",
+  "Visual Automation Flows",
 ];
 
 const Hero = () => {

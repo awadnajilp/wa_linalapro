@@ -31,6 +31,7 @@ import {
   Smartphone,
   Play,
   Sparkles,
+  ShoppingBag,
 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 
@@ -40,7 +41,7 @@ const Features = () => {
 
   const features = [
     {
-      icon: MessageSquare,
+      icon: Bot,
       title: t("Landing.featuresSec.featureTabs.0.title"),
       description: t("Landing.featuresSec.featureTabs.0.description"),
       color: "from-purple-500 to-purple-600",
@@ -56,7 +57,7 @@ const Features = () => {
       },
     },
     {
-      icon: Workflow,
+      icon: Users,
       title: t("Landing.featuresSec.featureTabs.1.title"),
       description: t("Landing.featuresSec.featureTabs.1.description"),
       color: "from-blue-500 to-blue-600",
@@ -72,12 +73,12 @@ const Features = () => {
       },
     },
     {
-      icon: BarChart3,
+      icon: ShoppingBag,
       title: t("Landing.featuresSec.featureTabs.2.title"),
       description: t("Landing.featuresSec.featureTabs.2.description"),
-      color: "from-purple-500 to-purple-600",
-      lightBg: "bg-purple-50",
-      lightColor: "text-purple-600",
+      color: "from-green-500 to-green-600",
+      lightBg: "bg-green-50",
+      lightColor: "text-green-600",
       demo: {
         title: t("Landing.featuresSec.featureTabs.2.demo.title"),
         stats: t("Landing.featuresSec.featureTabs.2.demo.stats"),
@@ -88,7 +89,7 @@ const Features = () => {
       },
     },
     {
-      icon: Users,
+      icon: BarChart3,
       title: t("Landing.featuresSec.featureTabs.3.title"),
       description: t("Landing.featuresSec.featureTabs.3.description"),
       color: "from-orange-500 to-orange-600",
@@ -104,7 +105,7 @@ const Features = () => {
       },
     },
     {
-      icon: Bot,
+      icon: Calendar,
       title: t("Landing.featuresSec.featureTabs.4.title"),
       description: t("Landing.featuresSec.featureTabs.4.description"),
       color: "from-indigo-500 to-indigo-600",
@@ -120,7 +121,7 @@ const Features = () => {
       },
     },
     {
-      icon: Calendar,
+      icon: Workflow,
       title: t("Landing.featuresSec.featureTabs.5.title"),
       description: t("Landing.featuresSec.featureTabs.5.description"),
       color: "from-pink-500 to-pink-600",

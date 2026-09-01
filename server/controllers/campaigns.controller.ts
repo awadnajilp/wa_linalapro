@@ -1158,13 +1158,22 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
               ? "authentication"
               : "marketing";
 
+          const mediaMime = campaign.mediaMimeType || (campaign.mediaUrl ? (campaign.mediaUrl.includes(".mp4") ? "video/mp4" : "image/jpeg") : null);
+          const customParams = {
+            customMessage: campaign.customMessage || "",
+            mediaUrl: campaign.mediaUrl || null,
+            mediaType: mediaMime ? (mediaMime.includes("image") ? "image" : mediaMime.includes("video") ? "video" : mediaMime.includes("audio") ? "audio" : "document") : undefined,
+            mediaName: campaign.mediaName || "file",
+            mediaMimeType: mediaMime || null
+          };
+
           chunkRows.push({
             campaignId,
             channelId: channel.id,
             recipientPhone: contact.phone,
-            templateName: isQr ? null : template!.name,
-            templateLanguage: isQr ? null : ((campaign as any).templateLanguage || "en_US"),
-            templateParams: components,
+            templateName: (isQr || !template) ? null : template.name,
+            templateLanguage: (isQr || !template) ? null : ((campaign as any).templateLanguage || "en_US"),
+            templateParams: template ? components : customParams,
             messageType: msgType,
             status: "queued" as const,
           });
@@ -1174,7 +1183,7 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
             phone: contact.phone,
             name: contact.name || null,
             status: "pending",
-            templateParams: components,
+            templateParams: template ? components : customParams,
           });
         } catch (err: any) {
           console.error(`[Campaign ${campaignId}] Failed to build components for ${contact.phone}: ${err.message}`);
@@ -1190,8 +1199,8 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
             campaignId,
             channelId: channel.id,
             recipientPhone: contact.phone,
-            templateName: isQr ? null : template!.name,
-            templateLanguage: isQr ? null : ((campaign as any).templateLanguage || "en_US"),
+            templateName: (isQr || !template) ? null : template.name,
+            templateLanguage: (isQr || !template) ? null : ((campaign as any).templateLanguage || "en_US"),
             templateParams: [],
             messageType: msgType,
             status: "failed" as const,

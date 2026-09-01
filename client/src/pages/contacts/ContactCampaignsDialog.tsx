@@ -35,6 +35,7 @@ import {
   AlertCircle,
   X,
   RefreshCw,
+  Send,
 } from "lucide-react";
 import { type Contact } from "./types";
 import { apiRequest } from "@/lib/queryClient";
@@ -231,6 +232,28 @@ export function ContactCampaignsDialog({
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/contacts"] });
       refetch();
+    },
+  });
+
+  // Send Now mutation
+  const sendNowMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/contacts/campaigns/${id}/send-now`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Message Queued",
+        description: data.message || "Recurring message queued for immediate dispatch.",
+      });
+      refetch();
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to Send",
+        description: err.message || "Could not queue campaign message.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -664,7 +687,17 @@ export function ContactCampaignsDialog({
                     </div>
                   </div>
 
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 items-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                      onClick={() => sendNowMutation.mutate(cc.id)}
+                      disabled={sendNowMutation.isPending}
+                      title="Send / Retry Now"
+                    >
+                      <Send className="w-4 h-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"

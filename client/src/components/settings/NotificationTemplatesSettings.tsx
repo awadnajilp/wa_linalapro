@@ -67,6 +67,10 @@ export default function NotificationTemplatesSettings() {
   // Fetch notification templates
   const { data: templates = [], isLoading: templatesLoading } = useQuery<NotificationTemplate[]>({
     queryKey: ["/api/notification-templates"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/notification-templates");
+      return res.json();
+    },
   });
 
   // Update template mutation

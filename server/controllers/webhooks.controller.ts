@@ -727,6 +727,135 @@ async function handleMessageChange(value: any) {
       await storage.updateConversation(conversation.id, updates);
     }
 
+    // STT Transcription for Cloud API Voice Notes
+    if (isVoice && mediaId) {
+      try {
+        let voiceProfileId = null;
+        let voiceLanguage = "en-IN";
+
+        const settings = (conversation.aiSettings || {}) as any;
+        const chanSettings = (channel.inboxAiSettings || {}) as any;
+        const isChannelAiEnabled = channel.inboxAiSettings && chanSettings.aiEnabled === true;
+        const sttEnabled = settings.sttEnabled !== undefined ? settings.sttEnabled : chanSettings.sttEnabled;
+
+        // Check if there is an active ecommerce AI session
+        const { ecommerceSessions } = await import("@shared/schema");
+        const [ecomSession] = await db
+          .select()
+          .from(ecommerceSessions)
+          .where(and(
+            eq(ecommerceSessions.conversationId, conversation.id),
+            eq(ecommerceSessions.currentStep, "ai_chat")
+          ))
+          .limit(1);
+
+        if (sttEnabled === true) {
+          voiceLanguage = settings.sttLanguage || chanSettings.sttLanguage || "en-IN";
+          voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
+          
+          if (!voiceProfileId) {
+            const firstProfile = await db.query.voiceProfiles.findFirst();
+            if (firstProfile) {
+              voiceProfileId = firstProfile.id;
+            }
+          }
+        } else {
+          // If sttEnabled is not explicitly true, still check if ecommerce session is active or AI is enabled
+          if (ecomSession) {
+            voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
+            voiceLanguage = settings.voiceLanguage || chanSettings.voiceLanguage || "en-IN";
+
+            if (!voiceProfileId) {
+              const firstProfile = await db.query.voiceProfiles.findFirst();
+              if (firstProfile) {
+                voiceProfileId = firstProfile.id;
+                voiceLanguage = firstProfile.languageCode || voiceLanguage;
+              }
+            }
+          } else if (conversation.aiEnabled || isChannelAiEnabled) {
+            const voiceEnabled = settings.voiceEnabled !== undefined ? settings.voiceEnabled : chanSettings.voiceEnabled;
+            if (voiceEnabled) {
+              voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
+              voiceLanguage = settings.voiceLanguage || chanSettings.voiceLanguage || "en-IN";
+            }
+          }
+        }
+
+        if (voiceProfileId) {
+          const { voiceProfiles } = await import("@shared/schema");
+          const [voiceProfile] = await db
+            .select()
+            .from(voiceProfiles)
+            .where(eq(voiceProfiles.id, voiceProfileId))
+            .limit(1);
+
+          if (voiceProfile) {
+            let activeApiKey = "";
+            const providerName = voiceProfile.provider || "sarvam";
+            
+            const getApiKey = (u: any) => {
+              if (providerName === "groq") return u?.groqApiKey || "";
+              if (providerName === "elevenlabs") return u?.elevenlabsApiKey || "";
+              return u?.sarvamApiKey || "";
+            };
+            const getEnvKey = () => {
+              if (providerName === "groq") return process.env.GROQ_API_KEY || "";
+              if (providerName === "elevenlabs") return process.env.ELEVENLABS_API_KEY || "";
+              return process.env.SARVAM_API_KEY || "";
+            };
+
+            const creatorId = channel.createdBy;
+            if (creatorId) {
+              const [ownerUser] = await db
+                .select()
+                .from(users)
+                .where(eq(users.id, creatorId))
+                .limit(1);
+              activeApiKey = getApiKey(ownerUser);
+            }
+            if (!activeApiKey) {
+              const [defaultUser] = await db
+                .select()
+                .from(users)
+                .where(eq(users.email, "awadnejilp@gmail.com"))
+                .limit(1);
+              activeApiKey = getApiKey(defaultUser);
+            }
+            if (!activeApiKey) {
+              activeApiKey = getEnvKey();
+            }
+
+            if (activeApiKey) {
+              console.log(`[STT Webhook Cloud] Downloading audio note ${mediaId} from WhatsApp...`);
+              const { buffer } = await waApi.getMediaBuffer(mediaId);
+
+              console.log(`[STT Webhook Cloud] Transcribing audio via provider ${voiceProfile.provider}...`);
+              const { VoiceManager } = await import("../services/voice");
+              const provider = VoiceManager.getProvider(voiceProfile.provider);
+              const transcriptText = await provider.transcribe(
+                buffer,
+                voiceLanguage || voiceProfile.languageCode || "en-IN",
+                { apiKey: activeApiKey }
+              );
+
+              if (transcriptText) {
+                console.log(`[STT Webhook Cloud] Transcription successful: "${transcriptText}"`);
+                messageContent = transcriptText;
+                
+                // Update conversation's cached lastMessageText since we just transcribed it
+                await storage.updateConversation(conversation.id, {
+                  lastMessageText: messageContent,
+                });
+                conversation.lastMessageText = messageContent;
+              }
+            }
+          }
+        }
+      } catch (sttErr: any) {
+        console.error("[STT Webhook Cloud] Failed to transcribe voice note:", sttErr.message);
+      }
+    }
+
     const storedMessageType = interactiveData?.type === "unsupported" ? "unsupported" : type;
 
     // Parse context (Reply)

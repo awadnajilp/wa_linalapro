@@ -202,7 +202,8 @@ export default function Notifications() {
   };
 
   // ---------------- Filtering & Pagination ----------------
-  const filteredNotifications = notifications.filter((n) => {
+  const notificationsArr = Array.isArray(notifications) ? notifications : [];
+  const filteredNotifications = notificationsArr.filter((n) => {
     if (statusFilter !== "all") {
       const nStatus = n.status || "sent";
       if (statusFilter !== nStatus) return false;
@@ -294,14 +295,14 @@ export default function Notifications() {
             </CardHeader>
             <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
               <div className="text-2xl sm:text-3xl font-bold text-gray-900">
-                {notifications.length}
+                {notificationsArr.length}
               </div>
               <p className="text-xs sm:text-sm text-gray-500 mt-1">
                 {t("notifications.stats.allNotifications")}
               </p>
             </CardContent>
           </Card>
-
+ 
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader className="pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
               <CardTitle className="text-sm sm:text-base flex items-center gap-2">
@@ -313,14 +314,14 @@ export default function Notifications() {
             </CardHeader>
             <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
               <div className="text-2xl sm:text-3xl font-bold text-gray-900">
-                {notifications.filter((n) => n.targetType === "users").length}
+                {notificationsArr.filter((n) => n.targetType === "users").length}
               </div>
               <p className="text-xs sm:text-sm text-gray-500 mt-1">
                 {t("notifications.stats.usersOnly")}
               </p>
             </CardContent>
           </Card>
-
+ 
           <Card className="hover:shadow-lg transition-shadow sm:col-span-2 lg:col-span-1">
             <CardHeader className="pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
               <CardTitle className="text-sm sm:text-base flex items-center gap-2">
@@ -333,7 +334,7 @@ export default function Notifications() {
             <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
               <div className="text-2xl sm:text-3xl font-bold text-gray-900">
                 {
-                  notifications.filter(
+                  notificationsArr.filter(
                     (n) => n.targetType === "admins" || n.targetType === "team"
                   ).length
                 }

@@ -1236,104 +1236,104 @@
       }
     },
     "featuresSec": {
-      "introTagline": "Powerful WhatsApp Marketing Features",
-      "headlinePre": "Everything You Need to",
-      "headlineHighlight": "Scale Your Business",
-      "subHeadline": "From bulk messaging to AI chatbots, our platform provides all the tools you need to create successful WhatsApp marketing campaigns",
+      "introTagline": "Next-Gen WhatsApp CRM & E-Commerce features",
+      "headlinePre": "Automate & Scale with",
+      "headlineHighlight": "Advanced CRM & AI",
+      "subHeadline": "Unlock visual automation flows, round-robin routing, built-in e-commerce storefronts, and autonomous AI agents speaking localized voice notes.",
       "demo": "Demo",
-      "campaign_progress": "Campaign Progress",
+      "campaign_progress": "Platform Adoption",
       "featureTabs": [
         {
-          "title": "Bulk Messaging",
-          "description": "Send personalized messages to thousands of contacts instantly with smart delivery optimization",
+          "title": "AI Autopilot & Voice",
+          "description": "Engage customers 24/7 using autonomous AI agents equipped with Knowledge Base (RAG) and localized voice synthesis (ElevenLabs, Sarvam.ai, Groq).",
           "demo": {
-            "title": "Broadcast Campaign",
-            "stats": "10,000 messages sent in 2 minutes",
+            "title": "AI Autopilot Agent",
+            "stats": "Localized voices (English, Hindi, Arabic, etc.)",
             "features": [
-              "Personalized templates",
-              "Smart scheduling",
-              "Delivery optimization"
+              "Dynamic RAG (URLs/Docs/DB)",
+              "Localized voice notes response",
+              "Autonomous takeover & human handoff"
             ]
           }
         },
         {
-          "title": "Automation Workflows",
-          "description": "Create intelligent automated sequences that nurture leads and engage customers 24/7",
+          "title": "Round Robin Routing",
+          "description": "Automatically distribute incoming sales or support chats among online team members using smart load balancing and agent capacity limit constraints.",
           "demo": {
-            "title": "Welcome Sequence",
-            "stats": "85% engagement rate",
+            "title": "Smart Round Robin Routing",
+            "stats": "Zero workload bottlenecking",
             "features": [
-              "Trigger-based flows",
-              "Conditional logic",
-              "Multi-step journeys"
+              "Online-only status verification",
+              "Agent Open Deals Capacity Limit",
+              "Agent exclusion list & load sorting"
             ]
           }
         },
         {
-          "title": "Advanced Analytics",
-          "description": "Track performance with real-time insights, delivery reports, and engagement metrics",
+          "title": "WhatsApp E-Commerce",
+          "description": "Sell catalog products directly in chat. Automated ordering, base currency controls, dynamic delivery fees via PIN codes, and instant PDF invoice dispatch.",
           "demo": {
-            "title": "Campaign Analytics",
-            "stats": "98% delivery rate",
+            "title": "Built-in Checkout Storefront",
+            "stats": "Automated order tracking & PDFs",
             "features": [
-              "Real-time tracking",
-              "ROI analysis",
-              "Custom reports"
+              "Automated PDF Invoices on payment",
+              "Real-time self-service order tracking",
+              "Dynamic delivery fee calculation"
             ]
           }
         },
         {
-          "title": "Contact Management",
-          "description": "Organize and segment your audience with smart tagging and advanced filtering",
+          "title": "CRM Sales Pipelines",
+          "description": "Organize your team with visual drag-and-drop pipeline stages, deal metadata, and configure maximum capacity limits per sales representative.",
           "demo": {
-            "title": "Smart Segmentation",
-            "stats": "50+ custom fields",
+            "title": "Unified Agent Workspace",
+            "stats": "Clear sales stage transitions",
             "features": [
-              "Auto-tagging",
-              "Behavioral segments",
-              "Import/Export"
+              "Custom pipelines & stages",
+              "Multi-agent collaborative inbox",
+              "Granular permission controls"
             ]
           }
         },
         {
-          "title": "AI Chatbots",
-          "description": "Deploy intelligent chatbots that handle customer queries and qualify leads automatically",
+          "title": "Recurring Campaigns",
+          "description": "Engage contacts at custom intervals (daily, weekly, monthly) using dynamic scheduling, contact variables, and staggered delivery rates.",
           "demo": {
-            "title": "Customer Support Bot",
-            "stats": "24/7 availability",
+            "title": "Automated Broadcasts",
+            "stats": "Smart cron recurrence scheduling",
             "features": [
-              "Natural language",
-              "Lead qualification",
-              "Handoff to humans"
+              "Staggered speed rate limits",
+              "Dynamic tag and field replacements",
+              "Campaign delivery stagger logic"
             ]
           }
         },
         {
-          "title": "Campaign Scheduler",
-          "description": "Plan and schedule campaigns across time zones with optimal delivery timing",
+          "title": "Visual Flow Builder",
+          "description": "Design interactive customer journeys using visual nodes, delays, conditionals, menu lists, and AI handoff controls.",
           "demo": {
-            "title": "Global Campaigns",
-            "stats": "Multi-timezone support",
+            "title": "Automation Flow Builder",
+            "stats": "No-code workflow engine",
             "features": [
-              "Smart timing",
-              "Recurring campaigns",
-              "A/B testing"
+              "Interactive WhatsApp menu blocks",
+              "Trigger-based keyword responses",
+              "AI takeover node integration"
             ]
           }
         }
       ],
       "additionalFeatures": [
         {
-          "title": "Multi-language Support",
-          "desc": "Reach global audiences in their native language"
+          "title": "ElevenLabs & Sarvam.ai",
+          "desc": "Speak natively to your audience using hyper-realistic voice synthesis APIs."
         },
         {
-          "title": "Smart Targeting",
-          "desc": "Precision targeting based on behavior and demographics"
+          "title": "Dynamic PIN Deliveries",
+          "desc": "Auto-calculate regional delivery fees via PIN code lookup APIs."
         },
         {
-          "title": "API Integration",
-          "desc": "Seamless integration with your existing tools and CRM"
+          "title": "Open Deals Capacity",
+          "desc": "Set agent capacity caps to balance sales load and optimize response time."
         }
       ]
     },

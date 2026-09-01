@@ -712,7 +712,7 @@ export class MessageQueueService {
         }
       }
 
-      const waMessageId = response.messages?.[0]?.id;
+      const waMessageId = response?.messages?.[0]?.id || response?.key?.id || response?.id || null;
 
       const isQrCode = channel.connectionMethod === "qr_code";
 

@@ -178,7 +178,8 @@ export default function UserNotifications() {
     },
   });
 
-  const notifications: NotificationItem[] = rawNotifications.map((n: any) => ({
+  const rawNotificationsArr = Array.isArray(rawNotifications) ? rawNotifications : [];
+  const notifications: NotificationItem[] = rawNotificationsArr.map((n: any) => ({
     id: n.id,
     title: n.notification?.title || n.title || "Notification",
     message: n.notification?.message || n.message || "",

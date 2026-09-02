@@ -239,6 +239,8 @@ export const campaignRecipients = pgTable(
     errorCode: varchar("error_code"),
     errorMessage: text("error_message"),
     retryCount: integer("retry_count").default(0),
+    repliedAt: timestamp("replied_at"),
+    replyText: text("reply_text"),
     isStopped: boolean("is_stopped").default(false),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
@@ -1068,6 +1070,7 @@ export const messageQueue = pgTable("message_queue", {
   processedAt: timestamp("processed_at"),
   deliveredAt: timestamp("delivered_at"),
   readAt: timestamp("read_at"),
+  repliedAt: timestamp("replied_at"),
   createdAt: timestamp("created_at").defaultNow(),
   dealId: varchar("deal_id"),
 }, (table) => ({

@@ -226,7 +226,22 @@ export const getCampaignAnalyticsById = asyncHandler(async (req: Request, res: R
 
   // Get all recipients for this campaign
   let recipientsList = await dbRead
-    .select()
+    .select({
+      id: campaignRecipients.id,
+      campaignId: campaignRecipients.campaignId,
+      phone: campaignRecipients.phone,
+      name: campaignRecipients.name,
+      status: campaignRecipients.status,
+      whatsappMessageId: campaignRecipients.whatsappMessageId,
+      sentAt: campaignRecipients.sentAt,
+      deliveredAt: campaignRecipients.deliveredAt,
+      readAt: campaignRecipients.readAt,
+      repliedAt: campaignRecipients.repliedAt,
+      replyText: campaignRecipients.replyText,
+      errorCode: campaignRecipients.errorCode,
+      errorMessage: campaignRecipients.errorMessage,
+      contactId: campaignRecipients.contactId,
+    })
     .from(campaignRecipients)
     .where(eq(campaignRecipients.campaignId, campaignId));
 
@@ -242,6 +257,7 @@ export const getCampaignAnalyticsById = asyncHandler(async (req: Request, res: R
         sentAt: messageQueue.processedAt,
         deliveredAt: messageQueue.deliveredAt,
         readAt: messageQueue.readAt,
+        repliedAt: messageQueue.repliedAt,
         errorCode: messageQueue.errorCode,
         errorMessage: messageQueue.errorMessage,
         name: contactsTable.name,
@@ -267,6 +283,8 @@ export const getCampaignAnalyticsById = asyncHandler(async (req: Request, res: R
         sentAt: e.sentAt || null,
         deliveredAt: e.deliveredAt || null,
         readAt: e.readAt || null,
+        repliedAt: e.repliedAt || null,
+        replyText: null,
         errorCode: e.errorCode || null,
         errorMessage: e.errorMessage || null,
         name: e.name || "Unknown",
@@ -274,6 +292,13 @@ export const getCampaignAnalyticsById = asyncHandler(async (req: Request, res: R
       }));
     }
   }
+
+  // Ensure repliedCount is accurately counted
+  const computedRepliedCount = recipientsList.filter(r => r.status === 'replied' || r.repliedAt).length;
+  const campaignWithStats = {
+    ...campaign,
+    repliedCount: Math.max(campaign.repliedCount || 0, computedRepliedCount)
+  };
 
   // Get daily message stats for this campaign
   const endDate = new Date();
@@ -317,7 +342,7 @@ export const getCampaignAnalyticsById = asyncHandler(async (req: Request, res: R
     .groupBy(sql`${messages.errorDetails}->>'code'`, sql`${messages.errorDetails}->>'message'`)
     .orderBy(desc(count(messages.id)));
   res.status(200).json({
-    campaign,
+    campaign: campaignWithStats,
     dailyStats,
     recipientStats,
     errorAnalysis,

@@ -206,6 +206,9 @@ const steps: MigrationStep[] = [
   addColumnIfNotExists("message_queue", "cost", "VARCHAR(20)"),
   addColumnIfNotExists("message_queue", "delivered_at", "TIMESTAMP"),
   addColumnIfNotExists("message_queue", "read_at", "TIMESTAMP"),
+  addColumnIfNotExists("message_queue", "replied_at", "TIMESTAMP"),
+  addColumnIfNotExists("campaign_recipients", "replied_at", "TIMESTAMP"),
+  addColumnIfNotExists("campaign_recipients", "reply_text", "TEXT"),
 
   // ────────────────────────────────────────────────────
   // ai_settings

@@ -17,9 +17,9 @@
 
 import { db } from "../db";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
-import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites, automationExecutions, automations, voiceProfiles, automationNodes, aiProfiles } from "@shared/schema";
+import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites, automationExecutions, automations, voiceProfiles, automationNodes, aiProfiles, campaignRecipients, campaigns } from "@shared/schema";
 import * as schema from "@shared/schema";
-import { eq, and, gte, inArray, desc } from "drizzle-orm";
+import { eq, and, gte, inArray, desc, isNull, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { triggerNotification, triggerThrottledNotification, NOTIFICATION_EVENTS } from "./notification.service";
 import OpenAI from "openai";
@@ -2393,8 +2393,72 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
 
       console.log(`[${channelId || 'no-channel'}] Received ${message.type} from ${message.from}: ${content.substring(0, 80)}`);
 
-      // 8. Send notification to channel owner and team
+      // 7.5 Track Campaign Reply if contact replied after receiving a campaign message
       const isGroupMessage = contact[0]?.isGroup === true || message.from.endsWith("@g.us");
+      if (channelId && !isGroupMessage) {
+        try {
+          const matchedRecipients = await db
+            .select({
+              id: campaignRecipients.id,
+              campaignId: campaignRecipients.campaignId,
+              status: campaignRecipients.status,
+              repliedAt: campaignRecipients.repliedAt,
+            })
+            .from(campaignRecipients)
+            .innerJoin(campaigns, eq(campaignRecipients.campaignId, campaigns.id))
+            .where(
+              and(
+                eq(campaigns.channelId, channelId),
+                eq(campaignRecipients.phone, message.from),
+                isNull(campaignRecipients.repliedAt)
+              )
+            )
+            .orderBy(desc(campaignRecipients.createdAt))
+            .limit(1);
+
+          if (matchedRecipients.length > 0) {
+            const recipientEntry = matchedRecipients[0];
+            const replyPreview = content.length > 500 ? content.substring(0, 500) : content;
+
+            await db
+              .update(campaignRecipients)
+              .set({
+                status: "replied",
+                repliedAt: now,
+                replyText: replyPreview,
+                updatedAt: now,
+              })
+              .where(eq(campaignRecipients.id, recipientEntry.id));
+
+            await db
+              .update(campaigns)
+              .set({
+                repliedCount: sql`COALESCE(${campaigns.repliedCount}, 0) + 1`,
+                updatedAt: now,
+              })
+              .where(eq(campaigns.id, recipientEntry.campaignId));
+
+            await db
+              .update(messageQueue)
+              .set({
+                repliedAt: now,
+              })
+              .where(
+                and(
+                  eq(messageQueue.campaignId, recipientEntry.campaignId),
+                  eq(messageQueue.recipientPhone, message.from),
+                  isNull(messageQueue.repliedAt)
+                )
+              );
+
+            console.log(`📊 [Campaign Reply] Attributed reply from ${message.from} to campaign ${recipientEntry.campaignId}`);
+          }
+        } catch (repErr) {
+          console.error("❌ [Campaign Reply] Failed to track campaign reply:", repErr);
+        }
+      }
+
+      // 8. Send notification to channel owner and team
       if (!isGroupMessage) {
         try {
           if (channel.length > 0 && channel[0].createdBy) {

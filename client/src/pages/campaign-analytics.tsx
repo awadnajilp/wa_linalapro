@@ -31,7 +31,8 @@ import {
   CheckCircle,
   Send,
   AlertCircle,
-  Users
+  Users,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -201,7 +202,7 @@ export default function CampaignAnalytics() {
 
   const deliveryRate = sentCount > 0 ? Math.round((deliveredCount / sentCount) * 100) : 0;
   const readRate = deliveredCount > 0 ? (readCount / deliveredCount) * 100 : 0;
-  const replyRate = readCount > 0 ? (repliedCount / readCount) * 100 : 0;
+  const replyRate = deliveredCount > 0 ? (repliedCount / deliveredCount) * 100 : (readCount > 0 ? (repliedCount / readCount) * 100 : 0);
   const failureRate = sentCount > 0 ? Math.round((actualFailedCount / sentCount) * 100) : 0;
   const nonDeliverableRate = sentCount > 0 ? Math.round((nonDeliverableCount / sentCount) * 100) : 0;
 
@@ -214,12 +215,14 @@ export default function CampaignAnalytics() {
       sent: 0,
       delivered: 0,
       read: 0,
+      replied: 0,
       failed: 0,
       "non-deliverable": 0,
     };
 
     recipients.forEach((r: any) => {
-      const status = r.status || "pending";
+      const isReplied = r.status === "replied" || !!r.repliedAt;
+      const status = isReplied ? "replied" : (r.status || "pending");
       if (status === "failed") {
         if (isMetaEcosystemIssue(r.errorCode)) {
           counts["non-deliverable"]++;
@@ -555,122 +558,144 @@ export default function CampaignAnalytics() {
         </Card>
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4">
           <Card className="hover-lift">
-            <CardContent className="p-6">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Recipients</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-xs text-gray-600">Recipients</p>
+                  <p className="text-xl font-bold text-gray-900">
                     {safeNumber(campaign.recipientCount).toLocaleString()}
                   </p>
                 </div>
                 <div className="p-2 bg-blue-50 rounded-lg">
-                  <Users className="w-6 h-6 text-blue-600" />
+                  <Users className="w-5 h-5 text-blue-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="hover-lift">
-            <CardContent className="p-6">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Messages Sent</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-xs text-gray-600">Messages Sent</p>
+                  <p className="text-xl font-bold text-gray-900">
                     {sentCount.toLocaleString()}
                   </p>
                 </div>
                 <div className="p-2 bg-green-50 rounded-lg">
-                  <Send className="w-6 h-6 text-green-600" />
+                  <Send className="w-5 h-5 text-green-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="hover-lift">
-            <CardContent className="p-6">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Delivery Rate</p>
-                  <p className="text-2xl font-bold text-green-600">
+                  <p className="text-xs text-gray-600">Delivery Rate</p>
+                  <p className="text-xl font-bold text-green-600">
                     {deliveryRate}%
                   </p>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
                     <div
-                      className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                      className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
                       style={{ width: `${Math.min(deliveryRate, 100)}%` }}
                     />
                   </div>
                 </div>
                 <div className="p-2 bg-green-50 rounded-lg">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
+                  <CheckCircle className="w-5 h-5 text-green-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="hover-lift">
-            <CardContent className="p-6">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Read Rate</p>
-                  <p className="text-2xl font-bold text-orange-600">
+                  <p className="text-xs text-gray-600">Read Rate</p>
+                  <p className="text-xl font-bold text-blue-600">
                     {readRate.toFixed(1)}%
                   </p>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
                     <div
-                      className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                      className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
                       style={{ width: `${Math.min(readRate, 100)}%` }}
                     />
                   </div>
                 </div>
-                <div className="p-2 bg-orange-50 rounded-lg">
-                  <Eye className="w-6 h-6 text-orange-600" />
+                <div className="p-2 bg-blue-50 rounded-lg">
+                  <Eye className="w-5 h-5 text-blue-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="hover-lift">
-            <CardContent className="p-6">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Non-Deliverable</p>
-                  <p className="text-2xl font-bold text-yellow-600">
+                  <p className="text-xs text-gray-600">Replied</p>
+                  <p className="text-xl font-bold text-purple-600">
+                    {repliedCount.toLocaleString()} ({replyRate.toFixed(1)}%)
+                  </p>
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                    <div
+                      className="bg-purple-500 h-1.5 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(replyRate, 100)}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="p-2 bg-purple-50 rounded-lg">
+                  <MessageSquare className="w-5 h-5 text-purple-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover-lift">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-600">Non-Deliverable</p>
+                  <p className="text-xl font-bold text-yellow-600">
                     {nonDeliverableCount.toLocaleString()} ({nonDeliverableRate.toFixed(1)}%)
                   </p>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
                     <div
-                      className="bg-yellow-500 h-2 rounded-full transition-all duration-300"
+                      className="bg-yellow-500 h-1.5 rounded-full transition-all duration-300"
                       style={{ width: `${Math.min(nonDeliverableRate, 100)}%` }}
                     />
                   </div>
                 </div>
                 <div className="p-2 bg-yellow-50 rounded-lg">
-                  <AlertCircle className="w-6 h-6 text-yellow-600" />
+                  <AlertCircle className="w-5 h-5 text-yellow-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="hover-lift">
-            <CardContent className="p-6">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Failure Rate</p>
-                  <p className="text-2xl font-bold text-red-600">
+                  <p className="text-xs text-gray-600">Failure Rate</p>
+                  <p className="text-xl font-bold text-red-600">
                     {actualFailedCount.toLocaleString()} ({failureRate.toFixed(1)}%)
                   </p>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
                     <div
-                      className="bg-red-500 h-2 rounded-full transition-all duration-300"
+                      className="bg-red-500 h-1.5 rounded-full transition-all duration-300"
                       style={{ width: `${Math.min(failureRate, 100)}%` }}
                     />
                   </div>
                 </div>
                 <div className="p-2 bg-red-50 rounded-lg">
-                  <XCircle className="w-6 h-6 text-red-600" />
+                  <XCircle className="w-5 h-5 text-red-600" />
                 </div>
               </div>
             </CardContent>
@@ -772,7 +797,10 @@ export default function CampaignAnalytics() {
             <CardTitle>Full Campaign Report ({Array.isArray(campaignData?.recipients) ? campaignData.recipients.filter(r => {
               const nameMatch = (r.name || "").toLowerCase().includes(searchTerm.toLowerCase());
               const phoneMatch = (r.phone || "").toLowerCase().includes(searchTerm.toLowerCase());
-              const statusMatch = statusFilter === "all" || r.status === statusFilter;
+              const isReplied = r.status === "replied" || !!r.repliedAt;
+              const isNonDeliverable = r.status === "failed" && isMetaEcosystemIssue(r.errorCode);
+              const actualStatus = isReplied ? "replied" : isNonDeliverable ? "non-deliverable" : r.status;
+              const statusMatch = statusFilter === "all" || actualStatus === statusFilter;
               return (nameMatch || phoneMatch) && statusMatch;
             }).length : 0})</CardTitle>
             <div className="flex items-center space-x-2 w-full md:w-auto">
@@ -799,6 +827,7 @@ export default function CampaignAnalytics() {
                 <option value="sent">Sent</option>
                 <option value="delivered">Delivered</option>
                 <option value="read">Read</option>
+                <option value="replied">Replied</option>
                 <option value="failed">Failed</option>
                 <option value="non-deliverable">Non-Deliverable</option>
               </select>
@@ -811,8 +840,9 @@ export default function CampaignAnalytics() {
                 const nameMatch = (rec.name || "").toLowerCase().includes(searchTerm.toLowerCase());
                 const phoneMatch = (rec.phone || "").toLowerCase().includes(searchTerm.toLowerCase());
                 
+                const isReplied = rec.status === "replied" || !!rec.repliedAt;
                 const isNonDeliverable = rec.status === "failed" && isMetaEcosystemIssue(rec.errorCode);
-                const actualStatus = isNonDeliverable ? "non-deliverable" : rec.status;
+                const actualStatus = isReplied ? "replied" : isNonDeliverable ? "non-deliverable" : rec.status;
                 const statusMatch = statusFilter === "all" || actualStatus === statusFilter;
                 
                 return (nameMatch || phoneMatch) && statusMatch;
@@ -846,10 +876,14 @@ export default function CampaignAnalytics() {
                       </thead>
                       <tbody className="divide-y divide-gray-200 bg-white">
                         {paginatedRecipients.map((rec, idx) => {
+                          const isReplied = rec.status === "replied" || !!rec.repliedAt;
                           const isMetaIssue = rec.status === "failed" && isMetaEcosystemIssue(rec.errorCode);
-                          const displayStatus = isMetaIssue ? "non-deliverable" : rec.status;
+                          const displayStatus = isReplied ? "replied" : isMetaIssue ? "non-deliverable" : rec.status;
 
                           const getStatusBadge = () => {
+                            if (isReplied) {
+                              return "bg-purple-100 text-purple-800 border border-purple-200";
+                            }
                             if (isMetaIssue) {
                               return "bg-yellow-100 text-yellow-800 border border-yellow-200";
                             }
@@ -868,6 +902,16 @@ export default function CampaignAnalytics() {
                           };
 
                           const getTimelineText = () => {
+                            if (isReplied) {
+                              return (
+                                <div className="text-xs text-purple-700 font-normal">
+                                  <div>Replied: {new Date(rec.repliedAt || rec.readAt || rec.deliveredAt || rec.sentAt).toLocaleString()}</div>
+                                  {rec.replyText && (
+                                    <div className="text-gray-600 mt-0.5 italic max-w-md truncate">"{rec.replyText}"</div>
+                                  )}
+                                </div>
+                              );
+                            }
                             if (rec.status === "failed") {
                               return (
                                 <div className={`text-xs ${isMetaIssue ? 'text-yellow-700' : 'text-red-600'} font-normal`}>

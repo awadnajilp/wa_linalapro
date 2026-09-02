@@ -11,7 +11,7 @@ export class WhatsappFlowsController {
    * Get all Flows for the tenant / active channel
    */
   static getFlows = asyncHandler(async (req: Request, res: Response) => {
-    const user = (req as any).session?.user;
+    const user = (req as any).user || (req as any).session?.user;
     const tenantId = user?.role === "team" ? user.createdBy : user?.id;
     const channelId = req.headers["x-channel-id"] as string || req.query.channelId as string;
 
@@ -112,7 +112,7 @@ export class WhatsappFlowsController {
    * Create a new Flow (Local + Optional Meta Graph API sync)
    */
   static createFlow = asyncHandler(async (req: Request, res: Response) => {
-    const user = (req as any).session?.user;
+    const user = (req as any).user || (req as any).session?.user;
     const tenantId = user?.role === "team" ? user.createdBy : user?.id;
     const {
       channelId,
@@ -371,7 +371,7 @@ export class WhatsappFlowsController {
    * Sync all Flows from Meta WABA
    */
   static syncMetaFlows = asyncHandler(async (req: Request, res: Response) => {
-    const user = (req as any).session?.user;
+    const user = (req as any).user || (req as any).session?.user;
     const tenantId = user?.role === "team" ? user.createdBy : user?.id;
     const { channelId } = req.body;
 
@@ -396,7 +396,7 @@ export class WhatsappFlowsController {
    * Seed standard sample flow templates
    */
   static seedSampleTemplates = asyncHandler(async (req: Request, res: Response) => {
-    const user = (req as any).session?.user;
+    const user = (req as any).user || (req as any).session?.user;
     const tenantId = user?.role === "team" ? user.createdBy : user?.id;
     const { channelId } = req.body;
 

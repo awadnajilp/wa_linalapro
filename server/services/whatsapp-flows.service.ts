@@ -1,5 +1,5 @@
 import { db, dbRead } from "../db";
-import { whatsappFlows, whatsappFlowResponses, channels, conversations, contacts, messages, users } from "@shared/schema";
+import { whatsappFlows, whatsappFlowResponses, channels, conversations, contacts, messages, users, whatsappBusinessAccountsConfig } from "@shared/schema";
 import { eq, and, desc, sql, or } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -444,10 +444,47 @@ export class WhatsappFlowsService {
       throw new Error(`Channel ${channelId} not found`);
     }
 
-    const config = (channel.config || {}) as Record<string, any>;
-    const accessToken = config.permanentAccessToken || config.accessToken || channel.apiKey;
-    const wabaId = config.wabaId || config.businessAccountId;
-    const phoneNumberId = config.phoneNumberId || channel.phoneNumberId;
+    const rawChannel = channel as any;
+    const config = (rawChannel.config || {}) as Record<string, any>;
+    
+    let accessToken =
+      rawChannel.accessToken ||
+      rawChannel.access_token ||
+      config.permanentAccessToken ||
+      config.accessToken;
+    
+    let wabaId =
+      rawChannel.whatsappBusinessAccountId ||
+      rawChannel.whatsapp_business_account_id ||
+      config.wabaId ||
+      config.businessAccountId;
+
+    let phoneNumberId =
+      rawChannel.phoneNumberId ||
+      rawChannel.phone_number_id ||
+      config.phoneNumberId;
+
+    // Fallback: Check global WABA config if channel doesn't have direct credentials
+    if (!wabaId || !accessToken) {
+      try {
+        const [wabaConfig] = await dbRead
+          .select()
+          .from(whatsappBusinessAccountsConfig)
+          .limit(1);
+        
+        if (wabaConfig) {
+          const rawWaba = wabaConfig as any;
+          if (!wabaId) {
+            wabaId = rawWaba.wabaId || rawWaba.businessAccountId;
+          }
+          if (!accessToken) {
+            accessToken = rawWaba.systemUserAccessToken || rawWaba.permanentToken || rawWaba.accessToken;
+          }
+        }
+      } catch (err) {
+        console.warn("[WhatsappFlowsService] Error fetching fallback WABA config:", err);
+      }
+    }
 
     return {
       channel,

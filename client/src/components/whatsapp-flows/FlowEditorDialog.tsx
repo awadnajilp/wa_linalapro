@@ -142,6 +142,17 @@ export function FlowEditorDialog({
   const [fields, setFields] = useState<FormFieldItem[]>([]);
   const [formScreenTitle, setFormScreenTitle] = useState("Interactive Form");
 
+  // Determine if this is updating a saved Flow vs creating a new one
+  const isExistingFlow = Boolean(
+    flow &&
+    flow.id &&
+    typeof flow.id === "string" &&
+    flow.id !== "undefined" &&
+    !flow.id.startsWith("tpl_") &&
+    !flow.id.startsWith("lead_") &&
+    !flow.id.startsWith("sample_")
+  );
+
   // Helper to compile fields to standard Meta JSON
   const compileFieldsToJson = (items: FormFieldItem[], title: string) => {
     const children: any[] = [];
@@ -337,6 +348,15 @@ export function FlowEditorDialog({
     }
   }, [flow, isOpen, defaultChannelId]);
 
+  // Keep JSON strictly synchronized when switching to Preview or Raw JSON tab
+  useEffect(() => {
+    if (activeTab === "flow_json" || activeTab === "preview") {
+      const compiled = compileFieldsToJson(fields, formScreenTitle);
+      setFlowJsonStr(JSON.stringify(compiled, null, 2));
+      setJsonError(null);
+    }
+  }, [activeTab]);
+
   const updateFieldsAndJson = (newFields: FormFieldItem[], newTitle?: string) => {
     setFields(newFields);
     const title = newTitle !== undefined ? newTitle : formScreenTitle;
@@ -528,8 +548,8 @@ export function FlowEditorDialog({
         flowJson: parsedJson,
       };
 
-      const url = flow ? `/api/whatsapp-flows/${flow.id}` : "/api/whatsapp-flows";
-      const method = flow ? "PUT" : "POST";
+      const url = isExistingFlow ? `/api/whatsapp-flows/${flow.id}` : "/api/whatsapp-flows";
+      const method = isExistingFlow ? "PUT" : "POST";
 
       const res = await fetch(url, {
         method,
@@ -546,8 +566,8 @@ export function FlowEditorDialog({
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-flows"] });
       toast({
-        title: variables ? "Flow Saved & Synced with Meta! 🚀" : (flow ? "Flow Updated" : "Flow Created"),
-        description: flow
+        title: variables ? "Flow Saved & Synced with Meta! 🚀" : (isExistingFlow ? "Flow Updated" : "Flow Created"),
+        description: isExistingFlow
           ? "WhatsApp Flow has been updated successfully."
           : "New WhatsApp Flow created successfully.",
       });
@@ -571,7 +591,7 @@ export function FlowEditorDialog({
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2 text-xl">
               <Sparkles className="w-5 h-5 text-purple-600" />
-              {flow ? `Edit Flow: ${flow.name}` : "WhatsApp Flow Wizard"}
+              {isExistingFlow ? `Edit Flow: ${flow.name}` : (flow?.name ? `Create Flow from Template: ${flow.name}` : "WhatsApp Flow Wizard")}
             </DialogTitle>
           </div>
           <DialogDescription>
@@ -1207,7 +1227,7 @@ export function FlowEditorDialog({
                   ) : (
                     <Check className="w-4 h-4 mr-2" />
                   )}
-                  {flow ? "Update Flow" : "Save & Create Flow"}
+                  {isExistingFlow ? "Update Flow" : "Save & Create Flow"}
                 </Button>
               </>
             )}
@@ -1224,7 +1244,7 @@ export function FlowEditorDialog({
                 ) : (
                   <Check className="w-4 h-4 mr-2" />
                 )}
-                {flow ? "Update Flow" : "Save & Create Flow"}
+                {isExistingFlow ? "Update Flow" : "Save & Create Flow"}
               </Button>
             )}
           </div>

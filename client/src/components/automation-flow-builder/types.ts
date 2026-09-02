@@ -46,6 +46,7 @@ export type NodeKind =
   | "zapier"
   | "tap_payment"
   | "noon_payment"
+  | "whatsapp_flow"
   | "wait_read";
 
 export interface ListSection {
@@ -177,6 +178,13 @@ export interface BuilderNodeData {
   noonVarRefId?: string;
   noonVarStatus?: string;
   noonVarPaymentId?: string;
+  whatsappFlowId?: string;
+  whatsappFlowName?: string;
+  whatsappFlowHeaderText?: string;
+  whatsappFlowBodyText?: string;
+  whatsappFlowFooterText?: string;
+  whatsappFlowCtaText?: string;
+  whatsappFlowAutoSave?: boolean;
   timeoutMinutes?: number;
   timeoutOnlyAfterDelivered?: boolean;
   [key: string]: unknown;

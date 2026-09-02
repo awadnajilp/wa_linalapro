@@ -255,6 +255,17 @@ export const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
     noonVarStatus: "payment_status",
     noonVarPaymentId: "payment_id",
   },
+  whatsapp_flow: {
+    kind: "whatsapp_flow",
+    label: "WhatsApp Flow",
+    whatsappFlowId: "",
+    whatsappFlowName: "",
+    whatsappFlowHeaderText: "",
+    whatsappFlowBodyText: "Please complete the interactive form below:",
+    whatsappFlowFooterText: "Powered by WhatsApp Flows",
+    whatsappFlowCtaText: "Start Form",
+    whatsappFlowAutoSave: true,
+  },
 };
 
 export function transformAutomationToFlow(automation: any): {

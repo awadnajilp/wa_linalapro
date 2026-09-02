@@ -48,7 +48,9 @@ import {
   tenantAddons,
   whatsappSupportTickets,
   whatsappSupportTicketConfigs,
+  whatsappFlows,
 } from "@shared/schema";
+import { WhatsappFlowsService } from "./whatsapp-flows.service";
 import OpenAI from "openai";
 import { getTransporter } from "./email.service";
 import { ExpenseAIService } from "./expense-ai-service";
@@ -369,6 +371,10 @@ export class AutomationExecutionService {
 
         case 'send_contact_message':
           result = await this.executeSendContactMessage(node, context);
+          break;
+
+        case 'whatsapp_flow':
+          result = await this.executeWhatsAppFlow(node, context);
           break;
 
         case 'razorpay_generate':
@@ -1406,6 +1412,68 @@ private async executeSendContactMessage(node: any, context: ExecutionContext) {
   return {
     action: 'message_sent_to_contacts',
     results
+  };
+}
+
+private async executeWhatsAppFlow(node: any, context: ExecutionContext) {
+  const flowId = node.data?.whatsappFlowId;
+  if (!flowId) {
+    throw new Error("No WhatsApp Flow selected for this step in automation.");
+  }
+
+  const flow = await db.query.whatsappFlows.findFirst({
+    where: eq(whatsappFlows.id, flowId),
+  });
+
+  if (!flow) {
+    throw new Error(`WhatsApp Flow ${flowId} not found.`);
+  }
+
+  let effectiveChannelId = flow.channelId;
+  if (!effectiveChannelId) {
+    const [automationRow] = await db
+      .select({ channelId: automations.channelId })
+      .from(automations)
+      .where(eq(automations.id, context.automationId))
+      .limit(1);
+    effectiveChannelId = automationRow?.channelId;
+  }
+
+  if (!effectiveChannelId) {
+    throw new Error("No channel assigned for WhatsApp Flow execution.");
+  }
+
+  let recipientPhone = context.contactPhone;
+  if (!recipientPhone && context.contactId) {
+    const contactRow = await db.query.contacts.findFirst({
+      where: eq(contacts.id, context.contactId),
+    });
+    recipientPhone = contactRow?.phone || "";
+  }
+
+  if (!recipientPhone) {
+    throw new Error("Recipient phone number not found for WhatsApp Flow execution.");
+  }
+
+  // Merge node overrides with flow defaults
+  const flowConfig = {
+    ...flow,
+    headerText: node.data?.whatsappFlowHeaderText || flow.headerText,
+    bodyText: node.data?.whatsappFlowBodyText || flow.bodyText || "Please complete the interactive form below:",
+    footerText: node.data?.whatsappFlowFooterText || flow.footerText,
+    ctaButtonText: node.data?.whatsappFlowCtaText || flow.ctaButtonText || "Start Form",
+  };
+
+  console.log(`🚀 [Automation] Dispatching WhatsApp Flow "${flow.name}" (${flow.id}) to ${recipientPhone}`);
+  const result = await WhatsappFlowsService.sendFlowMessage(effectiveChannelId, recipientPhone, flowConfig);
+
+  return {
+    action: "whatsapp_flow_dispatched",
+    flowId: flow.id,
+    flowName: flow.name,
+    status: flow.status,
+    whatsappMessageId: result.whatsappMessageId,
+    recipientPhone,
   };
 }
 

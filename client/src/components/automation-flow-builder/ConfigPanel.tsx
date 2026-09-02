@@ -3255,6 +3255,99 @@ export function ConfigPanel({
             </>
           )}
 
+          {d.kind === "whatsapp_flow" && (
+            <>
+              <SectionHeader>WhatsApp Flow Configuration</SectionHeader>
+              <div className="space-y-4">
+                <div className="space-y-1.5 bg-purple-50/50 rounded-xl p-4 border border-purple-100">
+                  <Label className="text-xs font-semibold text-gray-700">Select Flow</Label>
+                  <WhatsAppFlowSelect
+                    value={d.whatsappFlowId || ""}
+                    channelId={channelId}
+                    onChange={(flow: any) => {
+                      if (flow) {
+                        onChange({
+                          whatsappFlowId: flow.id,
+                          whatsappFlowName: flow.name,
+                          whatsappFlowHeaderText: d.whatsappFlowHeaderText || flow.headerText || "",
+                          whatsappFlowBodyText: d.whatsappFlowBodyText || flow.bodyText || "Please complete the interactive form below:",
+                          whatsappFlowFooterText: d.whatsappFlowFooterText || flow.footerText || "Powered by WhatsApp Flows",
+                          whatsappFlowCtaText: d.whatsappFlowCtaText || flow.ctaButtonText || "Start Form",
+                          whatsappFlowAutoSave: flow.autoSaveContactFields !== false,
+                        });
+                      } else {
+                        onChange({
+                          whatsappFlowId: "",
+                          whatsappFlowName: "",
+                        });
+                      }
+                    }}
+                  />
+                  <div className="text-[10px] text-gray-400 mt-1">
+                    Select an active or published WhatsApp Flow from your Flow library.
+                  </div>
+                </div>
+
+                <div className="space-y-3 bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <h4 className="text-xs font-semibold text-gray-800">Message Customization</h4>
+                  
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-gray-600">Header Text (Optional)</Label>
+                    <Input
+                      value={d.whatsappFlowHeaderText || ""}
+                      onChange={(e) => onChange({ whatsappFlowHeaderText: e.target.value })}
+                      placeholder="e.g. 💼 Lead Qualification"
+                      className="text-xs bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-gray-600">Body Message Text</Label>
+                    <Textarea
+                      rows={3}
+                      value={d.whatsappFlowBodyText || ""}
+                      onChange={(e) => onChange({ whatsappFlowBodyText: e.target.value })}
+                      placeholder="Please complete the interactive form below:"
+                      className="text-xs bg-white resize-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-gray-600">Footer Text</Label>
+                      <Input
+                        value={d.whatsappFlowFooterText || ""}
+                        onChange={(e) => onChange({ whatsappFlowFooterText: e.target.value })}
+                        placeholder="e.g. 1-minute form"
+                        className="text-xs bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-gray-600">CTA Button Text</Label>
+                      <Input
+                        value={d.whatsappFlowCtaText || ""}
+                        onChange={(e) => onChange({ whatsappFlowCtaText: e.target.value })}
+                        placeholder="e.g. Start Form"
+                        className="text-xs bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-xl">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs font-medium">Auto-Sync Form Fields to CRM</Label>
+                    <p className="text-[10px] text-gray-400">Save submitted answers to contact custom variables.</p>
+                  </div>
+                  <Switch
+                    checked={d.whatsappFlowAutoSave !== false}
+                    onCheckedChange={(checked) => onChange({ whatsappFlowAutoSave: checked })}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
           <div className="h-10" />
         </div>
       </ScrollArea>
@@ -3278,5 +3371,53 @@ export function ConfigPanel({
         }
       />
     </div>
+  );
+}
+
+function WhatsAppFlowSelect({
+  value,
+  channelId,
+  onChange,
+}: {
+  value: string;
+  channelId?: string;
+  onChange: (flow: any) => void;
+}) {
+  const { data: flowsData, isLoading } = useQuery<{ status: string; data: any[] }>({
+    queryKey: ["whatsapp-flows-list", channelId],
+    queryFn: async () => {
+      const url = channelId ? `/api/whatsapp-flows?channelId=${channelId}` : "/api/whatsapp-flows";
+      const res = await fetch(url);
+      if (!res.ok) return { data: [] };
+      return res.json();
+    },
+  });
+
+  const flows = flowsData?.data || [];
+
+  return (
+    <Select
+      value={value}
+      onValueChange={(val) => {
+        const found = flows.find((f) => f.id === val);
+        onChange(found || null);
+      }}
+    >
+      <SelectTrigger className="text-xs bg-white">
+        <SelectValue placeholder={isLoading ? "Loading flows..." : "Choose a WhatsApp Flow"} />
+      </SelectTrigger>
+      <SelectContent>
+        {flows.map((flow) => (
+          <SelectItem key={flow.id} value={flow.id} className="text-xs">
+            {flow.name} ({flow.status || "DRAFT"})
+          </SelectItem>
+        ))}
+        {flows.length === 0 && !isLoading && (
+          <SelectItem value="_empty" disabled className="text-xs text-muted-foreground">
+            No flows found. Create one in WhatsApp Flows.
+          </SelectItem>
+        )}
+      </SelectContent>
+    </Select>
   );
 }

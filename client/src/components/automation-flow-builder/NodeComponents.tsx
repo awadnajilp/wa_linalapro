@@ -1155,6 +1155,41 @@ export function NoonPaymentNode({ data }: { data: BuilderNodeData }) {
   );
 }
 
+export function WhatsAppFlowNode({ data }: { data: BuilderNodeData }) {
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Top} className="!bg-purple-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
+      <NodeShell
+        icon={<Sparkles className="w-4 h-4" />}
+        title={data.label || "WhatsApp Flow"}
+        color="text-purple-700"
+        bgColor="bg-purple-50"
+        borderColor="border-purple-100"
+      >
+        {data.whatsappFlowName ? (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5 bg-white rounded-md p-1.5 border border-purple-100 shadow-2xs">
+              <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <span className="text-[11px] font-semibold text-gray-800 truncate">
+                {data.whatsappFlowName}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-gray-500 px-0.5">
+              <span>CTA: {data.whatsappFlowCtaText || "Start Form"}</span>
+              {data.whatsappFlowAutoSave !== false && (
+                <span className="text-emerald-600 font-medium">Auto CRM</span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-gray-400 italic text-[11px]">No Flow selected</div>
+        )}
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} className="!bg-purple-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
+    </div>
+  );
+}
+
 export const nodeTypes = {
   start: StartNode,
   conditions: withNodeActions(ConditionsNode),
@@ -1187,4 +1222,5 @@ export const nodeTypes = {
   zapier: withNodeActions(ZapierNode),
   tap_payment: withNodeActions(TapPaymentNode),
   noon_payment: withNodeActions(NoonPaymentNode),
+  whatsapp_flow: withNodeActions(WhatsAppFlowNode),
 };

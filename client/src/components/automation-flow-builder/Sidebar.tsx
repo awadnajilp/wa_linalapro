@@ -125,6 +125,15 @@ const nodeCategories = [
         border: "border-rose-200",
         tip: "Send a GPS location pin with an optional name and address. Perfect for sharing store locations, delivery points, or meeting spots.",
       },
+      {
+        kind: "whatsapp_flow" as NodeKind,
+        name: "WhatsApp Flow",
+        icon: Sparkles,
+        color: "text-purple-600",
+        bg: "bg-purple-50",
+        border: "border-purple-200",
+        tip: "Send an interactive native Meta WhatsApp Flow form (lead generation, feedback, booking, surveys) and capture submitted responses.",
+      },
     ],
   },
   {

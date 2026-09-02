@@ -300,47 +300,45 @@ export const getCampaignAnalyticsById = asyncHandler(async (req: Request, res: R
     repliedCount: Math.max(campaign.repliedCount || 0, computedRepliedCount)
   };
 
-  // Get daily message stats for this campaign
-  const endDate = new Date();
-  const startDate = new Date(campaign.createdAt || new Date());
-  
+  // Get daily message stats from campaignRecipients (indexed & fast)
   const dailyStats = await dbRead
     .select({
-      date: sql<string>`DATE(${messages.timestamp})`,
-      sent: count(messages.id),
-      delivered: sql<number>`COUNT(CASE WHEN ${messages.status} IN ('delivered', 'read') THEN 1 END)`,
-      read: sql<number>`COUNT(CASE WHEN ${messages.status} = 'read' THEN 1 END)`,
-      failed: sql<number>`COUNT(CASE WHEN ${messages.status} = 'failed' THEN 1 END)`,
+      date: sql<string>`DATE(COALESCE(${campaignRecipients.sentAt}, ${campaignRecipients.createdAt}))`,
+      sent: count(campaignRecipients.id),
+      delivered: sql<number>`COUNT(CASE WHEN ${campaignRecipients.status} IN ('delivered', 'read', 'replied') THEN 1 END)`,
+      read: sql<number>`COUNT(CASE WHEN ${campaignRecipients.status} IN ('read', 'replied') THEN 1 END)`,
+      failed: sql<number>`COUNT(CASE WHEN ${campaignRecipients.status} = 'failed' THEN 1 END)`,
     })
-    .from(messages)
-    .where(eq(messages.campaignId, campaignId))
-    .groupBy(sql`DATE(${messages.timestamp})`)
-    .orderBy(sql`DATE(${messages.timestamp})`);
+    .from(campaignRecipients)
+    .where(eq(campaignRecipients.campaignId, campaignId))
+    .groupBy(sql`DATE(COALESCE(${campaignRecipients.sentAt}, ${campaignRecipients.createdAt}))`)
+    .orderBy(sql`DATE(COALESCE(${campaignRecipients.sentAt}, ${campaignRecipients.createdAt}))`);
 
-  // Get recipient status distribution
+  // Get recipient status distribution from campaignRecipients
   const recipientStats = await dbRead
     .select({
-      status: messages.status,
-      count: count(messages.id),
+      status: campaignRecipients.status,
+      count: count(campaignRecipients.id),
     })
-    .from(messages)
-    .where(eq(messages.campaignId, campaignId))
-    .groupBy(messages.status);
+    .from(campaignRecipients)
+    .where(eq(campaignRecipients.campaignId, campaignId))
+    .groupBy(campaignRecipients.status);
 
-  // Get error analysis
+  // Get error analysis from campaignRecipients
   const errorAnalysis = await dbRead
     .select({
-      errorCode: sql<string>`${messages.errorDetails}->>'code'`,
-      errorMessage: sql<string>`${messages.errorDetails}->>'message'`,
-      count: count(messages.id),
+      errorCode: campaignRecipients.errorCode,
+      errorMessage: campaignRecipients.errorMessage,
+      count: count(campaignRecipients.id),
     })
-    .from(messages)
+    .from(campaignRecipients)
     .where(and(
-      eq(messages.campaignId, campaignId),
-      eq(messages.status, 'failed')
+      eq(campaignRecipients.campaignId, campaignId),
+      eq(campaignRecipients.status, 'failed')
     ))
-    .groupBy(sql`${messages.errorDetails}->>'code'`, sql`${messages.errorDetails}->>'message'`)
-    .orderBy(desc(count(messages.id)));
+    .groupBy(campaignRecipients.errorCode, campaignRecipients.errorMessage)
+    .orderBy(desc(count(campaignRecipients.id)));
+
   res.status(200).json({
     campaign: campaignWithStats,
     dailyStats,

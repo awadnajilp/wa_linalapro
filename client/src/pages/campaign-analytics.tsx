@@ -156,7 +156,14 @@ export default function CampaignAnalytics() {
       return response.json();
     },
     enabled: !!campaignId,
-    refetchInterval: 5000,
+    refetchInterval: (query) => {
+      const status = query.state.data?.campaign?.status;
+      if (status === "completed" || status === "failed" || status === "cancelled") {
+        return false;
+      }
+      return 15000;
+    },
+    staleTime: 10000,
   });
 
   const error = queryError?.message || null;

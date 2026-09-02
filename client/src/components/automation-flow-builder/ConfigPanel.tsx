@@ -62,6 +62,7 @@ import {
   CreditCard,
   ShieldCheck,
   Zap,
+  Sparkles,
 } from "lucide-react";
 import { BuilderNodeData, NodeKind, Template, Member, ListSection } from "./types";
 import { FileUploadButton } from "./FileUploadButton";
@@ -117,6 +118,7 @@ const kindMeta: Record<NodeKind, { icon: any; label: string; color: string; bgTi
   zapier: { icon: Zap, label: "Zapier", color: "text-orange-600", bgTint: "bg-orange-50" },
   tap_payment: { icon: CreditCard, label: "Tap Payment", color: "text-rose-600", bgTint: "bg-rose-50" },
   noon_payment: { icon: CreditCard, label: "Noon Pay", color: "text-yellow-600", bgTint: "bg-yellow-50" },
+  whatsapp_flow: { icon: Sparkles, label: "WhatsApp Flow", color: "text-purple-600", bgTint: "bg-purple-50" },
 };
 
 function SectionHeader({ children }: { children: React.ReactNode }) {

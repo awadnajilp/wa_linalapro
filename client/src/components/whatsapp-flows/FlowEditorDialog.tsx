@@ -36,6 +36,8 @@ import {
   Trash2,
   ArrowUp,
   ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   List,
   Type,
   Mail,
@@ -45,6 +47,7 @@ import {
   CheckSquare,
   Radio,
   Sliders,
+  Check,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -104,7 +107,7 @@ export function FlowEditorDialog({
       });
       return res.json();
     },
-    enabled: !!userIdNew && (!channelsProp || channelsProp.length === 0),
+    enabled: isOpen && !!userIdNew && (!channelsProp || channelsProp.length === 0),
   });
 
   const channels =
@@ -135,7 +138,7 @@ export function FlowEditorDialog({
   const [syncToMeta, setSyncToMeta] = useState(false);
   const [flowJsonStr, setFlowJsonStr] = useState("{}");
   const [jsonError, setJsonError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("fields");
+  const [activeTab, setActiveTab] = useState<"fields" | "settings" | "preview" | "flow_json">("fields");
   const [fields, setFields] = useState<FormFieldItem[]>([]);
   const [formScreenTitle, setFormScreenTitle] = useState("Interactive Form");
 
@@ -499,7 +502,7 @@ export function FlowEditorDialog({
   };
 
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (overrideSync?: boolean) => {
       let parsedJson = {};
       try {
         parsedJson = JSON.parse(flowJsonStr);
@@ -507,8 +510,12 @@ export function FlowEditorDialog({
         throw new Error("Please fix JSON errors before saving.");
       }
 
+      if (!name.trim()) {
+        throw new Error("Please enter a Flow Name in Card & Settings.");
+      }
+
       const payload = {
-        name,
+        name: name.trim(),
         channelId: channelId || null,
         categories,
         headerText,
@@ -517,7 +524,7 @@ export function FlowEditorDialog({
         ctaButtonText,
         triggerKeywords,
         autoSaveContactFields,
-        syncToMeta,
+        syncToMeta: overrideSync !== undefined ? overrideSync : syncToMeta,
         flowJson: parsedJson,
       };
 
@@ -536,10 +543,10 @@ export function FlowEditorDialog({
       }
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-flows"] });
       toast({
-        title: flow ? "Flow Updated" : "Flow Created",
+        title: variables ? "Flow Saved & Synced with Meta! 🚀" : (flow ? "Flow Updated" : "Flow Created"),
         description: flow
           ? "WhatsApp Flow has been updated successfully."
           : "New WhatsApp Flow created successfully.",
@@ -555,40 +562,45 @@ export function FlowEditorDialog({
     },
   });
 
+  if (!isOpen) return null;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Sparkles className="w-5 h-5 text-purple-600" />
-            {flow ? `Edit Flow: ${flow.name}` : "Create Meta WhatsApp Flow"}
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              {flow ? `Edit Flow: ${flow.name}` : "WhatsApp Flow Wizard"}
+            </DialogTitle>
+          </div>
           <DialogDescription>
-            Design native interactive forms, questionnaires, survey questions, and automated triggers.
+            Step-by-step wizard to design native interactive forms, card messaging, live preview, and Meta Cloud API sync.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        {/* Wizard Step Tabs */}
+        <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="w-full">
           <TabsList className="grid grid-cols-4 mb-4">
-            <TabsTrigger value="fields" className="flex items-center gap-1.5">
-              <LayoutList className="w-4 h-4 text-purple-600" />
-              Form Fields ({fields.length})
+            <TabsTrigger value="fields" className="flex items-center gap-1.5 text-xs font-medium">
+              <LayoutList className="w-3.5 h-3.5 text-purple-600" />
+              1. Form Fields ({fields.length})
             </TabsTrigger>
-            <TabsTrigger value="settings" className="flex items-center gap-1.5">
-              <FileText className="w-4 h-4 text-blue-600" />
-              Card & Settings
+            <TabsTrigger value="settings" className="flex items-center gap-1.5 text-xs font-medium">
+              <FileText className="w-3.5 h-3.5 text-blue-600" />
+              2. Card & Settings
             </TabsTrigger>
-            <TabsTrigger value="preview" className="flex items-center gap-1.5">
-              <Send className="w-4 h-4 text-emerald-600" />
-              Live Preview
+            <TabsTrigger value="preview" className="flex items-center gap-1.5 text-xs font-medium">
+              <Send className="w-3.5 h-3.5 text-emerald-600" />
+              3. Live Preview & Save
             </TabsTrigger>
-            <TabsTrigger value="flow_json" className="flex items-center gap-1.5">
-              <Code2 className="w-4 h-4 text-slate-600" />
-              Raw JSON
+            <TabsTrigger value="flow_json" className="flex items-center gap-1.5 text-xs font-medium">
+              <Code2 className="w-3.5 h-3.5 text-slate-600" />
+              4. JSON & Meta Sync
             </TabsTrigger>
           </TabsList>
 
-          {/* TAB 1: VISUAL FORM FIELDS BUILDER */}
+          {/* STEP 1: FORM FIELDS BUILDER */}
           <TabsContent value="fields" className="space-y-4">
             {/* Top Toolbar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-purple-50/70 p-3.5 rounded-xl border border-purple-100">
@@ -798,7 +810,7 @@ export function FlowEditorDialog({
             )}
           </TabsContent>
 
-          {/* TAB 2: GENERAL SETTINGS */}
+          {/* STEP 2: CARD & GENERAL SETTINGS */}
           <TabsContent value="settings" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -819,7 +831,7 @@ export function FlowEditorDialog({
                 </Label>
                 <Select value={channelId} onValueChange={setChannelId}>
                   <SelectTrigger id="channel-select">
-                    <SelectValue placeholder="Select Channel" />
+                    <SelectValue placeholder={channels.length === 0 ? "No channel found" : "Select Channel"} />
                   </SelectTrigger>
                   <SelectContent>
                     {channels.map((ch: any) => (
@@ -980,7 +992,7 @@ export function FlowEditorDialog({
             </div>
           </TabsContent>
 
-          {/* TAB 3: LIVE PREVIEW */}
+          {/* STEP 3: LIVE PREVIEW & SAVE */}
           <TabsContent value="preview" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-slate-100 rounded-xl">
               {/* WhatsApp Message Card Preview */}
@@ -1076,27 +1088,41 @@ export function FlowEditorDialog({
             </div>
           </TabsContent>
 
-          {/* TAB 4: RAW JSON SPECIFICATION */}
+          {/* STEP 4: RAW JSON SPECIFICATION & META SYNC */}
           <TabsContent value="flow_json" className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h4 className="font-semibold text-sm">Meta Flow JSON Specification</h4>
                 <p className="text-xs text-muted-foreground">
-                  Changes in the visual builder automatically update this specification.
+                  Synchronized with Form Fields visual editor.
                 </p>
               </div>
 
-              {jsonError ? (
-                <Badge variant="destructive" className="flex items-center gap-1 text-xs">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  {jsonError}
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50 flex items-center gap-1 text-xs">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Valid JSON
-                </Badge>
-              )}
+              <div className="flex items-center gap-2">
+                {jsonError ? (
+                  <Badge variant="destructive" className="flex items-center gap-1 text-xs">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {jsonError}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50 flex items-center gap-1 text-xs">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Valid JSON
+                  </Badge>
+                )}
+                
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => saveMutation.mutate(true)}
+                  disabled={saveMutation.isPending || !!jsonError || !name.trim()}
+                  className="h-8 text-xs border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <CloudUpload className="w-3.5 h-3.5 mr-1.5" />
+                  Sync with Meta
+                </Button>
+              </div>
             </div>
 
             <Textarea
@@ -1107,18 +1133,101 @@ export function FlowEditorDialog({
           </TabsContent>
         </Tabs>
 
-        <DialogFooter className="gap-2 pt-4">
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending || !name.trim()}
-            className="bg-purple-600 hover:bg-purple-700 text-white"
-          >
-            {saveMutation.isPending && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
-            {flow ? "Update Flow" : "Save & Create Flow"}
-          </Button>
+        {/* Dynamic Wizard Footer */}
+        <DialogFooter className="flex flex-row items-center justify-between gap-2 pt-4 border-t">
+          <div>
+            {activeTab === "fields" ? (
+              <Button variant="outline" onClick={onClose} size="sm">
+                Cancel
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (activeTab === "settings") setActiveTab("fields");
+                  else if (activeTab === "preview") setActiveTab("settings");
+                  else if (activeTab === "flow_json") setActiveTab("preview");
+                }}
+              >
+                <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back
+              </Button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {activeTab === "fields" && (
+              <Button
+                size="sm"
+                onClick={() => setActiveTab("settings")}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                Next: Card & Settings <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            )}
+
+            {activeTab === "settings" && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (!name.trim()) {
+                    toast({
+                      title: "Flow Name Required",
+                      description: "Please enter a name for this WhatsApp Flow.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  setActiveTab("preview");
+                }}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                Next: Live Preview <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            )}
+
+            {activeTab === "preview" && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setActiveTab("flow_json")}
+                  className="text-xs"
+                >
+                  <Code2 className="w-3.5 h-3.5 mr-1" /> View JSON & Meta
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => saveMutation.mutate()}
+                  disabled={saveMutation.isPending || !name.trim()}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  {saveMutation.isPending ? (
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4 mr-2" />
+                  )}
+                  {flow ? "Update Flow" : "Save & Create Flow"}
+                </Button>
+              </>
+            )}
+
+            {activeTab === "flow_json" && (
+              <Button
+                size="sm"
+                onClick={() => saveMutation.mutate()}
+                disabled={saveMutation.isPending || !!jsonError || !name.trim()}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {saveMutation.isPending ? (
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4 mr-2" />
+                )}
+                {flow ? "Update Flow" : "Save & Create Flow"}
+              </Button>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

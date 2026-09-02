@@ -43,7 +43,9 @@ import {
   CheckCircle,
   FolderPlus,
   Calendar,
+  Sparkles,
 } from "lucide-react";
+import { SendFlowDialog } from "@/components/whatsapp-flows/SendFlowDialog";
 import { type Contact } from "./types";
 
 interface ContactsTableProps {
@@ -122,6 +124,8 @@ export function ContactsTable({
   tagsColorMap = {},
 }: ContactsTableProps) {
   const { t } = useTranslation();
+  const [showSendFlow, setShowSendFlow] = useState(false);
+  const [selectedFlowContact, setSelectedFlowContact] = useState<Contact | null>(null);
 
   const handleMessageClick = async (contact: Contact) => {
     if (!activeChannel?.id) {
@@ -448,6 +452,15 @@ export function ContactsTable({
                                 Recurring Campaigns
                               </DropdownMenuItem>
                               <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedFlowContact(contact);
+                                  setShowSendFlow(true);
+                                }}
+                              >
+                                <Sparkles className="h-4 w-4 mr-2 text-purple-600" />
+                                Send WhatsApp Flow
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
                                 onClick={() => handleMessageClick(contact)}
                                 disabled={
                                   !channels || channels.length === 0
@@ -708,6 +721,15 @@ export function ContactsTable({
                       <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuItem
                           onClick={() => {
+                            setSelectedFlowContact(contact);
+                            setShowSendFlow(true);
+                          }}
+                        >
+                          <Sparkles className="h-4 w-4 mr-2 text-purple-600" />
+                          Send WhatsApp Flow
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
                             setSelectedContact(contact);
                             setShowSchedulerDialog(true);
                           }}
@@ -837,6 +859,15 @@ export function ContactsTable({
           </div>
         )}
       </CardContent>
+      <SendFlowDialog
+        isOpen={showSendFlow}
+        onClose={() => {
+          setShowSendFlow(false);
+          setSelectedFlowContact(null);
+        }}
+        defaultPhone={selectedFlowContact?.phone || ""}
+        channelId={activeChannel?.id}
+      />
     </Card>
   );
 }

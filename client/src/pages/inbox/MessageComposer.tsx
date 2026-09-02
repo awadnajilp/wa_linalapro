@@ -31,10 +31,12 @@ import {
   BookOpen,
   Mic,
   Trash2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Sparkles,
 } from "lucide-react";
 import { TemplatePickerDialog } from "@/components/shared/TemplatePickerDialog";
 import { MediaGalleryDialog } from "@/components/media/MediaGalleryDialog";
+import { SendFlowDialog } from "@/components/whatsapp-flows/SendFlowDialog";
 import { useQuery } from "@tanstack/react-query";
 import {
   Popover,
@@ -98,6 +100,7 @@ const MessageComposer = ({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [showMediaGallery, setShowMediaGallery] = useState(false);
+  const [showSendFlow, setShowSendFlow] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -295,6 +298,22 @@ const MessageComposer = ({
                 onSelectTemplate={onSelectTemplate}
               />
 
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 md:h-9 md:w-9 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                      onClick={() => setShowSendFlow(true)}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Send WhatsApp Flow</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
               {localTemplates && localTemplates.length > 0 && (
                 <Popover>
                   <PopoverTrigger asChild>
@@ -413,6 +432,12 @@ const MessageComposer = ({
             onSelectMediaUrl(url, name, mimeType);
           }
         }}
+      />
+      <SendFlowDialog
+        isOpen={showSendFlow}
+        onClose={() => setShowSendFlow(false)}
+        defaultPhone={selectedConversation?.contactPhone || (selectedConversation as any)?.phoneNumber || ""}
+        channelId={activeChannelId}
       />
     </div>
   );

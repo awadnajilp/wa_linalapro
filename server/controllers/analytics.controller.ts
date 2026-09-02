@@ -20,7 +20,7 @@ import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } fro
 import { db, dbRead } from '../db';
 import { messages, campaigns, conversations, whatsappChannels, campaignRecipients, messageQueue, contacts as contactsTable } from '@shared/schema';
 import { AppError, asyncHandler } from '../middlewares/error.middleware';
-import { eq, and, gte, lte, count, sql, desc } from 'drizzle-orm';
+import { eq, and, or, ilike, gte, lte, count, sql, desc } from 'drizzle-orm';
 import PDFDocument from 'pdfkit';
 import ExcelJS from "exceljs";
 import { storage } from 'server/storage';

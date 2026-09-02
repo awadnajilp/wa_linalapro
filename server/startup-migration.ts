@@ -1197,58 +1197,59 @@ export async function runStartupMigration(pool: Pool): Promise<void> {
         );
       }
     }
-
-    // Retroactive backfill for past campaign replies
-    try {
-      await client.query(`
-        UPDATE campaign_recipients cr
-        SET 
-          replied_at = sub.reply_time,
-          reply_text = LEFT(sub.content, 500),
-          status = CASE WHEN cr.status != 'failed' THEN 'replied' ELSE cr.status END
-        FROM (
-          SELECT DISTINCT ON (conv.contact_phone, cr2.campaign_id)
-            conv.contact_phone,
-            cr2.campaign_id,
-            m.created_at AS reply_time,
-            m.content
-          FROM campaign_recipients cr2
-          JOIN conversations conv ON (
-            conv.contact_phone = cr2.phone 
-            OR REPLACE(REPLACE(conv.contact_phone, '+', ''), ' ', '') = REPLACE(REPLACE(cr2.phone, '+', ''), ' ', '')
-          )
-          JOIN messages m ON m.conversation_id = conv.id
-          WHERE cr2.replied_at IS NULL
-            AND cr2.sent_at IS NOT NULL
-            AND (m.direction = 'inbound' OR m.from_user = true OR m.status = 'received')
-            AND m.created_at >= cr2.sent_at
-            AND m.created_at <= cr2.sent_at + INTERVAL '7 days'
-          ORDER BY conv.contact_phone, cr2.campaign_id, m.created_at ASC
-        ) sub
-        WHERE cr.campaign_id = sub.campaign_id
-          AND (
-            cr.phone = sub.contact_phone
-            OR REPLACE(REPLACE(cr.phone, '+', ''), ' ', '') = REPLACE(REPLACE(sub.contact_phone, '+', ''), ' ', '')
-          )
-          AND cr.replied_at IS NULL;
-      `);
-
-      await client.query(`
-        UPDATE campaigns c
-        SET replied_count = sub.cnt
-        FROM (
-          SELECT campaign_id, COUNT(DISTINCT phone) as cnt
-          FROM campaign_recipients
-          WHERE replied_at IS NOT NULL
-          GROUP BY campaign_id
-        ) sub
-        WHERE c.id = sub.campaign_id
-          AND (c.replied_count IS NULL OR c.replied_count < sub.cnt);
-      `);
-    } catch (backfillErr) {
-      console.warn("[startup-migration] Backfill warning (non-fatal):", backfillErr);
-    }
   } finally {
     client.release();
   }
+
+  // Non-blocking retroactive backfill for past campaign replies
+  setTimeout(async () => {
+    try {
+      const bgClient = await pool.connect();
+      try {
+        await bgClient.query(`
+          UPDATE campaign_recipients cr
+          SET 
+            replied_at = sub.reply_time,
+            reply_text = LEFT(sub.content, 500),
+            status = CASE WHEN cr.status != 'failed' THEN 'replied' ELSE cr.status END
+          FROM (
+            SELECT DISTINCT ON (conv.contact_phone, cr2.campaign_id)
+              conv.contact_phone,
+              cr2.campaign_id,
+              m.created_at AS reply_time,
+              m.content
+            FROM campaign_recipients cr2
+            JOIN conversations conv ON conv.contact_phone = cr2.phone
+            JOIN messages m ON m.conversation_id = conv.id
+            WHERE cr2.replied_at IS NULL
+              AND cr2.sent_at IS NOT NULL
+              AND (m.direction = 'inbound' OR m.from_user = true OR m.status = 'received')
+              AND m.created_at >= cr2.sent_at
+              AND m.created_at <= cr2.sent_at + INTERVAL '7 days'
+            ORDER BY conv.contact_phone, cr2.campaign_id, m.created_at ASC
+          ) sub
+          WHERE cr.campaign_id = sub.campaign_id
+            AND cr.phone = sub.contact_phone
+            AND cr.replied_at IS NULL;
+        `);
+
+        await bgClient.query(`
+          UPDATE campaigns c
+          SET replied_count = sub.cnt
+          FROM (
+            SELECT campaign_id, COUNT(DISTINCT phone) as cnt
+            FROM campaign_recipients
+            WHERE replied_at IS NOT NULL
+            GROUP BY campaign_id
+          ) sub
+          WHERE c.id = sub.campaign_id
+            AND (c.replied_count IS NULL OR c.replied_count < sub.cnt);
+        `);
+      } finally {
+        bgClient.release();
+      }
+    } catch (backfillErr) {
+      console.warn("[startup-migration] Async backfill warning (non-fatal):", backfillErr);
+    }
+  }, 2000);
 }

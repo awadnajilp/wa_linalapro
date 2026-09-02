@@ -118,7 +118,7 @@ async getAll(
   const offset = (page - 1) * limit;
 
   // Fetch paginated campaigns (selecting lightweight fields for table)
-  const data = await dbRead
+  const data = await db
     .select({
       id: campaigns.id,
       name: campaigns.name,
@@ -152,7 +152,7 @@ async getAll(
     .offset(offset);
 
   // Fetch total count
-  const [{ count }] = await dbRead
+  const [{ count }] = await db
     .select({ count: sql<number>`COUNT(*)` })
     .from(campaigns)
     .where(eq(campaigns.channelId, channelId));
@@ -167,7 +167,7 @@ async getAll(
 
 
   async getById(id: string): Promise<Campaign | undefined> {
-    const [campaign] = await dbRead.select().from(campaigns).where(eq(campaigns.id, id));
+    const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, id));
     return campaign || undefined;
   }
 
@@ -179,7 +179,7 @@ async getAll(
 ) {
   const offset = (page - 1) * limit;
 
-  const campaignsList = await dbRead
+  const campaignsList = await db
     .select({
       id: campaigns.id,
       name: campaigns.name,
@@ -212,7 +212,7 @@ async getAll(
     .limit(Number(limit))
     .offset(Number(offset));
 
-  const totalResult = await dbRead
+  const totalResult = await db
     .select({ total: sql<number>`COUNT(*)` })
     .from(campaigns)
     .where(eq(campaigns.createdBy, userId));

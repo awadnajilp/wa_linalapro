@@ -518,6 +518,12 @@ const steps: MigrationStep[] = [
       CREATE INDEX IF NOT EXISTS broadcast_lists_channel_idx ON broadcast_lists ("channelId");
     `,
   },
+  {
+    description: "Create partial index idx_message_queue_pending_fast",
+    sql: `
+      CREATE INDEX IF NOT EXISTS idx_message_queue_pending_fast ON message_queue (scheduled_for, attempts) WHERE status = 'queued';
+    `,
+  },
   addColumnIfNotExists(
     "contacts",
     "broadcast_lists",

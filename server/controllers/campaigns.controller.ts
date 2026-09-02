@@ -973,19 +973,19 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
     }
   }
 
-  let contacts: Contact[] = [];
+  let contactIds: string[] = [];
   if ((campaign.campaignType === "contacts" || campaign.campaignType === "groups" || campaign.campaignType === "csv") && campaign.contactGroups) {
-    const contactIds = campaign.contactGroups as string[];
-    contacts = await storage.getContactsByIds(contactIds);
+    contactIds = campaign.contactGroups as string[];
   }
 
-  console.log(`[Campaign ${campaignId}] Loaded ${contacts.length} contacts — inserting into queue`);
-
-  if (contacts.length === 0) {
+  if (contactIds.length === 0) {
     await storage.updateCampaign(campaignId, { status: "completed", completedAt: new Date(), populationStartedAt: null });
     console.log(`[Campaign ${campaignId}] No contacts to send — marked completed`);
     return;
   }
+
+  const totalContactsCount = contactIds.length;
+  console.log(`[Campaign ${campaignId}] Starting streamed queue population for ${totalContactsCount} contacts (pages of 1,000)`);
 
   const isUtilityOptimizedCampaign = !isQr && template && template.category === "UTILITY";
   const isExplicitlyEnabled = !isQr && (
@@ -996,7 +996,7 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
 
   const chunkSize = isQr 
     ? (campaign.chunkSize || 50) 
-    : ((isUtilityOptimizedCampaign || isExplicitlyEnabled) ? (campaign.chunkSize || contacts.length) : contacts.length);
+    : ((isUtilityOptimizedCampaign || isExplicitlyEnabled) ? (campaign.chunkSize || totalContactsCount) : totalContactsCount);
   const delayBetweenMessages = isQr 
     ? (campaign.delayBetweenMessages || 10) 
     : ((isUtilityOptimizedCampaign || isExplicitlyEnabled) ? (campaign.delayBetweenMessages || 0) : 0);
@@ -1015,14 +1015,7 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
         .from(contactsTable)
         .where(eq(contactsTable.channelId, channel.id));
       
-      const campaignPhoneSet = new Set(contacts.map((c: any) => c.phone));
-      warmerRecipients = allChannelContacts
-        .map((c: any) => c.phone)
-        .filter((phone: string) => !campaignPhoneSet.has(phone));
-      
-      if (warmerRecipients.length === 0 && allChannelContacts.length > 0) {
-        warmerRecipients = allChannelContacts.map((c: any) => c.phone);
-      }
+      warmerRecipients = allChannelContacts.map((c: any) => c.phone);
     } catch (wErr) {
       console.warn(`[Campaign ${campaignId}] Failed to query warmer contacts:`, wErr);
     }
@@ -1036,16 +1029,13 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
   let totalQueued = 0;
   let totalFailed = 0;
   let lastHeartbeat = Date.now();
-  const rows: any[] = [];
-  const recipientRows: any[] = [];
+  let contactGlobalIndex = 0;
 
   const isCadence = (campaign as any).isCadence || false;
   const cadenceSteps = ((campaign as any).cadenceSteps || []) as any[];
 
+  const stepTemplates = new Map<string, any>();
   if (isCadence && cadenceSteps.length > 0) {
-    // Cadence / Multi-step Campaign population
-    // 1. Fetch templates used in the steps (if any) to have them preloaded
-    const stepTemplates = new Map<string, any>();
     for (const step of cadenceSteps) {
       if (step.messageType === "template" && step.templateId) {
         const tmpl = await storage.getTemplate(step.templateId);
@@ -1054,228 +1044,228 @@ async function _runCampaignQueuePopulation(campaignId: string, campaignData: any
         }
       }
     }
+  }
 
-    // 2. Loop over contacts and schedule each step with its delays
-    for (let j = 0; j < contacts.length; j++) {
-      const contact = contacts[j];
-      
-      // Calculate base start time for this recipient based on message sending limits
-      // This spreads out the initial message sending
-      let baseTime = new Date(currentTime.getTime() + j * delayBetweenMessages * 1000 + (Math.floor(j / chunkSize) * delayBetweenChunks * 60 * 1000));
-      let stepTime = new Date(baseTime.getTime());
+  const PAGE_SIZE = 1000;
+  const BATCH_SIZE_INSERT = 100;
 
-      // Loop through steps
-      for (let s = 0; s < cadenceSteps.length; s++) {
-        const step = cadenceSteps[s];
-        const stepNum = step.stepNumber || (s + 1);
+  for (let p = 0; p < contactIds.length; p += PAGE_SIZE) {
+    const pageIds = contactIds.slice(p, p + PAGE_SIZE);
+    const pageContacts = await storage.getContactsByIds(pageIds);
+    const rows: any[] = [];
+    const recipientRows: any[] = [];
 
-        // Add delay of this step (relative to previous step)
-        const delayMs = ((step.delayDays || 0) * 24 * 60 * 60 * 1000) +
-                        ((step.delayHours || 0) * 60 * 60 * 1000) +
-                        ((step.delayMinutes || 0) * 60 * 1000);
-        stepTime = new Date(stepTime.getTime() + delayMs);
+    if (isCadence && cadenceSteps.length > 0) {
+      for (let j = 0; j < pageContacts.length; j++) {
+        const contact = pageContacts[j];
+        const currentContactIdx = contactGlobalIndex++;
+        let baseTime = new Date(currentTime.getTime() + currentContactIdx * delayBetweenMessages * 1000 + (Math.floor(currentContactIdx / chunkSize) * delayBetweenChunks * 60 * 1000));
+        let stepTime = new Date(baseTime.getTime());
 
-        try {
-          if (step.messageType === "template" && step.templateId) {
-            const template = stepTemplates.get(step.templateId);
-            if (!template) {
-              throw new Error(`Template not found for step ${stepNum}: ${step.templateId}`);
+        for (let s = 0; s < cadenceSteps.length; s++) {
+          const step = cadenceSteps[s];
+          const stepNum = step.stepNumber || (s + 1);
+          const delayMs = ((step.delayDays || 0) * 24 * 60 * 60 * 1000) +
+                          ((step.delayHours || 0) * 60 * 60 * 1000) +
+                          ((step.delayMinutes || 0) * 60 * 1000);
+          stepTime = new Date(stepTime.getTime() + delayMs);
+
+          try {
+            if (step.messageType === "template" && step.templateId) {
+              const tmpl = stepTemplates.get(step.templateId);
+              if (!tmpl) {
+                throw new Error(`Template not found for step ${stepNum}: ${step.templateId}`);
+              }
+              const stepCampaignOverride = {
+                ...campaign,
+                variableMapping: step.variableMapping || {}
+              };
+              const components = buildContactComponents(contact, stepCampaignOverride, tmpl, false);
+              rows.push({
+                campaignId,
+                channelId: channel.id,
+                recipientPhone: contact.phone,
+                templateName: tmpl.name,
+                templateLanguage: step.templateLanguage || "en_US",
+                templateParams: components,
+                messageType: "utility",
+                status: "queued" as const,
+                scheduledFor: new Date(stepTime.getTime()),
+                stepNumber: stepNum,
+              });
+            } else {
+              const mediaMime = step.mediaMimeType || (step.mediaUrl ? (step.mediaUrl.includes(".mp4") ? "video/mp4" : "image/jpeg") : null);
+              rows.push({
+                campaignId,
+                channelId: channel.id,
+                recipientPhone: contact.phone,
+                templateName: null,
+                templateLanguage: null,
+                templateParams: {
+                  isCadenceStep: true,
+                  customMessage: step.customMessage || "",
+                  mediaUrl: step.mediaUrl || null,
+                  mediaType: mediaMime ? (mediaMime.includes("image") ? "image" : mediaMime.includes("video") ? "video" : "document") : undefined,
+                  mediaName: step.mediaName || "file",
+                  mediaMimeType: mediaMime || null
+                },
+                messageType: "marketing",
+                status: "queued" as const,
+                scheduledFor: new Date(stepTime.getTime()),
+                stepNumber: stepNum,
+              });
             }
+          } catch (err: any) {
+            console.error(`[Campaign ${campaignId}] Failed to build cadence step ${stepNum} for ${contact.phone}: ${err.message}`);
+            totalFailed++;
+          }
+        }
 
-            // Build components for template
-            const stepCampaignOverride = {
-              ...campaign,
-              variableMapping: step.variableMapping || {}
+        recipientRows.push({
+          campaignId,
+          contactId: contact.id,
+          phone: contact.phone,
+          name: contact.name || null,
+          status: "pending",
+          templateParams: {},
+        });
+      }
+    } else {
+      for (let i = 0; i < pageContacts.length; i += chunkSize) {
+        const chunk = pageContacts.slice(i, i + chunkSize);
+        const chunkRows: any[] = [];
+
+        chunk.forEach((contact) => {
+          contactGlobalIndex++;
+          try {
+            let components: any[] = [];
+            if (!isQr && template) {
+              components = buildContactComponents(contact, campaign, template, hasLimitedTimeOffer);
+            }
+            const categoryLower = template ? (template.category || "MARKETING").toLowerCase() : "marketing";
+            const msgType = (categoryLower === "utility" || categoryLower === "transactional")
+              ? "utility"
+              : categoryLower === "authentication"
+                ? "authentication"
+                : "marketing";
+
+            const mediaMime = campaign.mediaMimeType || (campaign.mediaUrl ? (campaign.mediaUrl.includes(".mp4") ? "video/mp4" : "image/jpeg") : null);
+            const customParams = {
+              customMessage: campaign.customMessage || "",
+              mediaUrl: campaign.mediaUrl || null,
+              mediaType: mediaMime ? (mediaMime.includes("image") ? "image" : mediaMime.includes("video") ? "video" : mediaMime.includes("audio") ? "audio" : "document") : undefined,
+              mediaName: campaign.mediaName || "file",
+              mediaMimeType: mediaMime || null
             };
-            const components = buildContactComponents(contact, stepCampaignOverride, template, false);
 
-            rows.push({
+            chunkRows.push({
               campaignId,
               channelId: channel.id,
               recipientPhone: contact.phone,
-              templateName: template.name,
-              templateLanguage: step.templateLanguage || "en_US",
-              templateParams: components,
-              messageType: "utility",
+              templateName: (isQr || !template) ? null : template.name,
+              templateLanguage: (isQr || !template) ? null : ((campaign as any).templateLanguage || "en_US"),
+              templateParams: template ? components : customParams,
+              messageType: msgType,
               status: "queued" as const,
-              scheduledFor: new Date(stepTime.getTime()),
-              stepNumber: stepNum,
             });
-          } else {
-            // Text/media step
-            const mediaMime = step.mediaMimeType || (step.mediaUrl ? (step.mediaUrl.includes(".mp4") ? "video/mp4" : "image/jpeg") : null);
-            rows.push({
+            recipientRows.push({
+              campaignId,
+              contactId: contact.id,
+              phone: contact.phone,
+              name: contact.name || null,
+              status: "pending",
+              templateParams: template ? components : customParams,
+            });
+          } catch (err: any) {
+            console.error(`[Campaign ${campaignId}] Failed to build components for ${contact.phone}: ${err.message}`);
+            totalFailed++;
+            const categoryLower = template ? (template.category || "MARKETING").toLowerCase() : "marketing";
+            const msgType = (categoryLower === "utility" || categoryLower === "transactional")
+              ? "utility"
+              : categoryLower === "authentication"
+                ? "authentication"
+                : "marketing";
+
+            chunkRows.push({
               campaignId,
               channelId: channel.id,
               recipientPhone: contact.phone,
+              templateName: (isQr || !template) ? null : template.name,
+              templateLanguage: (isQr || !template) ? null : ((campaign as any).templateLanguage || "en_US"),
+              templateParams: [],
+              messageType: msgType,
+              status: "failed" as const,
+            });
+            recipientRows.push({
+              campaignId,
+              contactId: contact.id,
+              phone: contact.phone,
+              name: contact.name || null,
+              status: "failed",
+              errorCode: "BUILD_ERROR",
+              errorMessage: err.message || "Failed to build template components",
+            });
+          }
+        });
+
+        // Intersperse warmer messages if enabled
+        if (warmerEnabled && warmerMessagesList.length > 0 && warmerRecipients.length > 0) {
+          const warmerCount = Math.min(5, Math.max(1, Math.floor(chunk.length / 10)));
+          for (let w = 0; w < warmerCount; w++) {
+            const randomPhone = warmerRecipients[Math.floor(Math.random() * warmerRecipients.length)];
+            const randomText = warmerMessagesList[Math.floor(Math.random() * warmerMessagesList.length)];
+            
+            const insertIndex = Math.floor(Math.random() * (chunkRows.length + 1));
+            chunkRows.splice(insertIndex, 0, {
+              campaignId,
+              channelId: channel.id,
+              recipientPhone: randomPhone,
               templateName: null,
               templateLanguage: null,
-              templateParams: {
-                isCadenceStep: true,
-                customMessage: step.customMessage || "",
-                mediaUrl: step.mediaUrl || null,
-                mediaType: mediaMime ? (mediaMime.includes("image") ? "image" : mediaMime.includes("video") ? "video" : "document") : undefined,
-                mediaName: step.mediaName || "file",
-                mediaMimeType: mediaMime || null
-              },
-              messageType: "marketing",
+              templateParams: { isWarmer: true, customMessage: randomText },
+              messageType: "utility",
               status: "queued" as const,
-              scheduledFor: new Date(stepTime.getTime()),
-              stepNumber: stepNum,
             });
           }
-        } catch (err: any) {
-          console.error(`[Campaign ${campaignId}] Failed to build cadence step ${stepNum} for ${contact.phone}: ${err.message}`);
-          totalFailed++;
         }
-      }
 
-      // Add recipient record
-      recipientRows.push({
-        campaignId,
-        contactId: contact.id,
-        phone: contact.phone,
-        name: contact.name || null,
-        status: "pending",
-        templateParams: {},
-      });
-    }
-  } else {
-    for (let i = 0; i < contacts.length; i += chunkSize) {
-      const chunk = contacts.slice(i, i + chunkSize);
-      const chunkRows: any[] = [];
-
-      chunk.forEach((contact) => {
-        try {
-          let components: any[] = [];
-          if (!isQr && template) {
-            components = buildContactComponents(contact, campaign, template, hasLimitedTimeOffer);
+        // Assign scheduledFor time to all messages in this chunk
+        chunkRows.forEach((row) => {
+          if (row.status === "queued") {
+            row.scheduledFor = new Date(currentTime.getTime());
+            currentTime = new Date(currentTime.getTime() + delayBetweenMessages * 1000);
+          } else {
+            row.scheduledFor = null;
           }
-          const categoryLower = template ? (template.category || "MARKETING").toLowerCase() : "marketing";
-          const msgType = (categoryLower === "utility" || categoryLower === "transactional")
-            ? "utility"
-            : categoryLower === "authentication"
-              ? "authentication"
-              : "marketing";
+          rows.push(row);
+        });
 
-          const mediaMime = campaign.mediaMimeType || (campaign.mediaUrl ? (campaign.mediaUrl.includes(".mp4") ? "video/mp4" : "image/jpeg") : null);
-          const customParams = {
-            customMessage: campaign.customMessage || "",
-            mediaUrl: campaign.mediaUrl || null,
-            mediaType: mediaMime ? (mediaMime.includes("image") ? "image" : mediaMime.includes("video") ? "video" : mediaMime.includes("audio") ? "audio" : "document") : undefined,
-            mediaName: campaign.mediaName || "file",
-            mediaMimeType: mediaMime || null
-          };
-
-          chunkRows.push({
-            campaignId,
-            channelId: channel.id,
-            recipientPhone: contact.phone,
-            templateName: (isQr || !template) ? null : template.name,
-            templateLanguage: (isQr || !template) ? null : ((campaign as any).templateLanguage || "en_US"),
-            templateParams: template ? components : customParams,
-            messageType: msgType,
-            status: "queued" as const,
-          });
-          recipientRows.push({
-            campaignId,
-            contactId: contact.id,
-            phone: contact.phone,
-            name: contact.name || null,
-            status: "pending",
-            templateParams: template ? components : customParams,
-          });
-        } catch (err: any) {
-          console.error(`[Campaign ${campaignId}] Failed to build components for ${contact.phone}: ${err.message}`);
-          totalFailed++;
-          const categoryLower = template ? (template.category || "MARKETING").toLowerCase() : "marketing";
-          const msgType = (categoryLower === "utility" || categoryLower === "transactional")
-            ? "utility"
-            : categoryLower === "authentication"
-              ? "authentication"
-              : "marketing";
-
-          chunkRows.push({
-            campaignId,
-            channelId: channel.id,
-            recipientPhone: contact.phone,
-            templateName: (isQr || !template) ? null : template.name,
-            templateLanguage: (isQr || !template) ? null : ((campaign as any).templateLanguage || "en_US"),
-            templateParams: [],
-            messageType: msgType,
-            status: "failed" as const,
-          });
-          recipientRows.push({
-            campaignId,
-            contactId: contact.id,
-            phone: contact.phone,
-            name: contact.name || null,
-            status: "failed",
-            errorCode: "BUILD_ERROR",
-            errorMessage: err.message || "Failed to build template components",
-          });
-        }
-      });
-
-      // Intersperse warmer messages if enabled
-      if (warmerEnabled && warmerMessagesList.length > 0 && warmerRecipients.length > 0) {
-        // Interleave 1 warmer message per 10 campaign messages (min 1, max 5)
-        const warmerCount = Math.min(5, Math.max(1, Math.floor(chunk.length / 10)));
-        for (let w = 0; w < warmerCount; w++) {
-          const randomPhone = warmerRecipients[Math.floor(Math.random() * warmerRecipients.length)];
-          const randomText = warmerMessagesList[Math.floor(Math.random() * warmerMessagesList.length)];
-          
-          const insertIndex = Math.floor(Math.random() * (chunkRows.length + 1));
-          chunkRows.splice(insertIndex, 0, {
-            campaignId,
-            channelId: channel.id,
-            recipientPhone: randomPhone,
-            templateName: null,
-            templateLanguage: null,
-            templateParams: { isWarmer: true, customMessage: randomText },
-            messageType: "utility",
-            status: "queued" as const,
-          });
+        if (i + chunkSize < pageContacts.length || p + PAGE_SIZE < contactIds.length) {
+          currentTime = new Date(currentTime.getTime() + delayBetweenChunks * 60 * 1000);
         }
       }
+    }
 
-      // Assign scheduledFor time to all messages in this chunk
-      chunkRows.forEach((row) => {
-        if (row.status === "queued") {
-          row.scheduledFor = new Date(currentTime.getTime());
-          currentTime = new Date(currentTime.getTime() + delayBetweenMessages * 1000);
-        } else {
-          row.scheduledFor = null;
-        }
-        rows.push(row);
-      });
+    // Insert this page in batches of 100
+    for (let i = 0; i < rows.length; i += BATCH_SIZE_INSERT) {
+      const batch = rows.slice(i, i + BATCH_SIZE_INSERT);
+      await db.insert(messageQueue).values(batch);
+      totalQueued += batch.filter(r => r.status === "queued" && !(r.templateParams && (r.templateParams as any).isWarmer)).length;
 
-      if (i + chunkSize < contacts.length) {
-        currentTime = new Date(currentTime.getTime() + delayBetweenChunks * 60 * 1000);
+      if (Date.now() - lastHeartbeat > 30_000) {
+        await storage.updateCampaign(campaignId, { populationStartedAt: new Date() });
+        lastHeartbeat = Date.now();
       }
+    }
+
+    // Insert recipients in batches of 100
+    for (let i = 0; i < recipientRows.length; i += BATCH_SIZE_INSERT) {
+      const batch = recipientRows.slice(i, i + BATCH_SIZE_INSERT);
+      await db.insert(campaignRecipients).values(batch);
     }
   }
 
-  // Insert all in batches of 100
-  const BATCH_SIZE_INSERT = 100;
-  for (let i = 0; i < rows.length; i += BATCH_SIZE_INSERT) {
-    const batch = rows.slice(i, i + BATCH_SIZE_INSERT);
-    await db.insert(messageQueue).values(batch);
-    totalQueued += batch.filter(r => r.status === "queued" && !(r.templateParams && (r.templateParams as any).isWarmer)).length;
-
-    if (Date.now() - lastHeartbeat > 60_000) {
-      await storage.updateCampaign(campaignId, { populationStartedAt: new Date() });
-      lastHeartbeat = Date.now();
-    }
-  }
-
-  // Insert recipients in batches of 100
-  for (let i = 0; i < recipientRows.length; i += BATCH_SIZE_INSERT) {
-    const batch = recipientRows.slice(i, i + BATCH_SIZE_INSERT);
-    await db.insert(campaignRecipients).values(batch);
-  }
-
-  console.log(`[Campaign ${campaignId}] Queued ${totalQueued}/${contacts.length}${totalFailed > 0 ? ` (${totalFailed} failed to build)` : ""}`);
+  console.log(`[Campaign ${campaignId}] Queued ${totalQueued}/${totalContactsCount}${totalFailed > 0 ? ` (${totalFailed} failed to build)` : ""}`);
 
   if (totalQueued === 0 && totalFailed > 0) {
     await storage.updateCampaign(campaignId, {

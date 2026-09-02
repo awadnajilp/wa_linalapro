@@ -97,6 +97,8 @@ export function registerRestApiV1Routes(app: Express) {
           .returning();
       }
 
+      const waMsgId = result?.messages?.[0]?.id || result?.key?.id || result?.id || null;
+
       const [message] = await db
         .insert(schema.messages)
         .values({
@@ -107,7 +109,7 @@ export function registerRestApiV1Routes(app: Express) {
           type: "template",
           messageType: "template",
           status: "sent",
-          whatsappMessageId: result?.messages?.[0]?.id,
+          whatsappMessageId: waMsgId,
           timestamp: new Date(),
           metadata: { templateName, language: language || "en_US", components },
         })
@@ -129,7 +131,7 @@ export function registerRestApiV1Routes(app: Express) {
         success: true,
         data: {
           messageId: message.id,
-          whatsappMessageId: result?.messages?.[0]?.id,
+          whatsappMessageId: waMsgId,
           contactId: contact.id,
           conversationId: conversation.id,
           status: "sent",
@@ -229,6 +231,8 @@ export function registerRestApiV1Routes(app: Express) {
       const whatsappApi = new WhatsAppApiService(channel);
       const result = await whatsappApi.sendTextMessage(phone, messageText);
 
+      const waMsgId = result?.messages?.[0]?.id || result?.key?.id || result?.id || null;
+
       const [msg] = await db
         .insert(schema.messages)
         .values({
@@ -239,7 +243,7 @@ export function registerRestApiV1Routes(app: Express) {
           type: "text",
           messageType: "text",
           status: "sent",
-          whatsappMessageId: result?.messages?.[0]?.id,
+          whatsappMessageId: waMsgId,
           timestamp: new Date(),
           metadata: {},
         })
@@ -261,7 +265,7 @@ export function registerRestApiV1Routes(app: Express) {
         success: true,
         data: {
           messageId: msg.id,
-          whatsappMessageId: result?.messages?.[0]?.id,
+          whatsappMessageId: waMsgId,
           status: "sent",
         },
       });

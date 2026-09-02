@@ -53,6 +53,10 @@ export const brandSettingsSchema = z.object({
   supportEmail: z.string().email().optional().or(z.literal("")),
   currency: z.string().min(1).default("INR"), // e.g. USD, INR
   country: z.string().length(2).default("IN"), // ISO2 country code
+  showMobileSignup: z
+    .union([z.boolean(), z.string().transform((v) => v === "true" || v === "1")])
+    .optional()
+    .default(true),
 });
 
 interface ParsedPanelConfig
@@ -270,6 +274,7 @@ export const getBrandSettings = async (_req: Request, res: Response) => {
         logo2:"",
         favicon: "",
         supportEmail: "",
+        showMobileSignup: true,
         updatedAt: new Date().toISOString(),
       });
     }
@@ -281,6 +286,7 @@ export const getBrandSettings = async (_req: Request, res: Response) => {
       currency: config.currency || "",
       country: config.country || "",
       supportEmail: config.supportEmail || "",
+      showMobileSignup: config.showMobileSignup !== undefined ? Boolean(config.showMobileSignup) : true,
       logo:
         config.logo?.startsWith("http") || config.logo?.startsWith("/uploads/")
           ? config.logo
@@ -376,6 +382,7 @@ export const createBrandSettings = async (req: Request, res: Response) => {
       favicon: faviconPath,
       country: "IN",
       currency: "INR",
+      showMobileSignup: parsed.showMobileSignup !== undefined ? Boolean(parsed.showMobileSignup) : true,
     };
 
     const config = await createPanelConfig(panelData);
@@ -390,6 +397,7 @@ export const createBrandSettings = async (req: Request, res: Response) => {
       country: config.country || "",
       currency: config.currency || "",
       supportEmail: config.supportEmail || "",
+      showMobileSignup: config.showMobileSignup !== undefined ? Boolean(config.showMobileSignup) : true,
       updatedAt: config.updatedAt?.toISOString() || new Date().toISOString(),
     };
 
@@ -538,6 +546,7 @@ export const updateBrandSettings = async (req: Request, res: Response) => {
       country: parsed.country || "",
       supportEmail: parsed.supportEmail || "",
       currency: parsed.currency || "",
+      showMobileSignup: parsed.showMobileSignup !== undefined ? Boolean(parsed.showMobileSignup) : true,
     };
 
     const config = await updateFirstPanelConfig(panelData);
@@ -551,6 +560,7 @@ export const updateBrandSettings = async (req: Request, res: Response) => {
       country: config.country || "",
       currency: config.currency || "",
       supportEmail: config.supportEmail || "",
+      showMobileSignup: config.showMobileSignup !== undefined ? Boolean(config.showMobileSignup) : true,
       logo:
         config.logo?.startsWith("http") || config.logo?.startsWith("/uploads/")
           ? config.logo

@@ -40,6 +40,7 @@ import {
   Clock,
   Wifi,
   WifiOff,
+  Smartphone,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Loading } from "@/components/ui/loading";
@@ -60,7 +61,7 @@ interface BrandSettings {
   country?: string;
   currency?: string;
   supportEmail?: string;
-
+  showMobileSignup?: boolean;
 }
 
 export function GeneralSettings(): JSX.Element {
@@ -536,6 +537,24 @@ export function GeneralSettings(): JSX.Element {
                       {t("settings.general_setting.supportEmailHelper")}
                     </p>
                   )}
+                </div>
+              </div>
+
+              {/* Mobile App Signup */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Smartphone className="w-4 h-4 text-purple-600" />
+                  <Label className="font-medium">
+                    Mobile App Sign Up / Registration
+                  </Label>
+                </div>
+                <div className="p-4 bg-gray-50 rounded-lg border">
+                  <Badge variant={displayData.showMobileSignup !== false ? "default" : "secondary"}>
+                    {displayData.showMobileSignup !== false ? "Enabled" : "Disabled (Hidden on Mobile)"}
+                  </Badge>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Controls whether new users can register directly from the mobile app login screen.
+                  </p>
                 </div>
               </div>
             </div>

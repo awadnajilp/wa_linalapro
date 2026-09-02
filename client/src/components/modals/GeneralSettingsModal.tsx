@@ -40,7 +40,9 @@ import {
   Globe,
   AlertCircle,
   CheckCircle,
+  Smartphone,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/auth-context";
@@ -69,6 +71,7 @@ interface BrandSettings {
   country?: string;
   currency?: string;
   supportEmail?: string;
+  showMobileSignup?: boolean;
 }
 
 // This is only for React state
@@ -78,6 +81,7 @@ interface BrandFormValues {
   country: string;
   supportEmail: string; 
   currency: string;
+  showMobileSignup: boolean;
   logo: File | null;
   logo2: File | null;
   favicon: File | null;
@@ -109,6 +113,7 @@ const GeneralSettingsModal: React.FC<GeneralSettingsModalProps> = ({
     title: "",
     tagline: "",
     supportEmail: "",
+    showMobileSignup: true,
     logo: null,
     logo2: null,
     favicon: null,
@@ -151,6 +156,7 @@ const GeneralSettingsModal: React.FC<GeneralSettingsModalProps> = ({
         supportEmail: brandSettings.supportEmail || "",
         country: brandSettings.country || "",
         currency: brandSettings.currency || "",
+        showMobileSignup: brandSettings.showMobileSignup !== undefined ? Boolean(brandSettings.showMobileSignup) : true,
         logo: null, // no File yet
         logo2: null,
         favicon: null, // no File yet
@@ -273,7 +279,7 @@ const GeneralSettingsModal: React.FC<GeneralSettingsModalProps> = ({
     formDataToSend.append("country", formData.country);
     formDataToSend.append("currency", formData.currency);
     formDataToSend.append("supportEmail", formData.supportEmail);
-
+    formDataToSend.append("showMobileSignup", String(formData.showMobileSignup));
 
     if (formData.logo) formDataToSend.append("logo", formData.logo);
     if (formData.logo2) formDataToSend.append("logo2", formData.logo2);
@@ -294,6 +300,7 @@ const GeneralSettingsModal: React.FC<GeneralSettingsModalProps> = ({
       supportEmail:"",
       currency: "",
       country: "",
+      showMobileSignup: true,
     });
     setLogoPreview("");
     setLogo2Preview("");
@@ -657,6 +664,25 @@ const GeneralSettingsModal: React.FC<GeneralSettingsModalProps> = ({
                 </Command>
               </PopoverContent>
             </Popover>
+          </div>
+
+          {/* Mobile App Signup Toggle */}
+          <div className="flex items-center justify-between p-4 bg-gray-50 border rounded-lg">
+            <div className="space-y-0.5">
+              <Label className="flex items-center font-medium text-sm">
+                <Smartphone className="w-4 h-4 mr-2 text-purple-600" />
+                Mobile App Registration / Sign Up
+              </Label>
+              <p className="text-xs text-gray-500">
+                Allow new users to sign up from the mobile application. Disable this to comply with Apple App Store guidelines on iOS.
+              </p>
+            </div>
+            <Switch
+              checked={formData.showMobileSignup}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, showMobileSignup: checked }))
+              }
+            />
           </div>
         </div>
 

@@ -1118,6 +1118,7 @@ export const panelConfig = pgTable("panel_config", {
   currency: varchar("currency", { length: 10 }).default("INR"),
   country: varchar("country", { length: 2 }).default("IN"),
   embeddedSignupEnabled: boolean("embedded_signup_enabled").default(true),
+  showMobileSignup: boolean("show_mobile_signup").default(true),
   walletSettings: jsonb("wallet_settings").$type<any>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

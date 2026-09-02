@@ -43,6 +43,9 @@ import {
   Tag,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
+import { useChannelContext } from "@/contexts/channel-context";
+import { apiRequest } from "@/lib/queryClient";
 import { FlowEditorDialog } from "@/components/whatsapp-flows/FlowEditorDialog";
 import { FlowResponsesDialog } from "@/components/whatsapp-flows/FlowResponsesDialog";
 import { SendFlowDialog } from "@/components/whatsapp-flows/SendFlowDialog";
@@ -50,6 +53,8 @@ import { SendFlowDialog } from "@/components/whatsapp-flows/SendFlowDialog";
 export default function WhatsAppFlows() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const { activeChannel } = useChannelContext();
 
   const [selectedChannelId, setSelectedChannelId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -63,18 +68,33 @@ export default function WhatsAppFlows() {
   const [sendOpen, setSendOpen] = useState(false);
   const [sendingFlow, setSendingFlow] = useState<any | null>(null);
 
+  const userIdNew = user?.role === "team" ? user?.createdBy : user?.id;
+
   // Fetch Channels
-  const { data: channelsData } = useQuery<{ channels: any[] }>({
-    queryKey: ["/api/channels"],
+  const { data: channelsResponse } = useQuery({
+    queryKey: ["/api/channels/user", userIdNew],
     queryFn: async () => {
-      const res = await fetch("/api/channels");
-      if (!res.ok) throw new Error("Failed to fetch channels");
+      if (!userIdNew) return { data: [] };
+      const res = await apiRequest("POST", "/api/channels/userid", {
+        userId: userIdNew,
+        page: 1,
+        limit: 100,
+      });
       return res.json();
     },
+    enabled: !!userIdNew,
   });
 
-  const channels = channelsData?.channels || [];
-  const currentChannelId = selectedChannelId || (channels[0]?.id || "");
+  const channels = Array.isArray(channelsResponse?.data)
+    ? channelsResponse.data
+    : activeChannel
+    ? [activeChannel]
+    : [];
+
+  const currentChannelId =
+    selectedChannelId ||
+    activeChannel?.id ||
+    (channels[0]?.id || "");
 
   // Fetch Flows
   const { data: flowsData, isLoading, refetch } = useQuery<{ status: string; data: any[] }>({

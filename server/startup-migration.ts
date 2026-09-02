@@ -1028,6 +1028,12 @@ const steps: MigrationStep[] = [
     `,
   },
   {
+    description: "Add show_mobile_signup to panel_config (if not exists)",
+    sql: `
+      ALTER TABLE panel_config ADD COLUMN IF NOT EXISTS show_mobile_signup BOOLEAN DEFAULT true;
+    `,
+  },
+  {
     description: "Insert default WhatsApp Flows addon (if not exists)",
     sql: `
       INSERT INTO addons (id, slug, name, description, price, billing_cycle, ai_key_type, default_credits, is_active)

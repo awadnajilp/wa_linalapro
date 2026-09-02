@@ -47,7 +47,10 @@ import {
   Sliders,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/auth-context";
+import { useChannelContext } from "@/contexts/channel-context";
+import { apiRequest } from "@/lib/queryClient";
 
 interface FlowEditorDialogProps {
   isOpen: boolean;
@@ -81,13 +84,46 @@ export function FlowEditorDialog({
   onClose,
   flow,
   channelId: initialChannelId,
-  channels = [],
+  channels: channelsProp = [],
 }: FlowEditorDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const { activeChannel } = useChannelContext();
+
+  const userIdNew = user?.role === "team" ? user?.createdBy : user?.id;
+
+  const { data: channelsResponse } = useQuery({
+    queryKey: ["/api/channels/user", userIdNew],
+    queryFn: async () => {
+      if (!userIdNew) return { data: [] };
+      const res = await apiRequest("POST", "/api/channels/userid", {
+        userId: userIdNew,
+        page: 1,
+        limit: 100,
+      });
+      return res.json();
+    },
+    enabled: !!userIdNew && (!channelsProp || channelsProp.length === 0),
+  });
+
+  const channels =
+    channelsProp && channelsProp.length > 0
+      ? channelsProp
+      : Array.isArray(channelsResponse?.data) && channelsResponse.data.length > 0
+      ? channelsResponse.data
+      : activeChannel
+      ? [activeChannel]
+      : [];
+
+  const defaultChannelId =
+    flow?.channelId ||
+    initialChannelId ||
+    activeChannel?.id ||
+    (channels[0]?.id || "");
 
   const [name, setName] = useState("");
-  const [channelId, setChannelId] = useState(initialChannelId || "");
+  const [channelId, setChannelId] = useState(defaultChannelId);
   const [categories, setCategories] = useState<string[]>(["OTHER"]);
   const [headerText, setHeaderText] = useState("");
   const [bodyText, setBodyText] = useState("Please complete the interactive form below:");
@@ -263,7 +299,7 @@ export function FlowEditorDialog({
   useEffect(() => {
     if (flow) {
       setName(flow.name || "");
-      setChannelId(flow.channelId || initialChannelId || "");
+      setChannelId(flow.channelId || defaultChannelId);
       setCategories(flow.categories || ["OTHER"]);
       setHeaderText(flow.headerText || "");
       setBodyText(flow.bodyText || "Please complete the interactive form below:");
@@ -281,7 +317,7 @@ export function FlowEditorDialog({
       setJsonError(null);
     } else {
       setName("");
-      setChannelId(initialChannelId || (channels[0]?.id || ""));
+      setChannelId(defaultChannelId);
       setCategories(["OTHER"]);
       setHeaderText("");
       setBodyText("Please complete the interactive form below:");
@@ -296,7 +332,7 @@ export function FlowEditorDialog({
       setFlowJsonStr(JSON.stringify(compiled, null, 2));
       setJsonError(null);
     }
-  }, [flow, isOpen, initialChannelId, channels]);
+  }, [flow, isOpen, defaultChannelId]);
 
   const updateFieldsAndJson = (newFields: FormFieldItem[], newTitle?: string) => {
     setFields(newFields);

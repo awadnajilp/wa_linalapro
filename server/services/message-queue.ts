@@ -41,17 +41,8 @@ export class MessageQueueService {
   private static readonly BATCH_SIZE = process.env.MESSAGE_QUEUE_BATCH_SIZE
     ? parseInt(process.env.MESSAGE_QUEUE_BATCH_SIZE, 10)
     : 200;
-  private static usingBullMQ = false;
-
   static async startProcessing(intervalMs: number = 5000) {
     if (this.processingTimeout) {
-      return;
-    }
-
-    const bullInitialized = await initBullQueue();
-    if (bullInitialized) {
-      this.usingBullMQ = true;
-      console.log("[MessageQueue] Using BullMQ for message processing (Redis-backed)");
       return;
     }
 
@@ -62,7 +53,7 @@ export class MessageQueueService {
     this.scheduleNext();
 
     const defaultConcurrency = WhatsAppApiService.getConcurrencyForTier();
-    console.log(`[MessageQueue] Using DB polling (batch: ${this.BATCH_SIZE}, concurrency: ${defaultConcurrency}, interval: ${this.currentBackoffMs}ms)`);
+    console.log(`[MessageQueue] Queue worker started (batch: ${this.BATCH_SIZE}, concurrency: ${defaultConcurrency}, interval: ${this.currentBackoffMs}ms)`);
   }
 
   private static scheduleNext() {

@@ -687,112 +687,11 @@ app.use((req, res, next) => {
     if (isCronLeader) {
       diployLogger.success(`Worker ${instanceId ?? "main"} is the cron leader — starting scheduled jobs`);
 
-      // Recover campaigns stuck in "queued" with no messages yet in the queue.
-      // The in-memory setImmediate queue population is lost on restart, so campaigns
-      // that were mid-transition stay "queued" forever without this recovery.
-      // NOT EXISTS guard prevents re-queuing campaigns that already have messages
-      // inserted (those continue naturally via the message queue worker).
-      try {
-        const orphaned = await db
-          .select()
-          .from(campaignsTable)
-          .where(
-            sql`
-              ${campaignsTable.status} = 'queued'
-              AND NOT EXISTS (
-                SELECT 1 FROM ${messageQueue}
-                WHERE ${messageQueue.campaignId} = ${campaignsTable.id}
-              )
-            `
-          );
+      // Start message queue processing immediately
+      MessageQueueService.startProcessing();
+      MessageQueueService.backfillStuckCampaigns();
 
-        if (orphaned.length > 0) {
-          diployLogger.warn(`[Startup] Found ${orphaned.length} campaign(s) stuck in "queued" — recovering...`);
-          for (const c of orphaned) {
-            try {
-              await storage.updateCampaign(c.id, { status: "active" });
-              diployLogger.warn(`[Startup] Recovering stuck campaign: ${c.id} (${c.name})`);
-              void startCampaignExecution(c.id).catch((err) => {
-                diployLogger.error(`[Startup] Failed to recover campaign ${c.id}: ${err}`);
-                storage.updateCampaign(c.id, { status: "failed" }).catch(() => {});
-              });
-            } catch (err) {
-              diployLogger.error(`[Startup] Error recovering campaign ${c.id}: ${err}`);
-            }
-          }
-        } else {
-          diployLogger.success(`[Startup] No stuck campaigns found`);
-        }
-      } catch (err) {
-        diployLogger.error(`[Startup] Failed to check for stuck campaigns: ${err}`);
-      }
-
-      // Backfill campaign delivery/read/failed counts from message_queue.
-      // Uses monotonic milestone timestamps as source of truth:
-      //   delivered = delivered_at IS NOT NULL OR read_at IS NOT NULL (read implies delivery)
-      //   read      = read_at IS NOT NULL
-      //   failed    = status = 'failed'
-      // All campaigns are updated — campaigns with no queue rows get zeros.
-      try {
-        await db.execute(sql`
-          UPDATE campaigns c
-          SET
-            delivered_count = COALESCE(q.delivered_count, 0),
-            read_count      = COALESCE(q.read_count, 0),
-            failed_count    = COALESCE(q.failed_count, 0)
-          FROM (
-            SELECT
-              c2.id AS campaign_id,
-              COUNT(mq.id) FILTER (
-                WHERE mq.delivered_at IS NOT NULL OR mq.read_at IS NOT NULL
-              ) AS delivered_count,
-              COUNT(mq.id) FILTER (
-                WHERE mq.read_at IS NOT NULL
-              ) AS read_count,
-              COUNT(mq.id) FILTER (
-                WHERE mq.status = 'failed'
-              ) AS failed_count
-            FROM campaigns c2
-            LEFT JOIN message_queue mq ON mq.campaign_id = c2.id
-            GROUP BY c2.id
-          ) q
-          WHERE c.id = q.campaign_id
-        `);
-        diployLogger.success(`[Startup] Campaign stats backfilled from message_queue`);
-      } catch (err) {
-        diployLogger.error(`[Startup] Failed to backfill campaign stats: ${err}`);
-      }
-
-      try {
-        await executionService.recoverTimeGapExecutions();
-      } catch (err) {
-        diployLogger.error(`[Startup] Failed to recover time_gap executions: ${err}`);
-      }
-
-      try {
-        await executionService.recoverUserReplyExecutions();
-      } catch (err) {
-        diployLogger.error(`[Startup] Failed to recover user_reply executions: ${err}`);
-      }
-
-      // Re-subscribe all active channels to Meta webhook events.
-      // This fixes channels that were created before the auto-subscribe fix,
-      // ensuring delivery/read receipts start arriving immediately.
-      try {
-        const activeChannels = await storage.getChannels();
-        const activeOnes = activeChannels.filter((c: any) => c.isActive && c.whatsappBusinessAccountId && c.accessToken);
-        let subOk = 0;
-        for (const ch of activeOnes) {
-          const result = await subscribeChannelToWebhook(ch);
-          if (result.success) subOk++;
-        }
-        if (activeOnes.length > 0) {
-          diployLogger.success(`[Startup] Re-subscribed ${subOk}/${activeOnes.length} channel(s) to Meta webhooks`);
-        }
-      } catch (err) {
-        diployLogger.error(`[Startup] Failed to re-subscribe channels to webhooks: ${err}`);
-      }
-
+      // Start all cron jobs
       startScheduledCampaignCron();
       startWhatsAppWarmerCron();
       startCrmFollowupCron();
@@ -801,19 +700,82 @@ app.use((req, res, next) => {
       startExchangeRatesCron();
       startUnrepliedAlertService();
       startRemindersCron();
-       initExpenseReportCron();
-       initTicketReportCron();
+      initExpenseReportCron();
+      initTicketReportCron();
 
       const messageStatusUpdater = new MessageStatusUpdater();
       messageStatusUpdater.startCronJob(60);
 
-      MessageQueueService.startProcessing();
-      MessageQueueService.backfillStuckCampaigns();
+      import("./cron/channel-health-monitor").then(({ channelHealthMonitor }) => {
+        channelHealthMonitor.start();
+      }).catch(err => {
+        diployLogger.error(`[Startup] Failed to start channel health monitor: ${err}`);
+      });
 
-      const { channelHealthMonitor } = await import(
-        "./cron/channel-health-monitor"
-      );
-      channelHealthMonitor.start();
+      // Run background migrations, recovery, and webhook subscriptions without blocking the main event loop
+      void (async () => {
+        try {
+          const orphaned = await db
+            .select()
+            .from(campaignsTable)
+            .where(
+              sql`
+                ${campaignsTable.status} = 'queued'
+                AND NOT EXISTS (
+                  SELECT 1 FROM ${messageQueue}
+                  WHERE ${messageQueue.campaignId} = ${campaignsTable.id}
+                )
+              `
+            );
+
+          if (orphaned.length > 0) {
+            diployLogger.warn(`[Startup] Found ${orphaned.length} campaign(s) stuck in "queued" — recovering...`);
+            for (const c of orphaned) {
+              try {
+                await storage.updateCampaign(c.id, { status: "active" });
+                diployLogger.warn(`[Startup] Recovering stuck campaign: ${c.id} (${c.name})`);
+                void startCampaignExecution(c.id).catch((err) => {
+                  diployLogger.error(`[Startup] Failed to recover campaign ${c.id}: ${err}`);
+                  storage.updateCampaign(c.id, { status: "failed" }).catch(() => {});
+                });
+              } catch (err) {
+                diployLogger.error(`[Startup] Error recovering campaign ${c.id}: ${err}`);
+              }
+            }
+          } else {
+            diployLogger.success(`[Startup] No stuck campaigns found`);
+          }
+        } catch (err) {
+          diployLogger.error(`[Startup] Failed to check for stuck campaigns: ${err}`);
+        }
+
+        try {
+          await executionService.recoverTimeGapExecutions();
+        } catch (err) {
+          diployLogger.error(`[Startup] Failed to recover time_gap executions: ${err}`);
+        }
+
+        try {
+          await executionService.recoverUserReplyExecutions();
+        } catch (err) {
+          diployLogger.error(`[Startup] Failed to recover user_reply executions: ${err}`);
+        }
+
+        try {
+          const activeChannels = await storage.getChannels();
+          const activeOnes = activeChannels.filter((c: any) => c.isActive && c.whatsappBusinessAccountId && c.accessToken);
+          let subOk = 0;
+          for (const ch of activeOnes) {
+            const result = await subscribeChannelToWebhook(ch);
+            if (result.success) subOk++;
+          }
+          if (activeOnes.length > 0) {
+            diployLogger.success(`[Startup] Re-subscribed ${subOk}/${activeOnes.length} channel(s) to Meta webhooks`);
+          }
+        } catch (err) {
+          diployLogger.error(`[Startup] Failed to re-subscribe channels to webhooks: ${err}`);
+        }
+      })();
     } else {
       diployLogger.success(`Worker ${instanceId} skipping cron jobs (not the leader)`);
     }

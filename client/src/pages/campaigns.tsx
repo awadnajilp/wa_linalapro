@@ -142,25 +142,7 @@ export default function Campaigns() {
         ? Infinity
         : Number(messagingLimitData.limit) || null;
 
-  const contactLimit: number = 100000;
-  const { data: contactsResponse } = useQuery({
-    queryKey: ["/api/user/contacts", userId, contactLimit],
-    enabled: createDialogOpen && !!selectedChannel && !!userId,
-    queryFn: async () => {
-      const res = await fetch(
-        `/api/user/contacts/${userId}?limit=${contactLimit}`,
-        {
-          method: "GET",
-          credentials: "include",
-          headers: { "x-channel-id": selectedChannel?.id || "" },
-        }
-      );
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    },
-  });
-
-  const contacts = contactsResponse?.data || [];
+  const contacts: any[] = [];
 
   // Create campaign mutation
   const createCampaignMutation = useMutation({

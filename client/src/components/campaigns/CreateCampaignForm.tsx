@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
-import { Info, FileText, Clock, Eye, Check, Upload, Loader2, Smile, Wrench, Plus } from "lucide-react";
+import { Info, FileText, Clock, Eye, Check, Upload, Loader2, Smile, Wrench, Plus, Edit2, AlertCircle, AlertTriangle } from "lucide-react";
 import { TemplatePickerDialog, getTemplateButtons } from "@/components/shared/TemplatePickerDialog";
 import { MediaGalleryDialog } from "@/components/media/MediaGalleryDialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -84,6 +84,22 @@ export function CreateCampaignForm({
   messagingTier,
   connectionMethod,
 }: CreateCampaignFormProps) {
+  const { user, userPlans } = useAuth();
+
+  const generateDefaultCampaignName = () => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const dtStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const rawUser = user?.username || user?.firstName || user?.email || "USR";
+    const user3 = rawUser.replace(/[^a-zA-Z0-9]/g, "").substring(0, 3).toUpperCase() || "LNL";
+    return `LNL-Campaign-${dtStr}-${user3}`;
+  };
+
+  const [campaignName, setCampaignName] = useState(generateDefaultCampaignName);
+  const [campaignDescription, setCampaignDescription] = useState("");
+  const [isEditingInfo, setIsEditingInfo] = useState(false);
+  const [enableScheduling, setEnableScheduling] = useState(false);
+
   const [templateConfig, setTemplateConfig] = useState<{
     variables: { type?: string; value?: string }[];
     mediaId?: string;
@@ -100,7 +116,6 @@ export function CreateCampaignForm({
   const [recurringIntervalType, setRecurringIntervalType] = useState<"8" | "24" | "48" | "custom">("24");
   const [customIntervalHours, setCustomIntervalHours] = useState(24);
   const [recurringIterations, setRecurringIterations] = useState(3);
-  const { user, userPlans } = useAuth();
 
   const utilityCategoryHelperEnabled = useMemo(() => {
     return user?.role === "superadmin" || userPlans?.data?.some(
@@ -403,15 +418,16 @@ export function CreateCampaignForm({
     const finalDelayBetweenChunks = enableChunking ? delayBetweenChunks : 0;
 
     const campaignData = {
-      name: formData.get("name") as string,
-      description: formData.get("description") as string,
+      name: (formData.get("name") as string) || campaignName,
+      description: (formData.get("description") as string) || campaignDescription || "",
       variableMapping: isQr || messageCompositionMode === "custom" ? {} : buildVariableMapping(),
       delayBetweenMessages: finalDelayBetweenMessages,
       chunkSize: finalChunkSize,
       delayBetweenChunks: finalDelayBetweenChunks,
-      isRecurring: isRecurring,
-      recurringInterval: isRecurring ? (recurringIntervalType === "custom" ? customIntervalHours : parseInt(recurringIntervalType)) : null,
-      recurringIterations: isRecurring ? recurringIterations : null,
+      scheduledTime: enableScheduling ? scheduledTime : null,
+      isRecurring: enableScheduling ? isRecurring : false,
+      recurringInterval: enableScheduling && isRecurring ? (recurringIntervalType === "custom" ? customIntervalHours : parseInt(recurringIntervalType)) : null,
+      recurringIterations: enableScheduling && isRecurring ? recurringIterations : null,
       isCadence: isCadence,
       cadenceSteps: isCadence ? cadenceSteps : [],
       followUpOnlyAfterReply24h: isCadence ? followUpOnlyAfterReply24h : false,
@@ -491,23 +507,65 @@ export function CreateCampaignForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 mt-4">
+      {/* Campaign Info Card (Collapsed by Default) */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Campaign Info
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-gray-600" />
+              <div>
+                <CardTitle className="text-sm font-medium">Campaign Info</CardTitle>
+                {!isEditingInfo && (
+                  <p className="text-xs text-gray-500 font-mono mt-0.5 font-medium">
+                    {campaignName}
+                  </p>
+                )}
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1.5"
+              onClick={() => setIsEditingInfo(!isEditingInfo)}
+            >
+              <Edit2 className="h-3.5 w-3.5" />
+              {isEditingInfo ? "Done" : "Edit Name & Description"}
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <Label htmlFor="name">Campaign Name</Label>
-            <Input id="name" name="name" required placeholder="e.g. Summer Sale Announcement" />
-          </div>
-          <div>
-            <Label htmlFor="description">Description</Label>
-            <Textarea id="description" name="description" placeholder="Campaign objectives and notes..." rows={2} />
-          </div>
-        </CardContent>
+        {isEditingInfo && (
+          <CardContent className="space-y-3 pt-0">
+            <div>
+              <Label htmlFor="name">Campaign Name</Label>
+              <Input
+                id="name"
+                name="name"
+                required
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                placeholder="e.g. Summer Sale Announcement"
+              />
+            </div>
+            <div>
+              <Label htmlFor="description">Description (Optional)</Label>
+              <Textarea
+                id="description"
+                name="description"
+                value={campaignDescription}
+                onChange={(e) => setCampaignDescription(e.target.value)}
+                placeholder="Campaign objectives and notes..."
+                rows={2}
+              />
+            </div>
+          </CardContent>
+        )}
+        {!isEditingInfo && (
+          <>
+            <input type="hidden" name="name" value={campaignName} />
+            {campaignDescription && <input type="hidden" name="description" value={campaignDescription} />}
+          </>
+        )}
       </Card>
 
       {/* Multi-step Cadence / Follow-ups Section */}
@@ -735,78 +793,81 @@ export function CreateCampaignForm({
                   {step.messageType === "template" && (
                     <div className="space-y-3">
                       <div>
-                        <Label className="text-xs font-medium">Select Template</Label>
-                        <Select
-                          value={step.templateId || ""}
-                          onValueChange={(val) => {
-                            const selectedTmpl = templates.find((t) => t.id === val);
-                            if (selectedTmpl) {
-                              // Initialize mapping for template variables
-                              const vars = extractTemplateVariables(selectedTmpl);
+                        <Label className="text-xs font-medium">WhatsApp Template</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <TemplatePickerDialog
+                            channelId={channelId}
+                            onSelectTemplate={(tmpl, vars, mediaId, headerType, btnParams) => {
                               const newMapping: Record<string, string> = {};
-                              vars.forEach((v) => {
-                                newMapping[v] = "";
-                              });
-                              updateStepField(idx, "templateId", val);
-                              updateStepField(idx, "templateName", selectedTmpl.name);
-                              updateStepField(idx, "templateLanguage", selectedTmpl.language || "en_US");
-                              updateStepField(idx, "variableMapping", newMapping);
+                              if (vars && Array.isArray(vars)) {
+                                vars.forEach((v, vIdx) => {
+                                  newMapping[(vIdx + 1).toString()] = v.value || "";
+                                });
+                              }
+                              const newSteps = [...cadenceSteps];
+                              newSteps[idx] = {
+                                ...newSteps[idx],
+                                templateId: tmpl.id,
+                                templateName: tmpl.name,
+                                templateLanguage: tmpl.language || "en_US",
+                                variableMapping: newMapping,
+                                headerType: headerType || tmpl.headerType || null,
+                                mediaUrl: mediaId || tmpl.mediaUrl || null,
+                                templateBody: tmpl.body,
+                                templateHeader: tmpl.headerText,
+                                templateFooter: tmpl.footerText,
+                                buttons: tmpl.buttons,
+                              };
+                              setCadenceSteps(newSteps);
+                            }}
+                            submitLabel="Use Template for Step"
+                            trigger={
+                              <Button type="button" variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                                <FileText className="h-3.5 w-3.5" />
+                                {step.templateName ? `Change: ${step.templateName}` : "Choose WhatsApp Template..."}
+                              </Button>
                             }
-                          }}
-                        >
-                          <SelectTrigger className="h-8 text-xs mt-0.5">
-                            <SelectValue placeholder="Choose a template..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {templates.map((t) => (
-                              <SelectItem key={t.id} value={t.id}>
-                                {t.name} ({t.language})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          />
+                          {step.templateName && (
+                            <div className="flex items-center gap-1.5 text-xs text-green-700 font-medium">
+                              <Check className="h-3.5 w-3.5" />
+                              <span>{step.templateName} ({step.templateLanguage || "en_US"})</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Render step variable mappings if a template is selected */}
-                      {step.templateId && (() => {
-                        const selectedTmpl = templates.find((t) => t.id === step.templateId);
-                        const variables = selectedTmpl ? extractTemplateVariables(selectedTmpl) : [];
-                        if (variables.length === 0) return null;
-                        return (
-                          <div className="p-3 border rounded bg-white space-y-2">
-                            <span className="text-[11px] font-bold text-gray-700 block mb-1">Template Variables Mapping</span>
-                            {variables.map((variableName) => (
-                              <div key={variableName} className="grid grid-cols-3 gap-2 items-center">
-                                <span className="text-xs font-medium text-gray-600 font-mono">
-                                  Variable {`{{${variableName}}}`}
-                                </span>
-                                <div className="col-span-2">
-                                  <Select
-                                    value={step.variableMapping[variableName] || ""}
-                                    onValueChange={(val) => {
-                                      const newMap = { ...step.variableMapping, [variableName]: val };
-                                      updateStepField(idx, "variableMapping", newMap);
-                                    }}
-                                  >
-                                    <SelectTrigger className="h-8 text-xs">
-                                      <SelectValue placeholder="Map value to..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="contact_name">Contact Name (name)</SelectItem>
-                                      <SelectItem value="contact_phone">Contact Phone (phone)</SelectItem>
-                                      {customVariables.map((cv) => (
-                                        <SelectItem key={cv} value={`custom_${cv}`}>
-                                          Custom Variable ({cv})
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                      {/* Render step preview and configured details if a template is selected */}
+                      {step.templateId && (
+                        <div className="rounded-lg border bg-white p-3 space-y-2 text-xs shadow-sm">
+                          {step.templateHeader && (
+                            <div className="font-semibold text-gray-900 border-b pb-1">{step.templateHeader}</div>
+                          )}
+                          {step.mediaUrl && (
+                            <div className="text-[11px] text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block">
+                              📎 Header Media Attached
+                            </div>
+                          )}
+                          {step.templateBody && (
+                            <div className="text-gray-700 whitespace-pre-wrap">{step.templateBody}</div>
+                          )}
+                          {step.templateFooter && (
+                            <div className="text-gray-400 text-[10px] italic">{step.templateFooter}</div>
+                          )}
+                          {step.variableMapping && Object.keys(step.variableMapping).length > 0 && (
+                            <div className="pt-2 border-t text-[11px] text-gray-500 space-y-1">
+                              <span className="font-semibold text-gray-700">Mapped Variables:</span>
+                              {Object.entries(step.variableMapping).map(([k, v]) => (
+                                <div key={k} className="flex gap-2">
+                                  <span className="font-mono text-gray-600">{`{{${k}}}`}</span>
+                                  <span>&rarr;</span>
+                                  <span className="font-medium text-gray-800">{String(v) || "Dynamic"}</span>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -974,17 +1035,33 @@ export function CreateCampaignForm({
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {/* Composer Card */}
-              <Card className="flex flex-col h-full">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-green-600" />
-                    Message Composer
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
-                  {/* Media Upload Section */}
+            <div className="space-y-4">
+              {!isQr && (
+                <div className="p-4 rounded-xl border-2 border-amber-300 bg-amber-50/95 text-amber-900 shadow-sm space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-sm text-amber-800">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                    Important: WhatsApp Cloud API 24-Hour Window Requirement
+                  </div>
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    According to WhatsApp Business Platform rules, custom (non-template) freeform messages can <strong>only be sent to contacts who have sent a message to your WhatsApp number within the last 24 hours</strong> (an open customer care window).
+                  </p>
+                  <div className="text-[11px] text-amber-700 bg-amber-100/70 p-2 rounded-lg border border-amber-200">
+                    ⚠️ Sending freeform messages to contacts outside the 24h window will fail with Meta Policy Error <code>131047</code>. To message all contacts regardless of time, switch back to <strong>WhatsApp Template</strong> mode above.
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Composer Card */}
+                <Card className="flex flex-col h-full">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-green-600" />
+                      Message Composer
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
+                    {/* Media Upload Section */}
                   <div className="space-y-3">
                     <Label className="text-xs font-semibold text-gray-700 block">Header Media File (Optional)</Label>
                     <div className="flex flex-col md:flex-row gap-3 items-stretch">
@@ -1322,9 +1399,10 @@ export function CreateCampaignForm({
               </CardContent>
             </Card>
           </div>
-        )}
-      </div>
-    )}
+        </div>
+      )}
+    </div>
+  )}
 
       {(isQr || (utilityCategoryHelperEnabled && selectedTemplate)) && (
         <>
@@ -1515,33 +1593,55 @@ export function CreateCampaignForm({
         </div>
       )}
 
+      {/* Scheduling Section (Collapsed by Default) */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            Scheduling
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Clock className="h-4 w-4 text-gray-600" />
+              Scheduling & Recurring
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="enableScheduling"
+                checked={enableScheduling}
+                onCheckedChange={(checked) => {
+                  const isChecked = !!checked;
+                  setEnableScheduling(isChecked);
+                  if (!isChecked) {
+                    setScheduledTime("");
+                    setIsRecurring(false);
+                  }
+                }}
+              />
+              <Label htmlFor="enableScheduling" className="text-xs font-semibold cursor-pointer">
+                Schedule for Later
+              </Label>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <Label htmlFor="scheduledTime">Schedule Campaign (Optional)</Label>
-            <Input
-              id="scheduledTime"
-              type="datetime-local"
-              value={scheduledTime}
-              onChange={(e) => setScheduledTime(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="autoRetry"
-              checked={autoRetry}
-              onCheckedChange={(checked) => setAutoRetry(!!checked)}
-            />
-            <Label htmlFor="autoRetry" className="font-normal text-sm">
-              Enable auto-retry for failed messages
-            </Label>
-          </div>
+        {enableScheduling && (
+          <CardContent className="space-y-3 pt-0">
+            <div>
+              <Label htmlFor="scheduledTime">Schedule Date & Time</Label>
+              <Input
+                id="scheduledTime"
+                type="datetime-local"
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="autoRetry"
+                checked={autoRetry}
+                onCheckedChange={(checked) => setAutoRetry(!!checked)}
+              />
+              <Label htmlFor="autoRetry" className="font-normal text-sm cursor-pointer">
+                Enable auto-retry for failed messages
+              </Label>
+            </div>
 
             <div className="space-y-3 pt-2 border-t border-gray-100">
               <div className="flex items-center space-x-2">
@@ -1611,7 +1711,8 @@ export function CreateCampaignForm({
                 </div>
               )}
             </div>
-        </CardContent>
+          </CardContent>
+        )}
       </Card>
 
       {children}

@@ -46,18 +46,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Users, FileSpreadsheet, Code, Search } from "lucide-react";
+import { Users, FileSpreadsheet, Code, Search, ChevronLeft, ChevronRight, Loader2, Filter, Clock } from "lucide-react";
 import { CreateCampaignForm } from "./CreateCampaignForm";
 import { useTranslation } from "@/lib/i18n";
 import { useAuth } from "@/contexts/auth-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 
 interface CreateCampaignDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   templates: any[];
-  contacts: any[];
+  contacts?: any[];
   groups: any[];
   broadcastLists: any[];
   onCreateCampaign: (campaignData: any) => void;
@@ -70,7 +72,7 @@ export function CreateCampaignDialog({
   open,
   onOpenChange,
   templates,
-  contacts,
+  contacts: initialContacts = [],
   groups,
   broadcastLists = [],
   onCreateCampaign,
@@ -89,6 +91,10 @@ export function CreateCampaignDialog({
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
   const [contactsSearchQuery, setContactsSearchQuery] = useState("");
+  const [contactsPage, setContactsPage] = useState(1);
+  const contactsLimit = 50;
+  const [onlyActive24h, setOnlyActive24h] = useState(false);
+  const [isSelectingAllMatching, setIsSelectingAllMatching] = useState(false);
   const [csvData, setCsvData] = useState<any[]>([]);
   const [scheduledTime, setScheduledTime] = useState("");
   const [autoRetry, setAutoRetry] = useState(false);
@@ -97,19 +103,21 @@ export function CreateCampaignDialog({
   const [uploadedMediaId, setUploadedMediaId] = useState<string | null>(null);
   const [headerImageFile, setHeaderImageFile] = useState<File | null>(null);
 
-
   const resetForm = () => {
     setSelectedTemplate(null);
     setVariableMapping({});
     setSelectedContacts([]);
     setSelectedGroup("all");
     setContactsSearchQuery("");
+    setContactsPage(1);
+    setOnlyActive24h(false);
+    setIsSelectingAllMatching(false);
     setCsvData([]);
     setScheduledTime("");
     setAutoRetry(false);
   };
 
- const { data: activeChannel } = useQuery({
+  const { data: activeChannel } = useQuery({
     queryKey: ["/api/channels/active"],
     queryFn: async () => {
       const response = await apiRequest("GET", "/api/channels/active");
@@ -117,6 +125,45 @@ export function CreateCampaignDialog({
       return await response.json();
     },
   });
+
+  // Server-side paginated contacts query
+  const { data: contactsResponse, isLoading: isContactsLoading } = useQuery({
+    queryKey: [
+      "/api/contacts/campaign-select",
+      activeChannel?.id,
+      contactsPage,
+      contactsSearchQuery,
+      selectedGroup,
+      onlyActive24h,
+      campaignType,
+    ],
+    enabled: open && !!activeChannel?.id && (campaignType === "contacts" || campaignType === "broadcast" || campaignType === "groups"),
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (activeChannel?.id) params.set("channelId", activeChannel.id);
+      params.set("page", String(contactsPage));
+      params.set("limit", String(contactsLimit));
+      if (contactsSearchQuery?.trim()) params.set("search", contactsSearchQuery.trim());
+      if (selectedGroup && selectedGroup !== "all") params.set("group", selectedGroup);
+      if (onlyActive24h) params.set("onlyActive24h", "true");
+      if (campaignType === "groups") params.set("isGroup", "true");
+      else params.set("isGroup", "false");
+
+      const res = await fetch(`/api/contacts?${params.toString()}`);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+  });
+
+  const displayedContacts = Array.isArray(contactsResponse)
+    ? contactsResponse
+    : (contactsResponse?.data || []);
+  const totalContactsCount = typeof contactsResponse?.total === "number"
+    ? contactsResponse.total
+    : (displayedContacts.length || 0);
+  const totalContactsPages = typeof contactsResponse?.totalPages === "number"
+    ? contactsResponse.totalPages
+    : Math.ceil(totalContactsCount / contactsLimit);
 
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -282,13 +329,19 @@ export function CreateCampaignDialog({
             messagingTier={messagingTier}
           >
             <TabsContent value="contacts" className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1">
-                  <Label className="mb-2 block">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <Label className="mb-1.5 text-xs font-semibold text-gray-700 block">
                     {t("campaigns.campaignfilterlabel")}
                   </Label>
-                  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                    <SelectTrigger>
+                  <Select
+                    value={selectedGroup}
+                    onValueChange={(val) => {
+                      setSelectedGroup(val);
+                      setContactsPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder={t("campaigns.selectGroup")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -303,94 +356,178 @@ export function CreateCampaignDialog({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex-1">
-                  <Label className="mb-2 block">
-                    Search Contacts
+
+                <div>
+                  <Label className="mb-1.5 text-xs font-semibold text-gray-700 block">
+                    Search All Contacts in Channel
                   </Label>
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search name or number..."
+                      placeholder="Search across entire contact database..."
                       value={contactsSearchQuery}
-                      onChange={(e) => setContactsSearchQuery(e.target.value)}
-                      className="pl-9 h-10 text-sm"
+                      onChange={(e) => {
+                        setContactsSearchQuery(e.target.value);
+                        setContactsPage(1);
+                      }}
+                      className="pl-8 h-9 text-xs"
                     />
                   </div>
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label>{t("campaigns.selectConatcts")}</Label>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      checked={
-                        selectedContacts.length === filteredContacts.length &&
-                        filteredContacts.length > 0
-                      }
+              {activeChannel?.connectionMethod !== "qr_code" && (
+                <div className="flex items-center justify-between p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg text-xs">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-blue-600 shrink-0" />
+                    <span className="text-blue-900 font-medium">Filter by 24h Active Customer Window</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="onlyActive24hToggle" className="text-[11px] text-blue-800 cursor-pointer">
+                      Only Active (24h)
+                    </Label>
+                    <Switch
+                      id="onlyActive24hToggle"
+                      checked={onlyActive24h}
                       onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedContacts(
-                            filteredContacts.map((c: any) => c.id)
-                          );
-                        } else {
-                          setSelectedContacts([]);
-                        }
+                        setOnlyActive24h(checked);
+                        setContactsPage(1);
                       }}
                     />
-                    <Label className="font-normal text-sm">
-                      {t("campaigns.selectAll")} ({filteredContacts.length})
-                    </Label>
                   </div>
                 </div>
-                <ScrollArea className="h-64 border rounded-md p-4">
-                  {filteredContacts.length === 0 ? (
-                    <div className="text-center text-muted-foreground py-8">
-                      {t("campaigns.noContactsInGroup")}
+              )}
+
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-1 border-b">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs font-bold text-gray-800">{t("campaigns.selectConatcts")}</Label>
+                    {selectedContacts.length > 0 && (
+                      <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 text-[11px] px-2 py-0.5">
+                        {selectedContacts.length.toLocaleString()} selected
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs">
+                    {/* Select All on Page */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const pageIds = displayedContacts.map((c: any) => c.id);
+                        const allPageSelected = pageIds.every((id: string) => selectedContacts.includes(id));
+                        if (allPageSelected) {
+                          setSelectedContacts(selectedContacts.filter((id) => !pageIds.includes(id)));
+                        } else {
+                          setSelectedContacts(Array.from(new Set([...selectedContacts, ...pageIds])));
+                        }
+                      }}
+                      className="text-purple-600 hover:text-purple-800 font-medium underline cursor-pointer"
+                    >
+                      {displayedContacts.every((c: any) => selectedContacts.includes(c.id)) && displayedContacts.length > 0
+                        ? "Deselect Page"
+                        : `Select Page (${displayedContacts.length})`}
+                    </button>
+
+                    {selectedContacts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedContacts([])}
+                        className="text-red-500 hover:text-red-700 font-medium underline cursor-pointer"
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <ScrollArea className="h-64 border rounded-md p-3 bg-white">
+                  {isContactsLoading ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-gray-500 gap-2">
+                      <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                      <span className="text-xs">Loading contacts...</span>
+                    </div>
+                  ) : displayedContacts.length === 0 ? (
+                    <div className="text-center text-muted-foreground py-12 text-xs">
+                      {contactsSearchQuery ? "No contacts matching your search query." : t("campaigns.noContactsInGroup")}
                     </div>
                   ) : (
-                    filteredContacts.map((contact: any) => (
+                    displayedContacts.map((contact: any) => (
                       <div
                         key={contact.id}
-                        className="flex items-center space-x-2 mb-2"
+                        className="flex items-center justify-between py-1.5 px-2 hover:bg-gray-50 rounded-md transition"
                       >
-                        <Checkbox
-                          checked={selectedContacts.includes(contact.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedContacts([
-                                ...selectedContacts,
-                                contact.id,
-                              ]);
-                            } else {
-                              setSelectedContacts(
-                                selectedContacts.filter(
-                                  (id) => id !== contact.id
+                        <div className="flex items-center space-x-2.5">
+                          <Checkbox
+                            id={`contact-${contact.id}`}
+                            checked={selectedContacts.includes(contact.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedContacts([...selectedContacts, contact.id]);
+                              } else {
+                                setSelectedContacts(selectedContacts.filter((id) => id !== contact.id));
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`contact-${contact.id}`} className="font-normal text-xs cursor-pointer">
+                            {user?.username === "demouser" ? (
+                              <>
+                                {contact.name.slice(0, -1).replace(/./g, "*") +
+                                  contact.name.slice(-1)}{" "}
+                                (
+                                {contact.phone.slice(0, -4).replace(/\d/g, "*") +
+                                  contact.phone.slice(-4)}
                                 )
-                              );
-                            }
-                          }}
-                        />
-                        <Label className="font-normal">
-                          {user?.username === "demouser" ? (
-                            <>
-                              {contact.name.slice(0, -1).replace(/./g, "*") +
-                                contact.name.slice(-1)}{" "}
-                              (
-                              {contact.phone.slice(0, -4).replace(/\d/g, "*") +
-                                contact.phone.slice(-4)}
-                              )
-                            </>
-                          ) : (
-                            <>
-                              {contact.name} ({contact.phone})
-                            </>
-                          )}
-                        </Label>
+                              </>
+                            ) : (
+                              <>
+                                <span className="font-medium text-gray-900">{contact.name || "Unnamed"}</span>{" "}
+                                <span className="text-gray-500">({contact.phone})</span>
+                              </>
+                            )}
+                          </Label>
+                        </div>
+                        {contact.lastIncomingMessageAt && (
+                          <span className="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-200">
+                            Active 24h
+                          </span>
+                        )}
                       </div>
                     ))
                   )}
                 </ScrollArea>
+
+                {/* Pagination footer */}
+                <div className="flex items-center justify-between pt-2 text-xs text-gray-600">
+                  <span>
+                    Total: <strong>{totalContactsCount.toLocaleString()}</strong> contacts
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      disabled={contactsPage <= 1 || isContactsLoading}
+                      onClick={() => setContactsPage((p) => Math.max(1, p - 1))}
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5 mr-0.5" /> Prev
+                    </Button>
+                    <span className="text-xs px-2 font-medium">
+                      Page {contactsPage} of {totalContactsPages || 1}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      disabled={contactsPage >= totalContactsPages || isContactsLoading}
+                      onClick={() => setContactsPage((p) => p + 1)}
+                    >
+                      Next <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             </TabsContent>
 

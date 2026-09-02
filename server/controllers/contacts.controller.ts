@@ -106,12 +106,19 @@ export const getContacts = asyncHandler(
       contacts = contacts.filter((contact: any) => contact.isGroup === (isGroup === "true"));
     }
 
-    const { tag } = req.query;
-    if (tag && typeof tag === "string") {
-      const tagList = tag.split(',').map(t => t.trim());
-      contacts = contacts.filter((contact: any) => 
-        contact.tags && Array.isArray(contact.tags) && tagList.every(t => contact.tags.includes(t))
+    const { group, onlyActive24h } = req.query as any;
+    if (group && typeof group === "string" && group !== "all") {
+      contacts = contacts.filter((contact: any) =>
+        Array.isArray(contact.groups) && contact.groups.includes(group)
       );
+    }
+
+    if (onlyActive24h === "true" || onlyActive24h === true) {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      contacts = contacts.filter((contact: any) => {
+        const lastMsg = contact.lastIncomingMessageAt || contact.lastContact;
+        return lastMsg && new Date(lastMsg) >= oneDayAgo;
+      });
     }
 
     // Map active contact campaign name and next schedule date
@@ -145,6 +152,23 @@ export const getContacts = asyncHandler(
         activeCampaignName: campaignMap.get(c.id)?.name || null,
         nextScheduleDate: campaignMap.get(c.id)?.nextSendAt || null,
       }));
+    }
+
+    const page = parseInt(req.query.page as string);
+    const limit = parseInt(req.query.limit as string);
+
+    if (page && limit) {
+      const total = contacts.length;
+      const totalPages = Math.ceil(total / limit);
+      const paginatedContacts = contacts.slice((page - 1) * limit, page * limit);
+      return res.json({
+        status: "success",
+        data: paginatedContacts,
+        total,
+        totalPages,
+        page,
+        limit,
+      });
     }
 
     res.json(contacts);

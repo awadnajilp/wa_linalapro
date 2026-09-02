@@ -342,8 +342,8 @@ export const getContactsWithPagination = asyncHandler(
     }
 
     // Group filter (jsonb array)
-    if (group && typeof group === "string") {
-      const groupList = group.split(',').map(g => g.trim());
+    if (group && typeof group === "string" && group !== "all") {
+      const groupList = group.split(',').map(g => g.trim()).filter(Boolean);
       if (groupList.length > 0) {
         const jsonArray = JSON.stringify(groupList);
         conditions.push(
@@ -354,7 +354,7 @@ export const getContactsWithPagination = asyncHandler(
 
     // Broadcast list filter (jsonb array)
     if (broadcast && typeof broadcast === "string") {
-      const broadcastList = broadcast.split(',').map(g => g.trim());
+      const broadcastList = broadcast.split(',').map(g => g.trim()).filter(Boolean);
       if (broadcastList.length > 0) {
         const jsonArray = JSON.stringify(broadcastList);
         conditions.push(
@@ -373,9 +373,18 @@ export const getContactsWithPagination = asyncHandler(
       conditions.push(eq(contacts.isGroup, isGroup === "true"));
     }
 
+    // Only active in 24h chat window filter
+    const { onlyActive24h } = req.query as any;
+    if (onlyActive24h === "true" || onlyActive24h === true) {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      conditions.push(
+        sql`COALESCE(${contacts.lastIncomingMessageAt}, ${contacts.lastContact}) >= ${oneDayAgo}`
+      );
+    }
+
     // Tag filter (jsonb array)
     if (tag && typeof tag === "string") {
-      const tagList = tag.split(',').map(t => t.trim());
+      const tagList = tag.split(',').map(t => t.trim()).filter(Boolean);
       if (tagList.length > 0) {
         const jsonArray = JSON.stringify(tagList);
         conditions.push(
@@ -504,6 +513,99 @@ export const getContactsWithPagination = asyncHandler(
         total,
         totalPages: Math.ceil(total / pageSize),
       },
+    });
+  }
+);
+
+export const getContactIds = asyncHandler(
+  async (req: RequestWithChannel, res: Response) => {
+    const { search, channelId, group, status, isGroup, tag, broadcast, onlyActive24h } = req.query;
+    const user = (req.session as any)?.user;
+
+    const conditions = [];
+
+    if (channelId && typeof channelId === "string") {
+      if (user && user.role !== 'superadmin') {
+        const ownerId = user.role === 'team' ? user.createdBy : user.id;
+        const userChannels = await storage.getChannelsByUserId(ownerId);
+        const userChannelIds = userChannels.map((ch: any) => ch.id);
+        if (!userChannelIds.includes(channelId)) {
+          return res.status(403).json({ error: 'Access denied to this channel' });
+        }
+      }
+      conditions.push(eq(contacts.channelId, channelId));
+    } else if (user && user.role !== 'superadmin') {
+      const ownerId = user?.role === 'team' ? user.createdBy : user?.id;
+      if (ownerId) {
+        const userChannels = await storage.getChannelsByUserId(ownerId);
+        const userChannelIds = userChannels.map((ch: any) => ch.id);
+        if (userChannelIds.length > 0) {
+          conditions.push(inArray(contacts.channelId, userChannelIds));
+        } else {
+          return res.json({ status: "success", ids: [], total: 0 });
+        }
+      }
+    }
+
+    if (search && typeof search === "string") {
+      const searchTerm = `%${search.toLowerCase()}%`;
+      const cleanSearch = search.replace(/\D/g, "");
+      const searchConditions = [
+        ilike(contacts.name, searchTerm),
+        ilike(contacts.email, searchTerm),
+        ilike(contacts.phone, `%${search}%`)
+      ];
+      if (cleanSearch && cleanSearch.length > 0) {
+        searchConditions.push(ilike(contacts.phone, `%${cleanSearch}%`));
+      }
+      conditions.push(or(...searchConditions));
+    }
+
+    if (group && typeof group === "string" && group !== "all") {
+      const groupList = group.split(',').map(g => g.trim()).filter(Boolean);
+      if (groupList.length > 0) {
+        conditions.push(
+          sql`${contacts.groups}::jsonb @> ${JSON.stringify(groupList)}::jsonb`
+        );
+      }
+    }
+
+    if (broadcast && typeof broadcast === "string") {
+      const broadcastList = broadcast.split(',').map(g => g.trim()).filter(Boolean);
+      if (broadcastList.length > 0) {
+        conditions.push(
+          sql`${contacts.broadcastLists}::jsonb @> ${JSON.stringify(broadcastList)}::jsonb`
+        );
+      }
+    }
+
+    if (status && typeof status === "string") {
+      conditions.push(eq(contacts.status, status));
+    }
+
+    if (isGroup && typeof isGroup === "string") {
+      conditions.push(eq(contacts.isGroup, isGroup === "true"));
+    }
+
+    if (onlyActive24h === "true" || onlyActive24h === true) {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      conditions.push(
+        sql`COALESCE(${contacts.lastIncomingMessageAt}, ${contacts.lastContact}) >= ${oneDayAgo}`
+      );
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const rows = await dbRead
+      .select({ id: contacts.id })
+      .from(contacts)
+      .where(whereClause);
+
+    const ids = rows.map(r => r.id);
+    res.json({
+      status: "success",
+      ids,
+      total: ids.length,
     });
   }
 );

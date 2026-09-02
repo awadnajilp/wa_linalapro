@@ -158,12 +158,38 @@ export function CreateCampaignDialog({
   const displayedContacts = Array.isArray(contactsResponse)
     ? contactsResponse
     : (contactsResponse?.data || []);
-  const totalContactsCount = typeof contactsResponse?.total === "number"
-    ? contactsResponse.total
-    : (displayedContacts.length || 0);
-  const totalContactsPages = typeof contactsResponse?.totalPages === "number"
-    ? contactsResponse.totalPages
-    : Math.ceil(totalContactsCount / contactsLimit);
+  const totalContactsCount = typeof contactsResponse?.pagination?.total === "number"
+    ? contactsResponse.pagination.total
+    : (typeof contactsResponse?.total === "number" ? contactsResponse.total : displayedContacts.length);
+  const totalContactsPages = typeof contactsResponse?.pagination?.totalPages === "number"
+    ? contactsResponse.pagination.totalPages
+    : (typeof contactsResponse?.totalPages === "number" ? contactsResponse.totalPages : Math.max(1, Math.ceil(totalContactsCount / contactsLimit)));
+
+  const handleSelectAllMatching = async () => {
+    if (!activeChannel?.id) return;
+    setIsSelectingAllMatching(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("channelId", activeChannel.id);
+      if (contactsSearchQuery?.trim()) params.set("search", contactsSearchQuery.trim());
+      if (selectedGroup && selectedGroup !== "all") params.set("group", selectedGroup);
+      if (onlyActive24h) params.set("onlyActive24h", "true");
+      if (campaignType === "groups") params.set("isGroup", "true");
+      else params.set("isGroup", "false");
+
+      const res = await fetch(`/api/contacts/ids?${params.toString()}`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      if (Array.isArray(data.ids)) {
+        // Merge or replace with all matching IDs
+        setSelectedContacts(data.ids);
+      }
+    } catch (err) {
+      console.error("Failed to select all matching contacts:", err);
+    } finally {
+      setIsSelectingAllMatching(false);
+    }
+  };
 
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -409,33 +435,55 @@ export function CreateCampaignDialog({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3 text-xs">
-                    {/* Select All on Page */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const pageIds = displayedContacts.map((c: any) => c.id);
-                        const allPageSelected = pageIds.every((id: string) => selectedContacts.includes(id));
-                        if (allPageSelected) {
-                          setSelectedContacts(selectedContacts.filter((id) => !pageIds.includes(id)));
-                        } else {
-                          setSelectedContacts(Array.from(new Set([...selectedContacts, ...pageIds])));
-                        }
-                      }}
-                      className="text-purple-600 hover:text-purple-800 font-medium underline cursor-pointer"
-                    >
-                      {displayedContacts.every((c: any) => selectedContacts.includes(c.id)) && displayedContacts.length > 0
-                        ? "Deselect Page"
-                        : `Select Page (${displayedContacts.length})`}
-                    </button>
+                  <div className="flex flex-wrap items-center gap-3 text-xs">
+                    {/* Select All Matching Filter (all pages) */}
+                    {totalContactsCount > 0 && (
+                      <button
+                        type="button"
+                        disabled={isSelectingAllMatching}
+                        onClick={handleSelectAllMatching}
+                        className="inline-flex items-center gap-1 text-purple-700 hover:text-purple-900 font-semibold bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded transition cursor-pointer disabled:opacity-50"
+                      >
+                        {isSelectingAllMatching ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin text-purple-600" />
+                            <span>Selecting {totalContactsCount}...</span>
+                          </>
+                        ) : (
+                          <span>Select All ({totalContactsCount.toLocaleString()})</span>
+                        )}
+                      </button>
+                    )}
 
+                    {/* Select / Deselect on Current Page */}
+                    {displayedContacts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const pageIds = displayedContacts.map((c: any) => c.id);
+                          const allPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selectedContacts.includes(id));
+                          if (allPageSelected) {
+                            setSelectedContacts(selectedContacts.filter((id) => !pageIds.includes(id)));
+                          } else {
+                            setSelectedContacts(Array.from(new Set([...selectedContacts, ...pageIds])));
+                          }
+                        }}
+                        className="text-purple-600 hover:text-purple-800 font-medium underline cursor-pointer"
+                      >
+                        {displayedContacts.length > 0 && displayedContacts.every((c: any) => selectedContacts.includes(c.id))
+                          ? "Deselect Page"
+                          : `Select Page (${displayedContacts.length})`}
+                      </button>
+                    )}
+
+                    {/* Clear All Selected */}
                     {selectedContacts.length > 0 && (
                       <button
                         type="button"
                         onClick={() => setSelectedContacts([])}
                         className="text-red-500 hover:text-red-700 font-medium underline cursor-pointer"
                       >
-                        Clear All
+                        Clear All ({selectedContacts.length.toLocaleString()})
                       </button>
                     )}
                   </div>

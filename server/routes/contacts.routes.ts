@@ -40,6 +40,13 @@ export function registerContactRoutes(app: Express) {
     contactsController.getContactsWithPagination
   );
 
+  app.get("/api/contacts/ids",
+    requireAuth,
+    requirePermission(PERMISSIONS.CONTACTS_VIEW),
+    extractChannelId,
+    contactsController.getContactIds
+  );
+
   // Get all unique custom variable keys from contacts variables JSONB column
   app.get(
     "/api/contacts/custom-variables",

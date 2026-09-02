@@ -2397,24 +2397,29 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
       const isGroupMessage = contact[0]?.isGroup === true || message.from.endsWith("@g.us");
       if (channelId && !isGroupMessage) {
         try {
-          const matchedRecipients = await db
-            .select({
-              id: campaignRecipients.id,
-              campaignId: campaignRecipients.campaignId,
-              status: campaignRecipients.status,
-              repliedAt: campaignRecipients.repliedAt,
-            })
-            .from(campaignRecipients)
-            .innerJoin(campaigns, eq(campaignRecipients.campaignId, campaigns.id))
-            .where(
-              and(
-                eq(campaigns.channelId, channelId),
-                eq(campaignRecipients.phone, message.from),
-                isNull(campaignRecipients.repliedAt)
+            const cleanPhone = message.from.replace(/\D/g, "");
+            const matchedRecipients = await db
+              .select({
+                id: campaignRecipients.id,
+                campaignId: campaignRecipients.campaignId,
+                status: campaignRecipients.status,
+                repliedAt: campaignRecipients.repliedAt,
+              })
+              .from(campaignRecipients)
+              .innerJoin(campaigns, eq(campaignRecipients.campaignId, campaigns.id))
+              .where(
+                and(
+                  eq(campaigns.channelId, channelId),
+                  or(
+                    eq(campaignRecipients.phone, message.from),
+                    eq(campaignRecipients.phone, `+${cleanPhone}`),
+                    eq(campaignRecipients.phone, cleanPhone)
+                  ),
+                  isNull(campaignRecipients.repliedAt)
+                )
               )
-            )
-            .orderBy(desc(campaignRecipients.createdAt))
-            .limit(1);
+              .orderBy(desc(campaignRecipients.createdAt))
+              .limit(1);
 
           if (matchedRecipients.length > 0) {
             const recipientEntry = matchedRecipients[0];

@@ -86,14 +86,9 @@ export function CampaignDetailsDialog({ campaign: initialCampaign, onClose }: Ca
     ? Math.min(Math.round((campaign.readCount || 0) / campaign.deliveredCount * 100), 100)
     : 0;
 
-  const replyRate = campaign.deliveredCount && campaign.deliveredCount > 0
-    ? Math.min(Math.round((campaign.repliedCount || 0) / campaign.deliveredCount * 100), 100)
-    : 0;
-
   const statusData = [
     { name: 'Delivered', value: campaign.deliveredCount || 0, color: '#10b981' },
     { name: 'Read', value: campaign.readCount || 0, color: '#3b82f6' },
-    { name: 'Replied', value: campaign.repliedCount || 0, color: '#a855f7' },
     { name: 'Failed', value: campaign.failedCount || 0, color: '#ef4444' },
     { name: 'Non-Deliverable', value: campaign.nonDeliverableCount || 0, color: '#eab308' },
     { name: 'Pending', value: Math.max(0, (campaign.sentCount || 0) - (campaign.deliveredCount || 0) - (campaign.failedCount || 0) - (campaign.nonDeliverableCount || 0)), color: '#6b7280' },
@@ -194,18 +189,6 @@ export function CampaignDetailsDialog({ campaign: initialCampaign, onClose }: Ca
                   </div>
                 </CardContent>
               </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Replied</p>
-                      <p className="text-xl font-bold text-purple-600">{campaign.repliedCount || 0}</p>
-                    </div>
-                    <MessageSquare className="h-4 w-4 text-purple-600" />
-                  </div>
-                </CardContent>
-              </Card>
             </div>
 
             <Card>
@@ -227,14 +210,6 @@ export function CampaignDetailsDialog({ campaign: initialCampaign, onClose }: Ca
                     <span className="text-sm font-bold text-blue-600">{readRate}%</span>
                   </div>
                   <Progress value={readRate} className="h-2" />
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium">Reply Rate</span>
-                    <span className="text-sm font-bold text-purple-600">{replyRate}%</span>
-                  </div>
-                  <Progress value={replyRate} className="h-2" />
                 </div>
               </CardContent>
             </Card>

@@ -224,77 +224,18 @@ export const getCampaignAnalyticsById = asyncHandler(async (req: Request, res: R
     return res.status(404).json({ error: "Campaign not found" });
   }
 
-  // Get all recipients for this campaign
-  let recipientsList = await dbRead
-    .select({
-      id: campaignRecipients.id,
-      campaignId: campaignRecipients.campaignId,
-      phone: campaignRecipients.phone,
-      name: campaignRecipients.name,
-      status: campaignRecipients.status,
-      whatsappMessageId: campaignRecipients.whatsappMessageId,
-      sentAt: campaignRecipients.sentAt,
-      deliveredAt: campaignRecipients.deliveredAt,
-      readAt: campaignRecipients.readAt,
-      repliedAt: campaignRecipients.repliedAt,
-      replyText: campaignRecipients.replyText,
-      errorCode: campaignRecipients.errorCode,
-      errorMessage: campaignRecipients.errorMessage,
-      contactId: campaignRecipients.contactId,
-    })
+  // Count replied contacts fast using indexed count
+  const [repliedCountResult] = await dbRead
+    .select({ count: sql<number>`count(*)` })
     .from(campaignRecipients)
-    .where(eq(campaignRecipients.campaignId, campaignId));
+    .where(
+      and(
+        eq(campaignRecipients.campaignId, campaignId),
+        or(eq(campaignRecipients.status, 'replied'), sql`${campaignRecipients.repliedAt} IS NOT NULL`)
+      )
+    );
 
-  if (recipientsList.length === 0) {
-    // Fallback: fetch from messageQueue and dynamically return
-    const queueEntries = await dbRead
-      .select({
-        id: messageQueue.id,
-        campaignId: messageQueue.campaignId,
-        phone: messageQueue.recipientPhone,
-        status: messageQueue.status,
-        whatsappMessageId: messageQueue.whatsappMessageId,
-        sentAt: messageQueue.processedAt,
-        deliveredAt: messageQueue.deliveredAt,
-        readAt: messageQueue.readAt,
-        repliedAt: messageQueue.repliedAt,
-        errorCode: messageQueue.errorCode,
-        errorMessage: messageQueue.errorMessage,
-        name: contactsTable.name,
-        contactId: contactsTable.id,
-      })
-      .from(messageQueue)
-      .leftJoin(contactsTable, and(
-        eq(contactsTable.phone, messageQueue.recipientPhone),
-        eq(contactsTable.channelId, messageQueue.channelId)
-      ))
-      .where(and(
-        eq(messageQueue.campaignId, campaignId),
-        sql`${messageQueue.messageType} = 'marketing'`
-      ));
-
-    if (queueEntries.length > 0) {
-      recipientsList = queueEntries.map(e => ({
-        id: e.id,
-        campaignId: e.campaignId,
-        phone: e.phone,
-        status: e.status,
-        whatsappMessageId: e.whatsappMessageId,
-        sentAt: e.sentAt || null,
-        deliveredAt: e.deliveredAt || null,
-        readAt: e.readAt || null,
-        repliedAt: e.repliedAt || null,
-        replyText: null,
-        errorCode: e.errorCode || null,
-        errorMessage: e.errorMessage || null,
-        name: e.name || "Unknown",
-        contactId: e.contactId || null,
-      }));
-    }
-  }
-
-  // Ensure repliedCount is accurately counted
-  const computedRepliedCount = recipientsList.filter(r => r.status === 'replied' || r.repliedAt).length;
+  const computedRepliedCount = Number(repliedCountResult?.count || 0);
   const campaignWithStats = {
     ...campaign,
     repliedCount: Math.max(campaign.repliedCount || 0, computedRepliedCount)
@@ -344,7 +285,86 @@ export const getCampaignAnalyticsById = asyncHandler(async (req: Request, res: R
     dailyStats,
     recipientStats,
     errorAnalysis,
-    recipients: recipientsList,
+    recipients: [],
+  });
+});
+
+// Dedicated paginated recipients endpoint for fast rendering of large campaigns
+export const getCampaignRecipientsPaginated = asyncHandler(async (req: Request, res: Response) => {
+  const { campaignId } = req.params;
+  const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 10));
+  const offset = (page - 1) * limit;
+  const status = req.query.status as string;
+  const search = req.query.search as string;
+
+  const conditions = [eq(campaignRecipients.campaignId, campaignId)];
+
+  if (status && status !== "all") {
+    if (status === "replied") {
+      conditions.push(or(eq(campaignRecipients.status, "replied"), sql`${campaignRecipients.repliedAt} IS NOT NULL`));
+    } else if (status === "non-deliverable") {
+      conditions.push(and(
+        eq(campaignRecipients.status, "failed"),
+        sql`${campaignRecipients.errorCode} IN ('368', '100', '190', '200', '131047', '131026', '130429')`
+      ));
+    } else {
+      conditions.push(eq(campaignRecipients.status, status));
+    }
+  }
+
+  if (search && typeof search === "string" && search.trim()) {
+    const s = `%${search.trim().toLowerCase()}%`;
+    conditions.push(or(
+      ilike(campaignRecipients.name, s),
+      ilike(campaignRecipients.phone, s),
+      ilike(campaignRecipients.errorCode, s),
+      ilike(campaignRecipients.errorMessage, s)
+    ));
+  }
+
+  const whereClause = and(...conditions);
+
+  const [totalResult, data] = await Promise.all([
+    dbRead
+      .select({ count: sql<number>`count(*)` })
+      .from(campaignRecipients)
+      .where(whereClause),
+    dbRead
+      .select({
+        id: campaignRecipients.id,
+        campaignId: campaignRecipients.campaignId,
+        phone: campaignRecipients.phone,
+        name: campaignRecipients.name,
+        status: campaignRecipients.status,
+        whatsappMessageId: campaignRecipients.whatsappMessageId,
+        sentAt: campaignRecipients.sentAt,
+        deliveredAt: campaignRecipients.deliveredAt,
+        readAt: campaignRecipients.readAt,
+        repliedAt: campaignRecipients.repliedAt,
+        replyText: campaignRecipients.replyText,
+        errorCode: campaignRecipients.errorCode,
+        errorMessage: campaignRecipients.errorMessage,
+        contactId: campaignRecipients.contactId,
+      })
+      .from(campaignRecipients)
+      .where(whereClause)
+      .orderBy(desc(campaignRecipients.createdAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
+
+  const total = Number(totalResult[0]?.count || 0);
+
+  res.json({
+    status: "success",
+    data,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
   });
 });
 

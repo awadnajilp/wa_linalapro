@@ -32,6 +32,7 @@ export function registerAnalyticsRoutes(app: Express) {
   app.get("/api/analytics/messages", requireAuth, requirePermission(PERMISSIONS.ANALYTICS_VIEW), analyticsController.getMessageAnalytics);
   app.get("/api/analytics/campaigns", requireAuth, requirePermission(PERMISSIONS.ANALYTICS_VIEW), analyticsController.getCampaignAnalytics);
   app.get("/api/analytics/campaigns/:campaignId", requireAuth, requirePermission(PERMISSIONS.ANALYTICS_VIEW), analyticsController.getCampaignAnalyticsById);
+  app.get("/api/analytics/campaigns/:campaignId/recipients", requireAuth, requirePermission(PERMISSIONS.ANALYTICS_VIEW), analyticsController.getCampaignRecipientsPaginated);
   app.get("/api/analytics/export",requireAuth,
   requirePermission(PERMISSIONS.ANALYTICS_EXPORT), analyticsController.exportAnalytics);
 }

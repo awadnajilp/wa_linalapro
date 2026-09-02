@@ -166,6 +166,48 @@ export default function CampaignAnalytics() {
     staleTime: 10000,
   });
 
+  // Server-side paginated recipients query
+  const { data: recipientsResponse, isLoading: isRecipientsLoading } = useQuery({
+    queryKey: ["campaign-recipients", campaignId, currentPage, statusFilter, searchTerm],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(currentPage));
+      params.set("limit", "10");
+      if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
+      if (searchTerm?.trim()) params.set("search", searchTerm.trim());
+
+      const res = await fetch(`/api/analytics/campaigns/${campaignId}/recipients?${params.toString()}`);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    enabled: !!campaignId,
+  });
+
+  const paginatedRecipients = recipientsResponse?.data || [];
+  const totalRecipientsCount = recipientsResponse?.pagination?.total ?? 0;
+  const totalRecipientsPages = recipientsResponse?.pagination?.totalPages ?? 1;
+
+  // Server-side paginated failed recipients query
+  const { data: failedResponse, isLoading: isFailedLoading } = useQuery({
+    queryKey: ["campaign-failed-recipients", campaignId, failedPage, failedSearchTerm],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(failedPage));
+      params.set("limit", "10");
+      params.set("status", "failed");
+      if (failedSearchTerm?.trim()) params.set("search", failedSearchTerm.trim());
+
+      const res = await fetch(`/api/analytics/campaigns/${campaignId}/recipients?${params.toString()}`);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    enabled: !!campaignId,
+  });
+
+  const paginatedFailed = failedResponse?.data || [];
+  const totalFailedCount = failedResponse?.pagination?.total ?? 0;
+  const totalFailedPages = failedResponse?.pagination?.totalPages ?? 1;
+
   const error = queryError?.message || null;
 
   const campaign = campaignData?.campaign || {};
@@ -185,8 +227,6 @@ export default function CampaignAnalytics() {
   const repliedCount = safeNumber(campaign.repliedCount);
   const failedCount = safeNumber(campaign.failedCount);
 
-  const recipients = Array.isArray(campaignData?.recipients) ? campaignData.recipients : [];
-
   const isMetaEcosystemIssue = (errorCode: string | number | null | undefined) => {
     if (!errorCode) return false;
     const codeStr = String(errorCode).trim();
@@ -203,7 +243,7 @@ export default function CampaignAnalytics() {
 
   const nonDeliverableCount = campaign.nonDeliverableCount !== undefined 
     ? safeNumber(campaign.nonDeliverableCount) 
-    : recipients.filter(r => r.status === "failed" && isMetaEcosystemIssue(r.errorCode)).length;
+    : 0;
 
   const actualFailedCount = campaign.nonDeliverableCount !== undefined
     ? failedCount
@@ -215,40 +255,7 @@ export default function CampaignAnalytics() {
   const failureRate = sentCount > 0 ? Math.round((actualFailedCount / sentCount) * 100) : 0;
   const nonDeliverableRate = sentCount > 0 ? Math.round((nonDeliverableCount / sentCount) * 100) : 0;
 
-  // Dynamically calculate status distribution from recipients list
-  const computedStats = (() => {
-    if (recipients.length === 0) return recipientStats;
-
-    const counts: Record<string, number> = {
-      pending: 0,
-      sent: 0,
-      delivered: 0,
-      read: 0,
-      replied: 0,
-      failed: 0,
-      "non-deliverable": 0,
-    };
-
-    recipients.forEach((r: any) => {
-      const isReplied = r.status === "replied" || !!r.repliedAt;
-      const status = isReplied ? "replied" : (r.status || "pending");
-      if (status === "failed") {
-        if (isMetaEcosystemIssue(r.errorCode)) {
-          counts["non-deliverable"]++;
-        } else {
-          counts["failed"]++;
-        }
-      } else if (counts[status] !== undefined) {
-        counts[status]++;
-      } else {
-        counts[status] = (counts[status] || 0) + 1;
-      }
-    });
-
-    return Object.entries(counts)
-      .map(([status, count]) => ({ status, count }))
-      .filter(s => s.count > 0);
-  })();
+  const computedStats = recipientStats;
 
 
   // Process chart data with robust error handling
@@ -843,154 +850,138 @@ export default function CampaignAnalytics() {
             </div>
           </CardHeader>
           <CardContent>
-            {(() => {
-              const recipients = Array.isArray(campaignData?.recipients) ? campaignData.recipients : [];
-              const filteredRecipients = recipients.filter((rec) => {
-                const nameMatch = (rec.name || "").toLowerCase().includes(searchTerm.toLowerCase());
-                const phoneMatch = (rec.phone || "").toLowerCase().includes(searchTerm.toLowerCase());
-                
-                const isReplied = rec.status === "replied" || !!rec.repliedAt;
-                const isNonDeliverable = rec.status === "failed" && isMetaEcosystemIssue(rec.errorCode);
-                const actualStatus = isReplied ? "replied" : isNonDeliverable ? "non-deliverable" : rec.status;
-                const statusMatch = statusFilter === "all" || actualStatus === statusFilter;
-                
-                return (nameMatch || phoneMatch) && statusMatch;
-              });
-              const itemsPerPage = 10;
-              const totalPages = Math.ceil(filteredRecipients.length / itemsPerPage);
-              const paginatedRecipients = filteredRecipients.slice(
-                (currentPage - 1) * itemsPerPage,
-                currentPage * itemsPerPage
-              );
+            {isRecipientsLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500 gap-2">
+                <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                <span className="text-xs">Loading recipients...</span>
+              </div>
+            ) : paginatedRecipients.length > 0 ? (
+              <div className="space-y-4">
+                <div className="overflow-x-auto rounded-md border">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b">
+                      <tr>
+                        <th className="text-left px-6 py-3 font-medium text-gray-500 uppercase tracking-wider text-xs">
+                          Recipient
+                        </th>
+                        <th className="text-left px-6 py-3 font-medium text-gray-500 uppercase tracking-wider text-xs">
+                          Phone Number
+                        </th>
+                        <th className="text-left px-6 py-3 font-medium text-gray-500 uppercase tracking-wider text-xs">
+                          Status
+                        </th>
+                        <th className="text-left px-6 py-3 font-medium text-gray-500 uppercase tracking-wider text-xs">
+                          Timeline / Details
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                      {paginatedRecipients.map((rec: any, idx: number) => {
+                        const isReplied = rec.status === "replied" || !!rec.repliedAt;
+                        const isMetaIssue = rec.status === "failed" && isMetaEcosystemIssue(rec.errorCode);
+                        const displayStatus = isReplied ? "replied" : isMetaIssue ? "non-deliverable" : rec.status;
 
-              return paginatedRecipients.length > 0 ? (
-                <div className="space-y-4">
-                  <div className="overflow-x-auto rounded-md border">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th className="text-left px-6 py-3 font-medium text-gray-500 uppercase tracking-wider text-xs">
-                            Recipient
-                          </th>
-                          <th className="text-left px-6 py-3 font-medium text-gray-500 uppercase tracking-wider text-xs">
-                            Phone Number
-                          </th>
-                          <th className="text-left px-6 py-3 font-medium text-gray-500 uppercase tracking-wider text-xs">
-                            Status
-                          </th>
-                          <th className="text-left px-6 py-3 font-medium text-gray-500 uppercase tracking-wider text-xs">
-                            Timeline / Details
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 bg-white">
-                        {paginatedRecipients.map((rec, idx) => {
-                          const isReplied = rec.status === "replied" || !!rec.repliedAt;
-                          const isMetaIssue = rec.status === "failed" && isMetaEcosystemIssue(rec.errorCode);
-                          const displayStatus = isReplied ? "replied" : isMetaIssue ? "non-deliverable" : rec.status;
+                        const getStatusBadge = () => {
+                          if (isReplied) {
+                            return "bg-purple-100 text-purple-800 border border-purple-200";
+                          }
+                          if (isMetaIssue) {
+                            return "bg-yellow-100 text-yellow-800 border border-yellow-200";
+                          }
+                          switch (rec.status) {
+                            case "read":
+                              return "bg-blue-100 text-blue-800";
+                            case "delivered":
+                              return "bg-green-100 text-green-800";
+                            case "sent":
+                              return "bg-purple-100 text-purple-800";
+                            case "failed":
+                              return "bg-red-100 text-red-800";
+                            default:
+                              return "bg-yellow-100 text-yellow-800";
+                          }
+                        };
 
-                          const getStatusBadge = () => {
-                            if (isReplied) {
-                              return "bg-purple-100 text-purple-800 border border-purple-200";
-                            }
-                            if (isMetaIssue) {
-                              return "bg-yellow-100 text-yellow-800 border border-yellow-200";
-                            }
-                            switch (rec.status) {
-                              case "read":
-                                return "bg-blue-100 text-blue-800";
-                              case "delivered":
-                                return "bg-green-100 text-green-800";
-                              case "sent":
-                                return "bg-purple-100 text-purple-800";
-                              case "failed":
-                                return "bg-red-100 text-red-800";
-                              default:
-                                return "bg-yellow-100 text-yellow-800";
-                            }
-                          };
+                        const getTimelineText = () => {
+                          if (isReplied) {
+                            return (
+                              <div className="text-xs text-purple-700 font-normal">
+                                <div>Replied: {new Date(rec.repliedAt || rec.readAt || rec.deliveredAt || rec.sentAt).toLocaleString()}</div>
+                                {rec.replyText && (
+                                  <div className="text-gray-600 mt-0.5 italic max-w-md truncate">"{rec.replyText}"</div>
+                                )}
+                              </div>
+                            );
+                          }
+                          if (rec.status === "failed") {
+                            return (
+                              <div className={`text-xs ${isMetaIssue ? 'text-yellow-700' : 'text-red-600'} font-normal`}>
+                                <span className="font-semibold">{rec.errorCode || "Error"}: </span>
+                                {rec.errorMessage || "Unknown issue"}
+                              </div>
+                            );
+                          }
+                          const dateToUse = rec.readAt || rec.deliveredAt || rec.sentAt;
+                          if (dateToUse) {
+                            return new Date(dateToUse).toLocaleString();
+                          }
+                          return "N/A";
+                        };
 
-                          const getTimelineText = () => {
-                            if (isReplied) {
-                              return (
-                                <div className="text-xs text-purple-700 font-normal">
-                                  <div>Replied: {new Date(rec.repliedAt || rec.readAt || rec.deliveredAt || rec.sentAt).toLocaleString()}</div>
-                                  {rec.replyText && (
-                                    <div className="text-gray-600 mt-0.5 italic max-w-md truncate">"{rec.replyText}"</div>
-                                  )}
-                                </div>
-                              );
-                            }
-                            if (rec.status === "failed") {
-                              return (
-                                <div className={`text-xs ${isMetaIssue ? 'text-yellow-700' : 'text-red-600'} font-normal`}>
-                                  <span className="font-semibold">{rec.errorCode || "Error"}: </span>
-                                  {rec.errorMessage || "Unknown issue"}
-                                </div>
-                              );
-                            }
-                            const dateToUse = rec.readAt || rec.deliveredAt || rec.sentAt;
-                            if (dateToUse) {
-                              return new Date(dateToUse).toLocaleString();
-                            }
-                            return "N/A";
-                          };
+                        return (
+                          <tr key={rec.id || idx} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 font-medium text-gray-900">
+                              {rec.name || "Unknown"}
+                            </td>
+                            <td className="px-6 py-4 text-gray-500">
+                              {rec.phone}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${getStatusBadge()}`}>
+                                {displayStatus}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-gray-500">
+                              {getTimelineText()}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-                          return (
-                            <tr key={rec.id || idx} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 font-medium text-gray-900">
-                                {rec.name || "Unknown"}
-                              </td>
-                              <td className="px-6 py-4 text-gray-500">
-                                {rec.phone}
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full capitalize ${getStatusBadge()}`}>
-                                  {displayStatus}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 text-gray-500">
-                                {getTimelineText()}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-between border-t pt-4">
-                      <div className="text-sm text-gray-500">
-                        Showing Page {currentPage} of {totalPages} ({filteredRecipients.length} total)
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={currentPage === 1}
-                          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                        >
-                          Previous
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={currentPage === totalPages}
-                          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                        >
-                          Next
-                        </Button>
-                      </div>
+                {totalRecipientsPages > 1 && (
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <div className="text-sm text-gray-500">
+                      Showing Page {currentPage} of {totalRecipientsPages} ({totalRecipientsCount.toLocaleString()} total)
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  No recipients found matching current filters.
-                </div>
-              );
-            })()}
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage <= 1 || isRecipientsLoading}
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={currentPage >= totalRecipientsPages || isRecipientsLoading}
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalRecipientsPages))}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500 text-xs">
+                No recipients found matching your filter criteria.
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1065,61 +1056,48 @@ export default function CampaignAnalytics() {
         )}
 
         {/* Failed Recipients Report */}
-        {recipients.some(r => r.status === "failed") && (() => {
-          const allFailed = recipients.filter(r => r.status === "failed");
-          const filteredFailed = allFailed.filter(r => {
-            if (!failedSearchTerm) return true;
-            const term = failedSearchTerm.toLowerCase();
-            return (
-              (r.name || "").toLowerCase().includes(term) ||
-              (r.phone || "").toLowerCase().includes(term) ||
-              (r.errorCode || "").toLowerCase().includes(term) ||
-              (r.errorMessage || "").toLowerCase().includes(term)
-            );
-          });
-          const failedItemsPerPage = 10;
-          const totalFailedPages = Math.ceil(filteredFailed.length / failedItemsPerPage);
-          const paginatedFailed = filteredFailed.slice(
-            (failedPage - 1) * failedItemsPerPage,
-            failedPage * failedItemsPerPage
-          );
-
-          return (
-            <Card className="border-red-100">
-              <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 pb-2">
-                <div>
-                  <CardTitle className="text-red-700 font-bold flex items-center gap-2">
-                    <XCircle className="w-5 h-5 text-red-500" />
-                    Failed Deliveries ({allFailed.length.toLocaleString()})
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground mt-0.5">List of numbers that failed to receive campaign messages</p>
+        {(actualFailedCount > 0 || totalFailedCount > 0) && (
+          <Card className="border-red-100">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 pb-2">
+              <div>
+                <CardTitle className="text-red-700 font-bold flex items-center gap-2">
+                  <XCircle className="w-5 h-5 text-red-500" />
+                  Failed Deliveries ({(totalFailedCount || actualFailedCount).toLocaleString()})
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">List of numbers that failed to receive campaign messages</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search failed number or error..."
+                    className="px-3 py-1.5 text-xs border rounded-md w-48 sm:w-60 focus:outline-none focus:ring-1 focus:ring-red-500"
+                    value={failedSearchTerm}
+                    onChange={(e) => {
+                      setFailedSearchTerm(e.target.value);
+                      setFailedPage(1);
+                    }}
+                  />
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Search failed number or error..."
-                      className="px-3 py-1.5 text-xs border rounded-md w-48 sm:w-60 focus:outline-none focus:ring-1 focus:ring-red-500"
-                      value={failedSearchTerm}
-                      onChange={(e) => {
-                        setFailedSearchTerm(e.target.value);
-                        setFailedPage(1);
-                      }}
-                    />
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleExport("excel")}
-                    disabled={exportLoading}
-                    className="bg-red-600 hover:bg-red-700 text-xs h-8"
-                  >
-                    <Download className="w-3.5 h-3.5 mr-1.5" />
-                    Export
-                  </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleExport("excel")}
+                  disabled={exportLoading}
+                  className="bg-red-600 hover:bg-red-700 text-xs h-8"
+                >
+                  <Download className="w-3.5 h-3.5 mr-1.5" />
+                  Export
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isFailedLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-gray-500 gap-2">
+                  <Loader2 className="h-6 w-6 animate-spin text-red-600" />
+                  <span className="text-xs">Loading failed deliveries...</span>
                 </div>
-              </CardHeader>
-              <CardContent>
+              ) : (
                 <div className="overflow-x-auto rounded-md border border-red-100">
                   <table className="w-full text-sm">
                     <thead className="bg-red-50/50 border-b border-red-100">
@@ -1139,7 +1117,7 @@ export default function CampaignAnalytics() {
                           </td>
                         </tr>
                       ) : (
-                        paginatedFailed.map((rec, idx) => (
+                        paginatedFailed.map((rec: any, idx: number) => (
                           <tr key={rec.id || idx} className="hover:bg-red-50/10">
                             <td className="px-6 py-4 font-medium text-gray-900">{rec.name || "Unknown"}</td>
                             <td className="px-6 py-4 text-gray-500 font-mono">{rec.phone}</td>
@@ -1158,41 +1136,41 @@ export default function CampaignAnalytics() {
                     </tbody>
                   </table>
                 </div>
+              )}
 
-                {/* Failed pagination controls */}
-                {totalFailedPages > 1 && (
-                  <div className="flex items-center justify-between pt-3 text-xs text-gray-600">
-                    <span>
-                      Showing Page {failedPage} of {totalFailedPages} ({filteredFailed.length.toLocaleString()} items)
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        disabled={failedPage <= 1}
-                        onClick={() => setFailedPage(p => Math.max(1, p - 1))}
-                      >
-                        Previous
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        disabled={failedPage >= totalFailedPages}
-                        onClick={() => setFailedPage(p => p + 1)}
-                      >
-                        Next
-                      </Button>
-                    </div>
+              {/* Failed pagination controls */}
+              {totalFailedPages > 1 && (
+                <div className="flex items-center justify-between pt-3 text-xs text-gray-600">
+                  <span>
+                    Showing Page {failedPage} of {totalFailedPages} ({totalFailedCount.toLocaleString()} items)
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      disabled={failedPage <= 1 || isFailedLoading}
+                      onClick={() => setFailedPage(p => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      disabled={failedPage >= totalFailedPages || isFailedLoading}
+                      onClick={() => setFailedPage(p => p + 1)}
+                    >
+                      Next
+                    </Button>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })()}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </main>
     </div>
   );

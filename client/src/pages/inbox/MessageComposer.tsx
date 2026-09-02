@@ -433,12 +433,14 @@ const MessageComposer = ({
           }
         }}
       />
-      <SendFlowDialog
-        isOpen={showSendFlow}
-        onClose={() => setShowSendFlow(false)}
-        defaultPhone={selectedConversation?.contactPhone || (selectedConversation as any)?.phoneNumber || ""}
-        channelId={activeChannelId}
-      />
+      {showSendFlow && (
+        <SendFlowDialog
+          isOpen={showSendFlow}
+          onClose={() => setShowSendFlow(false)}
+          defaultPhone={selectedConversation?.contactPhone || (selectedConversation as any)?.phoneNumber || ""}
+          channelId={activeChannelId}
+        />
+      )}
     </div>
   );
 };

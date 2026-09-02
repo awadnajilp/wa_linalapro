@@ -859,15 +859,17 @@ export function ContactsTable({
           </div>
         )}
       </CardContent>
-      <SendFlowDialog
-        isOpen={showSendFlow}
-        onClose={() => {
-          setShowSendFlow(false);
-          setSelectedFlowContact(null);
-        }}
-        defaultPhone={selectedFlowContact?.phone || ""}
-        channelId={activeChannel?.id}
-      />
+      {showSendFlow && (
+        <SendFlowDialog
+          isOpen={showSendFlow}
+          onClose={() => {
+            setShowSendFlow(false);
+            setSelectedFlowContact(null);
+          }}
+          defaultPhone={selectedFlowContact?.phone || ""}
+          channelId={activeChannel?.id}
+        />
+      )}
     </Card>
   );
 }

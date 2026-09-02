@@ -101,6 +101,8 @@ export const getMessageAnalytics = asyncHandler(async (req: Request, res: Respon
           AND outb.created_at >= ${start}
           AND outb.created_at <= ${end}
           AND EXTRACT(EPOCH FROM (first_reply.created_at - outb.created_at)) BETWEEN 0 AND 86400
+        ORDER BY outb.created_at DESC
+        LIMIT 100
         ) sub`);
   } catch (e) {
     // If the query fails, we just don't have response time data
@@ -170,7 +172,8 @@ export const getCampaignAnalytics = asyncHandler(async (req: Request, res: Respo
     .select()
     .from(campaigns)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(campaigns.createdAt));
+    .orderBy(desc(campaigns.createdAt))
+    .limit(50);
 
   const campaignsWithRates = campaignStats.map((campaign: any) => ({
     ...campaign,

@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Send, RefreshCw, Sparkles, Phone, MessageSquare } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
 interface SendFlowDialogProps {
@@ -34,7 +34,7 @@ export function SendFlowDialog({
   isOpen,
   onClose,
   flow: initialFlow,
-  flows = [],
+  flows: flowsProp = [],
   defaultPhone = "",
   channelId,
 }: SendFlowDialogProps) {
@@ -42,10 +42,32 @@ export function SendFlowDialog({
   const [selectedFlowId, setSelectedFlowId] = useState<string>("");
   const [recipientPhone, setRecipientPhone] = useState("");
 
+  const { data: flowsResponse, isLoading: isFlowsLoading } = useQuery({
+    queryKey: ["/api/whatsapp-flows/send-dialog", channelId],
+    queryFn: async () => {
+      const url = channelId
+        ? `/api/whatsapp-flows?channelId=${channelId}`
+        : "/api/whatsapp-flows";
+      const res = await fetch(url);
+      if (!res.ok) return { data: [] };
+      return res.json();
+    },
+    enabled: isOpen && (!flowsProp || flowsProp.length === 0),
+  });
+
+  const flows =
+    flowsProp && flowsProp.length > 0
+      ? flowsProp
+      : Array.isArray(flowsResponse?.data) && flowsResponse.data.length > 0
+      ? flowsResponse.data
+      : initialFlow
+      ? [initialFlow]
+      : [];
+
   useEffect(() => {
     if (initialFlow?.id) {
       setSelectedFlowId(initialFlow.id);
-    } else if (flows.length > 0) {
+    } else if (flows.length > 0 && !selectedFlowId) {
       setSelectedFlowId(flows[0].id);
     }
     if (defaultPhone) {
@@ -93,6 +115,8 @@ export function SendFlowDialog({
     },
   });
 
+  if (!isOpen) return null;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
@@ -112,18 +136,31 @@ export function SendFlowDialog({
             <Label htmlFor="flow-select" className="text-xs font-semibold">
               Select Flow
             </Label>
-            <Select value={selectedFlowId} onValueChange={setSelectedFlowId}>
-              <SelectTrigger id="flow-select">
-                <SelectValue placeholder="Choose a Flow" />
-              </SelectTrigger>
-              <SelectContent>
-                {flows.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {f.name} ({f.status || "DRAFT"})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {flows.length === 0 ? (
+              <div className="text-xs text-gray-500 py-2 border rounded-md px-3 bg-gray-50">
+                {isFlowsLoading
+                  ? "Loading WhatsApp Flows..."
+                  : "No WhatsApp Flows available. Please create one in Flows Hub first."}
+              </div>
+            ) : (
+              <Select
+                value={selectedFlowId || flows[0]?.id || undefined}
+                onValueChange={setSelectedFlowId}
+              >
+                <SelectTrigger id="flow-select">
+                  <SelectValue placeholder="Choose a Flow" />
+                </SelectTrigger>
+                <SelectContent>
+                  {flows
+                    .filter((f) => f && f.id)
+                    .map((f) => (
+                      <SelectItem key={f.id} value={String(f.id)}>
+                        {f.name} ({f.status || "DRAFT"})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* Recipient Phone */}

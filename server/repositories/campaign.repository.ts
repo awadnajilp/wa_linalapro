@@ -114,12 +114,37 @@ async getAll(
   channelId: string,
   page: number = 1,
   limit: number = 10
-): Promise<{ data: Campaign[]; total: number; page: number; limit: number }> {
+): Promise<{ data: any[]; total: number; page: number; limit: number }> {
   const offset = (page - 1) * limit;
 
-  // Fetch paginated campaigns
-  const data = await db
-    .select()
+  // Fetch paginated campaigns (selecting lightweight fields for table)
+  const data = await dbRead
+    .select({
+      id: campaigns.id,
+      name: campaigns.name,
+      description: campaigns.description,
+      campaignType: campaigns.campaignType,
+      status: campaigns.status,
+      channelId: campaigns.channelId,
+      templateId: campaigns.templateId,
+      recipientCount: campaigns.recipientCount,
+      sentCount: campaigns.sentCount,
+      deliveredCount: campaigns.deliveredCount,
+      readCount: campaigns.readCount,
+      repliedCount: campaigns.repliedCount,
+      failedCount: campaigns.failedCount,
+      nonDeliverableCount: campaigns.nonDeliverableCount,
+      scheduledAt: campaigns.scheduledAt,
+      completedAt: campaigns.completedAt,
+      isRecurring: campaigns.isRecurring,
+      recurringInterval: campaigns.recurringInterval,
+      currentIteration: campaigns.currentIteration,
+      recurringIterations: campaigns.recurringIterations,
+      isCadence: campaigns.isCadence,
+      createdBy: campaigns.createdBy,
+      createdAt: campaigns.createdAt,
+      updatedAt: campaigns.updatedAt,
+    })
     .from(campaigns)
     .where(eq(campaigns.channelId, channelId))
     .orderBy(desc(campaigns.createdAt))
@@ -127,7 +152,7 @@ async getAll(
     .offset(offset);
 
   // Fetch total count
-  const [{ count }] = await db
+  const [{ count }] = await dbRead
     .select({ count: sql<number>`COUNT(*)` })
     .from(campaigns)
     .where(eq(campaigns.channelId, channelId));
@@ -142,32 +167,52 @@ async getAll(
 
 
   async getById(id: string): Promise<Campaign | undefined> {
-    const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    const [campaign] = await dbRead.select().from(campaigns).where(eq(campaigns.id, id));
     return campaign || undefined;
   }
 
 
-  // async getCampaignByUserId(userId: string): Promise<Campaign | undefined>{
-  //   const [campaign] = await db.select().from(campaigns).where(eq(campaigns.createdBy, userId));
-  //   return campaign || []
-  // }
-
- async getCampaignByUserId(
+  async getCampaignByUserId(
   userId: string,
   page: number = 1,
   limit: number = 10
 ) {
   const offset = (page - 1) * limit;
 
-  const campaignsList = await db
-    .select()
+  const campaignsList = await dbRead
+    .select({
+      id: campaigns.id,
+      name: campaigns.name,
+      description: campaigns.description,
+      campaignType: campaigns.campaignType,
+      status: campaigns.status,
+      channelId: campaigns.channelId,
+      templateId: campaigns.templateId,
+      recipientCount: campaigns.recipientCount,
+      sentCount: campaigns.sentCount,
+      deliveredCount: campaigns.deliveredCount,
+      readCount: campaigns.readCount,
+      repliedCount: campaigns.repliedCount,
+      failedCount: campaigns.failedCount,
+      nonDeliverableCount: campaigns.nonDeliverableCount,
+      scheduledAt: campaigns.scheduledAt,
+      completedAt: campaigns.completedAt,
+      isRecurring: campaigns.isRecurring,
+      recurringInterval: campaigns.recurringInterval,
+      currentIteration: campaigns.currentIteration,
+      recurringIterations: campaigns.recurringIterations,
+      isCadence: campaigns.isCadence,
+      createdBy: campaigns.createdBy,
+      createdAt: campaigns.createdAt,
+      updatedAt: campaigns.updatedAt,
+    })
     .from(campaigns)
     .where(eq(campaigns.createdBy, userId))
     .orderBy(desc(campaigns.createdAt))
     .limit(Number(limit))
     .offset(Number(offset));
 
-  const totalResult = await db
+  const totalResult = await dbRead
     .select({ total: sql<number>`COUNT(*)` })
     .from(campaigns)
     .where(eq(campaigns.createdBy, userId));

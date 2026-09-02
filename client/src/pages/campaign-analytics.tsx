@@ -143,6 +143,8 @@ export default function CampaignAnalytics() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [failedPage, setFailedPage] = useState(1);
+  const [failedSearchTerm, setFailedSearchTerm] = useState("");
 
   const { data: campaignData, isLoading: loading, error: queryError } = useQuery({
     queryKey: ["campaign-analytics", campaignId],
@@ -1056,61 +1058,134 @@ export default function CampaignAnalytics() {
         )}
 
         {/* Failed Recipients Report */}
-        {recipients.some(r => r.status === "failed") && (
-          <Card className="border-red-100">
-            <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0 pb-2">
-              <div>
-                <CardTitle className="text-red-700 font-bold flex items-center gap-2">
-                  <XCircle className="w-5 h-5 text-red-500" />
-                  Failed Deliveries ({recipients.filter(r => r.status === "failed").length})
-                </CardTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">List of numbers that failed to receive campaign messages</p>
-              </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => handleExport("excel")}
-                disabled={exportLoading}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                <Download className="w-3.5 h-3.5 mr-1.5" />
-                Export Failed & Full Report
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto rounded-md border border-red-100">
-                <table className="w-full text-sm">
-                  <thead className="bg-red-50/50 border-b border-red-100">
-                    <tr>
-                      <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Recipient</th>
-                      <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Phone Number</th>
-                      <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Error Code</th>
-                      <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Reason</th>
-                      <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Time</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-red-50 bg-white">
-                    {recipients.filter(r => r.status === "failed").map((rec, idx) => (
-                      <tr key={rec.id || idx} className="hover:bg-red-50/10">
-                        <td className="px-6 py-4 font-medium text-gray-900">{rec.name || "Unknown"}</td>
-                        <td className="px-6 py-4 text-gray-500 font-mono">{rec.phone}</td>
-                        <td className="px-6 py-4">
-                          <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs font-mono font-bold">
-                            {rec.errorCode || "N/A"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-red-600 font-medium">{rec.errorMessage || "Unknown issue"}</td>
-                        <td className="px-6 py-4 text-gray-500 text-xs">
-                          {rec.sentAt ? new Date(rec.sentAt).toLocaleString() : "N/A"}
-                        </td>
+        {recipients.some(r => r.status === "failed") && (() => {
+          const allFailed = recipients.filter(r => r.status === "failed");
+          const filteredFailed = allFailed.filter(r => {
+            if (!failedSearchTerm) return true;
+            const term = failedSearchTerm.toLowerCase();
+            return (
+              (r.name || "").toLowerCase().includes(term) ||
+              (r.phone || "").toLowerCase().includes(term) ||
+              (r.errorCode || "").toLowerCase().includes(term) ||
+              (r.errorMessage || "").toLowerCase().includes(term)
+            );
+          });
+          const failedItemsPerPage = 10;
+          const totalFailedPages = Math.ceil(filteredFailed.length / failedItemsPerPage);
+          const paginatedFailed = filteredFailed.slice(
+            (failedPage - 1) * failedItemsPerPage,
+            failedPage * failedItemsPerPage
+          );
+
+          return (
+            <Card className="border-red-100">
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 pb-2">
+                <div>
+                  <CardTitle className="text-red-700 font-bold flex items-center gap-2">
+                    <XCircle className="w-5 h-5 text-red-500" />
+                    Failed Deliveries ({allFailed.length.toLocaleString()})
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">List of numbers that failed to receive campaign messages</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search failed number or error..."
+                      className="px-3 py-1.5 text-xs border rounded-md w-48 sm:w-60 focus:outline-none focus:ring-1 focus:ring-red-500"
+                      value={failedSearchTerm}
+                      onChange={(e) => {
+                        setFailedSearchTerm(e.target.value);
+                        setFailedPage(1);
+                      }}
+                    />
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleExport("excel")}
+                    disabled={exportLoading}
+                    className="bg-red-600 hover:bg-red-700 text-xs h-8"
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                    Export
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto rounded-md border border-red-100">
+                  <table className="w-full text-sm">
+                    <thead className="bg-red-50/50 border-b border-red-100">
+                      <tr>
+                        <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Recipient</th>
+                        <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Phone Number</th>
+                        <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Error Code</th>
+                        <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Reason</th>
+                        <th className="text-left px-6 py-3 font-semibold text-red-800 uppercase tracking-wider text-xs">Time</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                    </thead>
+                    <tbody className="divide-y divide-red-50 bg-white">
+                      {paginatedFailed.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-8 text-center text-xs text-gray-500">
+                            No failed recipients matching search.
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedFailed.map((rec, idx) => (
+                          <tr key={rec.id || idx} className="hover:bg-red-50/10">
+                            <td className="px-6 py-4 font-medium text-gray-900">{rec.name || "Unknown"}</td>
+                            <td className="px-6 py-4 text-gray-500 font-mono">{rec.phone}</td>
+                            <td className="px-6 py-4">
+                              <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs font-mono font-bold">
+                                {rec.errorCode || "N/A"}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-red-600 font-medium text-xs">{rec.errorMessage || "Unknown issue"}</td>
+                            <td className="px-6 py-4 text-gray-500 text-xs">
+                              {rec.sentAt ? new Date(rec.sentAt).toLocaleString() : "N/A"}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Failed pagination controls */}
+                {totalFailedPages > 1 && (
+                  <div className="flex items-center justify-between pt-3 text-xs text-gray-600">
+                    <span>
+                      Showing Page {failedPage} of {totalFailedPages} ({filteredFailed.length.toLocaleString()} items)
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={failedPage <= 1}
+                        onClick={() => setFailedPage(p => Math.max(1, p - 1))}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={failedPage >= totalFailedPages}
+                        onClick={() => setFailedPage(p => p + 1)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
       </main>
     </div>
   );

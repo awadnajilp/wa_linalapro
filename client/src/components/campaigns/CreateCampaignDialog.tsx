@@ -72,7 +72,7 @@ export function CreateCampaignDialog({
   open,
   onOpenChange,
   templates,
-  contacts: initialContacts = [],
+  contacts = [],
   groups,
   broadcastLists = [],
   onCreateCampaign,

@@ -1,6 +1,6 @@
-# 🚀 WhatsApp CRM & Automation Platform Features Documentation
+# 🚀 WhatsApp CRM, Automation & Meta WhatsApp Flows Platform Documentation
 
-This documentation provides an in-depth breakdown of the capabilities of your multi-tenant CRM, messaging automation, and integrated e-commerce system.
+This comprehensive documentation details the architecture, configuration, and capabilities of your multi-tenant WhatsApp CRM, visual workflow automation, e-commerce engine, and native **Meta WhatsApp Flows** platform.
 
 ---
 
@@ -12,34 +12,41 @@ This documentation provides an in-depth breakdown of the capabilities of your mu
 5. [E-commerce Module & Add-ons](#5-e-commerce-module--add-ons)
 6. [Advanced AI & Inbox Integrations](#6-advanced-ai--inbox-integrations)
 7. [AI Flow Controls & Functions](#7-ai-flow-controls--functions)
+8. [Meta WhatsApp Flows (Native Interactive Forms & Surveys)](#8-meta-whatsapp-flows-native-interactive-forms--surveys)
+   * [8.1 Architecture & Native Flow Mechanics](#81-architecture--native-flow-mechanics)
+   * [8.2 Visual Form Designer Wizard (4 Steps)](#82-visual-form-designer-wizard-4-steps)
+   * [8.3 Pre-built Flow Templates](#83-pre-built-flow-templates)
+   * [8.4 The 4 Initiation Channels](#84-the-4-initiation-channels)
+   * [8.5 Automated CRM Sync & Data Ingestion](#85-automated-crm-sync--data-ingestion)
+   * [8.6 Submissions Tracker & Excel (.xlsx) Export](#86-submissions-tracker--excel-xlsx-export)
 
 ---
 
 ## 1. Core CRM Features
 
 ### 👤 Contact & Lead Management
-* **Unified Database**: Consolidates lead source details, WhatsApp information, customized attributes, tags, and status history.
-* **Smart Filtering**: Advanced query builders to segment lists based on state, zip code, tags, active deals, and channels.
-* **Customer Groups**: Create static or dynamic list groups for targeted outreach campaigns.
+* **Unified Database**: Consolidates lead source details, WhatsApp phone numbers, customized attributes, tags, status history, and WhatsApp Flow submissions.
+* **Smart Filtering**: Advanced query builders to segment lists based on groups, broadcast lists, tags, channel, and custom variables.
+* **Customer Groups & Broadcast Lists**: Create static or dynamic list groups and QR broadcast lists for targeted outreach.
 
 ### 💼 Pipelines, Stages, & Deals
-* **Custom Pipelines**: Create multiple visual sales funnels (e.g., Sales, Onboarding, Support).
+* **Custom Pipelines**: Create multiple visual sales funnels (e.g., Sales, Onboarding, Support, VIP Accounts).
 * **Drag-and-Drop Stages**: Easily transition deals between stages (e.g., Lead, Contacted, Proposal, Closed-Won).
 * **Deal Metadata**: Track deal values, assignees, products, currencies, and timestamps.
 
 ### 👥 Team & Workspace Management
 * **Multi-Agent Inbox**: Share inbox conversations across team members.
 * **Granular Permissions**: Restrict or grant team member access by roles (e.g., view only assigned conversations, edit store configurations, delete contacts).
-* **Capacity Management**: Specify an integer-based **Open Deals Capacity Limit** per agent to prevent workloads from bottlenecking. Updates persist cleanly from the settings panel.
+* **Capacity Management**: Specify an integer-based **Open Deals Capacity Limit** per agent to prevent workloads from bottlenecking.
 
 ---
 
 ## 2. Advanced Automation & Routing Features
 
 ### 🛠️ Interactive Flow Builder
-* **Visual Node Designer**: Map automated user journeys using trigger keywords, conditions, delays, message blocks, and actions.
+* **Visual Canvas Designer**: Map automated customer journeys using trigger keywords, conditions, delays, message blocks, and actions.
 * **Action Nodes**: Automatically route leads, update variables, generate payment links, and assign conversations.
-* **Interactive WhatsApp Menus**: Send structured Cloud API buttons and lists for rapid user navigation.
+* **Native WhatsApp Nodes**: Send interactive menus, templates, media, location cards, and **WhatsApp Flows**.
 
 ---
 
@@ -50,85 +57,190 @@ The **CRM Round Robin Node** is designed for high-efficiency lead routing. When 
 ### How It Works:
 ```mermaid
 graph TD
-    A[Incoming Customer Conversation] --> B{Round Robin Node}
-    B --> C[Fetch Online Candidates]
-    C --> D{Apply Exclude List}
-    D -->|Filtered Candidates| E{Capacity Check}
-    E -->|Under Capacity Limit| F[Sort by Least Recent Assignment]
-    E -->|Over Capacity Limit| G[Sort by Current Open Deal Count]
-    F --> H[Assign Conversation to Agent]
+    A["Incoming Customer Conversation"] --> B{"Round Robin Node"}
+    B --> C["Fetch Online Candidates"]
+    C --> D{"Apply Exclude List"}
+    D -->|Filtered Candidates| E{"Capacity Check"}
+    E -->|Under Capacity Limit| F["Sort by Least Recent Assignment"]
+    E -->|Over Capacity Limit| G["Sort by Current Open Deal Count"]
+    F --> H["Assign Conversation to Agent"]
     G --> H
 ```
 
 ### Key Capabilities:
 1. **Online Status Only**: Assigns conversations only to active team members whose current status is set to `Online`.
-2. **Open Deal Capacity Limit**:
-   * If a team member has an open deal count matching or exceeding their configured **Capacity Limit**, they are skipped from the normal rotation.
-   * If all agents are at capacity, the system falls back to the agent with the lowest open load.
+2. **Open Deal Capacity Limit**: If a team member has an open deal count matching or exceeding their configured **Capacity Limit**, they are skipped from the normal rotation.
 3. **Smart Load Balancing**: Sorts available agents by their last assignment timestamp, ensuring rotation cycles are balanced and fair.
-4. **Agent Exclusion List**:
-   * Provides checkboxes to exclude specific team members (or the main store owner/admin) from being assigned to this node, allowing you to limit routing exclusively to dedicated sales representatives.
+4. **Agent Exclusion List**: Exclude specific team members or administrators from the rotation.
 
 ---
 
 ## 4. Special Highlight: Recurring Contact Campaigns
 
-### Overview
-Reach your audience at regular intervals with automated campaign dispatches. Instead of one-off blasts, you can configure template messages to go out on recurring intervals.
-
 ### Capabilities:
-* **Dynamic Recurrence Rules**: Define schedule cycles (daily, weekly, monthly) using cron expressions or duration timers.
+* **Dynamic Recurrence Rules**: Define schedule cycles (daily, weekly, monthly, yearly) with precise time slots.
 * **Dynamic Content Variables**: Inject contact tags and custom fields (e.g., `{{contact.firstName}}`, `{{order.number}}`) into WhatsApp template structures.
-* **Batch Scheduling**: Staggers campaign deliveries to optimize WhatsApp api rates and avoid account flags.
+* **Batch Scheduling**: Staggers campaign deliveries to optimize WhatsApp API rates and prevent account flags.
 
 ---
 
 ## 5. E-commerce Module & Add-ons
 
-A full-fledged checkout experience built directly into WhatsApp.
-
 * **Product Catalogs**: Manage products, descriptions, photos, and prices from the admin ledger.
 * **Base Currency Controls**: Enforces store-wide currency prefixes on all products, orders, invoices, and payment links.
-* **Dynamic Delivery Fees**:
-   * **Flat Rate**: Set a single standard delivery fee.
-   * **State-Wise Rules**: Default delivery fee set worldwide with specific override states. State matching is done dynamically using the zippopotam.us API on customer PIN/Zip codes.
+* **Dynamic Delivery Fees**: Flat rate or state-wise rules powered by live ZIP code lookups.
 * **Automated PDF Invoices**: Generates a professional itemized invoice PDF immediately when payment is verified as `"paid"`, automatically dispatching it to the customer.
-* **Self-Service Order Tracking**: Customers can check on their orders by texting **`track`** or **`status`** to prompt a self-service search.
-* **Multi-Country Support**: Out-of-the-box ZIP code lookups for Bahrain (BH), Qatar (QA), Kuwait (KW), United Kingdom (GB), Egypt (EG), Oman (OM), Morocco (MA), France (FR), Germany (DE), Spain (ES), Portugal (PT), Brazil (BR), and India (IN).
+* **Self-Service Order Tracking**: Customers can check on their orders by texting **`track`** or **`status`**.
 
 ---
 
 ## 6. Advanced AI & Inbox Integrations
 
-### 🤖 AI in the Inbox
-* **AI Copilot Assistance**: Agents receive real-time, context-aware suggestions directly inside the chat window to draft responses instantly.
-* **Autopilot Conversational Mode**: The AI agent takes over standard customer messaging, responding directly to user inquiries without manual intervention.
-* **Transcripts & Sentiment Analysis**: Tracks chat progression, summarizing user intent and highlighting deals that require immediate human follow-ups.
-
-### 📚 Dynamic Chat-Based RAG (Knowledge Base)
-* **Context Retrieval (RAG)**: Integrates Retrieval-Augmented Generation to search uploaded data dynamically, pulling matching facts to answer customer questions accurately.
-* **Dynamic Training Sources**:
-  * **URLs/Websites**: Crawls designated domain directories and stores scraped text patterns.
-  * **Custom Documents**: Parse PDF, TXT, or CSV files to seed the model with specific store rules, FAQs, and product manuals.
-  * **Database Syncing**: Synchronizes with products, catalog prices, and hours of operation.
-
-### ⚙️ AI Profile Configuration
-* **Provider Agnosticism**: Fully supports **OpenAI**, **Groq** (for lightning-fast sub-second responses), and **Sarvam.ai** (localized voices and translation).
-* **Profile Attributes**:
-  * Customize **System Prompt Templates** with dynamic tokens.
-  * Select target models (e.g. `gpt-4o-mini`, `llama-3.3-70b-versatile`, `sarvam-105b-conversations`).
-  * Tweak creativity parameters like **temperature** and **max tokens**.
+* **AI Copilot & Smart Reply**: Suggests contextual responses directly inside the live chat inbox.
+* **AI Knowledge Base**: Ingests company documentation, FAQs, and catalogs to answer customer inquiries autonomously.
+* **Human Handover**: Seamlessly transfers conversations from AI to human agents upon keyword triggers or sentiment flags.
 
 ---
 
 ## 7. AI Flow Controls & Functions
 
-### ⏸️ AI Takeover Node
-* **Handoff Automation**: A block inside the flow builder that suspends structured keyword responses and delegates control of the conversation completely to the AI agent.
-* **Pause Rules**: Temporarily pauses keyword matching while the customer converses with the AI agent. If the customer requests human help or says a designated trigger phrase, the AI automatically escalates the chat and returns it to the team inbox queue.
+* **AI Answer Node**: Answers specific prompts within an automation journey based on scoped knowledge sources.
+* **AI Agent Node**: Multi-turn autonomous conversational agent embedded directly into visual automation trees.
 
-### ⚡ AI Function & Action Calling
-* **Tool Hooks**: The AI can trigger background operations dynamically based on the conversation context:
-  * **Order Initialization**: Places products in the checkout queue.
-  * **Appointment Scheduling**: Queries and books calendar slots.
-  * **Status Lookups**: Retrieves real-time shipping/payment statuses from the CRM database.
+---
+
+## 8. Meta WhatsApp Flows (Native Interactive Forms & Surveys)
+
+The **Meta WhatsApp Flows** module provides complete end-to-end support for building, deploying, and analyzing Meta-native interactive forms, surveys, questionnaires, and booking workflows inside WhatsApp.
+
+---
+
+### 8.1 Architecture & Native Flow Mechanics
+
+According to **Meta's WhatsApp Business Platform architecture**, a flow is delivered to the customer as an **Interactive Message Card**:
+
+```
++--------------------------------------------------------------------+
+| 1. Customer receives interactive card in WhatsApp:                 |
+|                                                                    |
+|    💼 Business Inquiry                                             |
+|    Please complete our qualification form so our team can help:   |
+|    Takes less than 1 minute                                        |
+|    [ 🚀 Start Form ]  <--- (Customer taps this CTA button)         |
++--------------------------------------------------------------------+
+                                  │
+                                  ▼
++--------------------------------------------------------------------+
+| 2. Native WhatsApp Form Pops Up (Flow bottom sheet):               |
+|                                                                    |
+|    - Name & Company inputs                                         |
+|    - Dropdown selections (Budget, Service)                         |
+|    - Date Picker / Rating stars                                    |
+|    [ Submit Application ]                                          |
++--------------------------------------------------------------------+
+                                  │
+                                  ▼
++--------------------------------------------------------------------+
+| 3. Customer Submits:                                               |
+|                                                                    |
+|    - WhatsApp sends `nfm_reply` response instantly to server.     |
+|    - Form answers are recorded in Flow Submissions.                |
+|    - Contact's CRM attributes (`contacts.variables`) auto-update.  |
+|    - Conversation shows a structured confirmation card.           |
++--------------------------------------------------------------------+
+```
+
+---
+
+### 8.2 Visual Form Designer Wizard (4 Steps)
+
+The Flow Creator dialog ([`FlowEditorDialog.tsx`](file:///Users/awadnejil/Desktop/wa.linala/code/client/src/components/whatsapp-flows/FlowEditorDialog.tsx)) operates as a guided step-by-step wizard:
+
+```
+[ 1. Form Fields ] ➔ [ 2. Card & Settings ] ➔ [ 3. Live Preview & Save ] ➔ [ 4. JSON & Meta Sync ]
+```
+
+#### Step 1: Form Fields Designer
+* **Visual Component Palette**:
+  * **Text Input (`TextInput`)**: Full Name, Company Name, Email Address (with format validation), Phone Number, or Numeric Amount.
+  * **Long Text Area (`TextArea`)**: Multi-line descriptions, project notes, or support issue descriptions.
+  * **Dropdown (`Dropdown`)**: Single-selection lists with dynamic option management.
+  * **Radio Buttons (`RadioButtonsGroup`)**: Single-choice visual radio buttons.
+  * **Checkbox Group (`CheckboxGroup`)**: Multi-choice checkboxes (e.g. *"Select all services needed"*).
+  * **Date Picker (`DatePicker`)**: Native calendar date selection for appointment bookings.
+* **Per-Field Configuration**: Label, CRM Field Key (for attribute sync), Required toggle, helper text, and reorder arrows.
+
+#### Step 2: Card & General Settings
+* **Flow Name & WhatsApp Channel**: Assign the owning WhatsApp channel.
+* **Categories**: Lead Generation, Survey & Feedback, Appointment Booking, Customer Support, Custom.
+* **Message Card Copy**: Header text, Body message, Footer text, and CTA Button text.
+* **Autoresponder Trigger Keywords**: e.g., `lead`, `book`, `survey`, `quote`, `feedback`.
+* **CRM Auto-Sync Toggle**: Automatically write answers into `contacts.variables`.
+
+#### Step 3: Live Dual Preview & Save
+* Displays side-by-side previews of:
+  1. The **WhatsApp Message Card** (as it appears in WhatsApp chat).
+  2. The **Native WhatsApp Form Screen** (rendering all configured inputs, dropdowns, and date pickers).
+* Includes primary **`[ 🚀 Save & Create Flow ]`** action button.
+
+#### Step 4: Raw JSON & Meta Sync (Developer Mode)
+* Inspect or directly edit the compiled Meta Flow 6.0 JSON specification.
+* Direct **`[ ⚡ Sync with Meta ]`** button to publish and validate the JSON asset on Meta Graph API.
+
+---
+
+### 8.3 Pre-built Flow Templates
+
+The platform comes pre-seeded with 5 ready-to-use Flow templates installable with 1 click:
+1. **💼 Lead Qualification & Onboarding**: Captures full name, email, company, budget range, and project requirements.
+2. **⭐ Customer Satisfaction & NPS Survey**: Gathers rating (1-5), feedback category, and recommendation likelihood.
+3. **📅 Appointment & Consultation Booking**: Selects consultation service, preferred date, time slot, and meeting notes.
+4. **🎫 Customer Support Ticket**: Gathers issue category, urgency level, order number, and detailed description.
+5. **🛍️ Product & Service Quote Request**: Captures product interest, estimated quantity, delivery timeline, and comments.
+
+---
+
+### 8.4 The 4 Initiation Channels
+
+WhatsApp Flows can be initiated through 4 distinct channels:
+
+```mermaid
+graph LR
+    A["Meta WhatsApp Flow"] --> B["🤖 Automation Canvas Node"]
+    A --> C["💬 Live Chat Inbox Composer"]
+    A --> D["👥 Contacts List Table Action"]
+    A --> E["⚡ Real-time Keyword Autoresponder"]
+```
+
+1. **🤖 Automation Flow Builder Node (`whatsapp_flow`)**:
+   * Drop the `WhatsApp Flow` node into any automation canvas.
+   * Select the flow, customize invitation text/CTA button dynamically, and enable/disable CRM auto-sync.
+2. **💬 Live Chat Inbox Composer**:
+   * Agents can click the **Sparkles / Flow** button in the message composer toolbar to dispatch a flow directly to the active conversation.
+3. **👥 Contacts List Table Action**:
+   * Select **"Send WhatsApp Flow"** from the contact row dropdown (desktop or mobile) to send a flow without entering the chat screen.
+4. **⚡ Keyword Autoresponders**:
+   * When a customer texts any configured trigger keyword (e.g. `lead`, `book`, `quote`), the webhook handler immediately replies with the interactive Flow card.
+
+---
+
+### 8.5 Automated CRM Sync & Data Ingestion
+
+When a customer completes and submits a Flow on their phone:
+1. Meta sends an **`nfm_reply`** webhook payload containing the submitted JSON responses.
+2. The server records the submission in `whatsapp_flow_responses`.
+3. If **Auto-Save to CRM** is enabled, all field keys are automatically merged into the contact's custom attributes (`contacts.variables`).
+4. A formatted confirmation summary is posted into the chat conversation for the agent to review.
+
+---
+
+### 8.6 Submissions Tracker & Excel (.xlsx) Export
+
+* View all submitted responses with full text search by contact name, phone, or Flow.
+* Open the **Details Dialog** to view individual responses in formatted key-value pairs.
+* **Export to Excel (.xlsx)**: Downloads a clean, formatted Excel spreadsheet containing:
+  * Submission Timestamp
+  * Flow Name & Category
+  * Contact Name & Phone Number
+  * Channel ID
+  * Formatted Key-Value Answers

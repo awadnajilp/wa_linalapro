@@ -48,6 +48,7 @@ import {
   Coins,
   LifeBuoy,
   ShoppingCart,
+  Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChannelSwitcher } from "@/components/channel-switcher";
@@ -249,6 +250,13 @@ function getNavItems(role: string): NavItem[] {
         icon: Bell,
         labelKey: "Reminders Ledger",
         color: "text-indigo-600",
+        allowedRoles: ["admin"],
+      },
+      {
+        href: "/whatsapp-flows",
+        icon: Workflow,
+        labelKey: "WhatsApp Flows",
+        color: "text-purple-600",
         allowedRoles: ["admin"],
       },
     ];
@@ -510,6 +518,10 @@ export default function Sidebar() {
 
   const isRemindersActive = user?.role === "superadmin" || tenantAddons?.some(
     (a) => a.slug === "reminders-module" && a.subscription?.status === "active"
+  );
+
+  const isFlowsActive = user?.role === "superadmin" || tenantAddons?.some(
+    (a) => a.slug === "whatsapp-flows" && a.subscription?.status === "active"
   );
 
   const {
@@ -812,6 +824,7 @@ export default function Sidebar() {
                   .filter((item) => !(item.href === "/tickets" && !isTicketsActive))
                   .filter((item) => !(item.href === "/ecommerce" && !isEcommerceActive))
                   .filter((item) => !(item.href === "/reminders" && !isRemindersActive))
+                  .filter((item) => !(item.href === "/whatsapp-flows" && !isFlowsActive))
                   .map((item) =>
                     renderLink(
                       t(item.labelKey),

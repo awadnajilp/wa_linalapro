@@ -1027,6 +1027,81 @@ const steps: MigrationStep[] = [
       ALTER TABLE ecommerce_configs ADD COLUMN IF NOT EXISTS welcome_messages JSONB DEFAULT '[]'::jsonb;
     `,
   },
+  {
+    description: "Insert default WhatsApp Flows addon (if not exists)",
+    sql: `
+      INSERT INTO addons (id, slug, name, description, price, billing_cycle, ai_key_type, default_credits, is_active)
+      VALUES (
+        'addon-whatsapp-flows-uuid', 
+        'whatsapp-flows', 
+        'Meta WhatsApp Flows', 
+        'Build, publish, and send rich interactive WhatsApp Flows for lead qualification, feedback surveys, appointments, and custom forms with automated CRM data capture.', 
+        14.99, 
+        'monthly', 
+        'tenant',
+        0,
+        true
+      )
+      ON CONFLICT (slug) DO UPDATE
+      SET name = EXCLUDED.name,
+          description = EXCLUDED.description;
+    `,
+  },
+  {
+    description: "Create table whatsapp_flows (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS whatsapp_flows (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        channel_id VARCHAR REFERENCES channels (id) ON DELETE CASCADE,
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        flow_id VARCHAR,
+        name TEXT NOT NULL,
+        categories JSONB DEFAULT '["OTHER"]'::jsonb,
+        status VARCHAR(50) DEFAULT 'DRAFT',
+        flow_json JSONB DEFAULT '{}'::jsonb,
+        header_text TEXT DEFAULT '',
+        body_text TEXT DEFAULT 'Please complete the interactive form below:',
+        footer_text TEXT DEFAULT 'Powered by WhatsApp Flows',
+        cta_button_text VARCHAR(50) DEFAULT 'Start Flow',
+        preview_url TEXT,
+        endpoint_uri TEXT,
+        trigger_keywords JSONB DEFAULT '[]'::jsonb,
+        auto_save_contact_fields BOOLEAN DEFAULT true,
+        is_sample BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS whatsapp_flows_channel_idx ON whatsapp_flows (channel_id);
+      CREATE INDEX IF NOT EXISTS whatsapp_flows_tenant_idx ON whatsapp_flows (tenant_id);
+      CREATE INDEX IF NOT EXISTS whatsapp_flows_flow_id_idx ON whatsapp_flows (flow_id);
+      CREATE INDEX IF NOT EXISTS whatsapp_flows_status_idx ON whatsapp_flows (status);
+    `,
+  },
+  {
+    description: "Create table whatsapp_flow_responses (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS whatsapp_flow_responses (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        flow_id VARCHAR REFERENCES whatsapp_flows (id) ON DELETE CASCADE,
+        meta_flow_id VARCHAR,
+        channel_id VARCHAR REFERENCES channels (id) ON DELETE CASCADE,
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        conversation_id VARCHAR REFERENCES conversations (id) ON DELETE SET NULL,
+        contact_id VARCHAR REFERENCES contacts (id) ON DELETE SET NULL,
+        contact_phone TEXT NOT NULL,
+        contact_name TEXT,
+        screen_id VARCHAR,
+        response_payload JSONB DEFAULT '{}'::jsonb,
+        raw_message_id VARCHAR,
+        submitted_at TIMESTAMP DEFAULT NOW(),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS whatsapp_flow_resp_flow_idx ON whatsapp_flow_responses (flow_id);
+      CREATE INDEX IF NOT EXISTS whatsapp_flow_resp_tenant_idx ON whatsapp_flow_responses (tenant_id);
+      CREATE INDEX IF NOT EXISTS whatsapp_flow_resp_channel_idx ON whatsapp_flow_responses (channel_id);
+      CREATE INDEX IF NOT EXISTS whatsapp_flow_resp_phone_idx ON whatsapp_flow_responses (contact_phone);
+    `,
+  },
 ];
 
 /**

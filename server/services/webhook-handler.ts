@@ -33,6 +33,7 @@ import { ExpenseAIService } from "./expense-ai-service";
 import { TicketAIService } from "./ticket-ai-service";
 import { getTransporter } from "./email.service";
 import { EcommerceService } from "./ecommerce-service";
+import { WhatsappFlowsService } from "./whatsapp-flows.service";
 
 
 export interface WebhookMessage {
@@ -1975,8 +1976,26 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
             content = interactive.button_reply?.title || "[Button reply]";
             metadata = { buttonReplyId: interactive.button_reply?.id };
           } else if (interactive?.type === "nfm_reply") {
-            content = "[Flow reply]";
-            metadata = { flowResponse: interactive.nfm_reply?.response_json };
+            const rawJson = interactive.nfm_reply?.response_json;
+            let parsedPayload: Record<string, any> = {};
+            try {
+              if (rawJson) {
+                parsedPayload = typeof rawJson === "string" ? JSON.parse(rawJson) : rawJson;
+              }
+            } catch (e) {}
+
+            const formattedFields = Object.entries(parsedPayload)
+              .map(([k, v]) => `• *${k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}:* ${Array.isArray(v) ? v.join(", ") : v}`)
+              .join("\n");
+
+            content = formattedFields ? `📋 *WhatsApp Flow Form Submitted*\n${formattedFields}` : `📋 [Flow Response Submitted]`;
+            metadata = {
+              type: "nfm_reply",
+              flowResponse: rawJson,
+              parsedPayload,
+              flowBody: interactive.nfm_reply?.body,
+              flowName: interactive.nfm_reply?.name,
+            };
           } else {
             content = `[Interactive: ${interactive?.type || "unknown"}]`;
           }
@@ -2460,6 +2479,99 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
           }
         } catch (repErr) {
           console.error("❌ [Campaign Reply] Failed to track campaign reply:", repErr);
+        }
+      }
+
+      // 7.6 Capture WhatsApp Flow Submission Response
+      if (message.type === "interactive" && (message as any).interactive?.type === "nfm_reply") {
+        try {
+          const rawJson = (message as any).interactive?.nfm_reply?.response_json;
+          let parsedPayload: Record<string, any> = {};
+          if (rawJson) {
+            parsedPayload = typeof rawJson === "string" ? JSON.parse(rawJson) : rawJson;
+          }
+
+          const tenantId = channel[0]?.createdBy;
+          if (tenantId) {
+            const [matchedFlow] = await db
+              .select()
+              .from(schema.whatsappFlows)
+              .where(
+                and(
+                  eq(schema.whatsappFlows.tenantId, tenantId),
+                  eq(schema.whatsappFlows.channelId, channelId)
+                )
+              )
+              .orderBy(desc(schema.whatsappFlows.updatedAt))
+              .limit(1);
+
+            await db.insert(schema.whatsappFlowResponses).values({
+              flowId: matchedFlow?.id || null,
+              metaFlowId: matchedFlow?.flowId || null,
+              channelId,
+              tenantId,
+              conversationId: conversation[0]?.id || null,
+              contactId: contact[0]?.id || null,
+              contactPhone: message.from,
+              contactName: contactName,
+              responsePayload: parsedPayload,
+              rawMessageId: message.id,
+            });
+
+            // Auto-save form fields to Contact Variables
+            if (matchedFlow?.autoSaveContactFields !== false && contact.length > 0) {
+              const currentVars = (contact[0].variables || {}) as Record<string, any>;
+              const updatedVars = { ...currentVars, ...parsedPayload };
+              
+              const contactUpdate: any = {
+                variables: updatedVars,
+                updatedAt: new Date(),
+              };
+
+              if (parsedPayload.full_name && typeof parsedPayload.full_name === "string" && !contact[0].name) {
+                contactUpdate.name = parsedPayload.full_name.trim();
+              }
+              if (parsedPayload.work_email || parsedPayload.email) {
+                const emailVal = (parsedPayload.work_email || parsedPayload.email);
+                if (typeof emailVal === "string") contactUpdate.email = emailVal.trim();
+              }
+
+              await db.update(contacts).set(contactUpdate).where(eq(contacts.id, contact[0].id));
+            }
+          }
+        } catch (flowRespErr) {
+          console.warn("[WebhookHandler] Failed to record WhatsApp Flow response:", flowRespErr);
+        }
+      }
+
+      // 7.7 WhatsApp Flow Trigger Keyword Autoresponder
+      if (channelId && !isGroupMessage && message.type === "text" && content) {
+        try {
+          const tenantId = channel[0]?.createdBy;
+          if (tenantId) {
+            const cleanText = content.trim().toLowerCase();
+            const activeFlows = await db
+              .select()
+              .from(schema.whatsappFlows)
+              .where(
+                and(
+                  eq(schema.whatsappFlows.tenantId, tenantId),
+                  eq(schema.whatsappFlows.channelId, channelId)
+                )
+              );
+
+            const matchedFlow = activeFlows.find((f: any) => {
+              const kws = (f.triggerKeywords || []) as string[];
+              return kws.some((kw: string) => cleanText === kw.toLowerCase() || cleanText.startsWith(kw.toLowerCase() + " "));
+            });
+
+            if (matchedFlow) {
+              console.log(`🌊 [WhatsApp Flow Trigger] Triggering flow "${matchedFlow.name}" for ${message.from}`);
+              await WhatsappFlowsService.sendFlowMessage(channelId, message.from, matchedFlow);
+            }
+          }
+        } catch (flowTriggerErr) {
+          console.warn("[WebhookHandler] Failed to process WhatsApp Flow keyword trigger:", flowTriggerErr);
         }
       }
 

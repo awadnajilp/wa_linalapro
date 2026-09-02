@@ -109,6 +109,7 @@ import ExpenseLedger from "./pages/ExpenseLedger";
 import SupportTicketsLedger from "./pages/SupportTicketsLedger";
 import EcommerceLedger from "./pages/EcommerceLedger";
 import RemindersLedger from "./pages/RemindersLedger";
+import WhatsAppFlows from "./pages/WhatsAppFlows";
 
 // Define route permissions mapping
 const ROUTE_PERMISSIONS: Record<string, string> = {
@@ -443,6 +444,9 @@ function ProtectedRoutes() {
           </Route>
           <Route path="/reminders">
             <PermissionRoute component={RemindersLedger} requiredRoles={["admin"]} />
+          </Route>
+          <Route path="/whatsapp-flows">
+            <PermissionRoute component={WhatsAppFlows} requiredRoles={["admin"]} />
           </Route>
           <Route path="/admin/addons">
             <PermissionRoute component={AdminAddons} requiredRoles={["superadmin"]} />

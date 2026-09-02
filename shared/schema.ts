@@ -1335,6 +1335,13 @@ export const PERMISSIONS = {
   CRM_CREATE: "crm:create",
   CRM_EDIT: "crm:edit",
   CRM_DELETE: "crm:delete",
+
+  // WhatsApp Flows permissions
+  FLOWS_VIEW: "flows:view",
+  FLOWS_CREATE: "flows:create",
+  FLOWS_EDIT: "flows:edit",
+  FLOWS_DELETE: "flows:delete",
+  FLOWS_SEND: "flows:send",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -2664,5 +2671,52 @@ export type InsertReminderConfig = typeof reminderConfigs.$inferInsert;
 export type ReminderSession = typeof reminderSessions.$inferSelect;
 export type InsertReminderSession = typeof reminderSessions.$inferInsert;
 
+// ==========================================
+// Meta WhatsApp Flows Module Schema
+// ==========================================
+export const whatsappFlows = pgTable("whatsapp_flows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  flowId: varchar("flow_id"), // Meta Graph API Flow ID (e.g., '1234567890123456')
+  name: text("name").notNull(),
+  categories: jsonb("categories").$type<string[]>().default(["OTHER"]), // e.g. ["LEAD_GENERATION"], ["CUSTOMER_SUPPORT"], ["SURVEY"], ["APPOINTMENT_BOOKING"]
+  status: varchar("status", { length: 50 }).default("DRAFT"), // "DRAFT", "PUBLISHED", "DEPRECATED", "BLOCKED", "THROTTLED"
+  flowJson: jsonb("flow_json").$type<any>().default({}), // Standard Meta Flow JSON definition (version, screens, layout, components)
+  headerText: text("header_text").default(""),
+  bodyText: text("body_text").default("Please complete the interactive form below:"),
+  footerText: text("footer_text").default("Powered by WhatsApp Flows"),
+  ctaButtonText: varchar("cta_button_text", { length: 50 }).default("Start Flow"),
+  previewUrl: text("preview_url"),
+  endpointUri: text("endpoint_uri"),
+  triggerKeywords: jsonb("trigger_keywords").$type<string[]>().default([]),
+  autoSaveContactFields: boolean("auto_save_contact_fields").default(true),
+  isSample: boolean("is_sample").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
+export const whatsappFlowResponses = pgTable("whatsapp_flow_responses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  flowId: varchar("flow_id").references(() => whatsappFlows.id, { onDelete: "cascade" }),
+  metaFlowId: varchar("meta_flow_id"),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  conversationId: varchar("conversation_id").references(() => conversations.id, { onDelete: "set null" }),
+  contactId: varchar("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+  contactPhone: text("contact_phone").notNull(),
+  contactName: text("contact_name"),
+  screenId: varchar("screen_id"),
+  responsePayload: jsonb("response_payload").$type<Record<string, any>>().default({}),
+  rawMessageId: varchar("raw_message_id"),
+  submittedAt: timestamp("submitted_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
+export const insertWhatsappFlowSchema = createInsertSchema(whatsappFlows);
+export const insertWhatsappFlowResponseSchema = createInsertSchema(whatsappFlowResponses);
+
+export type WhatsappFlow = typeof whatsappFlows.$inferSelect;
+export type InsertWhatsappFlow = typeof whatsappFlows.$inferInsert;
+export type WhatsappFlowResponse = typeof whatsappFlowResponses.$inferSelect;
+export type InsertWhatsappFlowResponse = typeof whatsappFlowResponses.$inferInsert;

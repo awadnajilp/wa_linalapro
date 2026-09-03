@@ -811,6 +811,14 @@ export class WhatsappFlowsService {
       throw new Error(`WhatsApp Flow "${flow.name}" has no Meta Flow ID. Please click "Sync with Meta" in the Flow Editor.`);
     }
 
+    const actionPayload: Record<string, any> = {
+      screen: initialScreen,
+    };
+
+    if (options.initialData && Object.keys(options.initialData).length > 0) {
+      actionPayload.data = options.initialData;
+    }
+
     const payload: any = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
@@ -829,10 +837,7 @@ export class WhatsappFlowsService {
             flow_id: metaFlowId,
             flow_cta: flow.ctaButtonText || "Start Form",
             flow_action: "navigate",
-            flow_action_payload: {
-              screen: initialScreen,
-              data: options.initialData || {},
-            },
+            flow_action_payload: actionPayload,
           },
         },
       },

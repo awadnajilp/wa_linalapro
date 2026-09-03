@@ -1201,59 +1201,66 @@ async getImageTemplateHeaderHandle(
 
 
 
-async uploadTemplateMedia(
-  buffer: Buffer,
-  mimeType: string,
-  filename: string
-): Promise<string> {
-
-  const appId = this.channel.appId || process.env.FACEBOOK_APP_ID;
-  if (!appId) {
-    throw new Error(
-      "App ID is required for template media upload. Set FACEBOOK_APP_ID in your environment or configure embedded signup for this channel."
-    );
-  }
-
-  // STEP 1️⃣ Create upload session
-  const sessionRes = await axios.post(
-    `https://graph.facebook.com/v24.0/${appId}/uploads`,
-    {
-      file_name: filename,
-      file_length: buffer.length,
-      file_type: mimeType
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${this.channel.accessToken}`,
-        "Content-Type": "application/json"
-      }
+  async uploadTemplateMedia(
+    buffer: Buffer,
+    mimeType: string,
+    filename: string
+  ): Promise<string> {
+    const appId = this.channel.appId || process.env.FACEBOOK_APP_ID;
+    if (!appId) {
+      throw new Error(
+        "App ID is required for template media upload. Set FACEBOOK_APP_ID in your environment or configure embedded signup for this channel."
+      );
     }
-  );
 
-  const uploadSessionId = sessionRes.data.id;
+    const apiVersion = "v21.0";
 
-  // STEP 2️⃣ Upload binary
-  const uploadBinaryRes = await axios.post(
-    `https://graph.facebook.com/v24.0/${uploadSessionId}`,
-    buffer,
-    {
-      headers: {
-        Authorization: `Bearer ${this.channel.accessToken}`,
-        "Content-Type": "application/octet-stream"
+    try {
+      // STEP 1️⃣ Create upload session
+      const sessionRes = await axios.post(
+        `https://graph.facebook.com/${apiVersion}/${appId}/uploads`,
+        {
+          file_name: filename,
+          file_length: buffer.length,
+          file_type: mimeType,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.channel.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const uploadSessionId = sessionRes.data.id;
+
+      // STEP 2️⃣ Upload binary
+      const uploadBinaryRes = await axios.post(
+        `https://graph.facebook.com/${apiVersion}/${uploadSessionId}`,
+        buffer,
+        {
+          headers: {
+            Authorization: `Bearer ${this.channel.accessToken}`,
+            "Content-Type": "application/octet-stream",
+          },
+        }
+      );
+
+      const headerHandle = uploadBinaryRes.data.h;
+
+      console.log("Uploaded template media, header handle:", headerHandle);
+
+      if (!headerHandle) {
+        throw new Error("No header handle returned from Meta Resumable Upload");
       }
+
+      return headerHandle; // ✅ "4::xxxx"
+    } catch (err: any) {
+      const metaError = err?.response?.data?.error?.message || err?.response?.data?.error?.error_user_msg || err.message;
+      console.error("❌ Meta Resumable Upload Error:", metaError);
+      throw new Error(`${metaError}`);
     }
-  );
-
-  const headerHandle = uploadBinaryRes.data.h;
-
-  console.log("Uploaded template media, header handle:", headerHandle);
-
-  if (!headerHandle) {
-    throw new Error("No header handle returned");
   }
-
-  return headerHandle; // ✅ "4::xxxx"
-}
 
   async uploadMedia(filePath: string, mimeType: string, filename?: string): Promise<string> {
     if (this.channel.connectionMethod === "qr_code") {

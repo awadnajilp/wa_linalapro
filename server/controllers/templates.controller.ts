@@ -345,9 +345,6 @@ export const createTemplate = asyncHandler(
           }
 
           try {
-            mediaId = await whatsappApi.uploadMediaBufferHeader(
-              fileBuffer, mimetype, originalname
-            );
             headerHandle = await whatsappApi.uploadTemplateMedia(
               fileBuffer, mimetype, originalname
             );

@@ -34,6 +34,9 @@ import {
   conversations,
   automationExecutions,
   automations,
+  whatsappFlows,
+  whatsappFlowResponses,
+  contacts,
 } from "@shared/schema";
 import { AppError, asyncHandler } from "../middlewares/error.middleware";
 import crypto from "crypto";
@@ -560,8 +563,27 @@ async function handleMessageChange(value: any) {
         messageContent = interactive.list_reply.title;
         interactiveData = interactive;
       } else if (interactive.type === "nfm_reply") {
-        messageContent = "[Flow reply]";
-        interactiveData = { type: "nfm_reply", flowResponse: interactive.nfm_reply?.response_json };
+        const rawJson = interactive.nfm_reply?.response_json;
+        let parsedPayload: Record<string, any> = {};
+        try {
+          if (rawJson) {
+            parsedPayload = typeof rawJson === "string" ? JSON.parse(rawJson) : rawJson;
+          }
+        } catch (e) {}
+
+        const cleanEntries = Object.entries(parsedPayload).filter(([k]) => k !== "flow_token");
+        const formattedFields = cleanEntries
+          .map(([k, v]) => `• *${k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}:* ${Array.isArray(v) ? v.join(", ") : v}`)
+          .join("\n");
+
+        messageContent = formattedFields ? `📋 *WhatsApp Flow Form Submitted*\n${formattedFields}` : `📋 [Flow Response Submitted]`;
+        interactiveData = {
+          type: "nfm_reply",
+          flowResponse: rawJson,
+          parsedPayload,
+          flowBody: interactive.nfm_reply?.body,
+          flowName: interactive.nfm_reply?.name,
+        };
       } else {
         messageContent = `[Interactive: ${interactive.type || "unknown"}]`;
         interactiveData = interactive;
@@ -1148,6 +1170,115 @@ if (io) {
         }
       } catch (err: any) {
         console.error("Failed to execute AI Ecommerce interceptor for Cloud API:", err.message);
+      }
+    }
+
+    // Capture WhatsApp Flow Form Submissions (Cloud API)
+    if (type === "interactive" && interactive?.type === "nfm_reply") {
+      try {
+        const rawJson = interactive.nfm_reply?.response_json;
+        let parsedPayload: Record<string, any> = {};
+        if (rawJson) {
+          parsedPayload = typeof rawJson === "string" ? JSON.parse(rawJson) : rawJson;
+        }
+
+        const flowToken = parsedPayload.flow_token || "";
+        const tenantId = channel.createdBy;
+
+        // Query active flows for this channel / tenant
+        const activeFlows = await db
+          .select()
+          .from(whatsappFlows)
+          .where(
+            tenantId
+              ? or(eq(whatsappFlows.channelId, channel.id), eq(whatsappFlows.tenantId, tenantId))
+              : eq(whatsappFlows.channelId, channel.id)
+          );
+
+        let matchedFlow = activeFlows.find((f: any) => {
+          if (flowToken && flowToken.includes(f.id.replace(/-/g, ""))) return true;
+          if (flowToken && flowToken.includes(f.id)) return true;
+          return false;
+        });
+
+        // Fallback: match by the flow associated with the channel
+        if (!matchedFlow && activeFlows.length > 0) {
+          matchedFlow = activeFlows.find((f: any) => f.status === "PUBLISHED") || activeFlows[0];
+        }
+
+        console.log(`📋 [WhatsApp Flow Submission] Recording submission for flow "${matchedFlow?.name || 'Unknown'}" from ${from}:`, parsedPayload);
+
+        await db.insert(whatsappFlowResponses).values({
+          flowId: matchedFlow?.id || null,
+          metaFlowId: matchedFlow?.flowId || null,
+          channelId: channel.id,
+          tenantId: tenantId || null,
+          conversationId: conversation.id,
+          contactId: contact?.id || null,
+          contactPhone: from,
+          contactName: contact?.name || whatsappProfileName || from,
+          responsePayload: parsedPayload,
+          rawMessageId: whatsappMessageId,
+        });
+
+        // Auto-save form fields to Contact Variables
+        if (matchedFlow?.autoSaveContactFields !== false && contact) {
+          const currentVars = (contact.variables || {}) as Record<string, any>;
+          const cleanVars = { ...parsedPayload };
+          delete cleanVars.flow_token;
+          const updatedVars = { ...currentVars, ...cleanVars };
+
+          const contactUpdate: any = {
+            variables: updatedVars,
+            updatedAt: new Date(),
+          };
+
+          if (parsedPayload.full_name && typeof parsedPayload.full_name === "string") {
+            contactUpdate.name = parsedPayload.full_name.trim();
+          }
+          if (parsedPayload.work_email || parsedPayload.email) {
+            const emailVal = parsedPayload.work_email || parsedPayload.email;
+            if (typeof emailVal === "string") contactUpdate.email = emailVal.trim();
+          }
+
+          await db.update(contacts).set(contactUpdate).where(eq(contacts.id, contact.id));
+        }
+      } catch (flowRespErr: any) {
+        console.error("❌ [Webhook Cloud] Failed to record WhatsApp Flow response:", flowRespErr);
+      }
+    }
+
+    // WhatsApp Flow Trigger Keyword Autoresponder (Cloud API)
+    if (channel.id && !isGroupMessage && type === "text" && messageContent && !automationHandled) {
+      try {
+        const cleanText = messageContent.trim().toLowerCase();
+        const tenantId = channel.createdBy;
+
+        const activeFlows = await db
+          .select()
+          .from(whatsappFlows)
+          .where(
+            tenantId
+              ? or(eq(whatsappFlows.channelId, channel.id), eq(whatsappFlows.tenantId, tenantId))
+              : eq(whatsappFlows.channelId, channel.id)
+          );
+
+        const matchedFlow = activeFlows.find((f: any) => {
+          const kws = (f.triggerKeywords || []) as string[];
+          return kws.some((kw: string) => {
+            const cleanKw = (kw || "").trim().toLowerCase();
+            return cleanKw && (cleanText === cleanKw || cleanText.includes(cleanKw) || cleanText.startsWith(cleanKw + " "));
+          });
+        });
+
+        if (matchedFlow) {
+          console.log(`🌊 [WhatsApp Flow Cloud Trigger] Triggering flow "${matchedFlow.name}" for ${from}`);
+          const { WhatsappFlowsService } = await import("../services/whatsapp-flows.service");
+          await WhatsappFlowsService.sendFlowMessage(channel.id, from, matchedFlow);
+          automationHandled = true;
+        }
+      } catch (flowTriggerErr: any) {
+        console.warn("[Webhook Cloud] Failed to trigger WhatsApp Flow for keyword:", flowTriggerErr?.message || flowTriggerErr);
       }
     }
 

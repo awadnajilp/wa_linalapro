@@ -30,7 +30,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
       version: "6.0",
       screens: [
         {
-          id: "SCREEN_LEAD",
+          id: "SCREEN_FORM",
           title: "Lead Qualification",
           terminal: true,
           data: {},
@@ -42,36 +42,30 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
                 text: "Tell us about your requirements",
               },
               {
-                type: "TextSubheading",
-                text: "We will tailor our proposal based on your answers.",
-              },
-              {
                 type: "TextInput",
                 name: "full_name",
                 label: "Full Name",
                 required: true,
-                input_type: "text",
               },
               {
                 type: "TextInput",
                 name: "company_name",
                 label: "Company / Business Name",
                 required: true,
-                input_type: "text",
               },
               {
                 type: "TextInput",
                 name: "work_email",
                 label: "Work Email",
                 required: true,
-                input_type: "email",
+                "input-type": "email",
               },
               {
                 type: "Dropdown",
                 name: "industry",
                 label: "Industry",
                 required: true,
-                options: [
+                "data-source": [
                   { id: "ecommerce", title: "E-Commerce & Retail" },
                   { id: "real_estate", title: "Real Estate & Construction" },
                   { id: "healthcare", title: "Healthcare & Clinic" },
@@ -86,7 +80,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
                 name: "budget",
                 label: "Estimated Monthly Budget",
                 required: true,
-                options: [
+                "data-source": [
                   { id: "tier_1", title: "Under $1,000" },
                   { id: "tier_2", title: "$1,000 - $5,000" },
                   { id: "tier_3", title: "$5,000 - $15,000" },
@@ -102,7 +96,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
               {
                 type: "Footer",
                 label: "Submit Application",
-                on_click_action: {
+                "on-click-action": {
                   name: "complete",
                   payload: {
                     full_name: "${form.full_name}",
@@ -133,7 +127,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
       version: "6.0",
       screens: [
         {
-          id: "SCREEN_SURVEY",
+          id: "SCREEN_FORM",
           title: "Feedback Survey",
           terminal: true,
           data: {},
@@ -149,7 +143,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
                 name: "nps_rating",
                 label: "Rating (1 = Poor, 10 = Outstanding)",
                 required: true,
-                options: [
+                "data-source": [
                   { id: "10", title: "10 - Extremely Likely 🌟" },
                   { id: "9", title: "9 - Very Likely" },
                   { id: "8", title: "8 - Likely" },
@@ -163,7 +157,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
                 name: "liked_aspects",
                 label: "What did you like most?",
                 required: false,
-                options: [
+                "data-source": [
                   { id: "speed", title: "Response Speed & Support" },
                   { id: "quality", title: "Product / Service Quality" },
                   { id: "pricing", title: "Value for Money" },
@@ -179,7 +173,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
               {
                 type: "Footer",
                 label: "Submit Feedback",
-                on_click_action: {
+                "on-click-action": {
                   name: "complete",
                   payload: {
                     nps_rating: "${form.nps_rating}",
@@ -207,7 +201,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
       version: "6.0",
       screens: [
         {
-          id: "SCREEN_BOOKING",
+          id: "SCREEN_FORM",
           title: "Book Appointment",
           terminal: true,
           data: {},
@@ -223,7 +217,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
                 name: "service_type",
                 label: "Consultation Service",
                 required: true,
-                options: [
+                "data-source": [
                   { id: "initial_audit", title: "Initial Strategy Audit (30 Min)" },
                   { id: "product_demo", title: "Product Demonstration (45 Min)" },
                   { id: "technical_setup", title: "Technical Setup & Onboarding" },
@@ -241,7 +235,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
                 name: "time_slot",
                 label: "Preferred Time Slot",
                 required: true,
-                options: [
+                "data-source": [
                   { id: "morning_1", title: "10:00 AM - 11:00 AM" },
                   { id: "morning_2", title: "11:30 AM - 12:30 PM" },
                   { id: "afternoon_1", title: "02:00 PM - 03:00 PM" },
@@ -258,7 +252,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
               {
                 type: "Footer",
                 label: "Confirm Booking",
-                on_click_action: {
+                "on-click-action": {
                   name: "complete",
                   payload: {
                     service_type: "${form.service_type}",
@@ -287,7 +281,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
       version: "6.0",
       screens: [
         {
-          id: "SCREEN_TICKET",
+          id: "SCREEN_FORM",
           title: "Submit Support Request",
           terminal: true,
           data: {},
@@ -303,7 +297,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
                 name: "category",
                 label: "Issue Category",
                 required: true,
-                options: [
+                "data-source": [
                   { id: "account_login", title: "Account / Login / Permissions" },
                   { id: "billing_invoice", title: "Billing, Plans & Invoices" },
                   { id: "campaign_delivery", title: "Campaigns & WhatsApp Messaging" },
@@ -316,7 +310,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
                 name: "priority",
                 label: "Urgency / Priority",
                 required: true,
-                options: [
+                "data-source": [
                   { id: "low", title: "Low (General question)" },
                   { id: "medium", title: "Medium (Feature hindered)" },
                   { id: "high", title: "High (Business critical blocker)" },
@@ -337,7 +331,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
               {
                 type: "Footer",
                 label: "Submit Ticket",
-                on_click_action: {
+                "on-click-action": {
                   name: "complete",
                   payload: {
                     category: "${form.category}",
@@ -366,7 +360,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
       version: "6.0",
       screens: [
         {
-          id: "SCREEN_INQUIRY",
+          id: "SCREEN_FORM",
           title: "Product Inquiry",
           terminal: true,
           data: {},
@@ -382,7 +376,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
                 name: "product_line",
                 label: "Product Category",
                 required: true,
-                options: [
+                "data-source": [
                   { id: "packages", title: "Standard Service Packages" },
                   { id: "enterprise", title: "Custom Enterprise Solution" },
                   { id: "hardware", title: "Hardware & Devices" },
@@ -394,7 +388,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
                 name: "quantity",
                 label: "Estimated Quantity / Units",
                 required: false,
-                input_type: "number",
+                "input-type": "number",
               },
               {
                 type: "TextInput",
@@ -411,7 +405,7 @@ export const SAMPLE_FLOW_TEMPLATES: Record<string, {
               {
                 type: "Footer",
                 label: "Send Inquiry",
-                on_click_action: {
+                "on-click-action": {
                   name: "complete",
                   payload: {
                     product_line: "${form.product_line}",

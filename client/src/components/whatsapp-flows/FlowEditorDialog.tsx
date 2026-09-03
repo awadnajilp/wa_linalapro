@@ -153,7 +153,7 @@ export function FlowEditorDialog({
     !flow.id.startsWith("sample_")
   );
 
-  // Helper to compile fields to standard Meta JSON
+  // Helper to compile fields to standard Meta JSON (Meta Flow 6.0 schema)
   const compileFieldsToJson = (items: FormFieldItem[], title: string) => {
     const children: any[] = [];
     
@@ -174,8 +174,8 @@ export function FlowEditorDialog({
           name: f.name,
           label: f.label,
           required: f.required,
-          ...(f.inputType && f.inputType !== "text" ? { input_type: f.inputType } : {}),
-          ...(f.helperText ? { helper_text: f.helperText } : {}),
+          ...(f.inputType && f.inputType !== "text" ? { "input-type": f.inputType } : {}),
+          ...(f.helperText ? { "helper-text": f.helperText } : {}),
         });
       } else if (f.type === "TextArea") {
         children.push({
@@ -183,7 +183,7 @@ export function FlowEditorDialog({
           name: f.name,
           label: f.label,
           required: f.required,
-          ...(f.helperText ? { helper_text: f.helperText } : {}),
+          ...(f.helperText ? { "helper-text": f.helperText } : {}),
         });
       } else if (f.type === "Dropdown") {
         children.push({
@@ -191,7 +191,7 @@ export function FlowEditorDialog({
           name: f.name,
           label: f.label,
           required: f.required,
-          options: (f.options && f.options.length > 0)
+          "data-source": (f.options && f.options.length > 0)
             ? f.options
             : [
                 { id: "opt_1", title: "Option 1" },
@@ -204,7 +204,7 @@ export function FlowEditorDialog({
           name: f.name,
           label: f.label,
           required: f.required,
-          options: (f.options && f.options.length > 0)
+          "data-source": (f.options && f.options.length > 0)
             ? f.options
             : [
                 { id: "opt_1", title: "Option 1" },
@@ -217,7 +217,7 @@ export function FlowEditorDialog({
           name: f.name,
           label: f.label,
           required: f.required,
-          options: (f.options && f.options.length > 0)
+          "data-source": (f.options && f.options.length > 0)
             ? f.options
             : [
                 { id: "opt_1", title: "Option 1" },
@@ -238,7 +238,7 @@ export function FlowEditorDialog({
     children.push({
       type: "Footer",
       label: "Submit Form",
-      on_click_action: {
+      "on-click-action": {
         name: "complete",
         payload: payloadObj,
       },
@@ -275,8 +275,8 @@ export function FlowEditorDialog({
           name: c.name || `field_${idx}`,
           label: c.label || "Text Field",
           required: !!c.required,
-          inputType: c.input_type || "text",
-          helperText: c.helper_text || "",
+          inputType: c["input-type"] || c.input_type || "text",
+          helperText: c["helper-text"] || c.helper_text || "",
         });
       } else if (c.type === "TextArea") {
         extracted.push({
@@ -285,7 +285,7 @@ export function FlowEditorDialog({
           name: c.name || `field_${idx}`,
           label: c.label || "Notes / Text Area",
           required: !!c.required,
-          helperText: c.helper_text || "",
+          helperText: c["helper-text"] || c.helper_text || "",
         });
       } else if (c.type === "Dropdown" || c.type === "RadioButtonsGroup" || c.type === "CheckboxGroup") {
         extracted.push({
@@ -294,7 +294,7 @@ export function FlowEditorDialog({
           name: c.name || `field_${idx}`,
           label: c.label || "Select Option",
           required: !!c.required,
-          options: c.options || [],
+          options: c["data-source"] || c.options || [],
         });
       } else if (c.type === "DatePicker") {
         extracted.push({
@@ -1114,7 +1114,7 @@ export function FlowEditorDialog({
               <div>
                 <h4 className="font-semibold text-sm">Meta Flow JSON Specification</h4>
                 <p className="text-xs text-muted-foreground">
-                  Synchronized with Form Fields visual editor.
+                  Synchronized with Form Fields visual editor (Meta Flow 6.0 standard).
                 </p>
               </div>
 

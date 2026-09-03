@@ -706,7 +706,7 @@ const sampleTemplatesList = [
       version: "6.0",
       screens: [
         {
-          id: "SCREEN_LEAD",
+          id: "SCREEN_FORM",
           title: "Lead Qualification",
           terminal: true,
           data: {},
@@ -716,13 +716,13 @@ const sampleTemplatesList = [
               { type: "TextHeading", text: "Tell us about your requirements" },
               { type: "TextInput", name: "full_name", label: "Full Name", required: true },
               { type: "TextInput", name: "company_name", label: "Company Name", required: true },
-              { type: "TextInput", name: "work_email", label: "Work Email", required: true, input_type: "email" },
+              { type: "TextInput", name: "work_email", label: "Work Email", required: true, "input-type": "email" },
               {
                 type: "Dropdown",
                 name: "budget",
                 label: "Estimated Budget",
                 required: true,
-                options: [
+                "data-source": [
                   { id: "b1", title: "Under $1,000" },
                   { id: "b2", title: "$1,000 - $5,000" },
                   { id: "b3", title: "$5,000 - $15,000" },
@@ -733,7 +733,7 @@ const sampleTemplatesList = [
               {
                 type: "Footer",
                 label: "Submit Application",
-                on_click_action: {
+                "on-click-action": {
                   name: "complete",
                   payload: {
                     full_name: "${form.full_name}",
@@ -766,7 +766,7 @@ const sampleTemplatesList = [
       version: "6.0",
       screens: [
         {
-          id: "SCREEN_SURVEY",
+          id: "SCREEN_FORM",
           title: "Feedback Survey",
           terminal: true,
           data: {},
@@ -779,7 +779,7 @@ const sampleTemplatesList = [
                 name: "nps_rating",
                 label: "Rating (1 - 10)",
                 required: true,
-                options: [
+                "data-source": [
                   { id: "10", title: "10 - Extremely Likely 🌟" },
                   { id: "8", title: "8 - Likely" },
                   { id: "5", title: "5 - Average" },
@@ -790,7 +790,7 @@ const sampleTemplatesList = [
               {
                 type: "Footer",
                 label: "Submit Feedback",
-                on_click_action: {
+                "on-click-action": {
                   name: "complete",
                   payload: {
                     nps_rating: "${form.nps_rating}",
@@ -820,7 +820,7 @@ const sampleTemplatesList = [
       version: "6.0",
       screens: [
         {
-          id: "SCREEN_BOOKING",
+          id: "SCREEN_FORM",
           title: "Book Appointment",
           terminal: true,
           data: {},
@@ -833,7 +833,7 @@ const sampleTemplatesList = [
                 name: "service_type",
                 label: "Service",
                 required: true,
-                options: [
+                "data-source": [
                   { id: "audit", title: "Initial Strategy Audit (30 Min)" },
                   { id: "demo", title: "Product Demo (45 Min)" },
                 ],
@@ -844,7 +844,7 @@ const sampleTemplatesList = [
                 name: "time_slot",
                 label: "Preferred Time Slot",
                 required: true,
-                options: [
+                "data-source": [
                   { id: "m1", title: "10:00 AM - 11:00 AM" },
                   { id: "a1", title: "02:00 PM - 03:00 PM" },
                   { id: "e1", title: "05:00 PM - 06:00 PM" },
@@ -853,7 +853,7 @@ const sampleTemplatesList = [
               {
                 type: "Footer",
                 label: "Confirm Booking",
-                on_click_action: {
+                "on-click-action": {
                   name: "complete",
                   payload: {
                     service_type: "${form.service_type}",

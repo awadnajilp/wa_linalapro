@@ -498,23 +498,56 @@ export class WhatsappFlowsService {
       throw new Error("Meta WABA credentials (access token and WABA ID) not configured for this channel.");
     }
 
-    const payload = {
-      name,
-      categories: categories && categories.length > 0 ? categories : ["OTHER"],
-    };
+    const flowCategories = categories && categories.length > 0 ? categories : ["OTHER"];
 
-    const res = await fetch(`https://graph.facebook.com/v21.0/${wabaId}/flows`, {
+    let res = await fetch(`https://graph.facebook.com/v21.0/${wabaId}/flows`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        name,
+        categories: flowCategories,
+      }),
     });
 
-    const data = await res.json();
+    let data = await res.json();
+
+    // If flow name is not unique (error_subcode 4016019)
+    if (!res.ok && data.error?.error_subcode === 4016019) {
+      // 1. Try to find existing flow on WABA with this name
+      try {
+        const listRes = await fetch(`https://graph.facebook.com/v21.0/${wabaId}/flows?fields=id,name`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const listData = await listRes.json();
+        const existingOnMeta = (listData.data || []).find((f: any) => f.name.toLowerCase() === name.toLowerCase());
+        if (existingOnMeta?.id) {
+          return { flowId: existingOnMeta.id as string };
+        }
+      } catch (listErr) {
+        console.warn("[WhatsappFlowsService] Error searching existing flows on WABA:", listErr);
+      }
+
+      // 2. Retry with short suffix
+      const uniqueName = `${name.substring(0, 50)}_${Date.now().toString(36).slice(-4)}`;
+      res = await fetch(`https://graph.facebook.com/v21.0/${wabaId}/flows`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: uniqueName,
+          categories: flowCategories,
+        }),
+      });
+      data = await res.json();
+    }
+
     if (!res.ok || data.error) {
-      const msg = data.error?.message || JSON.stringify(data);
+      const msg = data.error?.error_user_msg || data.error?.message || JSON.stringify(data);
       throw new Error(`Meta Flow Creation Error: ${msg}`);
     }
 

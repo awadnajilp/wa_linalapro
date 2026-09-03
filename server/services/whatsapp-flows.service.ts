@@ -557,6 +557,27 @@ export class WhatsappFlowsService {
   }
 
   /**
+   * Helper to sanitize Flow JSON keys to match Meta Flow 6.0 schema
+   */
+  static sanitizeFlowJson(obj: any): any {
+    if (!obj || typeof obj !== "object") return obj;
+    if (Array.isArray(obj)) return obj.map((item) => this.sanitizeFlowJson(item));
+
+    const result: Record<string, any> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      let newKey = key;
+      if (key === "input_type") newKey = "input-type";
+      else if (key === "on_click_action") newKey = "on-click-action";
+      else if (key === "helper_text") newKey = "helper-text";
+      else if (key === "options" && (obj.type === "Dropdown" || obj.type === "RadioButtonsGroup" || obj.type === "CheckboxGroup")) {
+        newKey = "data-source";
+      }
+      result[newKey] = this.sanitizeFlowJson(value);
+    }
+    return result;
+  }
+
+  /**
    * Upload Flow JSON asset to Meta Graph API
    */
   static async updateFlowJsonOnMeta(channelId: string, metaFlowId: string, flowJson: any) {
@@ -566,7 +587,8 @@ export class WhatsappFlowsService {
       throw new Error("Meta access token not configured for this channel.");
     }
 
-    const jsonString = typeof flowJson === "string" ? flowJson : JSON.stringify(flowJson, null, 2);
+    const sanitized = this.sanitizeFlowJson(flowJson);
+    const jsonString = typeof sanitized === "string" ? sanitized : JSON.stringify(sanitized, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
 
     const formData = new FormData();
@@ -811,6 +833,22 @@ export class WhatsappFlowsService {
       throw new Error(`WhatsApp Flow "${flow.name}" has no Meta Flow ID. Please click "Sync with Meta" in the Flow Editor.`);
     }
 
+    // Ensure flow is in PUBLISHED status on Meta before sending
+    if (metaFlowId && flow.status !== "PUBLISHED") {
+      try {
+        if (flow.flowJson) {
+          await this.updateFlowJsonOnMeta(channelId, metaFlowId, flow.flowJson);
+        }
+        await this.publishFlowOnMeta(channelId, metaFlowId);
+        await db
+          .update(whatsappFlows)
+          .set({ status: "PUBLISHED", updatedAt: new Date() })
+          .where(eq(whatsappFlows.id, flow.id));
+      } catch (pubErr: any) {
+        console.warn("[WhatsappFlowsService] Auto-publish on send notice:", pubErr?.message || pubErr);
+      }
+    }
+
     const actionPayload: Record<string, any> = {
       screen: initialScreen,
     };
@@ -867,8 +905,9 @@ export class WhatsappFlowsService {
 
     const data = await res.json();
     if (!res.ok || data.error) {
-      const msg = data.error?.message || JSON.stringify(data);
-      throw new Error(`WhatsApp Flow Send Error: ${msg}`);
+      console.error("[WhatsappFlowsService] Meta Flow Send Error:", JSON.stringify(data, null, 2));
+      const details = data.error?.error_data?.details || data.error?.error_user_msg || data.error?.message || JSON.stringify(data);
+      throw new Error(`WhatsApp Flow Send Error: ${details}`);
     }
 
     const whatsappMessageId = data.messages?.[0]?.id;

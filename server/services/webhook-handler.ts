@@ -2548,30 +2548,33 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
       if (channelId && !isGroupMessage && message.type === "text" && content) {
         try {
           const tenantId = channel[0]?.createdBy;
-          if (tenantId) {
-            const cleanText = content.trim().toLowerCase();
-            const activeFlows = await db
-              .select()
-              .from(schema.whatsappFlows)
-              .where(
-                and(
-                  eq(schema.whatsappFlows.tenantId, tenantId),
-                  eq(schema.whatsappFlows.channelId, channelId)
-                )
-              );
+          const cleanText = content.trim().toLowerCase();
+          const activeFlows = await db
+            .select()
+            .from(schema.whatsappFlows)
+            .where(
+              tenantId
+                ? or(
+                    eq(schema.whatsappFlows.channelId, channelId),
+                    eq(schema.whatsappFlows.tenantId, tenantId)
+                  )
+                : eq(schema.whatsappFlows.channelId, channelId)
+            );
 
-            const matchedFlow = activeFlows.find((f: any) => {
-              const kws = (f.triggerKeywords || []) as string[];
-              return kws.some((kw: string) => cleanText === kw.toLowerCase() || cleanText.startsWith(kw.toLowerCase() + " "));
+          const matchedFlow = activeFlows.find((f: any) => {
+            const kws = (f.triggerKeywords || []) as string[];
+            return kws.some((kw: string) => {
+              const cleanKw = (kw || "").trim().toLowerCase();
+              return cleanKw && (cleanText === cleanKw || cleanText.includes(cleanKw) || cleanText.startsWith(cleanKw + " "));
             });
+          });
 
-            if (matchedFlow) {
-              console.log(`🌊 [WhatsApp Flow Trigger] Triggering flow "${matchedFlow.name}" for ${message.from}`);
-              await WhatsappFlowsService.sendFlowMessage(channelId, message.from, matchedFlow);
-            }
+          if (matchedFlow) {
+            console.log(`🌊 [WhatsApp Flow Trigger] Triggering flow "${matchedFlow.name}" for ${message.from}`);
+            await WhatsappFlowsService.sendFlowMessage(channelId, message.from, matchedFlow);
           }
-        } catch (flowTriggerErr) {
-          console.warn("[WebhookHandler] Failed to process WhatsApp Flow keyword trigger:", flowTriggerErr);
+        } catch (flowTriggerErr: any) {
+          console.warn("[WebhookHandler] Failed to process WhatsApp Flow keyword trigger:", flowTriggerErr?.message || flowTriggerErr);
         }
       }
 

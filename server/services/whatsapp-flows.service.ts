@@ -737,10 +737,51 @@ export class WhatsappFlowsService {
 
     const cleanPhone = recipientPhone.replace(/\D/g, "");
     const flowToken = options.token || `flow_${randomUUID().replace(/-/g, "").substring(0, 16)}`;
-    const initialScreen = options.initialScreen || flow.flowJson?.screens?.[0]?.id || "SCREEN_ONE";
+    const initialScreen = options.initialScreen || flow.flowJson?.screens?.[0]?.id || "SCREEN_FORM";
 
     if (!accessToken || !phoneNumberId) {
       throw new Error("Channel Meta credentials not configured. Flow sending requires Cloud API channel.");
+    }
+
+    let metaFlowId = flow.flowId;
+
+    // If flow is not yet synced / registered with Meta WABA, auto-register and upload asset now
+    if (!metaFlowId && flow.flowJson) {
+      try {
+        console.log(`[WhatsappFlowsService] Flow "${flow.name}" (${flow.id}) has no Meta flowId. Auto-creating on Meta WABA...`);
+        const metaRes = await this.createFlowOnMeta(channelId, {
+          name: flow.name,
+          categories: flow.categories,
+        });
+        metaFlowId = metaRes.flowId;
+
+        // Upload JSON asset
+        await this.updateFlowJsonOnMeta(channelId, metaFlowId, flow.flowJson);
+
+        // Publish flow on Meta
+        try {
+          await this.publishFlowOnMeta(channelId, metaFlowId);
+        } catch (pubErr: any) {
+          console.warn("[WhatsappFlowsService] Auto-publish notice:", pubErr?.message || pubErr);
+        }
+
+        // Save flowId and status in database
+        await db
+          .update(whatsappFlows)
+          .set({
+            flowId: metaFlowId,
+            status: "PUBLISHED",
+            updatedAt: new Date(),
+          })
+          .where(eq(whatsappFlows.id, flow.id));
+      } catch (autoSyncErr: any) {
+        console.error("[WhatsappFlowsService] Auto-sync to Meta failed:", autoSyncErr);
+        throw new Error(`Failed to initialize Flow with Meta Cloud API: ${autoSyncErr.message}`);
+      }
+    }
+
+    if (!metaFlowId) {
+      throw new Error(`WhatsApp Flow "${flow.name}" has no Meta Flow ID. Please click "Sync with Meta" in the Flow Editor.`);
     }
 
     const payload: any = {
@@ -758,7 +799,7 @@ export class WhatsappFlowsService {
           parameters: {
             flow_message_version: "3",
             flow_token: flowToken,
-            flow_id: flow.flowId || flow.id,
+            flow_id: metaFlowId,
             flow_cta: flow.ctaButtonText || "Start Form",
             flow_action: "navigate",
             flow_action_payload: {

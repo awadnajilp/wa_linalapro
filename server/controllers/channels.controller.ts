@@ -789,11 +789,23 @@ export const embeddedSignup = asyncHandler(
 
 export const updateChannel = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const userId =  req.user.id ; 
+  const user = (req.session as any)?.user || req.user;
 
-  if(!userId){
-    throw new AppError(404, 'No active channel found');
+  if (!user || !user.id) {
+    throw new AppError(401, 'Not authenticated');
   }
+
+  const existingChannel = await storage.getChannel(id);
+  if (!existingChannel) {
+    throw new AppError(404, 'Channel not found');
+  }
+
+  const ownerId = user.role === 'team' ? user.createdBy : user.id;
+  if (user.role !== 'superadmin' && existingChannel.createdBy !== ownerId && existingChannel.createdBy !== user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  const userId = ownerId;
   
   // If setting this channel as active, deactivate all others
   if (req.body.isActive === true) {
@@ -835,7 +847,7 @@ export const updateChannel = asyncHandler(async (req: Request, res: Response) =>
 
 export const deleteChannel = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const user = (req.session as any)?.user;
+  const user = (req.session as any)?.user || req.user;
   if (!user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
@@ -845,7 +857,8 @@ export const deleteChannel = asyncHandler(async (req: Request, res: Response) =>
     throw new AppError(404, 'Channel not found');
   }
 
-  if (user.role !== 'superadmin' && channel.createdBy !== user.id) {
+  const ownerId = user.role === 'team' ? user.createdBy : user.id;
+  if (user.role !== 'superadmin' && channel.createdBy !== ownerId && channel.createdBy !== user.id) {
     return res.status(403).json({ error: 'Access denied' });
   }
 

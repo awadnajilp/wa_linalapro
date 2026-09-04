@@ -159,15 +159,17 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
         const payload = { ...data, conversationId, channelId };
         console.log(`📡 [broadcastToConversation] Broadcasting to conversation:${conversationId} (channelId: ${channelId}):`, payload);
         
-        // Send to clients joined to this specific conversation room (Socket.io handles this)
+        // Send to clients joined to this specific conversation room
         io.to(`conversation:${conversationId}`).emit("new-message", payload);
         io.to(`conversation_${conversationId}`).emit("new-message", payload);
         io.to(`conversation:${conversationId}`).emit("new_message", payload);
         io.to(`conversation_${conversationId}`).emit("new_message", payload);
         
-        // Send to all clients (for real-time updates in sidebar and unread notifications)
-        io.emit("new-message", payload);
-        io.emit("new_message", payload);
+        // Send to clients joined to this specific channel room (for sidebar unread badges and channel-level updates)
+        if (channelId) {
+          io.to(`channel:${channelId}`).emit("new-message", payload);
+          io.to(`channel:${channelId}`).emit("new_message", payload);
+        }
       });
     } else {
       console.error("❌ [broadcastToConversation] Socket.io not initialized");

@@ -271,6 +271,17 @@ export const getTransactionById = async (req: Request, res: Response) => {
       });
     }
 
+    const authUser = req.user as any;
+    const txnUserId = transaction[0].transaction.userId;
+    if (
+      authUser &&
+      authUser.role !== "superadmin" &&
+      txnUserId !== authUser.id &&
+      (authUser.role !== "team" || authUser.createdBy !== txnUserId)
+    ) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
+
     res.status(200).json({
       success: true,
       data: transaction[0],
@@ -396,6 +407,16 @@ export const exportTransactions = async (req: Request, res: Response) => {
 export const getTransactionsByUserId = async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
+    const authUser = req.user as any;
+    if (
+      authUser &&
+      authUser.role !== "superadmin" &&
+      userId !== authUser.id &&
+      (authUser.role !== "team" || authUser.createdBy !== userId)
+    ) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
+
     const userTransactions = await db
       .select({
         transaction: transactions,
@@ -430,6 +451,16 @@ export const createTransaction = async (req: Request, res: Response) => {
       billingCycle,
       paymentMethod,
     } = req.body;
+
+    const authUser = req.user as any;
+    if (
+      authUser &&
+      authUser.role !== "superadmin" &&
+      userId !== authUser.id &&
+      (authUser.role !== "team" || authUser.createdBy !== userId)
+    ) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
 
     const planData = await db.select().from(plans).where(eq(plans.id, planId));
     if (planData.length === 0) {
@@ -698,6 +729,16 @@ export const initiatePayment = async (req: Request, res: Response) => {
       paymentProviderId,
       billingCycle,
     } = req.body;
+
+    const authUser = req.user as any;
+    if (
+      authUser &&
+      authUser.role !== "superadmin" &&
+      userId !== authUser.id &&
+      (authUser.role !== "team" || authUser.createdBy !== userId)
+    ) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
 
     const planData = await db.select().from(plans).where(eq(plans.id, planId));
     if (planData.length === 0) {
@@ -1734,6 +1775,15 @@ export const getPaymentStatus = async (req: Request, res: Response) => {
     }
 
     const transaction = transactionData[0];
+    const authUser = req.user as any;
+    if (
+      authUser &&
+      authUser.role !== "superadmin" &&
+      transaction.userId !== authUser.id &&
+      (authUser.role !== "team" || authUser.createdBy !== transaction.userId)
+    ) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
 
     res.status(200).json({
       success: true,

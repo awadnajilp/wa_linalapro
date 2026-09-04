@@ -27,9 +27,11 @@ import { cancelConversationAutomation, getConversationAutomationStatus } from "s
 
 export function registerConversationRoutes(app: Express) {
   // Get unread count
-  app.get('/api/conversations/unread-count', async (req, res) => {
+  app.get('/api/conversations/unread-count', requireAuth, async (req, res) => {
     try {
-      const activeChannel = await storage.getActiveChannel();
+      const user = (req.session as any)?.user || req.user;
+      const ownerId = user?.role === 'team' ? user.createdBy : user?.id;
+      const activeChannel = ownerId ? await storage.getActiveChannelByUserId(ownerId) : await storage.getActiveChannel();
       if (!activeChannel) {
         return res.json({ count: 0 });
       }
@@ -46,15 +48,17 @@ export function registerConversationRoutes(app: Express) {
   
   // Get all conversations
   app.get("/api/conversations",
+    requireAuth,
     extractChannelId,
     conversationsController.getConversations
   );
 
   // Get single conversation
-  app.get("/api/conversations/:id", conversationsController.getConversation);
+  app.get("/api/conversations/:id", requireAuth, conversationsController.getConversation);
 
   // Create conversation
   app.post("/api/conversations",
+    requireAuth,
     validateRequest(insertConversationSchema),
     conversationsController.createConversation
   );
@@ -66,17 +70,17 @@ export function registerConversationRoutes(app: Express) {
   );
 
   // Update conversation
-  app.put("/api/conversations/:id",    requireAuth,
-  requirePermission(PERMISSIONS.INBOX_ASSIGN), conversationsController.updateConversation);
+  app.put("/api/conversations/:id", requireAuth,
+    requirePermission(PERMISSIONS.INBOX_ASSIGN), conversationsController.updateConversation);
 
   // Delete conversation
-  app.delete("/api/conversations/:id", conversationsController.deleteConversation);
+  app.delete("/api/conversations/:id", requireAuth, conversationsController.deleteConversation);
 
   // Mark conversation as read
-  app.put("/api/conversations/:id/read", conversationsController.markAsRead);
+  app.put("/api/conversations/:id/read", requireAuth, conversationsController.markAsRead);
 
   // Update conversation status
-  app.patch("/api/conversations/:id/status", async (req, res) => {
+  app.patch("/api/conversations/:id/status", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
       const { status } = req.body;
@@ -95,10 +99,8 @@ export function registerConversationRoutes(app: Express) {
     }
   });
 
-
-
-  app.get('/api/conversations/:conversationId/automation-status', getConversationAutomationStatus);
-  app.post('/api/conversations/:conversationId/cancel-automation', cancelConversationAutomation);
+  app.get('/api/conversations/:conversationId/automation-status', requireAuth, getConversationAutomationStatus);
+  app.post('/api/conversations/:conversationId/cancel-automation', requireAuth, cancelConversationAutomation);
 
   // Get conversation-specific AI settings
   app.get('/api/conversations/:id/ai-settings', requireAuth, async (req, res) => {

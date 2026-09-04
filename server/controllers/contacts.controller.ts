@@ -179,13 +179,17 @@ export const getContactsByUser = asyncHandler(async (req: Request, res: Response
   const { userId } = req.params;
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
-  const user = (req.session as any)?.user;
+  const user = (req.session as any)?.user || (req as any).user;
 
   if (!userId) {
     throw new AppError(400, "User ID is required");
   }
 
-  if (user && user.role !== 'superadmin') {
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  if (user.role !== 'superadmin') {
     const ownerId = user.role === 'team' ? user.createdBy : user.id;
     if (userId !== ownerId && userId !== user.id) {
       return res.status(403).json({ error: 'Access denied' });

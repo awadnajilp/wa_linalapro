@@ -207,11 +207,22 @@ export const deleteWebhookConfig = asyncHandler(
 );
 
 export const testWebhook = asyncHandler(async (req: Request, res: Response) => {
+  const user = (req.session as any)?.user || (req as any).user;
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+
   const { id } = req.params;
-  // console.log("Testing webhook for config ID:", id);
   const config = await storage.getWebhookConfig(id);
   if (!config) {
     throw new AppError(404, "Webhook config not found");
+  }
+
+  if (user.role !== 'superadmin' && config.channelId) {
+    const ownerId = user.role === 'team' ? user.createdBy : user.id;
+    const channels = await storage.getChannelsByUserId(ownerId);
+    const channelIds = channels.map((ch: any) => ch.id);
+    if (!channelIds.includes(config.channelId)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
   }
   // console.log("Webhook config:", config);
   // Send a test webhook event
@@ -3768,7 +3779,10 @@ export const mercadopagoWebhook = async (req: Request, res: Response) => {
 
     const parsedBody = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString()) : req.body;
 
-    if (webhookSecret && xSignature) {
+    if (webhookSecret) {
+      if (!xSignature) {
+        return res.status(400).json({ success: false, message: 'Missing webhook signature' });
+      }
       try {
         const parts: Record<string, string> = {};
         xSignature.split(',').forEach((part: string) => {
@@ -3792,6 +3806,7 @@ export const mercadopagoWebhook = async (req: Request, res: Response) => {
         }
       } catch (sigErr) {
         console.error('Mercado Pago signature verification error:', sigErr);
+        return res.status(400).json({ success: false, message: 'Webhook signature verification error' });
       }
     }
 

@@ -136,8 +136,7 @@ export function registerTicketsRoutes(app: Express) {
     async (req: Request, res: Response) => {
       try {
         const { id } = req.params;
-        const userId = (req as any).user.id;
-        const userType = (req as any).user.role;
+        const authUser = (req as any).user;
 
         const ticket = await db.query.supportTickets.findFirst({
           where: eq(supportTickets.id, id),
@@ -147,8 +146,9 @@ export function registerTicketsRoutes(app: Express) {
           return res.status(404).json({ error: "Ticket not found" });
         }
 
-        if (userType !== 'admin' && userType !== 'superadmin' && ticket.creatorId !== userId) {
-          return res.status(403).json({ error: 'Access denied' });
+        const isOwner = ticket.creatorId === authUser.id || (authUser.role === "team" && authUser.createdBy === ticket.creatorId);
+        if (authUser.role !== "superadmin" && !isOwner) {
+          return res.status(403).json({ error: "Access denied" });
         }
 
         let freshEmail = ticket.creatorEmail;
@@ -178,8 +178,7 @@ export function registerTicketsRoutes(app: Express) {
 
         const filteredMessages = messages.filter((msg: any) => {
           if (!msg.isInternal) return true;
-          if (userType === "superadmin" && msg.senderType === "superadmin") return true;
-          if (userType === "admin" && msg.senderType === "admin") return true;
+          if (authUser.role === "superadmin" && msg.senderType === "superadmin") return true;
           return false;
         });
 
@@ -227,7 +226,7 @@ export function registerTicketsRoutes(app: Express) {
     }
   });
 
-  // Update ticket (admin only)
+  // Update ticket (superadmin or ticket creator)
   app.put(
     "/api/tickets/:id",
     requireAuth,
@@ -235,6 +234,20 @@ export function registerTicketsRoutes(app: Express) {
       try {
         const { id } = req.params;
         const { status, priority, assignedToId, assignedToName } = req.body;
+        const authUser = (req as any).user;
+
+        const ticket = await db.query.supportTickets.findFirst({
+          where: eq(supportTickets.id, id),
+        });
+
+        if (!ticket) {
+          return res.status(404).json({ error: "Ticket not found" });
+        }
+
+        const isOwner = ticket.creatorId === authUser.id || (authUser.role === "team" && authUser.createdBy === ticket.creatorId);
+        if (authUser.role !== "superadmin" && !isOwner) {
+          return res.status(403).json({ error: "Access denied" });
+        }
 
         const updateData: any = { updatedAt: new Date() };
 
@@ -249,7 +262,7 @@ export function registerTicketsRoutes(app: Express) {
 
         if (priority) updateData.priority = priority;
 
-        if (assignedToId !== undefined) {
+        if (authUser.role === "superadmin" && assignedToId !== undefined) {
           updateData.assignedToId = assignedToId || null;
           updateData.assignedToName = assignedToName || null;
         }
@@ -295,11 +308,12 @@ export function registerTicketsRoutes(app: Express) {
           return res.status(404).json({ error: "Ticket not found" });
         }
 
-        if (user.role !== "admin" && user.role !== "superadmin" && ticket.creatorId !== user.id) {
+        const isOwner = ticket.creatorId === user.id || (user.role === "team" && user.createdBy === ticket.creatorId);
+        if (user.role !== "superadmin" && !isOwner) {
           return res.status(403).json({ error: "Access denied" });
         }
 
-        const messageIsInternal = (user.role === "admin" || user.role === "superadmin") && isInternal;
+        const messageIsInternal = user.role === "superadmin" && isInternal;
 
         const [newMessage] = await db
           .insert(ticketMessages)
@@ -319,7 +333,7 @@ export function registerTicketsRoutes(app: Express) {
           .set({ updatedAt: new Date() })
           .where(eq(supportTickets.id, id));
 
-        if (!messageIsInternal && (user.role === "superadmin" || user.role === "admin") && ticket.creatorId && ticket.creatorId !== user.id) {
+        if (!messageIsInternal && user.role === "superadmin" && ticket.creatorId && ticket.creatorId !== user.id) {
           try {
             const messagePreview = message.trim().length > 100 ? message.trim().substring(0, 100) + "..." : message.trim();
             await triggerNotification(
@@ -346,13 +360,27 @@ export function registerTicketsRoutes(app: Express) {
     }
   );
 
-  // Delete ticket (admin only)
+  // Delete ticket (superadmin or ticket creator)
   app.delete(
     "/api/tickets/:id",
     requireAuth,
     async (req: Request, res: Response) => {
       try {
         const { id } = req.params;
+        const authUser = (req as any).user;
+
+        const ticket = await db.query.supportTickets.findFirst({
+          where: eq(supportTickets.id, id),
+        });
+
+        if (!ticket) {
+          return res.status(404).json({ error: "Ticket not found" });
+        }
+
+        const isOwner = ticket.creatorId === authUser.id || (authUser.role === "team" && authUser.createdBy === ticket.creatorId);
+        if (authUser.role !== "superadmin" && !isOwner) {
+          return res.status(403).json({ error: "Access denied" });
+        }
 
         const deleted = await db
           .delete(supportTickets)
@@ -371,10 +399,11 @@ export function registerTicketsRoutes(app: Express) {
     }
   );
 
-  // Get ticket statistics (admin only)
+  // Get ticket statistics (superadmin only)
   app.get(
     "/api/tickets/admin/stats",
     requireAuth,
+    requireRole("superadmin"),
     async (req: Request, res: Response) => {
       try {
         const statusStats = await db

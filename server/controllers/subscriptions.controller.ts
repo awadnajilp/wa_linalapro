@@ -114,6 +114,17 @@ export const getSubscriptionById = async (req: Request, res: Response) => {
         .json({ success: false, message: "Subscription not found" });
     }
 
+    const authUser = req.user as any;
+    const subUserId = subscription[0].subscription.userId;
+    if (
+      authUser &&
+      authUser.role !== "superadmin" &&
+      subUserId !== authUser.id &&
+      (authUser.role !== "team" || authUser.createdBy !== subUserId)
+    ) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
+
     res.status(200).json({ success: true, data: subscription[0] });
   } catch (error) {
     res.status(500).json({
@@ -147,6 +158,15 @@ export const getSubscriptionsByUserId = async (
 ) => {
   try {
     const { userId } = req.params;
+    const authUser = req.user as any;
+    if (
+      authUser &&
+      authUser.role !== "superadmin" &&
+      userId !== authUser.id &&
+      (authUser.role !== "team" || authUser.createdBy !== userId)
+    ) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
 
     const userSubscriptions = await db
       .select({
@@ -189,6 +209,16 @@ export const getActiveSubscriptionByUserId = async (
 ) => {
   try {
     const { userId } = req.params;
+    const authUser = req.user as any;
+    if (
+      authUser &&
+      authUser.role !== "superadmin" &&
+      userId !== authUser.id &&
+      (authUser.role !== "team" || authUser.createdBy !== userId)
+    ) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
+
     const activeSubscription = await db
       .select({
         subscription: subscriptions,
@@ -427,6 +457,15 @@ export const cancelSubscription = async (req: Request, res: Response) => {
     }
 
     const sub = subData[0];
+    const authUser = req.user as any;
+    if (
+      authUser &&
+      authUser.role !== "superadmin" &&
+      sub.userId !== authUser.id &&
+      (authUser.role !== "team" || authUser.createdBy !== sub.userId)
+    ) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
 
     if (sub.gatewaySubscriptionId && sub.gatewayProvider) {
       try {
@@ -507,6 +546,16 @@ export const changePlan = async (req: Request, res: Response) => {
         success: false,
         message: "userId and newPlanId are required",
       });
+    }
+
+    const authUser = req.user as any;
+    if (
+      authUser &&
+      authUser.role !== "superadmin" &&
+      userId !== authUser.id &&
+      (authUser.role !== "team" || authUser.createdBy !== userId)
+    ) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
 
     const cycle = billingCycle === "annual" ? "annual" : "monthly";
@@ -703,6 +752,15 @@ export const renewSubscription = async (req: Request, res: Response) => {
     }
 
     const subscription = currentSub[0];
+    const authUser = req.user as any;
+    if (
+      authUser &&
+      authUser.role !== "superadmin" &&
+      subscription.userId !== authUser.id &&
+      (authUser.role !== "team" || authUser.createdBy !== subscription.userId)
+    ) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
 
     const newStartDate = new Date();
     const newEndDate = new Date();
@@ -747,17 +805,33 @@ export const toggleAutoRenew = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { autoRenew } = req.body;
 
+    const currentSub = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.id, id))
+      .limit(1);
+
+    if (currentSub.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Subscription not found" });
+    }
+
+    const authUser = req.user as any;
+    if (
+      authUser &&
+      authUser.role !== "superadmin" &&
+      currentSub[0].userId !== authUser.id &&
+      (authUser.role !== "team" || authUser.createdBy !== currentSub[0].userId)
+    ) {
+      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    }
+
     const updatedSubscription = await db
       .update(subscriptions)
       .set({ autoRenew, updatedAt: new Date() })
       .where(eq(subscriptions.id, id))
       .returning();
-
-    if (updatedSubscription.length === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Subscription not found" });
-    }
 
     res.status(200).json({
       success: true,

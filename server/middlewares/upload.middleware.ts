@@ -22,12 +22,10 @@ import fs from "fs";
 import { Request, Response, NextFunction } from "express";
 import { createDOClient } from "../config/digitalOceanConfig";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 
-const execPromise = promisify(exec);
-
-
+const execFilePromise = promisify(execFile);
 
 const allowedTypes = [
   "image/jpeg", "image/png", "image/gif", "image/webp", "image/jpg", "image/avif",
@@ -67,8 +65,9 @@ const ensureDirectoryExists = (dirPath: string): void => {
 // Local storage setup with user-specific folders
 const localStorage = multer.diskStorage({
   destination: (req, _file, cb) => {
-    const userId = (req as any).user?.id || (req.body?.userId) || "guest";
-    const uploadPath = path.join("uploads", userId.toString());
+    const rawUserId = (req as any).user?.id || (req.body?.userId) || "guest";
+    const safeUserId = String(rawUserId).replace(/[^a-zA-Z0-9_-]/g, "");
+    const uploadPath = path.join("uploads", safeUserId || "guest");
     
     ensureDirectoryExists(uploadPath);
     console.log(`📁 Saving file to local directory: ${uploadPath}`);
@@ -76,7 +75,8 @@ const localStorage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: (_req, file, cb) => {
-    const uniqueName = `${Date.now()}-${file.originalname}`;
+    const safeBaseName = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const uniqueName = `${Date.now()}-${safeBaseName}`;
     console.log(`📝 Generated filename: ${uniqueName}`);
     cb(null, uniqueName);
   },
@@ -96,7 +96,7 @@ const fileFilter = (
     ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt"
   ];
 
-  if (allowedTypes.includes(file.mimetype) || safeExtensions.includes(ext)) {
+  if (allowedTypes.includes(file.mimetype) && safeExtensions.includes(ext)) {
     console.log(`✅ File type accepted: ${file.mimetype} (ext: ${ext})`);
     cb(null, true);
   } else {
@@ -271,7 +271,17 @@ export const transcodeVoiceNote = async (
         
         console.log(`🎙️ [transcodeVoiceNote] Transcoding ${file.path} to ${tempOutput} using ffmpeg...`);
         // Run ffmpeg to transcode to OGG/Opus (resampling to 16kHz mono, stripping metadata, and forcing Ogg format)
-        await execPromise(`ffmpeg -y -i "${file.path}" -c:a libopus -b:a 16k -ar 16000 -ac 1 -map_metadata -1 -f ogg "${tempOutput}"`);
+        await execFilePromise("ffmpeg", [
+          "-y",
+          "-i", file.path,
+          "-c:a", "libopus",
+          "-b:a", "16k",
+          "-ar", "16000",
+          "-ac", "1",
+          "-map_metadata", "-1",
+          "-f", "ogg",
+          tempOutput,
+        ]);
         
         if (fs.existsSync(tempOutput)) {
           // Replace the original local file with the transcoded file

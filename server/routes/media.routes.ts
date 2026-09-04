@@ -247,9 +247,16 @@ export function registerMediaRoutes(app: Express) {
       // Check if it's a relative local upload path
       if (url.startsWith("/uploads") || url.startsWith("uploads")) {
         const cleanPath = url.startsWith("/") ? url.substring(1) : url;
-        const filePath = path.join(process.cwd(), cleanPath);
-        if (fs.existsSync(filePath)) {
-          const ext = filePath.split('.').pop()?.toLowerCase();
+        const uploadsRoot = path.resolve(process.cwd(), "uploads");
+        const resolvedPath = path.resolve(process.cwd(), cleanPath);
+
+        // Security check: ensure path does not escape the uploads directory
+        if (!resolvedPath.startsWith(uploadsRoot)) {
+          return res.status(403).json({ error: "Access denied: invalid file path" });
+        }
+
+        if (fs.existsSync(resolvedPath)) {
+          const ext = resolvedPath.split('.').pop()?.toLowerCase();
           let mimeType = "application/octet-stream";
           if (ext === "png") mimeType = "image/png";
           else if (ext === "jpg" || ext === "jpeg") mimeType = "image/jpeg";
@@ -260,7 +267,7 @@ export function registerMediaRoutes(app: Express) {
             'Content-Type': mimeType,
             'Cache-Control': 'public, max-age=86400',
           });
-          return res.sendFile(filePath);
+          return res.sendFile(resolvedPath);
         }
       }
 

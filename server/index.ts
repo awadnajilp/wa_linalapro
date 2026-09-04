@@ -550,6 +550,8 @@ app.get("/api/agents/online", (req, res) => {
 
 initializeUploadsDirectory();
 
+app.set("trust proxy", 1);
+
 // Custom header-to-cookie middleware to support cross-origin mobile app sessions
 app.use((req, res, next) => {
   const sessionId = req.headers["x-session-id"];
@@ -572,8 +574,9 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false,
+      secure: process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE === "true",
       httpOnly: true,
+      sameSite: "lax",
       maxAge: 24 * 60 * 60 * 1000, // 24 hour
     },
   })

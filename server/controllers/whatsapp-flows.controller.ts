@@ -83,6 +83,10 @@ export class WhatsappFlowsController {
    * Get single Flow by ID with full flowJson
    */
   static getFlowById = asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user || (req as any).session?.user;
+    const tenantId = user?.role === "team" ? user.createdBy : user?.id;
+    const isSuperadmin = user?.role === "superadmin";
+
     const { id } = req.params;
     const [flow] = await dbRead
       .select()
@@ -92,6 +96,10 @@ export class WhatsappFlowsController {
 
     if (!flow) {
       return res.status(404).json({ error: "WhatsApp Flow not found" });
+    }
+
+    if (!isSuperadmin && flow.tenantId !== tenantId) {
+      return res.status(403).json({ error: "Access denied to this WhatsApp Flow" });
     }
 
     const [respCount] = await dbRead
@@ -202,6 +210,10 @@ export class WhatsappFlowsController {
       syncToMeta,
     } = req.body;
 
+    const user = (req as any).user || (req as any).session?.user;
+    const tenantId = user?.role === "team" ? user.createdBy : user?.id;
+    const isSuperadmin = user?.role === "superadmin";
+
     const [existing] = await db
       .select()
       .from(whatsappFlows)
@@ -210,6 +222,10 @@ export class WhatsappFlowsController {
 
     if (!existing) {
       return res.status(404).json({ error: "WhatsApp Flow not found" });
+    }
+
+    if (!isSuperadmin && existing.tenantId !== tenantId) {
+      return res.status(403).json({ error: "Access denied to this WhatsApp Flow" });
     }
 
     const targetChannelId = channelId || existing.channelId;
@@ -251,6 +267,10 @@ export class WhatsappFlowsController {
    * Publish Flow to Meta
    */
   static publishFlow = asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user || (req as any).session?.user;
+    const tenantId = user?.role === "team" ? user.createdBy : user?.id;
+    const isSuperadmin = user?.role === "superadmin";
+
     const { id } = req.params;
     const [flow] = await db
       .select()
@@ -260,6 +280,10 @@ export class WhatsappFlowsController {
 
     if (!flow) {
       return res.status(404).json({ error: "WhatsApp Flow not found" });
+    }
+
+    if (!isSuperadmin && flow.tenantId !== tenantId) {
+      return res.status(403).json({ error: "Access denied to this WhatsApp Flow" });
     }
 
     if (!flow.channelId) {
@@ -301,6 +325,10 @@ export class WhatsappFlowsController {
    * Deprecate Flow on Meta
    */
   static deprecateFlow = asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user || (req as any).session?.user;
+    const tenantId = user?.role === "team" ? user.createdBy : user?.id;
+    const isSuperadmin = user?.role === "superadmin";
+
     const { id } = req.params;
     const [flow] = await db
       .select()
@@ -310,6 +338,10 @@ export class WhatsappFlowsController {
 
     if (!flow) {
       return res.status(404).json({ error: "WhatsApp Flow not found" });
+    }
+
+    if (!isSuperadmin && flow.tenantId !== tenantId) {
+      return res.status(403).json({ error: "Access denied to this WhatsApp Flow" });
     }
 
     if (flow.channelId && flow.flowId) {
@@ -340,6 +372,10 @@ export class WhatsappFlowsController {
    * Delete Flow
    */
   static deleteFlow = asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user || (req as any).session?.user;
+    const tenantId = user?.role === "team" ? user.createdBy : user?.id;
+    const isSuperadmin = user?.role === "superadmin";
+
     const { id } = req.params;
     const [flow] = await db
       .select()
@@ -349,6 +385,10 @@ export class WhatsappFlowsController {
 
     if (!flow) {
       return res.status(404).json({ error: "WhatsApp Flow not found" });
+    }
+
+    if (!isSuperadmin && flow.tenantId !== tenantId) {
+      return res.status(403).json({ error: "Access denied to this WhatsApp Flow" });
     }
 
     if (flow.channelId && flow.flowId && flow.status === "DRAFT") {
@@ -417,6 +457,8 @@ export class WhatsappFlowsController {
    * Send an interactive Flow to a phone number / contact
    */
   static sendFlow = asyncHandler(async (req: Request, res: Response) => {
+    const user = req.user;
+    const tenantId = user?.role === "team" ? user.createdBy : user?.id;
     const { flowId, recipientPhone, channelId } = req.body;
 
     if (!flowId || !recipientPhone) {
@@ -431,6 +473,10 @@ export class WhatsappFlowsController {
 
     if (!flow) {
       return res.status(404).json({ error: "WhatsApp Flow not found" });
+    }
+
+    if (user?.role !== "superadmin" && flow.tenantId !== tenantId) {
+      return res.status(403).json({ error: "Unauthorized access to this WhatsApp Flow" });
     }
 
     const targetChannelId = channelId || flow.channelId;
@@ -451,7 +497,24 @@ export class WhatsappFlowsController {
    * Get paginated submissions & responses for a Flow
    */
   static getFlowResponses = asyncHandler(async (req: Request, res: Response) => {
+    const user = req.user;
+    const tenantId = user?.role === "team" ? user.createdBy : user?.id;
     const { flowId } = req.params;
+
+    const [flow] = await dbRead
+      .select()
+      .from(whatsappFlows)
+      .where(eq(whatsappFlows.id, flowId))
+      .limit(1);
+
+    if (!flow) {
+      return res.status(404).json({ error: "WhatsApp Flow not found" });
+    }
+
+    if (user?.role !== "superadmin" && flow.tenantId !== tenantId) {
+      return res.status(403).json({ error: "Unauthorized access to this WhatsApp Flow" });
+    }
+
     const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 10));
     const offset = (page - 1) * limit;
@@ -501,6 +564,8 @@ export class WhatsappFlowsController {
    * Export all responses for a Flow to Excel
    */
   static exportFlowResponses = asyncHandler(async (req: Request, res: Response) => {
+    const user = req.user;
+    const tenantId = user?.role === "team" ? user.createdBy : user?.id;
     const { flowId } = req.params;
     const [flow] = await dbRead
       .select()
@@ -510,6 +575,10 @@ export class WhatsappFlowsController {
 
     if (!flow) {
       return res.status(404).json({ error: "WhatsApp Flow not found" });
+    }
+
+    if (user?.role !== "superadmin" && flow.tenantId !== tenantId) {
+      return res.status(403).json({ error: "Unauthorized access to this WhatsApp Flow" });
     }
 
     const responsesList = await dbRead

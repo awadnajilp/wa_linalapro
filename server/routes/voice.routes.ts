@@ -1,5 +1,5 @@
 import { Express, Request, Response } from "express";
-import { requireAuth } from "../middlewares/auth.middleware";
+import { requireAuth, requireRole } from "../middlewares/auth.middleware";
 import { db } from "../db";
 import { voiceProfiles, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -23,8 +23,8 @@ export function registerVoiceRoutes(app: Express) {
     }
   });
 
-  // Create a new voice profile manually (e.g. standard speaker voice)
-  app.post("/api/voice-profiles", requireAuth, async (req: Request, res: Response) => {
+  // Create a new voice profile manually (e.g. standard speaker voice - superadmin only)
+  app.post("/api/voice-profiles", requireAuth, requireRole("superadmin"), async (req: Request, res: Response) => {
     try {
       const { name, provider, voiceId, languageCode } = req.body;
       if (!name || !provider || !voiceId) {
@@ -49,8 +49,8 @@ export function registerVoiceRoutes(app: Express) {
     }
   });
 
-  // Delete a voice profile
-  app.delete("/api/voice-profiles/:id", requireAuth, async (req: Request, res: Response) => {
+  // Delete a voice profile (superadmin only)
+  app.delete("/api/voice-profiles/:id", requireAuth, requireRole("superadmin"), async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const result = await db
@@ -130,13 +130,7 @@ export function registerVoiceRoutes(app: Express) {
         
         let apiKey = provider === "elevenlabs" ? userRecord?.elevenlabsApiKey : userRecord?.sarvamApiKey;
         if (!apiKey) {
-          // Fallback to default user
-          const [defaultUser] = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, "awadnajilp@gmail.com"))
-            .limit(1);
-          apiKey = provider === "elevenlabs" ? defaultUser?.elevenlabsApiKey : defaultUser?.sarvamApiKey;
+          apiKey = provider === "elevenlabs" ? process.env.ELEVENLABS_API_KEY : process.env.SARVAM_API_KEY;
         }
 
         if (!apiKey) {

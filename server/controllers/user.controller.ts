@@ -575,7 +575,7 @@ export const createUserOld = async (req: Request, res: Response) => {
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { username, email, password, sendEmail, ...otherUpdates } = req.body;
+    const { username, email, password, sendEmail, firstName, lastName, avatar, phoneNumber, ...otherUpdates } = req.body;
     const requestor = (req.session as any)?.user || req.user;
 
     if (!requestor) {
@@ -591,12 +591,26 @@ export const updateUser = async (req: Request, res: Response) => {
     }
 
     const updates: Record<string, any> = {
-      ...otherUpdates,
       updatedAt: new Date(),
     };
 
-    if (username) updates.username = username;
-    if (email) updates.email = email;
+    // Whitelisted self-update fields
+    if (firstName !== undefined) updates.firstName = firstName;
+    if (lastName !== undefined) updates.lastName = lastName;
+    if (avatar !== undefined) updates.avatar = avatar;
+    if (phoneNumber !== undefined) updates.phoneNumber = phoneNumber;
+    if (username !== undefined) updates.username = username;
+    if (email !== undefined) updates.email = email;
+
+    // Privileged fields only superadmin can modify
+    if (isSuperadmin) {
+      if (otherUpdates.role !== undefined) updates.role = otherUpdates.role;
+      if (otherUpdates.status !== undefined) updates.status = otherUpdates.status;
+      if (otherUpdates.permissions !== undefined) updates.permissions = otherUpdates.permissions;
+      if (otherUpdates.isAdminMember !== undefined) updates.isAdminMember = otherUpdates.isAdminMember;
+      if (otherUpdates.channelId !== undefined) updates.channelId = otherUpdates.channelId;
+      if (otherUpdates.isEmailVerified !== undefined) updates.isEmailVerified = otherUpdates.isEmailVerified;
+    }
 
     // Handle password update if passed
     if (password) {

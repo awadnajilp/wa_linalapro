@@ -68,7 +68,7 @@ export function registerContactRoutes(app: Express) {
   );
 
 
-  app.get("/api/user/contacts/:userId", contactsController.getContactsByUser);
+  app.get("/api/user/contacts/:userId", requireAuth, requirePermission(PERMISSIONS.CONTACTS_VIEW), contactsController.getContactsByUser);
 
   // Update contact
   app.put(

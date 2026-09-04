@@ -69,6 +69,51 @@ export function registerPanelConfigRoutes(app: Express) {
       res.status(500).json({ error: err.message });
     }
   });
+
+  app.get("/api/admin/platform-ai-settings", requireAuth, requireRole("superadmin"), async (_req, res) => {
+    try {
+      const config = await getFirstPanelConfig();
+      res.json({
+        adminOpenaiApiKey: config?.adminOpenaiApiKey || "",
+        adminSarvamApiKey: config?.adminSarvamApiKey || "",
+        adminGroqApiKey: config?.adminGroqApiKey || "",
+        adminElevenlabsApiKey: config?.adminElevenlabsApiKey || "",
+        adminAiMarginPercent: config?.adminAiMarginPercent !== undefined ? String(config.adminAiMarginPercent) : "70",
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.put("/api/admin/platform-ai-settings", requireAuth, requireRole("superadmin"), async (req, res) => {
+    try {
+      const {
+        adminOpenaiApiKey,
+        adminSarvamApiKey,
+        adminGroqApiKey,
+        adminElevenlabsApiKey,
+        adminAiMarginPercent,
+      } = req.body;
+
+      const updated = await updateFirstPanelConfig({
+        adminOpenaiApiKey: adminOpenaiApiKey !== undefined ? String(adminOpenaiApiKey) : undefined,
+        adminSarvamApiKey: adminSarvamApiKey !== undefined ? String(adminSarvamApiKey) : undefined,
+        adminGroqApiKey: adminGroqApiKey !== undefined ? String(adminGroqApiKey) : undefined,
+        adminElevenlabsApiKey: adminElevenlabsApiKey !== undefined ? String(adminElevenlabsApiKey) : undefined,
+        adminAiMarginPercent: adminAiMarginPercent !== undefined ? String(adminAiMarginPercent) : "70",
+      });
+
+      res.json({
+        adminOpenaiApiKey: updated?.adminOpenaiApiKey || "",
+        adminSarvamApiKey: updated?.adminSarvamApiKey || "",
+        adminGroqApiKey: updated?.adminGroqApiKey || "",
+        adminElevenlabsApiKey: updated?.adminElevenlabsApiKey || "",
+        adminAiMarginPercent: updated?.adminAiMarginPercent !== undefined ? String(updated.adminAiMarginPercent) : "70",
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
   app.post(
     "/api/panel",
     requireAuth, requireRole("superadmin"),

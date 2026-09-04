@@ -23,7 +23,7 @@ export class OpenAIVoiceProvider implements VoiceProvider {
     });
     form.append("model", "whisper-1");
 
-    if (languageCode) {
+    if (languageCode && languageCode !== "unknown" && languageCode !== "auto") {
       const simpleLang = languageCode.split("-")[0];
       form.append("language", simpleLang);
     }

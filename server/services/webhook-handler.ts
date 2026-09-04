@@ -19,7 +19,7 @@ import { db } from "../db";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
 import { webhookConfigs, messages, conversations, contacts, messageQueue, templates, channels, users, aiSettings, sites, automationExecutions, automations, voiceProfiles, automationNodes, aiProfiles, campaignRecipients, campaigns } from "@shared/schema";
 import * as schema from "@shared/schema";
-import { eq, and, gte, inArray, desc, isNull, sql } from "drizzle-orm";
+import { eq, and, gte, inArray, desc, isNull, sql, or } from "drizzle-orm";
 import crypto from "crypto";
 import { triggerNotification, triggerThrottledNotification, NOTIFICATION_EVENTS } from "./notification.service";
 import OpenAI from "openai";
@@ -33,6 +33,7 @@ import { ExpenseAIService } from "./expense-ai-service";
 import { TicketAIService } from "./ticket-ai-service";
 import { getTransporter } from "./email.service";
 import { EcommerceService } from "./ecommerce-service";
+import { AiBillingService } from "./ai-billing-service";
 import { WhatsappFlowsService } from "./whatsapp-flows.service";
 
 
@@ -2149,109 +2150,155 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
           const isChannelAiEnabled = channel[0]?.inboxAiSettings && chanSettings.aiEnabled === true;
           const sttEnabled = settings.sttEnabled !== undefined ? settings.sttEnabled : chanSettings.sttEnabled;
  
-          // Check if there is an active ecommerce AI session
+          // Check for active ecommerce session or ecommerce config on this channel
           const [ecomSession] = await db
             .select()
             .from(schema.ecommerceSessions)
-            .where(and(
-              eq(schema.ecommerceSessions.conversationId, conversation[0].id),
-              eq(schema.ecommerceSessions.currentStep, "ai_chat")
-            ))
+            .where(eq(schema.ecommerceSessions.conversationId, conversation[0].id))
             .limit(1);
 
-          if (sttEnabled === true) {
-            voiceLanguage = settings.sttLanguage || chanSettings.sttLanguage || "en-IN";
-            voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
-            
-            if (!voiceProfileId) {
-              const firstProfile = await db.query.voiceProfiles.findFirst();
-              if (firstProfile) {
-                voiceProfileId = firstProfile.id;
-              }
-            }
-          } else {
-            if (ecomSession) {
-              voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
-              voiceLanguage = settings.voiceLanguage || chanSettings.voiceLanguage || "en-IN";
+          let ecomConfig: any = null;
+          if (channel[0]?.id) {
+            const [foundConfig] = await db
+              .select()
+              .from(schema.ecommerceConfigs)
+              .where(eq(schema.ecommerceConfigs.channelId, channel[0].id))
+              .limit(1);
+            ecomConfig = foundConfig;
+          }
 
-              if (!voiceProfileId) {
-                const firstProfile = await db.query.voiceProfiles.findFirst();
-                if (firstProfile) {
-                  voiceProfileId = firstProfile.id;
-                  voiceLanguage = (firstProfile.languageCode as string) || voiceLanguage;
-                }
-              }
-            } else if (node && node.type === "ai_agent" && (node.data as any)?.aiVoiceEnabled === true) {
-              const nodeData = node.data as any;
-              voiceProfileId = nodeData.voiceProfileId;
-              voiceLanguage = nodeData.voiceLanguage || "en-IN";
-            } else if (conversation[0].aiEnabled || isChannelAiEnabled) {
-              const voiceEnabled = settings.voiceEnabled !== undefined ? settings.voiceEnabled : chanSettings.voiceEnabled;
-              if (voiceEnabled) {
-                voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
-                voiceLanguage = settings.voiceLanguage || chanSettings.voiceLanguage || "en-IN";
+          if (ecomConfig?.voiceProfileId) {
+            voiceProfileId = ecomConfig.voiceProfileId;
+            voiceLanguage = ecomConfig.aiVoiceLanguageMode === "auto" ? "unknown" : (voiceLanguage || "ml-IN");
+          } else if (settings.voiceProfileId || chanSettings.voiceProfileId) {
+            voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
+            voiceLanguage = settings.voiceLanguage || settings.sttLanguage || chanSettings.voiceLanguage || chanSettings.sttLanguage || "en-IN";
+          } else if (node && node.type === "ai_agent" && (node.data as any)?.voiceProfileId) {
+            const nodeData = node.data as any;
+            voiceProfileId = nodeData.voiceProfileId;
+            voiceLanguage = nodeData.voiceLanguage || "en-IN";
+          }
+
+          if (!voiceProfileId) {
+            const firstProfile = await db.query.voiceProfiles.findFirst();
+            if (firstProfile) {
+              voiceProfileId = firstProfile.id;
+              if (firstProfile.languageCode && voiceLanguage === "en-IN") {
+                voiceLanguage = firstProfile.languageCode as string;
               }
             }
           }
 
+          let ownerUser: any = null;
+          const creatorId = channel[0]?.createdBy;
+          if (creatorId) {
+            ownerUser = await db.query.users.findFirst({
+              where: eq(users.id, creatorId),
+            });
+          }
+          if (!ownerUser) {
+            const [defaultUser] = await db
+              .select()
+              .from(users)
+              .where(eq(users.email, "awadnajilp@gmail.com"))
+              .limit(1);
+            ownerUser = defaultUser;
+          }
+
+          const platformAi = await AiBillingService.getPlatformAiConfig();
+
+          const getApiKeyFor = (provName: string) => {
+            if (provName === "groq") return ownerUser?.groqApiKey || platformAi.groqApiKey || "";
+            if (provName === "elevenlabs") return ownerUser?.elevenlabsApiKey || platformAi.elevenlabsApiKey || "";
+            if (provName === "openai") return ownerUser?.openaiApiKey || platformAi.openaiApiKey || "";
+            if (provName === "sarvam") return ownerUser?.sarvamApiKey || platformAi.sarvamApiKey || "";
+            return "";
+          };
+
+          let voiceProfile: any = null;
           if (voiceProfileId) {
-            const voiceProfile = await db.query.voiceProfiles.findFirst({
+            voiceProfile = await db.query.voiceProfiles.findFirst({
               where: eq(voiceProfiles.id, voiceProfileId),
             });
+          }
 
-            if (voiceProfile) {
-              let activeApiKey = "";
-              const providerName = voiceProfile.provider || "sarvam";
-              
-              const getApiKey = (u: any) => {
-                if (providerName === "groq") return u?.groqApiKey || "";
-                if (providerName === "elevenlabs") return u?.elevenlabsApiKey || "";
-                return u?.sarvamApiKey || "";
-              };
-              const getEnvKey = () => {
-                if (providerName === "groq") return process.env.GROQ_API_KEY || "";
-                if (providerName === "elevenlabs") return process.env.ELEVENLABS_API_KEY || "";
-                return process.env.SARVAM_API_KEY || "";
-              };
+          console.log(`[STT Webhook] Downloading audio note ${mediaId} from WhatsApp...`);
+          const waApi = new WhatsAppApiService(channel[0]);
+          const { buffer } = await waApi.getMediaBuffer(mediaId);
 
-              const creatorId = channel[0]?.createdBy;
-              if (creatorId) {
-                const ownerUser = await db.query.users.findFirst({
-                  where: eq(users.id, creatorId),
-                });
-                activeApiKey = getApiKey(ownerUser);
-              }
-              if (!activeApiKey) {
-                const [defaultUser] = await db
-                  .select()
-                  .from(users)
-                  .where(eq(users.email, "awadnajilp@gmail.com"))
-                  .limit(1);
-                activeApiKey = getApiKey(defaultUser);
-              }
-              if (!activeApiKey) {
-                activeApiKey = getEnvKey();
-              }
+          let transcriptText = "";
 
-              if (activeApiKey) {
-                console.log(`[STT Webhook] Downloading audio note ${mediaId} from WhatsApp...`);
-                const waApi = new WhatsAppApiService(channel[0]);
-                const { buffer } = await waApi.getMediaBuffer(mediaId);
-
-                console.log(`[STT Webhook] Transcribing audio via provider ${voiceProfile.provider}...`);
-                const provider = VoiceManager.getProvider(voiceProfile.provider);
-                const transcriptText = await provider.transcribe(
+          // 1. Try configured voiceProfile provider if available
+          if (voiceProfile) {
+            const primaryProvider = voiceProfile.provider || "sarvam";
+            const primaryKey = getApiKeyFor(primaryProvider);
+            if (primaryKey) {
+              try {
+                console.log(`[STT Webhook] Transcribing audio via configured primary provider ${primaryProvider}...`);
+                const provider = VoiceManager.getProvider(primaryProvider);
+                transcriptText = await provider.transcribe(
                   buffer,
-                  voiceLanguage || voiceProfile.languageCode || "en-IN",
-                  { apiKey: activeApiKey }
+                  voiceLanguage || voiceProfile.languageCode || "unknown",
+                  { apiKey: primaryKey }
                 );
-
-                if (transcriptText) {
-                  console.log(`[STT Webhook] Transcription successful: "${transcriptText}"`);
-                  content = transcriptText;
-                }
+              } catch (primarySttErr: any) {
+                console.warn(`[STT Webhook] Primary STT (${primaryProvider}) failed: ${primarySttErr.message}. Trying fallbacks...`);
               }
             }
+          }
+
+          // 2. Fallback to Sarvam STT (optimal for Indian languages like Malayalam, Hindi, etc.)
+          if (!transcriptText) {
+            const sarvamKey = getApiKeyFor("sarvam");
+            if (sarvamKey) {
+              try {
+                console.log("[STT Webhook] Attempting Sarvam STT fallback...");
+                const sarvamProvider = VoiceManager.getProvider("sarvam");
+                transcriptText = await sarvamProvider.transcribe(
+                  buffer,
+                  voiceLanguage === "unknown" ? "unknown" : (voiceLanguage || "ml-IN"),
+                  { apiKey: sarvamKey }
+                );
+                console.log(`[STT Webhook] Sarvam STT fallback successful: "${transcriptText}"`);
+              } catch (sarvamErr: any) {
+                console.warn("[STT Webhook] Sarvam STT fallback failed:", sarvamErr.message);
+              }
+            }
+          }
+
+          // 3. Fallback to Groq Whisper
+          if (!transcriptText) {
+            const groqKey = getApiKeyFor("groq");
+            if (groqKey) {
+              try {
+                console.log("[STT Webhook] Attempting Groq Whisper fallback...");
+                const groqProvider = VoiceManager.getProvider("groq");
+                transcriptText = await groqProvider.transcribe(buffer, voiceLanguage, { apiKey: groqKey });
+                console.log(`[STT Webhook] Groq Whisper fallback successful: "${transcriptText}"`);
+              } catch (groqErr: any) {
+                console.warn("[STT Webhook] Groq fallback failed:", groqErr.message);
+              }
+            }
+          }
+
+          // 4. Fallback to OpenAI Whisper
+          if (!transcriptText) {
+            const openaiKey = getApiKeyFor("openai");
+            if (openaiKey) {
+              try {
+                console.log("[STT Webhook] Attempting OpenAI Whisper fallback...");
+                const openaiProvider = VoiceManager.getProvider("openai");
+                transcriptText = await openaiProvider.transcribe(buffer, voiceLanguage, { apiKey: openaiKey });
+                console.log(`[STT Webhook] OpenAI Whisper fallback successful: "${transcriptText}"`);
+              } catch (openaiErr: any) {
+                console.warn("[STT Webhook] OpenAI fallback failed:", openaiErr.message);
+              }
+            }
+          }
+
+          if (transcriptText) {
+            console.log(`[STT Webhook] Final transcription successful: "${transcriptText}"`);
+            content = transcriptText;
           }
         } catch (sttErr) {
           console.error("[STT Webhook] Failed to transcribe voice note:", sttErr);

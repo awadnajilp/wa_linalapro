@@ -35,7 +35,7 @@ import WidgetConfigPanel from "./WidgetConfigPanel";
 import WidgetCodeSnippet from "./WidgetCodeSnippet";
 import WidgetPreview from "./WidgetPreview";
 
-export default function WidgetBuilder() {
+export default function WidgetBuilder({ embedded = false }: { embedded?: boolean } = {}) {
   // const { selectedSiteId, sites } = useSite();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -249,10 +249,10 @@ export default function WidgetBuilder() {
   };
 
   return (
-    <div className="flex-1 dots-bg min-h-screen">
-      <Header title={t("widget.title")} subtitle={t("widget.subtitle")} />
+    <div className={embedded ? "" : "flex-1 dots-bg min-h-screen"}>
+      {!embedded && <Header title={t("widget.title")} subtitle={t("widget.subtitle")} />}
 
-      <main className="p-6 space-y-6">
+      <main className={embedded ? "space-y-6 pt-2" : "p-6 space-y-6"}>
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Customization Panel */}
           <div className="space-y-6">

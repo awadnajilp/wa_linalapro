@@ -4,6 +4,7 @@ import * as schema from "@shared/schema";
 import { eq, and, desc, sql, like, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { EcommerceService } from "../services/ecommerce-service";
+import { AiBillingService } from "../services/ai-billing-service";
 
 export function registerEcommerceRoutes(app: Express) {
   // Redirect to UPI deep link for customer checkouts
@@ -96,7 +97,7 @@ export function registerEcommerceRoutes(app: Express) {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
-      const { id, name, price, description, photos, checkoutLink, triggerKeyword, isTriggerEnabled } = req.body;
+      const { id, name, price, description, longDescription, photos, checkoutLink, triggerKeyword, isTriggerEnabled } = req.body;
 
       if (!name) {
         return res.status(400).json({ error: "Product name is required" });
@@ -120,6 +121,7 @@ export function registerEcommerceRoutes(app: Express) {
             name,
             price: String(price || "0"),
             description: description || null,
+            longDescription: longDescription || null,
             photos: parsedPhotos,
             checkoutLink: checkoutLink || null,
             triggerKeyword: triggerKeyword || null,
@@ -148,6 +150,7 @@ export function registerEcommerceRoutes(app: Express) {
             name,
             price: String(price || "0"),
             description: description || null,
+            longDescription: longDescription || null,
             photos: parsedPhotos,
             checkoutLink: checkoutLink || null,
             triggerKeyword: triggerKeyword || null,
@@ -273,8 +276,11 @@ export function registerEcommerceRoutes(app: Express) {
         upiId,
         upiMerchantName,
         currency,
+        apiKeySource,
         aiEnabled,
         aiVoiceEnabled,
+        voiceProfileId,
+        aiVoiceLanguageMode,
         aiTimeoutMinutes,
         aiAskButtonEnabled,
         welcomeMessages,
@@ -329,8 +335,11 @@ export function registerEcommerceRoutes(app: Express) {
             upiId: upiId || null,
             upiMerchantName: upiMerchantName || null,
             currency: currency || "INR",
+            apiKeySource: apiKeySource || "own_key",
             aiEnabled: aiEnabled !== undefined ? aiEnabled : false,
             aiVoiceEnabled: aiVoiceEnabled !== undefined ? aiVoiceEnabled : false,
+            voiceProfileId: voiceProfileId || null,
+            aiVoiceLanguageMode: aiVoiceLanguageMode || "profile",
             aiTimeoutMinutes: aiTimeoutMinutes !== undefined ? parseInt(String(aiTimeoutMinutes)) : 30,
             aiAskButtonEnabled: aiAskButtonEnabled !== undefined ? aiAskButtonEnabled : true,
             aiSystemPrompt: aiSystemPrompt !== undefined ? aiSystemPrompt : null,
@@ -375,8 +384,11 @@ export function registerEcommerceRoutes(app: Express) {
             upiId: upiId || null,
             upiMerchantName: upiMerchantName || null,
             currency: currency || "INR",
+            apiKeySource: apiKeySource || "own_key",
             aiEnabled: aiEnabled !== undefined ? aiEnabled : false,
             aiVoiceEnabled: aiVoiceEnabled !== undefined ? aiVoiceEnabled : false,
+            voiceProfileId: voiceProfileId || null,
+            aiVoiceLanguageMode: aiVoiceLanguageMode || "profile",
             aiTimeoutMinutes: aiTimeoutMinutes !== undefined ? parseInt(String(aiTimeoutMinutes)) : 30,
             aiAskButtonEnabled: aiAskButtonEnabled !== undefined ? aiAskButtonEnabled : true,
             aiSystemPrompt: aiSystemPrompt !== undefined ? aiSystemPrompt : null,
@@ -401,6 +413,27 @@ export function registerEcommerceRoutes(app: Express) {
       }
 
       res.json(config);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ============================================================
+  // AI USAGE & WALLET BILLING LEDGER
+  // ============================================================
+  app.get("/api/ecommerce/ai-usage-report", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { channelId, days = "30" } = req.query;
+
+      const report = await AiBillingService.getDailyUsageReport(
+        tenantId,
+        channelId ? String(channelId) : undefined,
+        parseInt(String(days)) || 30
+      );
+
+      res.json(report);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

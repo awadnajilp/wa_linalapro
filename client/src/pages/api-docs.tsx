@@ -613,7 +613,7 @@ function downloadHtml() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function ApiDocs() {
+export default function ApiDocs({ embedded = false }: { embedded?: boolean } = {}) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -631,13 +631,15 @@ export default function ApiDocs() {
   };
 
   return (
-    <div className="flex-1 min-h-screen dots-bg">
-      <Header
-        title={t("apiDocs.title")}
-        subtitle={t("apiDocs.subtitle")}
-      />
+    <div className={embedded ? "" : "flex-1 min-h-screen dots-bg"}>
+      {!embedded && (
+        <Header
+          title={t("apiDocs.title")}
+          subtitle={t("apiDocs.subtitle")}
+        />
+      )}
 
-      <div className="flex gap-6 p-6">
+      <div className={embedded ? "flex gap-6 pt-2" : "flex gap-6 p-6"}>
         <aside className="hidden lg:block w-56 shrink-0">
           <div className="sticky top-6 space-y-1">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">

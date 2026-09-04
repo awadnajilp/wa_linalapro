@@ -53,6 +53,15 @@ import {
   AlertTriangle,
   Delete,
   Trash,
+  Paperclip,
+  Upload,
+  Image as ImageIcon,
+  Video as VideoIcon,
+  File as FileIcon,
+  Eye,
+  Loader2,
+  X,
+  Download,
 } from "lucide-react";
 import {
   Dialog,
@@ -86,6 +95,13 @@ interface AdminUser {
   role: string;
 }
 
+interface TicketAttachment {
+  url: string;
+  name: string;
+  type: string;
+  size?: number;
+}
+
 interface Ticket {
   id: string;
   title: string;
@@ -98,6 +114,7 @@ interface Ticket {
   creatorEmail: string;
   assignedToId?: string | null;
   assignedToName?: string | null;
+  attachments?: TicketAttachment[];
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string | null;
@@ -111,6 +128,7 @@ interface Message {
   senderType: "user" | "listener" | "admin";
   senderName: string;
   message: string;
+  attachments?: TicketAttachment[];
   isInternal: boolean;
   createdAt: string;
 }
@@ -129,6 +147,7 @@ export default function SupportTicketsNew() {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [isInternalNote, setIsInternalNote] = useState(false);
+  const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -844,10 +863,70 @@ export default function SupportTicketsNew() {
                       {_demo ? maskContent(selectedTicket.description) : selectedTicket.description}
                     </p>
                   </div>
+
+                  {/* Attachments */}
+                  {selectedTicket.attachments && selectedTicket.attachments.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-gray-100">
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">
+                        Attachments ({selectedTicket.attachments.length})
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {selectedTicket.attachments.map((att, idx) => (
+                          <div
+                            key={idx}
+                            className="group relative border border-gray-200 rounded-lg overflow-hidden bg-gray-50 hover:border-green-400 transition"
+                          >
+                            {att.type === "image" ? (
+                              <div
+                                onClick={() => setPreviewMediaUrl(att.url)}
+                                className="cursor-pointer"
+                              >
+                                <img
+                                  src={att.url}
+                                  alt={att.name}
+                                  className="w-full h-28 object-cover group-hover:scale-105 transition duration-200"
+                                />
+                                <div className="p-2 bg-white flex items-center justify-between">
+                                  <span className="text-xs text-gray-700 truncate max-w-[120px]" title={att.name}>
+                                    {att.name}
+                                  </span>
+                                  <Eye className="w-3.5 h-3.5 text-gray-400 group-hover:text-green-600" />
+                                </div>
+                              </div>
+                            ) : att.type === "video" ? (
+                              <div className="p-2 bg-black flex flex-col items-center justify-center">
+                                <video
+                                  src={att.url}
+                                  controls
+                                  className="max-h-28 w-full rounded"
+                                />
+                                <span className="text-[11px] text-gray-300 truncate w-full mt-1" title={att.name}>
+                                  {att.name}
+                                </span>
+                              </div>
+                            ) : (
+                              <a
+                                href={att.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-3 flex items-center gap-2 hover:bg-gray-100"
+                              >
+                                <FileIcon className="w-5 h-5 text-gray-500 shrink-0" />
+                                <span className="text-xs text-gray-700 truncate flex-1" title={att.name}>
+                                  {att.name}
+                                </span>
+                                <Download className="w-4 h-4 text-gray-400" />
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Conversation */}
-                <div className="p-6 bg-gray-50 max-h-[300px] overflow-y-auto">
+                <div className="p-6 bg-gray-50 max-h-[360px] overflow-y-auto">
                   <h3 className="font-medium text-gray-900 mb-4">
                     Conversation
                   </h3>
@@ -903,15 +982,52 @@ export default function SupportTicketsNew() {
                                 </span>
                               )}
                             </div>
-                            <p
-                              className={`text-sm whitespace-pre-wrap ${
-                                msg.senderType === user?.role && !msg.isInternal
-                                  ? "text-white"
-                                  : "text-gray-900"
-                              }`}
-                            >
-                              {_demo ? maskContent(msg.message) : msg.message}
-                            </p>
+                            {msg.message && (
+                              <p
+                                className={`text-sm whitespace-pre-wrap ${
+                                  msg.senderType === user?.role && !msg.isInternal
+                                    ? "text-white"
+                                    : "text-gray-900"
+                                }`}
+                              >
+                                {_demo ? maskContent(msg.message) : msg.message}
+                              </p>
+                            )}
+
+                            {/* Message Attachments */}
+                            {msg.attachments && msg.attachments.length > 0 && (
+                              <div className="mt-2 space-y-1.5">
+                                {msg.attachments.map((att, attIdx) => (
+                                  <div key={attIdx} className="rounded overflow-hidden">
+                                    {att.type === "image" ? (
+                                      <img
+                                        src={att.url}
+                                        alt={att.name}
+                                        onClick={() => setPreviewMediaUrl(att.url)}
+                                        className="max-h-40 rounded cursor-pointer border hover:opacity-95"
+                                      />
+                                    ) : att.type === "video" ? (
+                                      <video
+                                        src={att.url}
+                                        controls
+                                        className="max-h-40 w-full rounded"
+                                      />
+                                    ) : (
+                                      <a
+                                        href={att.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-xs underline flex items-center gap-1 mt-1"
+                                      >
+                                        <FileIcon className="w-3.5 h-3.5" />
+                                        {att.name}
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
                             <div
                               className={`text-xs mt-1 ${
                                 msg.senderType === user?.role && !msg.isInternal
@@ -1083,6 +1199,29 @@ export default function SupportTicketsNew() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Media Lightbox Preview Modal */}
+      {previewMediaUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewMediaUrl(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh]">
+            <button
+              onClick={() => setPreviewMediaUrl(null)}
+              className="absolute -top-10 right-0 text-white hover:text-gray-300 p-1"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={previewMediaUrl}
+              alt="Preview"
+              className="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

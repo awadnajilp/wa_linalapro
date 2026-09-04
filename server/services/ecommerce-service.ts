@@ -12,6 +12,7 @@ import axios from "axios";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import { VoiceManager } from "./voice";
+import { AiBillingService } from "./ai-billing-service";
 
 export class EcommerceService {
   /**
@@ -286,7 +287,7 @@ export class EcommerceService {
       }
 
       // Check interactive button clicks FIRST (always high priority)
-      // 1. Interactive button replies (Buy Now or Ask AI)
+      // 1. Interactive button replies (Buy Now, Product Info, or Ask AI)
       if (message.interactive?.type === "button_reply") {
         const replyId = message.interactive.button_reply.id;
         if (replyId && replyId.startsWith("buy_")) {
@@ -299,6 +300,18 @@ export class EcommerceService {
 
           if (product) {
             await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, product);
+            return true;
+          }
+        } else if (replyId && replyId.startsWith("info_")) {
+          const productId = replyId.replace("info_", "");
+          const [product] = await db
+            .select()
+            .from(schema.ecommerceProducts)
+            .where(eq(schema.ecommerceProducts.id, productId))
+            .limit(1);
+
+          if (product) {
+            await this.sendProductDetailsInfo(channelRow, config, conversationId, contactPhone, product);
             return true;
           }
         } else if (replyId && replyId.startsWith("ai_ask_")) {
@@ -380,8 +393,9 @@ export class EcommerceService {
         // If it's a waiting_for_product_selection session
         if (session.currentStep === "waiting_for_product_selection") {
           if (session.productId) {
-            const isBuy = cleanContent === "1" || cleanContent.includes("buy");
-            const isAi = cleanContent === "2" || cleanContent === "ai" || cleanContent.includes("ask") || cleanContent.includes("learn") || cleanContent.includes("more");
+            const isBuy = cleanContent === "1" || cleanContent.includes("buy") || cleanContent.includes("order") || cleanContent === "checkout";
+            const isInfo = cleanContent === "2" || cleanContent.includes("info") || cleanContent.includes("detail") || cleanContent.includes("more");
+            const isAi = cleanContent === "3" || cleanContent === "ai" || cleanContent.includes("ask");
 
             if (isBuy) {
               const [selectedProd] = await db
@@ -393,6 +407,16 @@ export class EcommerceService {
                 await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, selectedProd);
                 return true;
               }
+            } else if (isInfo) {
+              const [selectedProd] = await db
+                .select()
+                .from(schema.ecommerceProducts)
+                .where(eq(schema.ecommerceProducts.id, session.productId))
+                .limit(1);
+              if (selectedProd) {
+                await this.sendProductDetailsInfo(channelRow, config, conversationId, contactPhone, selectedProd);
+                return true;
+              }
             } else if (isAi && config.aiEnabled) {
               const [selectedProd] = await db
                 .select()
@@ -400,23 +424,59 @@ export class EcommerceService {
                 .where(eq(schema.ecommerceProducts.id, session.productId))
                 .limit(1);
               if (selectedProd) {
-                await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
-                await db.insert(schema.ecommerceSessions).values({
-                  conversationId,
-                  productId: selectedProd.id,
-                  quantity: 1,
-                  currentStep: "ai_chat",
-                  customerData: {
-                    aiStartTime: new Date().toISOString(),
-                    aiLastMessageTime: new Date().toISOString()
-                  }
-                });
+                await db
+                  .update(schema.ecommerceSessions)
+                  .set({
+                    currentStep: "ai_chat",
+                    customerData: {
+                      aiStartTime: new Date().toISOString(),
+                      aiLastMessageTime: new Date().toISOString()
+                    },
+                    updatedAt: new Date()
+                  })
+                  .where(eq(schema.ecommerceSessions.id, session.id));
                 await waApi.sendTextMessage(contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${selectedProd.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
                 return true;
               }
             }
 
-            await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+            // If customer typed a custom message/question and AI is enabled, transition to AI chat and answer it!
+            if (config.aiEnabled) {
+              const [selectedProd] = await db
+                .select()
+                .from(schema.ecommerceProducts)
+                .where(eq(schema.ecommerceProducts.id, session.productId))
+                .limit(1);
+              if (selectedProd) {
+                await db
+                  .update(schema.ecommerceSessions)
+                  .set({
+                    currentStep: "ai_chat",
+                    customerData: {
+                      aiStartTime: new Date().toISOString(),
+                      aiLastMessageTime: new Date().toISOString()
+                    },
+                    updatedAt: new Date()
+                  })
+                  .where(eq(schema.ecommerceSessions.id, session.id));
+                session.currentStep = "ai_chat";
+                await this.processSessionInput(channelRow, config, session, (content || "").trim(), message);
+                return true;
+              }
+            }
+
+            // If AI is not enabled and option wasn't recognized, re-prompt the customer without deleting the session
+            const [selectedProd] = await db
+              .select()
+              .from(schema.ecommerceProducts)
+              .where(eq(schema.ecommerceProducts.id, session.productId))
+              .limit(1);
+            const prodName = selectedProd?.name || "Product";
+            await waApi.sendTextMessage(
+              contactPhone,
+              `⚠️ Please choose an option for *${prodName}*:\n\nReply *1* to Buy Now\nReply *2* for Full Product Details\nOr reply *cancel* to exit.`
+            );
+            return true;
           } else {
             const isNumber = /^\d+$/.test(cleanContent);
             if (isNumber) {
@@ -440,23 +500,26 @@ export class EcommerceService {
                 .where(eq(schema.ecommerceProducts.tenantId, tenantId));
               if (allActiveProducts.length > 0 && config.aiEnabled) {
                 const firstProd = allActiveProducts[0];
-                await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
-                await db.insert(schema.ecommerceSessions).values({
-                  conversationId,
-                  productId: firstProd.id,
-                  quantity: 1,
-                  currentStep: "ai_chat",
-                  customerData: {
-                    aiStartTime: new Date().toISOString(),
-                    aiLastMessageTime: new Date().toISOString()
-                  }
-                });
+                await db
+                  .update(schema.ecommerceSessions)
+                  .set({
+                    productId: firstProd.id,
+                    currentStep: "ai_chat",
+                    customerData: {
+                      aiStartTime: new Date().toISOString(),
+                      aiLastMessageTime: new Date().toISOString()
+                    },
+                    updatedAt: new Date()
+                  })
+                  .where(eq(schema.ecommerceSessions.id, session.id));
                 await waApi.sendTextMessage(contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${firstProd.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
                 return true;
               }
             }
 
-            await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+            // If invalid catalog choice, keep session and re-prompt
+            await waApi.sendTextMessage(contactPhone, "⚠️ Please reply with the product number to purchase (e.g. *1*), or reply *cancel* to exit.");
+            return true;
           }
         } else {
           // Process active session response (checkout steps, ai chat)
@@ -532,11 +595,14 @@ export class EcommerceService {
         photos = [];
       }
 
-      const descText = `*${product.name}*\nPrice: ${(product as any).currency || 'INR'} ${product.price}\n\n${product.description || ""}`;
+      const rawDesc = product.description || "";
+      const safeDesc = rawDesc.length > 800 ? (rawDesc.substring(0, 800) + "...") : rawDesc;
+      const currency = (product as any).currency || config.currency || 'INR';
+      const descText = `*${product.name}*\nPrice: ${currency} ${product.price}\n\n${safeDesc}`;
 
       if (isQr) {
         // For QR code: send photos then details text containing numerical option
-        let promptMsg = `${descText}\n\nReply with *${i + 1}* to Buy Now!`;
+        let promptMsg = `${descText}\n\nReply with *${i + 1}* to Buy Now!\nReply with *info* for Full Product Details`;
         if (config.aiEnabled && config.aiAskButtonEnabled) {
           promptMsg += `\nOr reply with *AI* to ask questions about this product.`;
         }
@@ -558,9 +624,12 @@ export class EcommerceService {
           await waApi.sendTextMessage(to, promptMsg);
         }
       } else {
-        // For Cloud API: send intermediate photos, and send last image / text as interactive button "Buy Now" / "Ask AI"
-        const buttons = [{ id: `buy_${product.id}`, title: "Buy Now" }];
-        if (config.aiEnabled && config.aiAskButtonEnabled) {
+        // For Cloud API: send intermediate photos, and send last image / text as interactive button "Buy Now" / "Product Info" / "Ask AI"
+        const buttons: { id: string; title: string }[] = [
+          { id: `buy_${product.id}`, title: "Buy Now" },
+          { id: `info_${product.id}`, title: "Product Info" }
+        ];
+        if (config.aiEnabled && config.aiAskButtonEnabled && buttons.length < 3) {
           buttons.push({ id: `ai_ask_${product.id}`, title: "Ask AI" });
         }
 
@@ -603,6 +672,66 @@ export class EcommerceService {
         ]
       );
     }
+  }
+
+  /**
+   * Send detailed/long product description and navigation actions
+   */
+  private static async sendProductDetailsInfo(
+    channelRow: any,
+    config: any,
+    conversationId: string,
+    contactPhone: string,
+    product: any
+  ) {
+    const waApi = new WhatsAppApiService(channelRow);
+    const isQr = channelRow.connectionMethod === "qr_code";
+    const showAiButton = config.aiEnabled && config.aiAskButtonEnabled;
+    const currency = (product as any).currency || config.currency || 'INR';
+
+    const fullInfo = (product.longDescription && product.longDescription.trim().length > 0)
+      ? product.longDescription.trim()
+      : (product.description || "No additional description available.");
+
+    const fullText = `📖 *${product.name} — Product Details*\nPrice: ${currency} ${product.price}\n\n${fullInfo}`;
+
+    // Send in safe chunks if > 3500 chars
+    const chunkSize = 3500;
+    for (let i = 0; i < fullText.length; i += chunkSize) {
+      const chunk = fullText.substring(i, i + chunkSize);
+      await waApi.sendTextMessage(contactPhone, chunk);
+    }
+
+    // Send action buttons / options to order or ask AI
+    if (isQr) {
+      let navMsg = `👉 *Ready to place an order?*\n\nReply *1* to Buy Now!`;
+      if (showAiButton) {
+        navMsg += `\nReply *2* to Ask AI Assistant about this product.`;
+      }
+      await waApi.sendTextMessage(contactPhone, navMsg);
+    } else {
+      const navButtons = [{ id: `buy_${product.id}`, title: "Order Now" }];
+      if (showAiButton) {
+        navButtons.push({ id: `ai_ask_${product.id}`, title: "Ask AI" });
+      }
+      await this.sendCloudApiButtonMessage(
+        channelRow,
+        contactPhone,
+        `Ready to order *${product.name}* or need assistance?`,
+        null,
+        navButtons
+      );
+    }
+
+    // Refresh session to waiting_for_product_selection
+    await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+    await db.insert(schema.ecommerceSessions).values({
+      conversationId,
+      productId: product.id,
+      quantity: 1,
+      currentStep: "waiting_for_product_selection",
+      customerData: {}
+    });
   }
 
   /**
@@ -662,18 +791,24 @@ export class EcommerceService {
 
     const isQr = channelRow.connectionMethod === "qr_code";
     const showAiButton = config.aiEnabled && config.aiAskButtonEnabled;
-    const descText = `*${product.name}*\nPrice: ${(product as any).currency || 'INR'} ${product.price}\n\n${product.description || ""}`;
+    const rawDesc = product.description || "";
+    const safeDesc = rawDesc.length > 800 ? (rawDesc.substring(0, 800) + "...") : rawDesc;
+    const currency = (product as any).currency || config.currency || 'INR';
+    const descText = `*${product.name}*\nPrice: ${currency} ${product.price}\n\n${safeDesc}`;
 
     if (isQr) {
-      let promptMsg = `${descText}\n\nReply with *1* to Buy Now!`;
+      let promptMsg = `${descText}\n\nReply *1* to Buy Now!\nReply *2* for Product Info & Details`;
       if (showAiButton) {
-        promptMsg += `\nReply with *2* to Learn More!`;
+        promptMsg += `\nReply *3* to Ask AI Assistant!`;
       }
       await waApi.sendTextMessage(contactPhone, promptMsg);
     } else {
-      const buttons = [{ id: `buy_${product.id}`, title: "Buy Now" }];
-      if (showAiButton) {
-        buttons.push({ id: `ai_ask_${product.id}`, title: "Learn More" });
+      const buttons: { id: string; title: string }[] = [
+        { id: `buy_${product.id}`, title: "Buy Now" },
+        { id: `info_${product.id}`, title: "Product Info" }
+      ];
+      if (showAiButton && buttons.length < 3) {
+        buttons.push({ id: `ai_ask_${product.id}`, title: "Ask AI" });
       }
       await this.sendCloudApiButtonMessage(channelRow, contactPhone, descText, null, buttons);
     }
@@ -834,24 +969,70 @@ export class EcommerceService {
         return;
       }
 
-      // Determine the base system prompt.
-      // Use config.aiSystemPrompt if configured; otherwise use the default prompt.
-      const defaultSystemPrompt = `You are a helpful customer sales AI assistant for this store.
+      // Determine delivery fee information text for RAG
+      let deliveryInfoText = "Free Delivery";
+      if (config.deliveryFeeType === "flat") {
+        const flatFee = parseFloat(config.flatDeliveryFee || "0");
+        deliveryInfoText = flatFee > 0 ? `${product.currency || "INR"} ${flatFee.toFixed(2)} (Flat delivery fee across India)` : "Free Delivery";
+      } else if (config.deliveryFeeType === "state") {
+        const stateFees = config.stateDeliveryFees || {};
+        const stateList = Object.entries(stateFees).map(([st, fee]) => `${st}: ${product.currency || "INR"} ${fee}`).join(", ");
+        deliveryInfoText = `State-wise delivery rates (Default: ${product.currency || "INR"} ${config.defaultDeliveryFee || "0"}${stateList ? `; ${stateList}` : ""})`;
+      }
+
+      // Determine available payment methods text for RAG
+      const availablePayments: string[] = [];
+      availablePayments.push(config.labelCod || "Cash on Delivery (COD)");
+      if (config.upiId) availablePayments.push(config.labelUpiDirect || "UPI Direct Mobile Pay");
+      if (config.qrCodeUrl) availablePayments.push(config.labelQrPay || "UPI (Pay via QR Code)");
+      if ((config.razorpayKeyId && config.razorpayKeySecret) || (config.instamojoApiKey && config.instamojoAuthToken)) {
+        availablePayments.push(config.labelGateway || "Online Payment Gateway");
+      }
+
+      // Fetch other available products in the store for catalog awareness
+      const otherProducts = await db
+        .select({ name: schema.ecommerceProducts.name, price: schema.ecommerceProducts.price, currency: schema.ecommerceProducts.currency })
+        .from(schema.ecommerceProducts)
+        .where(eq(schema.ecommerceProducts.tenantId, config.tenantId))
+        .limit(10);
+      const otherProductsSummary = otherProducts
+        .map(p => `- ${p.name} (${p.currency || "INR"} ${p.price})`)
+        .join("\n");
+
+      // Build comprehensive RAG Store & Product Context
+      const productPrice = `${product.currency || "INR"} ${product.price}`;
+      const shortDesc = product.description || "N/A";
+      const longDesc = product.longDescription || product.description || "N/A";
+
+      const storeInfoSection = `
+--- STORE & SHIPPING KNOWLEDGE ---
+• Store Name: ${config.storeName || "Official Store"}
+• Store Address / Location: ${config.storeAddress || "Available online across India"}
+• Store Website: ${config.storeWebsite || "N/A"}
+• Delivery / Shipping: ${deliveryInfoText}
+• Accepted Payment Modes: ${availablePayments.join(", ")}
+${otherProductsSummary ? `• Other Products in Store:\n${otherProductsSummary}` : ""}
+`;
+
+      const defaultSystemPrompt = `You are a knowledgeable, friendly customer sales AI assistant for this store.
 You are chatting with a customer regarding this product:
-- Name: {product_name}
+- Product Name: {product_name}
 - Price: {product_price}
-- Description: {product_description}
+- Overview / Short Description: {product_description}
+- Detailed Product Information & Specifications: {product_long_description}
 
-CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (under 150 words). Always try to close the sale by encouraging them to buy and proceed to checkout once their queries are addressed. Inform the user they can type 'checkout' or '1' at any time to buy!`;
+${storeInfoSection}
 
-      const rawPrompt = config.aiSystemPrompt || defaultSystemPrompt;
+CRITICAL DIRECTIVE: Use the complete product specifications, description, store delivery details, and accepted payment methods above to accurately answer any customer inquiries. Keep responses concise, natural, and conversational for WhatsApp (under 120 words). Always encourage the customer to purchase when their doubts are answered, and remind them they can type 'checkout' or '1' at any time to order!`;
+
+      const rawPrompt = config.aiSystemPrompt ? `${config.aiSystemPrompt}\n\n${storeInfoSection}` : defaultSystemPrompt;
 
       // Replace placeholders
-      const productPrice = `${product.currency || "INR"} ${product.price}`;
       const basePrompt = rawPrompt
         .replace(/{product_name}/g, product.name)
         .replace(/{product_price}/g, productPrice)
-        .replace(/{product_description}/g, product.description || "N/A");
+        .replace(/{product_description}/g, shortDesc)
+        .replace(/{product_long_description}/g, longDesc);
 
       // 1. Fetch channel-specific active AI Settings
       let aiSetting = await db
@@ -869,8 +1050,22 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
       }
 
       const activeAI = aiSetting?.[0];
+      const apiKeySource = (config as any).apiKeySource || "own_key";
 
-      // 2. Fetch owner user config to get Groq/Sarvam/ElevenLabs keys
+      // 2. Resolve credentials (platform admin vs tenant own keys)
+      const resolvedCreds = await AiBillingService.resolveAiCredentials(config.tenantId, apiKeySource);
+
+      // If using platform admin key, verify tenant wallet has positive balance
+      if (apiKeySource === "admin_key") {
+        const walletStatus = await AiBillingService.checkTenantWallet(config.tenantId);
+        if (!walletStatus.hasBalance) {
+          console.warn(`[Ecommerce AI] Tenant ${config.tenantId} has zero or negative wallet balance (${walletStatus.balance} ${walletStatus.currency}). Pausing AI response.`);
+          await waApi.sendTextMessage(to, "AI Assistant is currently unavailable due to insufficient wallet balance. Please reply with 'checkout' or select a product to buy directly.");
+          return;
+        }
+      }
+
+      // 3. Fetch owner user config
       const [ownerUser] = await db
         .select()
         .from(schema.users)
@@ -882,38 +1077,38 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
       let endpoint = activeAI?.endpoint || "";
       let model = activeAI?.model || "";
 
-      // If activeAI provider is Groq/Sarvam but apiKey is missing/empty, load it from the owner user or env
+      // Resolve key and model from resolvedCreds
       if (provider === "groq") {
-        apiKey = apiKey || ownerUser?.groqApiKey || process.env.GROQ_API_KEY || "";
+        apiKey = apiKey || resolvedCreds.groqApiKey || "";
         endpoint = endpoint || "https://api.groq.com/openai/v1";
         model = model || "llama-3.3-70b-versatile";
       } else if (provider === "sarvam") {
-        apiKey = apiKey || ownerUser?.sarvamApiKey || process.env.SARVAM_API_KEY || "";
+        apiKey = apiKey || resolvedCreds.sarvamApiKey || "";
         endpoint = endpoint || "https://api.sarvam.ai/v1";
         model = model || "sarvam-105b-conversations";
       } else {
-        apiKey = apiKey || process.env.OPENAI_API_KEY || "";
+        apiKey = apiKey || resolvedCreds.openaiApiKey || "";
         endpoint = endpoint || "https://api.openai.com/v1";
         model = model || "gpt-4o-mini";
       }
 
-      // If apiKey is still missing, fallback to owner user config priorities (e.g. sample awadnajilp key)
+      // Fallback if still empty
       if (!apiKey) {
-        if (ownerUser?.groqApiKey) {
+        if (resolvedCreds.groqApiKey) {
           provider = "groq";
-          apiKey = ownerUser.groqApiKey;
+          apiKey = resolvedCreds.groqApiKey;
           endpoint = "https://api.groq.com/openai/v1";
           model = "llama-3.3-70b-versatile";
-        } else if (ownerUser?.sarvamApiKey) {
-          provider = "sarvam";
-          apiKey = ownerUser.sarvamApiKey;
-          endpoint = "https://api.sarvam.ai/v1";
-          model = "sarvam-105b-conversations";
-        } else if (process.env.OPENAI_API_KEY) {
+        } else if (resolvedCreds.openaiApiKey) {
           provider = "openai";
-          apiKey = process.env.OPENAI_API_KEY;
+          apiKey = resolvedCreds.openaiApiKey;
           endpoint = "https://api.openai.com/v1";
           model = "gpt-4o-mini";
+        } else if (resolvedCreds.sarvamApiKey) {
+          provider = "sarvam";
+          apiKey = resolvedCreds.sarvamApiKey;
+          endpoint = "https://api.sarvam.ai/v1";
+          model = "sarvam-105b-conversations";
         }
       }
 
@@ -923,22 +1118,100 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
       }
 
       try {
-        console.log(`🤖 [Ecommerce AI] Invoking LLM via ${provider} (${model}) at ${endpoint}...`);
+        console.log(`🤖 [Ecommerce AI] Invoking LLM via ${provider} (${model}) [Source: ${apiKeySource}] at ${endpoint}...`);
         const aiClient = new OpenAI({
           apiKey,
           baseURL: endpoint,
         });
         
-        const isIncomingAudio = message?.type === "audio" || (message?.audio && message?.type === "audio");
+        const isIncomingAudio = message?.type === "audio" || message?.type === "voice" || Boolean(message?.audio);
         const messages: any[] = [
           { role: "system", content: basePrompt }
         ];
 
+        // 3. Resolve Voice Profile dynamically (needed for both LLM prompt language steering and TTS synthesis)
+        let voiceProfileId = config?.voiceProfileId || activeAI?.voiceProfileId || channelRow.inboxAiSettings?.voiceProfileId;
+        let voiceProfile: any = null;
+        if (voiceProfileId) {
+          const [found] = await db
+            .select()
+            .from(schema.voiceProfiles)
+            .where(eq(schema.voiceProfiles.id, voiceProfileId))
+            .limit(1);
+          voiceProfile = found;
+        }
+        if (!voiceProfile) {
+          voiceProfile = await db.query.voiceProfiles.findFirst();
+        }
+
+        const isAutoDetect = config?.aiVoiceLanguageMode === "auto";
+        const targetLangCode = voiceProfile?.languageCode || "ml-IN";
+        const langMap: Record<string, string> = {
+          "ml-IN": "Malayalam",
+          "hi-IN": "Hindi",
+          "ta-IN": "Tamil",
+          "te-IN": "Telugu",
+          "kn-IN": "Kannada",
+          "bn-IN": "Bengali",
+          "mr-IN": "Marathi",
+          "gu-IN": "Gujarati",
+          "pa-IN": "Punjabi",
+          "ar-SA": "Arabic",
+          "en-IN": "English",
+          "en-US": "English"
+        };
+        const targetLangName = langMap[targetLangCode] || targetLangCode;
+
         if (isIncomingAudio) {
-          messages.push({
-            role: "system",
-            content: "CRITICAL: The customer spoke to you via a WhatsApp voice note. You MUST respond in the EXACT same language they spoke to you in (e.g. if they spoke in Hindi, respond in Hindi. If they spoke in Arabic, respond in Arabic. If they spoke in French, respond in French). Keep the response conversational and under 80 words."
-          });
+          const ttsProvider = voiceProfile?.provider || "sarvam";
+
+          if (config.aiVoiceEnabled) {
+            if (ttsProvider === "openai") {
+              // OpenAI TTS does not support Indic Unicode scripts directly; it needs phonetic Latin script (Manglish / Hinglish)
+              if (targetLangCode.startsWith("ml") || isAutoDetect) {
+                messages.push({
+                  role: "system",
+                  content: `CRITICAL INSTRUCTION FOR VOICE NOTE: The customer sent a WhatsApp audio note in Malayalam (or regional language). The Text-to-Speech voice engine is OpenAI TTS which ONLY pronounces Latin/English alphabet. You MUST write your response in fluent MANGLISH (Malayalam spoken words written using English letters, for example: "ABC shoe-nte price 499 rupees aanu. Ningalkku ethu vaangan '1' athallekil 'checkout' ennu type cheyyaam."). NEVER use Malayalam script (മലയാളം അക്ഷരങ്ങൾ) because OpenAI TTS will sound like gibberish. Keep the response conversational and under 50 words.`
+                });
+              } else if (targetLangCode.startsWith("hi")) {
+                messages.push({
+                  role: "system",
+                  content: `CRITICAL INSTRUCTION FOR VOICE NOTE: Formulate your response in fluent HINGLISH (Hindi words written using English letters, e.g. "ABC shoe ka price 499 rupees hai. Khareedne ke liye '1' type karein."). Keep the response concise and under 50 words.`
+                });
+              } else {
+                messages.push({
+                  role: "system",
+                  content: `CRITICAL INSTRUCTION FOR VOICE NOTE: Formulate your response in clear English for voice output. Keep the response concise and under 50 words.`
+                });
+              }
+            } else {
+              // Sarvam or ElevenLabs natively supports native Indian Unicode scripts
+              if (isAutoDetect) {
+                messages.push({
+                  role: "system",
+                  content: `CRITICAL INSTRUCTION: The customer sent a WhatsApp audio/voice note. You MUST detect the language they spoke in (such as Malayalam, Hindi, Arabic, English, Tamil, etc.) and write your response in that EXACT same language and native script (e.g. if Malayalam, write strictly in Malayalam script മലയാളം, never Bengali or Hindi) so that Sarvam AI can speak in their native tongue. Keep the response conversational, helpful, and under 60 words.`
+                });
+              } else {
+                messages.push({
+                  role: "system",
+                  content: `CRITICAL INSTRUCTION: The active voice language for this store is configured as ${targetLangName} (${targetLangCode}). You MUST formulate your entire response in ${targetLangName} using proper ${targetLangName} script (e.g. if Malayalam, use Malayalam script മലയാളം, never Bengali or Hindi) so that Sarvam AI voice engine can speak in ${targetLangName}. Keep the response conversational, helpful, and under 60 words.`
+                });
+              }
+            }
+          } else {
+            // Voice response is disabled: reply in TEXT in the customer's native script
+            if (isAutoDetect) {
+              messages.push({
+                role: "system",
+                content: `CRITICAL INSTRUCTION: The customer asked a question via a WhatsApp voice note. Formulate your answer in TEXT format in the EXACT language and script they asked in (e.g. if Malayalam, reply in Malayalam text മലയാളം; if in Hindi, reply in Hindi text, etc.). Do not hallucinate or switch to unrelated languages like Bengali. Keep the response concise, conversational, and under 80 words.`
+              });
+            } else {
+              messages.push({
+                role: "system",
+                content: `CRITICAL INSTRUCTION: The customer asked a question via a WhatsApp voice note. The store language is ${targetLangName} (${targetLangCode}). Formulate your answer in TEXT format in ${targetLangName} (using ${targetLangName} script). Keep the response concise, conversational, and under 80 words.`
+              });
+            }
+          }
         }
 
         messages.push({ role: "user", content: input });
@@ -951,55 +1224,99 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
         });
         
         const aiResponse = completion.choices[0]?.message?.content || "Sorry, I am having trouble answering right now.";
+
+        // Record & Bill LLM Usage
+        const promptTokens = completion.usage?.prompt_tokens || Math.ceil(basePrompt.length / 4);
+        const completionTokens = completion.usage?.completion_tokens || Math.ceil(aiResponse.length / 4);
+        AiBillingService.recordAndBillUsage({
+          tenantId: config.tenantId,
+          channelId: channelRow.id,
+          conversationId: session?.conversationId || null,
+          source: "ecommerce",
+          serviceType: "llm",
+          provider,
+          model,
+          inputUnits: promptTokens,
+          outputUnits: completionTokens,
+          apiKeySource,
+          metadata: { to, role: "customer" }
+        }).catch((err) => console.error("[Ecommerce AI Billing Error - LLM]", err.message));
         
-        // 3. Audio note response check (if the customer's incoming message was an audio note and config has aiVoiceEnabled true)
+        // 4. Audio note response check (if the customer's incoming message was an audio note and config has aiVoiceEnabled true)
         let voiceMediaUrl: string | null = null;
 
         if (isIncomingAudio && config.aiVoiceEnabled === true) {
           try {
-            // Find a voice profile for synthesis dynamically
-            let voiceProfileId = activeAI?.voiceProfileId || channelRow.inboxAiSettings?.voiceProfileId;
-            let voiceProfile = null;
-            if (voiceProfileId) {
-              const [found] = await db
-                .select()
-                .from(schema.voiceProfiles)
-                .where(eq(schema.voiceProfiles.id, voiceProfileId))
-                .limit(1);
-              voiceProfile = found;
-            }
-            if (!voiceProfile) {
-              voiceProfile = await db.query.voiceProfiles.findFirst();
-            }
+            const primaryProvider = voiceProfile?.provider || "sarvam";
 
-            if (voiceProfile) {
-              console.log(`🎙️ [Ecommerce AI] Synthesizing speech via ${voiceProfile.provider}...`);
-              const pInstance = VoiceManager.getProvider(voiceProfile.provider);
-              
-              let synthesizeKey = "";
-              if (voiceProfile.provider === "elevenlabs") {
-                synthesizeKey = ownerUser?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || "";
-              } else if (voiceProfile.provider === "sarvam") {
-                synthesizeKey = ownerUser?.sarvamApiKey || process.env.SARVAM_API_KEY || "";
-              } else if (voiceProfile.provider === "groq") {
-                synthesizeKey = ownerUser?.groqApiKey || process.env.GROQ_API_KEY || "";
-              } else if (voiceProfile.provider === "openai") {
-                synthesizeKey = ownerUser?.openaiApiKey || activeAI?.apiKey || process.env.OPENAI_API_KEY || "";
+            const trySynthesize = async (provName: string, vId?: string, lang?: string) => {
+              try {
+                let sKey = "";
+                if (provName === "elevenlabs") {
+                  sKey = resolvedCreds.elevenlabsApiKey || ownerUser?.elevenlabsApiKey || "";
+                } else if (provName === "sarvam") {
+                  sKey = resolvedCreds.sarvamApiKey || ownerUser?.sarvamApiKey || "";
+                } else if (provName === "groq") {
+                  sKey = resolvedCreds.groqApiKey || ownerUser?.groqApiKey || "";
+                } else if (provName === "openai") {
+                  sKey = resolvedCreds.openaiApiKey || ownerUser?.openaiApiKey || "";
+                }
+                if (!sKey) return null;
+
+                const defaultSpeaker = provName === "sarvam" ? (voiceProfile?.voiceId || "rahul") : (provName === "openai" ? "alloy" : "diana");
+                const pInstance = VoiceManager.getProvider(provName);
+                console.log(`🎙️ [Ecommerce AI] Synthesizing speech via ${provName} (lang: ${lang || targetLangCode}, speaker: ${vId || defaultSpeaker}) [Source: ${apiKeySource}]...`);
+                const audioBufferRes = await pInstance.synthesize(
+                  aiResponse,
+                  vId || defaultSpeaker,
+                  lang || targetLangCode,
+                  { apiKey: sKey }
+                );
+
+                if (audioBufferRes) {
+                  // Record & Bill TTS Usage
+                  AiBillingService.recordAndBillUsage({
+                    tenantId: config.tenantId,
+                    channelId: channelRow.id,
+                    conversationId: session?.conversationId || null,
+                    source: "ecommerce",
+                    serviceType: "tts",
+                    provider: provName,
+                    model: vId || defaultSpeaker,
+                    inputUnits: aiResponse.length,
+                    outputUnits: 0,
+                    apiKeySource,
+                    metadata: { to, lang: lang || targetLangCode }
+                  }).catch((err) => console.error("[Ecommerce AI Billing Error - TTS]", err.message));
+                }
+
+                return audioBufferRes;
+              } catch (e: any) {
+                console.warn(`[Ecommerce AI] Speech synthesis via ${provName} failed:`, e.message);
+                return null;
               }
+            };
 
-              const defaultSpeaker = voiceProfile.provider === "sarvam" ? "rahul" : (voiceProfile.provider === "openai" ? "alloy" : "diana");
+            // 1. Try primary provider
+            let audioBuffer = await trySynthesize(primaryProvider, voiceProfile?.voiceId, targetLangCode);
 
-              const audioBuffer = await pInstance.synthesize(
-                aiResponse,
-                voiceProfile.voiceId || defaultSpeaker,
-                voiceProfile.languageCode || "en-IN",
-                { apiKey: synthesizeKey }
-              );
+            // 2. Fallbacks if primary provider failed
+            if (!audioBuffer && primaryProvider !== "openai") {
+              console.log("[Ecommerce AI] Attempting OpenAI TTS fallback...");
+              audioBuffer = await trySynthesize("openai", "alloy", targetLangCode);
+            }
+            if (!audioBuffer && primaryProvider !== "sarvam") {
+              console.log("[Ecommerce AI] Attempting Sarvam TTS fallback...");
+              audioBuffer = await trySynthesize("sarvam", "rahul", targetLangCode);
+            }
+            if (!audioBuffer && primaryProvider !== "groq") {
+              console.log("[Ecommerce AI] Attempting Groq TTS fallback...");
+              audioBuffer = await trySynthesize("groq", "diana", targetLangCode);
+            }
 
-              if (audioBuffer) {
-                const filename = `ecommerce_ai_voice_${Date.now()}.ogg`;
-                voiceMediaUrl = await this.uploadAudioBufferHelper(audioBuffer, filename, "audio/ogg");
-              }
+            if (audioBuffer) {
+              const filename = `ecommerce_ai_voice_${Date.now()}.ogg`;
+              voiceMediaUrl = await this.uploadAudioBufferHelper(audioBuffer, filename, "audio/ogg");
             }
           } catch (vErr: any) {
             console.error("❌ [Ecommerce AI] Voice synthesis failed:", vErr.message);
@@ -1088,7 +1405,7 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
 
         await waApi.sendTextMessage(to, nextField.text);
       } else {
-        // All fields collected, ask for payment method
+        // All fields collected -> Show Order Review & Confirmation step
         if (customerData.deliveryFee === undefined) {
           const pincodeVal = customerData.pin || customerData.pincode || customerData.zip || customerData.zipcode;
           if (pincodeVal) {
@@ -1104,6 +1421,81 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
           .update(schema.ecommerceSessions)
           .set({
             customerData,
+            currentStep: "waiting_for_checkout_confirmation"
+          })
+          .where(eq(schema.ecommerceSessions.id, session.id));
+
+        const [product] = await db
+          .select()
+          .from(schema.ecommerceProducts)
+          .where(eq(schema.ecommerceProducts.id, session.productId))
+          .limit(1);
+
+        const currency = (product as any)?.currency || config.currency || "INR";
+        const basePrice = parseFloat(product?.price || "0");
+        const qty = session.quantity || 1;
+        const subtotal = basePrice * qty;
+        const delFee = parseFloat(customerData.deliveryFee || "0");
+        const grandTotal = subtotal + delFee;
+
+        let fieldSummary = "";
+        for (const f of fields) {
+          const val = customerData[f.variable] || "N/A";
+          fieldSummary += `• *${this.getFieldLabel(f.variable)}:* ${val}\n`;
+        }
+
+        const reviewText = `📋 *Please Review & Confirm Your Order Details:*\n\n` +
+          `🛍️ *Product:* ${product?.name || "Item"}\n` +
+          `🔢 *Quantity:* ${qty}\n` +
+          `💵 *Item Price:* ${currency} ${basePrice.toFixed(2)} (Total: ${currency} ${subtotal.toFixed(2)})\n` +
+          `🚚 *Delivery Fee:* ${currency} ${delFee.toFixed(2)}\n` +
+          `💰 *Total Payable:* ${currency} ${grandTotal.toFixed(2)}\n\n` +
+          `📍 *Shipping Details:*\n${fieldSummary}\n` +
+          `Please confirm if your information is correct:`;
+
+        if (channelRow.connectionMethod === "qr_code") {
+          const qrReviewMsg = `${reviewText}\n\nReply *1* to Confirm Order\nReply *2* to Edit Details`;
+          await waApi.sendTextMessage(to, qrReviewMsg);
+        } else {
+          const confirmButtons = [
+            { id: "confirm_checkout", title: "Confirm Order" },
+            { id: "edit_checkout", title: "Edit Details" }
+          ];
+          await this.sendCloudApiButtonMessage(channelRow, to, reviewText, null, confirmButtons);
+        }
+      }
+      return;
+    }
+
+    // 2.5 STEP: WAITING FOR CHECKOUT CONFIRMATION (CONFIRM or EDIT)
+    if (session.currentStep === "waiting_for_checkout_confirmation") {
+      const isConfirm = cleanInput === "1" || cleanInput === "confirm" || cleanInput.includes("confirm") || cleanInput === "yes" || message.interactive?.button_reply?.id === "confirm_checkout" || (message as any)?.button?.payload === "confirm_checkout";
+      const isEdit = cleanInput === "2" || cleanInput === "edit" || cleanInput.includes("edit") || cleanInput === "change" || message.interactive?.button_reply?.id === "edit_checkout" || (message as any)?.button?.payload === "edit_checkout";
+
+      if (isEdit) {
+        // Loop back to edit fields again one-by-one from the beginning
+        const resetCustomerData: any = {};
+        await db
+          .update(schema.ecommerceSessions)
+          .set({
+            customerData: resetCustomerData,
+            currentStep: fields.length > 0 ? `waiting_for_field:${fields[0].variable}` : "waiting_for_payment_method"
+          })
+          .where(eq(schema.ecommerceSessions.id, session.id));
+
+        if (fields.length > 0) {
+          await waApi.sendTextMessage(to, `🔄 *Let's re-enter your details:*\n\n${fields[0].text}`);
+        } else {
+          await waApi.sendTextMessage(to, "Please proceed to select your payment method.");
+        }
+        return;
+      }
+
+      if (isConfirm) {
+        // Proceed to payment method selection
+        await db
+          .update(schema.ecommerceSessions)
+          .set({
             currentStep: "waiting_for_payment_method"
           })
           .where(eq(schema.ecommerceSessions.id, session.id));
@@ -1153,7 +1545,11 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
           // Cloud API: Send interactive buttons
           await this.sendCloudApiButtonMessage(channelRow, to, promptText, null, paymentOptions);
         }
+        return;
       }
+
+      // If invalid choice
+      await waApi.sendTextMessage(to, "Please select *Confirm Order* or *Edit Details* to proceed.");
       return;
     }
 

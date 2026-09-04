@@ -50,6 +50,15 @@ import {
   Phone,
   ArrowRight,
   AlertTriangle,
+  Paperclip,
+  Upload,
+  Image as ImageIcon,
+  Video as VideoIcon,
+  File as FileIcon,
+  Eye,
+  Loader2,
+  X,
+  Download,
 } from "lucide-react";
 import {
   Dialog,
@@ -82,6 +91,13 @@ interface AdminUser {
   role: string;
 }
 
+interface TicketAttachment {
+  url: string;
+  name: string;
+  type: string;
+  size?: number;
+}
+
 interface Ticket {
   id: string;
   title: string;
@@ -94,6 +110,7 @@ interface Ticket {
   creatorEmail: string;
   assignedToId?: string | null;
   assignedToName?: string | null;
+  attachments?: TicketAttachment[];
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string | null;
@@ -107,6 +124,7 @@ interface Message {
   senderType: "user" | "listener" | "admin";
   senderName: string;
   message: string;
+  attachments?: TicketAttachment[];
   isInternal: boolean;
   createdAt: string;
 }
@@ -125,6 +143,10 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [isInternalNote, setIsInternalNote] = useState(false);
+  const [createAttachments, setCreateAttachments] = useState<TicketAttachment[]>([]);
+  const [replyAttachments, setReplyAttachments] = useState<TicketAttachment[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -194,9 +216,66 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
 
   const adminUsers: AdminUser[] = adminsData?.admins || [];
 
+  const handleFileUpload = async (
+    files: FileList | null,
+    target: "create" | "reply"
+  ) => {
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch("/api/media/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || "Failed to upload file");
+        }
+
+        const data = await res.json();
+        const isImg = file.type.startsWith("image/");
+        const isVid = file.type.startsWith("video/");
+        const type = isImg ? "image" : isVid ? "video" : "file";
+
+        const newAtt: TicketAttachment = {
+          url: data.url,
+          name: data.name || file.name,
+          type,
+          size: file.size,
+        };
+
+        if (target === "create") {
+          setCreateAttachments((prev) => [...prev, newAtt]);
+        } else {
+          setReplyAttachments((prev) => [...prev, newAtt]);
+        }
+      }
+
+      toast({
+        title: "File attached",
+        description: "File uploaded successfully",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Upload Failed",
+        description: err.message || "Could not upload file",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // Create ticket mutation
   const createTicketMutation = useMutation({
-    mutationFn: async (data: typeof createFormData) => {
+    mutationFn: async (data: typeof createFormData & { attachments: TicketAttachment[] }) => {
       return await apiRequest("POST", "/api/tickets", data);
     },
     onSuccess: () => {
@@ -207,6 +286,7 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
       });
       setShowCreateDialog(false);
       setCreateFormData({ title: "", description: "", priority: "medium" });
+      setCreateAttachments([]);
     },
     onError: (error: any) => {
       toast({
@@ -244,20 +324,24 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
     mutationFn: async ({
       ticketId,
       message,
+      attachments = [],
       isInternal,
     }: {
       ticketId: string;
       message: string;
+      attachments?: TicketAttachment[];
       isInternal: boolean;
     }) => {
       return await apiRequest("POST", `/api/tickets/${ticketId}/messages`, {
         message,
+        attachments,
         isInternal,
       });
     },
     onSuccess: () => {
       refetchTicketDetails();
       setNewMessage("");
+      setReplyAttachments([]);
       setIsInternalNote(false);
       toast({
         title: "Success",
@@ -305,7 +389,10 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
       return;
     }
 
-    createTicketMutation.mutate(createFormData);
+    createTicketMutation.mutate({
+      ...createFormData,
+      attachments: createAttachments,
+    });
   };
 
   const handleUpdateStatus = (status: string) => {
@@ -339,11 +426,12 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
   };
 
   const handleSendMessage = () => {
-    if (!selectedTicketId || !newMessage.trim()) return;
+    if (!selectedTicketId || (!newMessage.trim() && replyAttachments.length === 0)) return;
 
     addMessageMutation.mutate({
       ticketId: selectedTicketId,
       message: newMessage.trim(),
+      attachments: replyAttachments,
       isInternal: isInternalNote,
     });
   };
@@ -726,10 +814,70 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
                       {selectedTicket.description}
                     </p>
                   </div>
+
+                  {/* Attachments */}
+                  {selectedTicket.attachments && selectedTicket.attachments.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-gray-100">
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">
+                        Attachments ({selectedTicket.attachments.length})
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {selectedTicket.attachments.map((att, idx) => (
+                          <div
+                            key={idx}
+                            className="group relative border border-gray-200 rounded-lg overflow-hidden bg-gray-50 hover:border-green-400 transition"
+                          >
+                            {att.type === "image" ? (
+                              <div
+                                onClick={() => setPreviewMediaUrl(att.url)}
+                                className="cursor-pointer"
+                              >
+                                <img
+                                  src={att.url}
+                                  alt={att.name}
+                                  className="w-full h-28 object-cover group-hover:scale-105 transition duration-200"
+                                />
+                                <div className="p-2 bg-white flex items-center justify-between">
+                                  <span className="text-xs text-gray-700 truncate max-w-[120px]" title={att.name}>
+                                    {att.name}
+                                  </span>
+                                  <Eye className="w-3.5 h-3.5 text-gray-400 group-hover:text-green-600" />
+                                </div>
+                              </div>
+                            ) : att.type === "video" ? (
+                              <div className="p-2 bg-black flex flex-col items-center justify-center">
+                                <video
+                                  src={att.url}
+                                  controls
+                                  className="max-h-28 w-full rounded"
+                                />
+                                <span className="text-[11px] text-gray-300 truncate w-full mt-1" title={att.name}>
+                                  {att.name}
+                                </span>
+                              </div>
+                            ) : (
+                              <a
+                                href={att.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-3 flex items-center gap-2 hover:bg-gray-100"
+                              >
+                                <FileIcon className="w-5 h-5 text-gray-500 shrink-0" />
+                                <span className="text-xs text-gray-700 truncate flex-1" title={att.name}>
+                                  {att.name}
+                                </span>
+                                <Download className="w-4 h-4 text-gray-400" />
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Conversation */}
-                <div className="p-6 bg-gray-50 max-h-[300px] overflow-y-auto">
+                <div className="p-6 bg-gray-50 max-h-[360px] overflow-y-auto">
                   <h3 className="font-medium text-gray-900 mb-4">
                     Conversation
                   </h3>
@@ -785,15 +933,52 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
                                 </span>
                               )}
                             </div>
-                            <p
-                              className={`text-sm whitespace-pre-wrap ${
-                                msg.senderType === user?.role && !msg.isInternal
-                                  ? "text-white"
-                                  : "text-gray-900"
-                              }`}
-                            >
-                              {msg.message}
-                            </p>
+                            {msg.message && (
+                              <p
+                                className={`text-sm whitespace-pre-wrap ${
+                                  msg.senderType === user?.role && !msg.isInternal
+                                    ? "text-white"
+                                    : "text-gray-900"
+                                }`}
+                              >
+                                {msg.message}
+                              </p>
+                            )}
+
+                            {/* Message Attachments */}
+                            {msg.attachments && msg.attachments.length > 0 && (
+                              <div className="mt-2 space-y-1.5">
+                                {msg.attachments.map((att, attIdx) => (
+                                  <div key={attIdx} className="rounded overflow-hidden">
+                                    {att.type === "image" ? (
+                                      <img
+                                        src={att.url}
+                                        alt={att.name}
+                                        onClick={() => setPreviewMediaUrl(att.url)}
+                                        className="max-h-40 rounded cursor-pointer border hover:opacity-95"
+                                      />
+                                    ) : att.type === "video" ? (
+                                      <video
+                                        src={att.url}
+                                        controls
+                                        className="max-h-40 w-full rounded"
+                                      />
+                                    ) : (
+                                      <a
+                                        href={att.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-xs underline flex items-center gap-1 mt-1"
+                                      >
+                                        <FileIcon className="w-3.5 h-3.5" />
+                                        {att.name}
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
                             <div
                               className={`text-xs mt-1 ${
                                 msg.senderType === user?.role && !msg.isInternal
@@ -812,24 +997,80 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
 
                 {/* Reply Box */}
                 <div className="p-4 border-t border-gray-200">
+                  {/* Reply Attachments Preview */}
+                  {replyAttachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                      {replyAttachments.map((att, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-1.5 bg-white border border-gray-300 rounded px-2 py-1 text-xs"
+                        >
+                          {att.type === "image" ? (
+                            <ImageIcon className="w-3.5 h-3.5 text-blue-500" />
+                          ) : att.type === "video" ? (
+                            <VideoIcon className="w-3.5 h-3.5 text-purple-500" />
+                          ) : (
+                            <FileIcon className="w-3.5 h-3.5 text-gray-500" />
+                          )}
+                          <span className="max-w-[120px] truncate">{att.name}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setReplyAttachments((prev) =>
+                                prev.filter((_, i) => i !== idx)
+                              )
+                            }
+                            className="text-gray-400 hover:text-red-500"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="flex items-start space-x-2">
                     <textarea
                       placeholder="Type your reply..."
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       disabled={selectedTicket.status !== "open"}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none text-sm"
                       rows={3}
                     />
-                    <button
-                      onClick={handleSendMessage}
-                      disabled={ selectedTicket.status !== "open" || 
-                        !newMessage.trim() || addMessageMutation.isPending
-                      }
-                      className="bg-green-500 text-white p-3 rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <ArrowRight className="w-5 h-5" />
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <label
+                        className={`p-2.5 rounded-lg border border-gray-300 hover:bg-gray-100 cursor-pointer flex items-center justify-center transition ${
+                          isUploading ? "opacity-50 pointer-events-none" : ""
+                        }`}
+                        title="Attach screenshot or video"
+                      >
+                        {isUploading ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+                        ) : (
+                          <Paperclip className="w-4 h-4 text-gray-600" />
+                        )}
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*,video/*,.pdf"
+                          className="hidden"
+                          onChange={(e) => handleFileUpload(e.target.files, "reply")}
+                        />
+                      </label>
+                      <button
+                        onClick={handleSendMessage}
+                        disabled={
+                          selectedTicket.status !== "open" ||
+                          (!newMessage.trim() && replyAttachments.length === 0) ||
+                          addMessageMutation.isPending ||
+                          isUploading
+                        }
+                        className="bg-green-500 text-white p-2.5 rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      >
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between mt-3">
@@ -881,15 +1122,14 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
 
       {/* Create Ticket Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[540px]">
           <DialogHeader>
             <DialogTitle>Create New Ticket</DialogTitle>
             <DialogDescription>
-              Submit a new support ticket. We'll get back to you as soon as
-              possible.
+              Submit a new support ticket. Attach screenshots or videos to help us resolve it faster.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 py-2">
             <div>
               <Label htmlFor="title" className="text-sm font-medium">
                 Title *
@@ -903,7 +1143,7 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
                     title: e.target.value,
                   })
                 }
-                placeholder="Brief description of the issue"
+                placeholder="Brief summary of the issue"
                 className="mt-1"
               />
             </div>
@@ -920,9 +1160,9 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
                     description: e.target.value,
                   })
                 }
-                placeholder="Detailed description of the issue"
-                rows={5}
-                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                placeholder="Detailed description of the issue..."
+                rows={4}
+                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
               />
             </div>
             <div>
@@ -938,7 +1178,7 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
                     priority: e.target.value as any,
                   })
                 }
-                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -946,8 +1186,86 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
                 <option value="urgent">Urgent</option>
               </select>
             </div>
+
+            {/* Screenshots & Video Attachments Upload */}
+            <div>
+              <Label className="text-sm font-medium flex items-center justify-between">
+                <span>Attachments (Screenshots / Videos)</span>
+                {isUploading && (
+                  <span className="text-xs text-green-600 flex items-center gap-1">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading...
+                  </span>
+                )}
+              </Label>
+
+              <div className="mt-1.5">
+                <label className="border-2 border-dashed border-gray-300 hover:border-green-500 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer bg-gray-50 hover:bg-green-50/40 transition">
+                  <Upload className="w-6 h-6 text-gray-400 mb-1" />
+                  <span className="text-xs font-medium text-gray-700">
+                    Click to upload screenshot or video
+                  </span>
+                  <span className="text-[11px] text-gray-500">
+                    PNG, JPG, MP4, WebM (Max 50MB)
+                  </span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,video/*,.pdf"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e.target.files, "create")}
+                  />
+                </label>
+              </div>
+
+              {/* Uploaded attachments list */}
+              {createAttachments.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {createAttachments.map((att, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2 bg-white border border-gray-200 rounded-lg shadow-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {att.type === "image" ? (
+                          <img
+                            src={att.url}
+                            alt={att.name}
+                            className="w-8 h-8 rounded object-cover border"
+                          />
+                        ) : att.type === "video" ? (
+                          <div className="w-8 h-8 rounded bg-purple-100 flex items-center justify-center text-purple-600">
+                            <VideoIcon className="w-4 h-4" />
+                          </div>
+                        ) : (
+                          <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-gray-600">
+                            <FileIcon className="w-4 h-4" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-gray-800 truncate" title={att.name}>
+                            {att.name}
+                          </p>
+                          <p className="text-[10px] text-gray-500 capitalize">{att.type}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCreateAttachments((prev) =>
+                            prev.filter((_, i) => i !== idx)
+                          )
+                        }
+                        className="p-1 text-gray-400 hover:text-red-500 rounded"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <DialogFooter className="mt-6">
+          <DialogFooter className="mt-4">
             <button
               onClick={() => setShowCreateDialog(false)}
               className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
@@ -957,15 +1275,47 @@ export default function UserSupportTicketsNew({ embedded = false }: { embedded?:
             <button
               onClick={handleCreateTicket}
               disabled={
-                user?.username === "demouser" || createTicketMutation.isPending
+                user?.username === "demouser" ||
+                createTicketMutation.isPending ||
+                isUploading
               }
-              className="px-4 py-2 text-sm text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-sm text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
-              {createTicketMutation.isPending ? "Creating..." : "Create Ticket"}
+              {createTicketMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Ticket"
+              )}
             </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Media Lightbox Preview Modal */}
+      {previewMediaUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewMediaUrl(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh]">
+            <button
+              onClick={() => setPreviewMediaUrl(null)}
+              className="absolute -top-10 right-0 text-white hover:text-gray-300 p-1"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={previewMediaUrl}
+              alt="Preview"
+              className="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

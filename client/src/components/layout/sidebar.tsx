@@ -158,18 +158,10 @@ function getNavItems(role: string): NavItem[] {
         allowedRoles: ["superadmin", "admin"],
       },
       {
-        href: "/widget-builder",
-        icon: Bot,
-        labelKey: "navigation.widgetBuilder",
-        color: "text-teal-600",
-        alwaysVisible: true,
-        allowedRoles: ["superadmin", "admin", "user"],
-      },
-      {
-        href: "/api-docs",
-        icon: Code,
-        labelKey: "navigation.apiDocs",
-        color: "text-cyan-600",
+        href: "/team",
+        icon: UsersRound,
+        labelKey: "navigation.team",
+        color: "text-indigo-500",
         allowedRoles: ["admin"],
       },
 
@@ -337,12 +329,11 @@ function getNavItems(role: string): NavItem[] {
         allowedRoles: ["team"],
       },
       {
-        href: "/widget-builder",
-        icon: Bot,
-        labelKey: "navigation.widgetBuilder",
-        color: "text-teal-600",
-        alwaysVisible: true,
-        requiredPrefix: "widgetbuilder.",
+        href: "/team",
+        icon: UsersRound,
+        labelKey: "navigation.team",
+        color: "text-indigo-500",
+        requiredPrefix: "team.",
         allowedRoles: ["team"],
       },
 
@@ -998,6 +989,13 @@ export default function Sidebar() {
                     {user?.crmStatus === "online" ? "● Online" : "○ Offline"}
                   </button>
                 </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/user-support-tickets" className="cursor-pointer">
+                    <LifeBuoy className="mr-2 h-4 w-4 text-rose-500" />
+                    <span>{t("navigation.support_tickets") || "Support Tickets"}</span>
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/settings" className="cursor-pointer">

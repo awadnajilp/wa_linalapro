@@ -24,7 +24,7 @@ export class GroqVoiceProvider implements VoiceProvider {
     });
     form.append("model", "whisper-large-v3");
 
-    if (languageCode) {
+    if (languageCode && languageCode !== "unknown" && languageCode !== "auto") {
       // Map standard codes to short ISO 639-1 code required by Groq Whisper
       const simpleLang = languageCode.split("-")[0];
       form.append("language", simpleLang);

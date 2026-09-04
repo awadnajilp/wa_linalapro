@@ -779,6 +779,10 @@ export const supportTickets = pgTable("support_tickets", {
   assignedToId: varchar("assigned_to_id"), // ID from admin_users table
   assignedToName: text("assigned_to_name"), // Cached for display
 
+  attachments: jsonb("attachments")
+    .$type<{ url: string; name: string; type: string; size?: number }[]>()
+    .default(sql`'[]'::jsonb`),
+
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   resolvedAt: timestamp("resolved_at"),
@@ -800,6 +804,9 @@ export const ticketMessages = pgTable("ticket_messages", {
   senderName: text("sender_name").notNull(), // Cached for display
 
   message: text("message").notNull(),
+  attachments: jsonb("attachments")
+    .$type<{ url: string; name: string; type: string; size?: number }[]>()
+    .default(sql`'[]'::jsonb`),
   isInternal: boolean("is_internal").notNull().default(false), // Admin notes only
 
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -1120,6 +1127,11 @@ export const panelConfig = pgTable("panel_config", {
   embeddedSignupEnabled: boolean("embedded_signup_enabled").default(true),
   showMobileSignup: boolean("show_mobile_signup").default(true),
   walletSettings: jsonb("wallet_settings").$type<any>().default({}),
+  adminOpenaiApiKey: text("admin_openai_api_key"),
+  adminSarvamApiKey: text("admin_sarvam_api_key"),
+  adminGroqApiKey: text("admin_groq_api_key"),
+  adminElevenlabsApiKey: text("admin_elevenlabs_api_key"),
+  adminAiMarginPercent: numeric("admin_ai_margin_percent").default("70"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2499,6 +2511,7 @@ export const ecommerceProducts = pgTable("ecommerce_products", {
   name: text("name").notNull(),
   price: numeric("price", { precision: 12, scale: 2 }).default("0"),
   description: text("description"),
+  longDescription: text("long_description"),
   photos: jsonb("photos").default([]),
   checkoutLink: text("checkout_link"),
   triggerKeyword: text("trigger_keyword"),
@@ -2527,8 +2540,11 @@ export const ecommerceConfigs = pgTable("ecommerce_configs", {
   upiId: text("upi_id"),
   upiMerchantName: text("upi_merchant_name"),
   currency: text("currency").default("INR"),
+  apiKeySource: text("api_key_source").default("own_key"), // "own_key" | "admin_key"
   aiEnabled: boolean("ai_enabled").default(false),
   aiVoiceEnabled: boolean("ai_voice_enabled").default(false),
+  voiceProfileId: varchar("voice_profile_id").references(() => voiceProfiles.id, { onDelete: "set null" }),
+  aiVoiceLanguageMode: text("ai_voice_language_mode").default("profile"), // "profile" (speak in voice profile language) or "auto" (detect customer's language)
   aiTimeoutMinutes: integer("ai_timeout_minutes").default(30),
   aiAskButtonEnabled: boolean("ai_ask_button_enabled").default(true),
   aiSystemPrompt: text("ai_system_prompt"),
@@ -2720,3 +2736,46 @@ export type WhatsappFlow = typeof whatsappFlows.$inferSelect;
 export type InsertWhatsappFlow = typeof whatsappFlows.$inferInsert;
 export type WhatsappFlowResponse = typeof whatsappFlowResponses.$inferSelect;
 export type InsertWhatsappFlowResponse = typeof whatsappFlowResponses.$inferInsert;
+
+// ==========================================
+// AI & Voice Usage Ledger (Wallet Billing)
+// ==========================================
+export const aiUsageLogs = pgTable(
+  "ai_usage_logs",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    tenantId: varchar("tenant_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    channelId: varchar("channel_id").references(() => channels.id, {
+      onDelete: "set null",
+    }),
+    conversationId: varchar("conversation_id").references(
+      () => conversations.id,
+      { onDelete: "set null" }
+    ),
+    source: text("source").default("ecommerce"), // "ecommerce", "bot_flow", "inbox"
+    serviceType: text("service_type").notNull(), // "llm", "stt", "tts"
+    provider: text("provider").notNull(), // "openai", "sarvam", "groq", "elevenlabs"
+    model: text("model"),
+    inputUnits: integer("input_units").default(0), // input tokens, audio seconds, or input chars
+    outputUnits: integer("output_units").default(0), // output tokens
+    actualCostUSD: numeric("actual_cost_usd", { precision: 12, scale: 6 }).default("0"),
+    billedAmount: numeric("billed_amount", { precision: 12, scale: 6 }).default("0"),
+    currency: text("currency").default("USD"),
+    billedToWallet: boolean("billed_to_wallet").default(false),
+    metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    aiUsageTenantIdx: index("ai_usage_tenant_idx").on(table.tenantId),
+    aiUsageCreatedAtIdx: index("ai_usage_created_at_idx").on(table.createdAt),
+    aiUsageSourceIdx: index("ai_usage_source_idx").on(table.source),
+  })
+);
+
+export const insertAiUsageLogSchema = createInsertSchema(aiUsageLogs);
+export type AiUsageLog = typeof aiUsageLogs.$inferSelect;
+export type InsertAiUsageLog = typeof aiUsageLogs.$inferInsert;

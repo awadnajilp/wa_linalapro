@@ -1531,11 +1531,12 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
     }
 
     try {
+      const token = this.channel.accessToken || (this.channel as any).access_token || "";
       const response = await fetch(
-        `https://graph.facebook.com/v24.0/${mediaId}`,
+        `https://graph.facebook.com/v21.0/${mediaId}`,
         {
           headers: {
-            Authorization: `Bearer ${this.channel.accessToken}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -1580,10 +1581,9 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
       // Then, download the media content from Meta
       const token = this.channel.accessToken || (this.channel as any).access_token || "";
       console.log(`📥 [WhatsAppApiService] getMedia - Media URL: ${mediaUrl}, Token Length: ${token.length}`);
-      const separator = mediaUrl.includes("?") ? "&" : "?";
-      const authenticatedUrl = `${mediaUrl}${separator}access_token=${encodeURIComponent(token)}`;
-      const response = await fetch(authenticatedUrl, {
+      const response = await fetch(mediaUrl, {
         headers: {
+          Authorization: `Bearer ${token}`,
           "User-Agent": "curl/7.64.1",
         },
       });
@@ -1656,13 +1656,14 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
       }
 
       // Stream Meta Cloud API media using axios with Authorization header
+      const token = this.channel.accessToken || (this.channel as any).access_token || "";
       const response = await axios({
         method: "get",
         url: mediaUrl,
         responseType: "stream",
         headers: {
-          Authorization: `Bearer ${this.channel.accessToken}`,
-          "User-Agent": "WhatsAppBusinessAPI/1.0",
+          Authorization: `Bearer ${token}`,
+          "User-Agent": "curl/7.64.1",
         },
       });
 
@@ -1701,10 +1702,11 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
     mediaUrl: string,
     fileName: string
   ): Promise<string> {
+    const token = this.channel.accessToken || (this.channel as any).access_token || "";
     const response = await fetch(mediaUrl, {
       headers: {
-        Authorization: `Bearer ${this.channel.accessToken}`,
-        "User-Agent": "WhatsAppBusinessAPI/1.0",
+        Authorization: `Bearer ${token}`,
+        "User-Agent": "curl/7.64.1",
       },
     });
 
@@ -1742,10 +1744,9 @@ async uploadMediaFromUrl(url: string, mimeType: string = 'image/jpeg'): Promise<
 
     const token = this.channel.accessToken || (this.channel as any).access_token || "";
     console.log(`📥 [WhatsAppApiService] getMediaBuffer - Media URL: ${mediaUrl}, Token Length: ${token.length}`);
-    const separator = mediaUrl.includes("?") ? "&" : "?";
-    const authenticatedUrl = `${mediaUrl}${separator}access_token=${encodeURIComponent(token)}`;
-    const response = await fetch(authenticatedUrl, {
+    const response = await fetch(mediaUrl, {
       headers: {
+        Authorization: `Bearer ${token}`,
         "User-Agent": "curl/7.64.1",
       },
     });
@@ -1949,9 +1950,10 @@ async sendMediaMessagee(
 
     const formattedPhone = this.formatPhoneNumber(to);
 
-    // If mediaUrl is a local file or /uploads URL, upload directly to WhatsApp Cloud API
+    // Upload directly to WhatsApp Cloud API to obtain a mediaId (crucial for native voice note rendering)
     let mediaId: string | null = null;
     try {
+      let buffer: Buffer | null = null;
       let localPath = "";
       if (mediaUrl.startsWith("/uploads/")) {
         localPath = path.join(process.cwd(), "public", mediaUrl);
@@ -1969,9 +1971,19 @@ async sendMediaMessagee(
       }
 
       if (localPath && fs.existsSync(localPath)) {
-        const buffer = fs.readFileSync(localPath);
+        buffer = fs.readFileSync(localPath);
+      } else if (mediaUrl.startsWith("http://") || mediaUrl.startsWith("https://")) {
+        console.log(`[WhatsApp-API] Fetching audio note from remote URL for Meta upload: ${mediaUrl}`);
+        const resp = await fetch(mediaUrl);
+        if (resp.ok) {
+          const ab = await resp.arrayBuffer();
+          buffer = Buffer.from(ab);
+        }
+      }
+
+      if (buffer) {
         mediaId = await this.uploadMediaBufferHeader(buffer, "audio/ogg", "audio.ogg");
-        console.log(`[WhatsApp-API] Uploaded local voice note directly to Meta, mediaId: ${mediaId}`);
+        console.log(`[WhatsApp-API] Uploaded voice note directly to Meta, mediaId: ${mediaId}`);
       }
     } catch (uploadErr: any) {
       console.warn("[WhatsApp-API] Direct buffer upload for voice note failed, falling back to link:", uploadErr.message);

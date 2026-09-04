@@ -86,6 +86,7 @@ export function registerTicketsRoutes(app: Express) {
             creatorEmail: supportTickets.creatorEmail,
             assignedToId: supportTickets.assignedToId,
             assignedToName: supportTickets.assignedToName,
+            attachments: supportTickets.attachments,
             createdAt: supportTickets.createdAt,
             updatedAt: supportTickets.updatedAt,
             resolvedAt: supportTickets.resolvedAt,
@@ -107,6 +108,7 @@ export function registerTicketsRoutes(app: Express) {
 
       const ticketsWithFreshData = ticketList.map((t: any) => ({
         ...t,
+        attachments: t.attachments || [],
         creatorEmail: t.freshEmail || t.creatorEmail,
         creatorName: t.freshName || t.creatorName,
         freshEmail: undefined,
@@ -195,7 +197,7 @@ export function registerTicketsRoutes(app: Express) {
   // Create ticket (users and listeners)
   app.post("/api/tickets", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { title, description, priority = "medium" } = req.body;
+      const { title, description, priority = "medium", attachments = [] } = req.body;
       const user = (req as any).user;
 
       if (!title || !description) {
@@ -204,14 +206,13 @@ export function registerTicketsRoutes(app: Express) {
           .json({ error: "Title and description are required" });
       }
 
-      //   console.log('user creating ticket:', user , title, description, priority);
-
       const [newTicket] = await db
         .insert(supportTickets)
         .values({
           title,
           description,
           priority,
+          attachments,
           creatorId: user.id,
           creatorType: user.role,
           creatorName: user.name || user.username,
@@ -278,11 +279,11 @@ export function registerTicketsRoutes(app: Express) {
     async (req: Request, res: Response) => {
       try {
         const { id } = req.params;
-        const { message, isInternal = false } = req.body;
+        const { message, attachments = [], isInternal = false } = req.body;
         const user = (req as any).user;
 
-        if (!message || message.trim().length === 0) {
-          return res.status(400).json({ error: "Message is required" });
+        if ((!message || message.trim().length === 0) && (!attachments || attachments.length === 0)) {
+          return res.status(400).json({ error: "Message or attachment is required" });
         }
 
         // Check if ticket exists and user has access
@@ -307,7 +308,8 @@ export function registerTicketsRoutes(app: Express) {
             senderId: user.id,
             senderType: user.role,
             senderName: user.name || user.username,
-            message: message.trim(),
+            message: (message || "").trim(),
+            attachments,
             isInternal: messageIsInternal,
           })
           .returning();

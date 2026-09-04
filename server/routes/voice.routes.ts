@@ -72,7 +72,7 @@ export function registerVoiceRoutes(app: Express) {
   // Update user's voice API keys
   app.put("/api/users-voice-settings", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { sarvamApiKey, groqApiKey, elevenlabsApiKey } = req.body;
+      const { sarvamApiKey, groqApiKey, elevenlabsApiKey, openaiApiKey } = req.body;
       const userId = (req.user as any)?.id;
 
       if (!userId) {
@@ -83,6 +83,7 @@ export function registerVoiceRoutes(app: Express) {
       if (sarvamApiKey !== undefined) updateData.sarvamApiKey = sarvamApiKey;
       if (groqApiKey !== undefined) updateData.groqApiKey = groqApiKey;
       if (elevenlabsApiKey !== undefined) updateData.elevenlabsApiKey = elevenlabsApiKey;
+      if (openaiApiKey !== undefined) updateData.openaiApiKey = openaiApiKey;
 
       const [updatedUser] = await db
         .update(users)
@@ -98,6 +99,7 @@ export function registerVoiceRoutes(app: Express) {
           sarvamApiKey: updatedUser.sarvamApiKey ? "Present (masked)" : "None",
           groqApiKey: updatedUser.groqApiKey ? "Present (masked)" : "None",
           elevenlabsApiKey: updatedUser.elevenlabsApiKey ? "Present (masked)" : "None",
+          openaiApiKey: updatedUser.openaiApiKey ? "Present (masked)" : "None",
         },
       });
     } catch (err: any) {

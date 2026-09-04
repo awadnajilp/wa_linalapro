@@ -25,6 +25,8 @@ import {
   SettingsIcon,
   Database,
   BotIcon,
+  Bot,
+  Code,
   Mail,
   Bell,
   Globe,
@@ -46,6 +48,7 @@ import WarmerSettings from "@/components/settings/WarmerSettings";
 import StorageSettings from "@/components/settings/StorageSettings";
 import AISettings from "@/components/settings/AISettings";
 import FirebaseSettings from "@/components/settings/FirebaseSettings";
+import PlatformAISettings from "@/components/settings/PlatformAISettings";
 import { useAuth } from "@/contexts/auth-context";
 
 import { useTranslation } from "@/lib/i18n";
@@ -56,8 +59,8 @@ import NotificationPreferences from "@/components/settings/NotificationPreferenc
 import LanguageManagement from "@/pages/LanguageManagement";
 import Logs from "@/pages/logs";
 import BillingSubscriptionPage from "@/components/billing-subscription-page";
-import UserSupportTicketsNew from "@/pages/user-support-tickets";
-import TeamPage from "@/pages/team";
+import WidgetBuilder from "@/pages/widget-builder/WidgetBuilder";
+import ApiDocs from "@/pages/api-docs";
 import TagsManagerSettings from "@/components/settings/TagsManagerSettings";
 
 const tabTriggerClass =
@@ -180,6 +183,11 @@ export default function Settings() {
                     <span>WA Onboarding</span>
                   </TabsTrigger>
 
+                  <TabsTrigger value="platform_ai" className={tabTriggerClass}>
+                    <BotIcon className="w-4 h-4 shrink-0" />
+                    <span>Platform AI & Billing</span>
+                  </TabsTrigger>
+
                   <TabsTrigger value="notification_templates" className={tabTriggerClass}>
                     <Bell className="w-4 h-4 shrink-0" />
                     <span>Notifications</span>
@@ -216,6 +224,11 @@ export default function Settings() {
                     <span>AI Voices</span>
                   </TabsTrigger>
 
+                  <TabsTrigger value="widget_builder" className={tabTriggerClass}>
+                    <Bot className="w-4 h-4 shrink-0" />
+                    <span>{t("navigation.widgetBuilder") || "Widget Builder"}</span>
+                  </TabsTrigger>
+
                   <TabsTrigger value="message_logs" className={tabTriggerClass}>
                     <ScrollText className="w-4 h-4 shrink-0" />
                     <span>Message Logs</span>
@@ -226,16 +239,6 @@ export default function Settings() {
                     <span>Billing & Membership</span>
                   </TabsTrigger>
 
-                  <TabsTrigger value="support" className={tabTriggerClass}>
-                    <Headphones className="w-4 h-4 shrink-0" />
-                    <span>Support</span>
-                  </TabsTrigger>
-
-                  <TabsTrigger value="team" className={tabTriggerClass}>
-                    <Users className="w-4 h-4 shrink-0" />
-                    <span>Team</span>
-                  </TabsTrigger>
-
                   <TabsTrigger value="notification_prefs" className={tabTriggerClass}>
                     <Bell className="w-4 h-4 shrink-0" />
                     <span>Notifications</span>
@@ -244,6 +247,11 @@ export default function Settings() {
                   <TabsTrigger value="api" className={tabTriggerClass}>
                     <Key className="w-4 h-4 shrink-0" />
                     <span>{t("settings.api_key_setting.tabName")}</span>
+                  </TabsTrigger>
+
+                  <TabsTrigger value="api_docs" className={tabTriggerClass}>
+                    <Code className="w-4 h-4 shrink-0" />
+                    <span>{t("navigation.apiDocs") || "API Documentation"}</span>
                   </TabsTrigger>
 
                   <TabsTrigger value="tags_manager" className={tabTriggerClass}>
@@ -278,6 +286,10 @@ export default function Settings() {
                 <EmbeddedSignupSettings />
               </TabsContent>
 
+              <TabsContent value="platform_ai">
+                <PlatformAISettings />
+              </TabsContent>
+
               <TabsContent value="notification_templates">
                 <NotificationTemplatesSettings />
               </TabsContent>
@@ -298,6 +310,10 @@ export default function Settings() {
                 <AIVoicesSettings />
               </TabsContent>
 
+              <TabsContent value="widget_builder">
+                <WidgetBuilder embedded={true} />
+              </TabsContent>
+
               <TabsContent value="whatsapp">
                 <ChannelSettings />
               </TabsContent>
@@ -316,16 +332,12 @@ export default function Settings() {
                 <BillingSubscriptionPage embedded={true} />
               </TabsContent>
 
-              <TabsContent value="support">
-                <UserSupportTicketsNew embedded={true} />
-              </TabsContent>
-
-              <TabsContent value="team">
-                <TeamPage embedded={true} />
-              </TabsContent>
-
               <TabsContent value="notification_prefs">
                 <NotificationPreferences />
+              </TabsContent>
+
+              <TabsContent value="api_docs">
+                <ApiDocs embedded={true} />
               </TabsContent>
 
               <TabsContent value="tags_manager">

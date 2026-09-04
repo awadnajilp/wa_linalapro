@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ShoppingCart, Package, Settings, ClipboardList, Users, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles, Download, Truck, Calendar as CalendarIcon } from "lucide-react";
+import { ShoppingCart, Package, Settings, ClipboardList, Users, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles, Download, Truck, Calendar as CalendarIcon, Coins, Key, Bot, Volume2, Mic, Activity, ArrowUpRight } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +35,7 @@ interface Product {
   name: string;
   price: string;
   description: string | null;
+  longDescription?: string | null;
   photos: string[] | string;
   checkoutLink: string | null;
   triggerKeyword: string | null;
@@ -201,6 +202,7 @@ export default function EcommerceLedger() {
   const [prodName, setProdName] = useState("");
   const [prodPrice, setProdPrice] = useState("");
   const [prodDesc, setProdDesc] = useState("");
+  const [prodLongDesc, setProdLongDesc] = useState("");
   const [prodPhotos, setProdPhotos] = useState("");
   const [prodCheckoutLink, setProdCheckoutLink] = useState("");
   const [prodTrigger, setProdTrigger] = useState("");
@@ -268,8 +270,11 @@ export default function EcommerceLedger() {
   const [configActive, setConfigActive] = useState(true);
 
   // AI & Welcome Messages States
+  const [apiKeySource, setApiKeySource] = useState<"own_key" | "admin_key">("own_key");
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiVoiceEnabled, setAiVoiceEnabled] = useState(false);
+  const [configVoiceProfileId, setConfigVoiceProfileId] = useState<string>("");
+  const [configAiVoiceLanguageMode, setConfigAiVoiceLanguageMode] = useState<string>("profile");
   const [aiTimeoutMinutes, setAiTimeoutMinutes] = useState(30);
   const [aiAskButtonEnabled, setAiAskButtonEnabled] = useState(true);
   const [aiSystemPrompt, setAiSystemPrompt] = useState("");
@@ -307,6 +312,16 @@ export default function EcommerceLedger() {
   const [editOrderPaymentStatus, setEditOrderPaymentStatus] = useState("");
   const [editOrderStatus, setEditOrderStatus] = useState("");
 
+  // Fetch Voice Profiles
+  const { data: voiceProfiles = [] } = useQuery<any[]>({
+    queryKey: ["/api/voice-profiles"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/voice-profiles");
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+
   // Queries
   // 1. Fetch Ecommerce Config
   const { data: config, isLoading: isConfigLoading } = useQuery<EcommerceConfig | null>({
@@ -315,6 +330,23 @@ export default function EcommerceLedger() {
       if (!channelId) return null;
       const res = await fetch(`/api/ecommerce/config?channelId=${channelId}`);
       if (!res.ok) throw new Error("Failed to fetch store config");
+      return res.json();
+    },
+    enabled: !!channelId,
+  });
+
+  // 1b. Fetch AI Usage & Wallet Billing Report
+  const {
+    data: aiUsageReport,
+    isLoading: isAiUsageLoading,
+    refetch: refetchAiUsage,
+    isFetching: isFetchingAiUsage
+  } = useQuery<any>({
+    queryKey: ["/api/ecommerce/ai-usage-report", channelId],
+    queryFn: async () => {
+      if (!channelId) return null;
+      const res = await fetch(`/api/ecommerce/ai-usage-report?channelId=${channelId}`);
+      if (!res.ok) throw new Error("Failed to fetch AI usage report");
       return res.json();
     },
     enabled: !!channelId,
@@ -337,8 +369,11 @@ export default function EcommerceLedger() {
       setUpiId((config as any).upiId || "");
       setUpiMerchantName((config as any).upiMerchantName || "");
       setStoreCurrency((config as any).currency || "INR");
+      setApiKeySource((config as any).apiKeySource || "own_key");
       setAiEnabled((config as any).aiEnabled !== undefined ? (config as any).aiEnabled : false);
       setAiVoiceEnabled((config as any).aiVoiceEnabled !== undefined ? (config as any).aiVoiceEnabled : false);
+      setConfigVoiceProfileId((config as any).voiceProfileId || "");
+      setConfigAiVoiceLanguageMode((config as any).aiVoiceLanguageMode || "profile");
       setAiTimeoutMinutes((config as any).aiTimeoutMinutes !== undefined ? (config as any).aiTimeoutMinutes : 30);
       setAiAskButtonEnabled((config as any).aiAskButtonEnabled !== undefined ? (config as any).aiAskButtonEnabled : true);
       setAiSystemPrompt((config as any).aiSystemPrompt || DEFAULT_AI_SYSTEM_PROMPT);
@@ -550,6 +585,7 @@ export default function EcommerceLedger() {
     setProdName("");
     setProdPrice("");
     setProdDesc("");
+    setProdLongDesc("");
     setProdPhotos("");
     setProdCheckoutLink("");
     setProdTrigger("");
@@ -561,6 +597,7 @@ export default function EcommerceLedger() {
     setProdName(product.name);
     setProdPrice(product.price);
     setProdDesc(product.description || "");
+    setProdLongDesc(product.longDescription || "");
     let photoUrls = "";
     if (product.photos) {
       photoUrls = Array.isArray(product.photos)
@@ -582,6 +619,7 @@ export default function EcommerceLedger() {
       name: prodName,
       price: prodPrice,
       description: prodDesc,
+      longDescription: prodLongDesc,
       photos: photosArray,
       checkoutLink: prodCheckoutLink,
       triggerKeyword: prodTrigger,
@@ -701,8 +739,11 @@ export default function EcommerceLedger() {
       upiId: upiId || null,
       upiMerchantName: upiMerchantName || null,
       currency: storeCurrency,
+      apiKeySource,
       aiEnabled,
       aiVoiceEnabled,
+      voiceProfileId: configVoiceProfileId || null,
+      aiVoiceLanguageMode: configAiVoiceLanguageMode,
       aiTimeoutMinutes,
       aiAskButtonEnabled,
       aiSystemPrompt,
@@ -764,7 +805,7 @@ export default function EcommerceLedger() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between border-b pb-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <ShoppingCart className="w-6 h-6 text-emerald-600" />
@@ -775,61 +816,87 @@ export default function EcommerceLedger() {
           </p>
         </div>
 
-        <Dialog open={isProductModalOpen} onOpenChange={(open) => {
-          setIsProductModalOpen(open);
-          if (!open) resetProductForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Add Product
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
-              <DialogDescription>
-                Provide details of the product to make it purchasable on WhatsApp.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleProductSubmit} className="space-y-4 pt-2">
-              <div className="space-y-1">
-                <Label htmlFor="name">Product Name *</Label>
-                <Input
-                  id="name"
-                  value={prodName}
-                  onChange={(e) => setProdName(e.target.value)}
-                  placeholder="e.g. Premium Leather Wallet"
-                  required
-                />
-              </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-gray-600 hidden sm:inline">Active Channel:</span>
+            <ChannelSwitcher />
+          </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="price">Price *</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-xs text-gray-500 font-semibold">{storeCurrency}</span>
+          <Dialog open={isProductModalOpen} onOpenChange={(open) => {
+            setIsProductModalOpen(open);
+            if (!open) resetProductForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Add Product
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
+                <DialogDescription>
+                  Provide details of the product to make it purchasable on WhatsApp.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleProductSubmit} className="space-y-4 pt-2">
+                <div className="space-y-1">
+                  <Label htmlFor="name">Product Name *</Label>
                   <Input
-                    id="price"
-                    type="number"
-                    step="0.01"
-                    value={prodPrice}
-                    onChange={(e) => setProdPrice(e.target.value)}
-                    placeholder="0.00"
-                    className="pl-12 text-xs h-9"
+                    id="name"
+                    value={prodName}
+                    onChange={(e) => setProdName(e.target.value)}
+                    placeholder="e.g. Premium Leather Wallet"
                     required
                   />
                 </div>
-              </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="desc">Description</Label>
-                <Textarea
-                  id="desc"
-                  value={prodDesc}
-                  onChange={(e) => setProdDesc(e.target.value)}
-                  placeholder="Short description..."
-                />
-              </div>
+                <div className="space-y-1">
+                  <Label htmlFor="price">Price *</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-xs text-gray-500 font-semibold">{storeCurrency}</span>
+                    <Input
+                      id="price"
+                      type="number"
+                      step="0.01"
+                      value={prodPrice}
+                      onChange={(e) => setProdPrice(e.target.value)}
+                      placeholder="0.00"
+                      className="pl-12 text-xs h-9"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="desc">Short Description</Label>
+                    <span className="text-[10px] text-gray-500">Summary on WhatsApp Card</span>
+                  </div>
+                  <Textarea
+                    id="desc"
+                    value={prodDesc}
+                    onChange={(e) => setProdDesc(e.target.value)}
+                    placeholder="Brief description shown on catalog / product card..."
+                    rows={2}
+                    className="text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="longDesc">Detailed / Long Description</Label>
+                    <span className="text-[10px] text-gray-500">Sent when customer clicks "Product Info"</span>
+                  </div>
+                  <Textarea
+                    id="longDesc"
+                    value={prodLongDesc}
+                    onChange={(e) => setProdLongDesc(e.target.value)}
+                    placeholder="Full detailed product description, specifications, features, etc. No size limit..."
+                    rows={4}
+                    className="text-xs"
+                  />
+                </div>
 
               <div className="space-y-2">
                 <Label htmlFor="photos">Product Photos</Label>
@@ -921,6 +988,7 @@ export default function EcommerceLedger() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -940,6 +1008,10 @@ export default function EcommerceLedger() {
           <TabsTrigger value="config" className="flex items-center gap-2">
             <Settings className="w-4 h-4" />
             Store Settings
+          </TabsTrigger>
+          <TabsTrigger value="ai_usage" className="flex items-center gap-2">
+            <Coins className="w-4 h-4 text-indigo-600" />
+            AI Usage & Billing
           </TabsTrigger>
         </TabsList>
 
@@ -1902,7 +1974,78 @@ export default function EcommerceLedger() {
                       </div>
 
                       {aiEnabled && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-purple-100">
+                        <>
+                          {/* API Key Provider Switcher */}
+                          <div className="bg-white p-4 rounded-xl border border-purple-200/80 shadow-sm space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="space-y-0.5">
+                                <Label className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                                  <Key className="w-4 h-4 text-purple-600" />
+                                  API Key & Billing Mode
+                                </Label>
+                                <span className="text-xs text-gray-500 block">
+                                  Choose whether to use your own API keys or use Platform keys with pay-as-you-go wallet billing.
+                                </span>
+                              </div>
+                              <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                                apiKeySource === "admin_key" 
+                                  ? "bg-purple-100 text-purple-800 border-purple-300" 
+                                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              }`}>
+                                {apiKeySource === "admin_key" ? "Platform Admin Keys" : "Own API Keys (Free)"}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                              <div
+                                onClick={() => setApiKeySource("own_key")}
+                                className={`cursor-pointer rounded-lg p-3 border transition-all ${
+                                  apiKeySource === "own_key"
+                                    ? "border-purple-600 bg-purple-50/60 ring-2 ring-purple-600/20 shadow-sm"
+                                    : "border-gray-200 hover:border-gray-300 bg-white"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    name="apiKeySource"
+                                    checked={apiKeySource === "own_key"}
+                                    onChange={() => setApiKeySource("own_key")}
+                                    className="text-purple-600 focus:ring-purple-500"
+                                  />
+                                  <span className="font-semibold text-xs text-gray-900">Use My Own API Keys</span>
+                                </div>
+                                <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
+                                  Uses OpenAI, Sarvam & Groq keys configured in your AI Settings. <strong>Zero wallet charges</strong>.
+                                </p>
+                              </div>
+
+                              <div
+                                onClick={() => setApiKeySource("admin_key")}
+                                className={`cursor-pointer rounded-lg p-3 border transition-all ${
+                                  apiKeySource === "admin_key"
+                                    ? "border-purple-600 bg-purple-50/60 ring-2 ring-purple-600/20 shadow-sm"
+                                    : "border-gray-200 hover:border-gray-300 bg-white"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    name="apiKeySource"
+                                    checked={apiKeySource === "admin_key"}
+                                    onChange={() => setApiKeySource("admin_key")}
+                                    className="text-purple-600 focus:ring-purple-500"
+                                  />
+                                  <span className="font-semibold text-xs text-gray-900">Use Platform Admin Keys</span>
+                                </div>
+                                <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
+                                  Zero API key setup needed. Pay-as-you-go based on AI token and voice usage directly from your wallet balance.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-purple-100">
                           <div className="flex items-center justify-between">
                             <div className="space-y-0.5">
                               <Label className="font-semibold text-gray-700">Offer "Ask AI" buttons / choices</Label>
@@ -1922,6 +2065,46 @@ export default function EcommerceLedger() {
                             </div>
                             <Switch checked={aiVoiceEnabled} onCheckedChange={setAiVoiceEnabled} />
                           </div>
+
+                          {aiVoiceEnabled && (
+                            <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 border p-3 rounded-lg bg-purple-50/50 mt-1">
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold text-gray-700 text-xs">Active Voice Profile</Label>
+                                <Select value={configVoiceProfileId || "default"} onValueChange={(val) => setConfigVoiceProfileId(val === "default" ? "" : val)}>
+                                  <SelectTrigger className="h-9 text-xs bg-white">
+                                    <SelectValue placeholder="Select Voice Profile (Sarvam, OpenAI, Groq...)" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="default">Default / First Available</SelectItem>
+                                    {voiceProfiles.map((p: any) => (
+                                      <SelectItem key={p.id} value={p.id}>
+                                        {p.name} ({p.provider.toUpperCase()} - {p.voiceId} - {p.languageCode})
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <span className="text-[10px] text-gray-500 block leading-tight">
+                                  Select the AI Voice Profile (Sarvam Rahul, OpenAI Alloy, etc.) for this store.
+                                </span>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <Label className="font-semibold text-gray-700 text-xs">Voice Language Mode</Label>
+                                <Select value={configAiVoiceLanguageMode} onValueChange={setConfigAiVoiceLanguageMode}>
+                                  <SelectTrigger className="h-9 text-xs bg-white">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="profile">Use Voice Profile Language (e.g. Malayalam)</SelectItem>
+                                    <SelectItem value="auto">Auto-Detect Customer Language (Multi-lingual)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <span className="text-[10px] text-gray-500 block leading-tight">
+                                  Whether AI responds in profile language or dynamically matches customer language.
+                                </span>
+                              </div>
+                            </div>
+                          )}
 
                           <div className="space-y-1.5">
                             <Label htmlFor="aiTimeout" className="font-semibold text-gray-700">AI Session Timeout (Minutes)</Label>
@@ -1957,7 +2140,8 @@ You are chatting with a customer regarding this product:
                             </span>
                           </div>
                         </div>
-                      )}
+                      </>
+                    )}
                     </div>
                   </div>
 
@@ -2156,6 +2340,198 @@ You are chatting with a customer regarding this product:
               </form>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* 5. AI USAGE & WALLET BILLING LEDGER TAB */}
+        <TabsContent value="ai_usage">
+          <div className="space-y-6">
+            {/* Header & Refresh */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-purple-50 via-white to-indigo-50 p-4 rounded-xl border border-purple-100">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Coins className="w-5 h-5 text-indigo-600" />
+                  AI Usage & Wallet Billing Ledger
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Real-time usage breakdown of LLM tokens, STT audio minutes, and TTS voice characters billed to your platform wallet.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetchAiUsage()}
+                  disabled={isFetchingAiUsage}
+                  className="flex items-center gap-1.5 bg-white shadow-sm"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isFetchingAiUsage ? "animate-spin" : ""}`} />
+                  Refresh Ledger
+                </Button>
+              </div>
+            </div>
+
+            {/* Metric Summary Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* Total AI Messages */}
+              <Card className="border-gray-200 shadow-sm bg-white">
+                <CardContent className="p-3.5 space-y-1">
+                  <div className="flex items-center justify-between text-gray-500">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider">AI Messages</span>
+                    <Bot className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {aiUsageReport?.summary?.totalMessages?.toLocaleString() || 0}
+                  </div>
+                  <span className="text-[10px] text-gray-400 block">Total Q&A replies</span>
+                </CardContent>
+              </Card>
+
+              {/* Distinct Chats */}
+              <Card className="border-gray-200 shadow-sm bg-white">
+                <CardContent className="p-3.5 space-y-1">
+                  <div className="flex items-center justify-between text-gray-500">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider">Active Chats</span>
+                    <MessageSquare className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {aiUsageReport?.summary?.totalChats?.toLocaleString() || 0}
+                  </div>
+                  <span className="text-[10px] text-gray-400 block">Unique customer chats</span>
+                </CardContent>
+              </Card>
+
+              {/* LLM Tokens */}
+              <Card className="border-gray-200 shadow-sm bg-white">
+                <CardContent className="p-3.5 space-y-1">
+                  <div className="flex items-center justify-between text-gray-500">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider">LLM Tokens</span>
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {aiUsageReport?.summary?.totalLlmTokens?.toLocaleString() || 0}
+                  </div>
+                  <span className="text-[10px] text-gray-400 block">Prompt & completion</span>
+                </CardContent>
+              </Card>
+
+              {/* Voice Minutes (STT) */}
+              <Card className="border-gray-200 shadow-sm bg-white">
+                <CardContent className="p-3.5 space-y-1">
+                  <div className="flex items-center justify-between text-gray-500">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider">Voice STT</span>
+                    <Mic className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {aiUsageReport?.summary?.totalSttMinutes || 0} <span className="text-xs font-normal text-gray-500">min</span>
+                  </div>
+                  <span className="text-[10px] text-gray-400 block">Audio transcribed</span>
+                </CardContent>
+              </Card>
+
+              {/* Voice Characters (TTS) */}
+              <Card className="border-gray-200 shadow-sm bg-white">
+                <CardContent className="p-3.5 space-y-1">
+                  <div className="flex items-center justify-between text-gray-500">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider">Voice TTS</span>
+                    <Volume2 className="w-4 h-4 text-pink-600" />
+                  </div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {aiUsageReport?.summary?.totalTtsChars?.toLocaleString() || 0} <span className="text-xs font-normal text-gray-500">ch</span>
+                  </div>
+                  <span className="text-[10px] text-gray-400 block">Characters spoken</span>
+                </CardContent>
+              </Card>
+
+              {/* Wallet Billed Amount */}
+              <Card className="border-indigo-200 shadow-sm bg-indigo-50/40">
+                <CardContent className="p-3.5 space-y-1">
+                  <div className="flex items-center justify-between text-indigo-700">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider">Wallet Billed</span>
+                    <Coins className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div className="text-xl font-bold text-indigo-950">
+                    {aiUsageReport?.summary?.currency || "INR"} {aiUsageReport?.summary?.totalBilledAmount?.toFixed(2) || "0.00"}
+                  </div>
+                  <span className="text-[10px] text-indigo-600 font-medium block">
+                    Bal: {aiUsageReport?.summary?.currency || "INR"} {aiUsageReport?.summary?.walletBalance?.toFixed(2) || "0.00"}
+                  </span>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Daily Usage Breakdown Table */}
+            <Card className="border-gray-200 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-indigo-600" />
+                  Daily Usage & Billing Breakdown
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Detailed day-by-day record of customer chats, messages processed, token consumption, audio processing, and billed amounts.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isAiUsageLoading ? (
+                  <div className="py-12 flex flex-col items-center justify-center gap-2 text-gray-500 text-sm">
+                    <RefreshCw className="w-5 h-5 animate-spin text-indigo-600" />
+                    <span>Loading usage ledger...</span>
+                  </div>
+                ) : !aiUsageReport?.dailyBreakdown || aiUsageReport.dailyBreakdown.length === 0 ? (
+                  <div className="py-12 text-center text-gray-400 text-sm">
+                    <Bot className="w-10 h-10 mx-auto mb-2 text-gray-300 stroke-[1.5]" />
+                    No AI usage logs recorded in the last 30 days. When customers interact with your Product AI Assistant, daily logs and wallet deductions will show here.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50/70">
+                          <TableHead className="text-xs font-bold text-gray-700">Date</TableHead>
+                          <TableHead className="text-xs font-bold text-gray-700 text-center">AI Messages</TableHead>
+                          <TableHead className="text-xs font-bold text-gray-700 text-center">Chats / Conversations</TableHead>
+                          <TableHead className="text-xs font-bold text-gray-700 text-right">LLM Tokens</TableHead>
+                          <TableHead className="text-xs font-bold text-gray-700 text-right">Voice Note STT</TableHead>
+                          <TableHead className="text-xs font-bold text-gray-700 text-right">Voice Note TTS</TableHead>
+                          <TableHead className="text-xs font-bold text-gray-700 text-right">Billed Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {aiUsageReport.dailyBreakdown.map((row: any, idx: number) => (
+                          <TableRow key={idx} className="hover:bg-gray-50/80 transition-colors">
+                            <TableCell className="font-semibold text-xs text-gray-900">
+                              {row.date}
+                            </TableCell>
+                            <TableCell className="text-xs text-center text-gray-700">
+                              <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-semibold border border-purple-100">
+                                {row.totalMessages}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs text-center text-gray-700">
+                              <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100">
+                                {row.totalChats}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs text-right font-mono text-gray-700">
+                              {row.llmTokens.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-xs text-right font-mono text-gray-700">
+                              {row.sttMinutes} min
+                            </TableCell>
+                            <TableCell className="text-xs text-right font-mono text-gray-700">
+                              {row.ttsChars.toLocaleString()} chars
+                            </TableCell>
+                            <TableCell className="text-xs text-right font-bold text-indigo-700">
+                              {row.currency || "INR"} {row.billedAmount.toFixed(4)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
 

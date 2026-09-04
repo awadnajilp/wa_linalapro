@@ -100,6 +100,15 @@ const ELEVENLABS_PREDEFINED_VOICES = [
   { id: "custom_speaker", name: "Custom Speaker ID (Manually Input)" }
 ];
 
+const OPENAI_PREDEFINED_VOICES = [
+  { id: "alloy", name: "Alloy (Neutral & Balanced)" },
+  { id: "echo", name: "Echo (Male - Warm & Conversational)" },
+  { id: "fable", name: "Fable (British Accent - Expressive)" },
+  { id: "onyx", name: "Onyx (Male - Deep & Authoritative)" },
+  { id: "nova", name: "Nova (Female - Energetic & Friendly)" },
+  { id: "shimmer", name: "Shimmer (Female - Clear & Bright)" }
+];
+
 export default function AIVoicesSettings(): JSX.Element {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -686,6 +695,8 @@ export default function AIVoicesSettings(): JSX.Element {
                         setStdVoiceId("diana");
                       } else if (val === "elevenlabs") {
                         setStdVoiceId("21m00Tcm4TlvDq8ikWAM");
+                      } else if (val === "openai") {
+                        setStdVoiceId("alloy");
                       } else {
                         setStdVoiceId("anushka");
                       }
@@ -694,9 +705,10 @@ export default function AIVoicesSettings(): JSX.Element {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="sarvam">Sarvam.ai</SelectItem>
-                        <SelectItem value="groq">Groq API</SelectItem>
-                        <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
+                        <SelectItem value="sarvam">Sarvam.ai (Indian Languages)</SelectItem>
+                        <SelectItem value="openai">OpenAI Audio (TTS-1)</SelectItem>
+                        <SelectItem value="groq">Groq API (Whisper/Orpheus)</SelectItem>
+                        <SelectItem value="elevenlabs">ElevenLabs (High Quality)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -724,6 +736,10 @@ export default function AIVoicesSettings(): JSX.Element {
                               ))
                             : stdProvider === "elevenlabs"
                             ? ELEVENLABS_PREDEFINED_VOICES.map((v) => (
+                                <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                              ))
+                            : stdProvider === "openai"
+                            ? OPENAI_PREDEFINED_VOICES.map((v) => (
                                 <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
                               ))
                             : PREDEFINED_VOICES.map((v) => (

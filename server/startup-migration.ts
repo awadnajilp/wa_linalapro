@@ -1108,6 +1108,59 @@ const steps: MigrationStep[] = [
       CREATE INDEX IF NOT EXISTS whatsapp_flow_resp_phone_idx ON whatsapp_flow_responses (contact_phone);
     `,
   },
+  // ────────────────────────────────────────────────────
+  // Platform AI Keys & Margins
+  // ────────────────────────────────────────────────────
+  addColumnIfNotExists("panel_config", "admin_openai_api_key", "TEXT"),
+  addColumnIfNotExists("panel_config", "admin_sarvam_api_key", "TEXT"),
+  addColumnIfNotExists("panel_config", "admin_groq_api_key", "TEXT"),
+  addColumnIfNotExists("panel_config", "admin_elevenlabs_api_key", "TEXT"),
+  addColumnIfNotExists("panel_config", "admin_ai_margin_percent", "NUMERIC DEFAULT 70"),
+
+  // ────────────────────────────────────────────────────
+  // Ecommerce Config AI Key Source Switcher
+  // ────────────────────────────────────────────────────
+  addColumnIfNotExists("ecommerce_configs", "api_key_source", "TEXT DEFAULT 'own_key'"),
+
+  // ────────────────────────────────────────────────────
+  // AI & Voice Usage Logs (Wallet Billing Ledger)
+  // ────────────────────────────────────────────────────
+  {
+    description: "Create table ai_usage_logs (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS ai_usage_logs (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        channel_id VARCHAR REFERENCES channels (id) ON DELETE SET NULL,
+        conversation_id VARCHAR REFERENCES conversations (id) ON DELETE SET NULL,
+        source TEXT DEFAULT 'ecommerce',
+        service_type TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        model TEXT,
+        input_units INTEGER DEFAULT 0,
+        output_units INTEGER DEFAULT 0,
+        actual_cost_usd NUMERIC(12, 6) DEFAULT 0,
+        billed_amount NUMERIC(12, 6) DEFAULT 0,
+        currency TEXT DEFAULT 'USD',
+        billed_to_wallet BOOLEAN DEFAULT false,
+        metadata JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS ai_usage_tenant_idx ON ai_usage_logs (tenant_id);
+      CREATE INDEX IF NOT EXISTS ai_usage_created_at_idx ON ai_usage_logs (created_at);
+      CREATE INDEX IF NOT EXISTS ai_usage_source_idx ON ai_usage_logs (source);
+    `,
+  },
+  addColumnIfNotExists(
+    "support_tickets",
+    "attachments",
+    "JSONB DEFAULT '[]'::jsonb"
+  ),
+  addColumnIfNotExists(
+    "ticket_messages",
+    "attachments",
+    "JSONB DEFAULT '[]'::jsonb"
+  ),
 ];
 
 /**

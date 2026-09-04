@@ -749,7 +749,7 @@ async function handleMessageChange(value: any) {
       await storage.updateConversation(conversation.id, updates);
     }
 
-    // STT Transcription for Cloud API Voice Notes
+    // STT Transcription for Cloud API Voice Notes / Audio Messages
     if (isVoice && mediaId) {
       try {
         let voiceProfileId = null;
@@ -757,49 +757,15 @@ async function handleMessageChange(value: any) {
 
         const settings = (conversation.aiSettings || {}) as any;
         const chanSettings = (channel.inboxAiSettings || {}) as any;
-        const isChannelAiEnabled = channel.inboxAiSettings && chanSettings.aiEnabled === true;
-        const sttEnabled = settings.sttEnabled !== undefined ? settings.sttEnabled : chanSettings.sttEnabled;
+        
+        voiceLanguage = settings.sttLanguage || chanSettings.sttLanguage || settings.voiceLanguage || chanSettings.voiceLanguage || "en-IN";
+        voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
 
-        // Check if there is an active ecommerce AI session
-        const { ecommerceSessions } = await import("@shared/schema");
-        const [ecomSession] = await db
-          .select()
-          .from(ecommerceSessions)
-          .where(and(
-            eq(ecommerceSessions.conversationId, conversation.id),
-            eq(ecommerceSessions.currentStep, "ai_chat")
-          ))
-          .limit(1);
-
-        if (sttEnabled === true) {
-          voiceLanguage = settings.sttLanguage || chanSettings.sttLanguage || "en-IN";
-          voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
-          
-          if (!voiceProfileId) {
-            const firstProfile = await db.query.voiceProfiles.findFirst();
-            if (firstProfile) {
-              voiceProfileId = firstProfile.id;
-            }
-          }
-        } else {
-          // If sttEnabled is not explicitly true, still check if ecommerce session is active or AI is enabled
-          if (ecomSession) {
-            voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
-            voiceLanguage = settings.voiceLanguage || chanSettings.voiceLanguage || "en-IN";
-
-            if (!voiceProfileId) {
-              const firstProfile = await db.query.voiceProfiles.findFirst();
-              if (firstProfile) {
-                voiceProfileId = firstProfile.id;
-                voiceLanguage = firstProfile.languageCode || voiceLanguage;
-              }
-            }
-          } else if (conversation.aiEnabled || isChannelAiEnabled) {
-            const voiceEnabled = settings.voiceEnabled !== undefined ? settings.voiceEnabled : chanSettings.voiceEnabled;
-            if (voiceEnabled) {
-              voiceProfileId = settings.voiceProfileId || chanSettings.voiceProfileId;
-              voiceLanguage = settings.voiceLanguage || chanSettings.voiceLanguage || "en-IN";
-            }
+        if (!voiceProfileId) {
+          const firstProfile = await db.query.voiceProfiles.findFirst();
+          if (firstProfile) {
+            voiceProfileId = firstProfile.id;
+            voiceLanguage = firstProfile.languageCode || voiceLanguage;
           }
         }
 
@@ -818,11 +784,13 @@ async function handleMessageChange(value: any) {
             const getApiKey = (u: any) => {
               if (providerName === "groq") return u?.groqApiKey || "";
               if (providerName === "elevenlabs") return u?.elevenlabsApiKey || "";
+              if (providerName === "openai") return u?.openaiApiKey || "";
               return u?.sarvamApiKey || "";
             };
             const getEnvKey = () => {
               if (providerName === "groq") return process.env.GROQ_API_KEY || "";
               if (providerName === "elevenlabs") return process.env.ELEVENLABS_API_KEY || "";
+              if (providerName === "openai") return process.env.OPENAI_API_KEY || "";
               return process.env.SARVAM_API_KEY || "";
             };
 
@@ -839,7 +807,7 @@ async function handleMessageChange(value: any) {
               const [defaultUser] = await db
                 .select()
                 .from(users)
-                .where(eq(users.email, "awadnejilp@gmail.com"))
+                .where(eq(users.email, "awadnajilp@gmail.com"))
                 .limit(1);
               activeApiKey = getApiKey(defaultUser);
             }

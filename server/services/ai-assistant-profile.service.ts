@@ -65,8 +65,8 @@ export class AiAssistantProfileService {
       }
     } catch (err) {
       console.error("[AI Assistant Profile] Cloud voice upload failed, using local URL:", err);
-      const port = process.env.PORT || 5000;
-      fileUrl = `http://localhost:${port}/uploads/audio/${filename}`;
+      const appUrl = process.env.APP_URL || process.env.PUBLIC_URL || "https://wa.linalapro.com";
+      fileUrl = `${appUrl.replace(/\/$/, "")}/uploads/audio/${filename}`;
     }
 
     return fileUrl;

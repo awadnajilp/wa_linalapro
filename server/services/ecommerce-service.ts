@@ -140,8 +140,8 @@ export class EcommerceService {
       }
     } catch (err: any) {
       console.warn("[EcommerceService] Cloud voice upload failed, using local URL:", err.message);
-      const port = process.env.PORT || 5000;
-      fileUrl = `http://localhost:${port}/uploads/audio/${filename}`;
+      const appUrl = process.env.APP_URL || process.env.PUBLIC_URL || "https://wa.linalapro.com";
+      fileUrl = `${appUrl.replace(/\/$/, "")}/uploads/audio/${filename}`;
     }
 
     return fileUrl;
@@ -981,11 +981,17 @@ CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (unde
                 synthesizeKey = ownerUser?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || "";
               } else if (voiceProfile.provider === "sarvam") {
                 synthesizeKey = ownerUser?.sarvamApiKey || process.env.SARVAM_API_KEY || "";
+              } else if (voiceProfile.provider === "groq") {
+                synthesizeKey = ownerUser?.groqApiKey || process.env.GROQ_API_KEY || "";
+              } else if (voiceProfile.provider === "openai") {
+                synthesizeKey = ownerUser?.openaiApiKey || activeAI?.apiKey || process.env.OPENAI_API_KEY || "";
               }
+
+              const defaultSpeaker = voiceProfile.provider === "sarvam" ? "rahul" : (voiceProfile.provider === "openai" ? "alloy" : "diana");
 
               const audioBuffer = await pInstance.synthesize(
                 aiResponse,
-                voiceProfile.voiceId || "anushka",
+                voiceProfile.voiceId || defaultSpeaker,
                 voiceProfile.languageCode || "en-IN",
                 { apiKey: synthesizeKey }
               );

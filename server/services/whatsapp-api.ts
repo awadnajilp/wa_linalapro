@@ -1948,13 +1948,62 @@ async sendMediaMessagee(
     }
 
     const formattedPhone = this.formatPhoneNumber(to);
+
+    // If mediaUrl is a local file or /uploads URL, upload directly to WhatsApp Cloud API
+    let mediaId: string | null = null;
+    try {
+      let localPath = "";
+      if (mediaUrl.startsWith("/uploads/")) {
+        localPath = path.join(process.cwd(), "public", mediaUrl);
+        if (!fs.existsSync(localPath)) {
+          localPath = path.join(process.cwd(), mediaUrl.substring(1));
+        }
+      } else if (mediaUrl.includes("/uploads/audio/")) {
+        const filename = path.basename(mediaUrl);
+        localPath = path.join(process.cwd(), "public/uploads/audio", filename);
+        if (!fs.existsSync(localPath)) {
+          localPath = path.join(process.cwd(), "uploads/audio", filename);
+        }
+      } else if (fs.existsSync(mediaUrl)) {
+        localPath = mediaUrl;
+      }
+
+      if (localPath && fs.existsSync(localPath)) {
+        const buffer = fs.readFileSync(localPath);
+        mediaId = await this.uploadMediaBufferHeader(buffer, "audio/ogg", "audio.ogg");
+        console.log(`[WhatsApp-API] Uploaded local voice note directly to Meta, mediaId: ${mediaId}`);
+      }
+    } catch (uploadErr: any) {
+      console.warn("[WhatsApp-API] Direct buffer upload for voice note failed, falling back to link:", uploadErr.message);
+    }
+
+    if (mediaId) {
+      const body = {
+        messaging_product: "whatsapp",
+        to: formattedPhone,
+        type: "audio",
+        audio: {
+          id: mediaId,
+        },
+      };
+      return this.sendDirectMessage(body);
+    }
+
+    // Fallback: Ensure link is a valid public HTTPS URL
+    let fullUrl = mediaUrl;
+    if (fullUrl.startsWith("/")) {
+      fullUrl = `https://wa.linalapro.com${fullUrl}`;
+    } else if (fullUrl.startsWith("http://localhost")) {
+      fullUrl = fullUrl.replace(/http:\/\/localhost(:\d+)?/, "https://wa.linalapro.com");
+    }
+
     const body = {
       messaging_product: "whatsapp",
       to: formattedPhone,
       type: "audio",
       audio: {
-        link: mediaUrl
-      }
+        link: fullUrl,
+      },
     };
     return this.sendDirectMessage(body);
   }

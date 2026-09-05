@@ -194,16 +194,44 @@ export class EcommerceService {
 
   /**
    * Generate sequential store/tenant based order numbers starting from ORD-1001
+   * Ensures global uniqueness against the database unique constraint
    */
-  public static async generateNextOrderNumber(tenantId: string): Promise<string> {
-    const [result] = await db
-      .select({ count: sql`count(*)` })
-      .from(schema.ecommerceOrders)
-      .where(eq(schema.ecommerceOrders.tenantId, tenantId));
-    
-    const count = parseInt(String(result?.count || "0"), 10);
-    const nextSequence = 1000 + count + 1;
-    return `ORD-${nextSequence}`;
+  public static async generateNextOrderNumber(tenantId?: string): Promise<string> {
+    try {
+      const orders = await db
+        .select({ orderNumber: schema.ecommerceOrders.orderNumber })
+        .from(schema.ecommerceOrders);
+
+      let maxNum = 1000;
+      for (const o of orders) {
+        if (!o.orderNumber) continue;
+        const match = o.orderNumber.match(/^ORD-(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxNum && num < 100000) {
+            maxNum = num;
+          }
+        }
+      }
+
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const candidate = `ORD-${maxNum + 1 + attempt}`;
+        const [existing] = await db
+          .select({ id: schema.ecommerceOrders.id })
+          .from(schema.ecommerceOrders)
+          .where(eq(schema.ecommerceOrders.orderNumber, candidate))
+          .limit(1);
+
+        if (!existing) {
+          return candidate;
+        }
+      }
+    } catch (err: any) {
+      console.warn("[EcommerceService] Error computing next order number:", err?.message);
+    }
+
+    const randomSuffix = Math.floor(100000 + Math.random() * 900000);
+    return `ORD-${randomSuffix}`;
   }
 
   /**
@@ -1676,14 +1704,6 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         await this.sendOrderEmail(order);
       } 
       else if (selectedMethod === "upi_direct") {
-        // Transition to QR payment receipt upload
-        await db
-          .update(schema.ecommerceSessions)
-          .set({
-            currentStep: "waiting_for_qr_receipt"
-          })
-          .where(eq(schema.ecommerceSessions.id, session.id));
-
         // Create the order as pending payment
         const orderNumber = await this.generateNextOrderNumber(config.tenantId);
         const [order] = await db
@@ -1709,6 +1729,19 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           })
           .returning();
 
+        // Transition session to QR receipt upload and store created order details
+        await db
+          .update(schema.ecommerceSessions)
+          .set({
+            currentStep: "waiting_for_qr_receipt",
+            customerData: {
+              ...(session.customerData || {}),
+              orderId: order.id,
+              orderNumber: order.orderNumber
+            }
+          })
+          .where(eq(schema.ecommerceSessions.id, session.id));
+
         await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
 
         // Send direct payment redirect link
@@ -1716,18 +1749,10 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 
         await waApi.sendTextMessage(
           to,
-          `📱 *UPI Mobile Direct Pay*\n\nTo pay *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) directly using GPay / PhonePe / Paytm:\n\n👉 *Click here to Pay:* ${redirectUrl}\n\nOnce paid, *please send the receipt/payment screenshot here* to verify and complete your order.`
+          `📱 *UPI Mobile Direct Pay*\n\nOrder Number: *${orderNumber}*\nTo pay *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) directly using GPay / PhonePe / Paytm:\n\n👉 *Click here to Pay:* ${redirectUrl}\n\nOnce paid, *please send the receipt/payment screenshot here* to verify and complete your order.`
         );
       }
       else if (selectedMethod === "qr_pay") {
-        // Transition to QR payment receipt upload
-        await db
-          .update(schema.ecommerceSessions)
-          .set({
-            currentStep: "waiting_for_qr_receipt"
-          })
-          .where(eq(schema.ecommerceSessions.id, session.id));
-
         // Create order first
         const orderNumber = await this.generateNextOrderNumber(config.tenantId);
         const [order] = await db
@@ -1753,6 +1778,19 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           })
           .returning();
 
+        // Transition session to QR receipt upload and store created order details
+        await db
+          .update(schema.ecommerceSessions)
+          .set({
+            currentStep: "waiting_for_qr_receipt",
+            customerData: {
+              ...(session.customerData || {}),
+              orderId: order.id,
+              orderNumber: order.orderNumber
+            }
+          })
+          .where(eq(schema.ecommerceSessions.id, session.id));
+
         await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
 
         // Send QR code
@@ -1768,7 +1806,7 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         }
         await waApi.sendTextMessage(
           to,
-          `Please scan the QR code to pay a total of *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) via GPAY / PhonePe.\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.`
+          `Please scan the QR code to pay a total of *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) via GPAY / PhonePe.\n\nOrder Number: *${orderNumber}*\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.`
         );
       } 
       else if (selectedMethod === "gateway") {
@@ -1825,10 +1863,14 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
     if (session.currentStep === "waiting_for_qr_receipt") {
       const mediaId = message.image?.id || message.mediaId;
       // Also support checking message type
-      const isImage = message.type === "image" || mediaId;
+      const isImage = message.type === "image" || !!mediaId;
 
       if (!isImage) {
-        await waApi.sendTextMessage(to, "Please upload the payment receipt/screenshot as an image/photo to complete your order.");
+        const orderNum = session.customerData?.orderNumber;
+        const prompt = orderNum 
+          ? `Please upload the payment receipt/screenshot as an image/photo to complete order *${orderNum}*, or reply *cancel* to exit.`
+          : "Please upload the payment receipt/screenshot as an image/photo to complete your order, or reply *cancel* to exit.";
+        await waApi.sendTextMessage(to, prompt);
         return;
       }
 
@@ -1845,44 +1887,66 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           }
         } catch (err) {
           console.error("Failed to fetch media url for receipt:", err);
-          fileUrl = `baileys_media_${mediaId}`; // Fallback or template reference
+          fileUrl = `receipt_media_${mediaId}`;
         }
       }
 
-      const [product] = await db
-        .select()
-        .from(schema.ecommerceProducts)
-        .where(eq(schema.ecommerceProducts.id, session.productId))
-        .limit(1);
+      let order: any = null;
+      let orderNumber = session.customerData?.orderNumber || "";
 
-      const deliveryFee = parseFloat(session.customerData?.deliveryFee || "0");
-      const baseAmount = parseFloat(product?.price || "0") * session.quantity;
-      const totalAmount = baseAmount + deliveryFee;
-      const orderNumber = await this.generateNextOrderNumber(config.tenantId);
+      // If order was already created in upi_direct / qr_pay step, update it!
+      if (session.customerData?.orderId) {
+        const [updatedOrder] = await db
+          .update(schema.ecommerceOrders)
+          .set({
+            receiptUrl: fileUrl || null,
+            paymentStatus: "pending_verification",
+            updatedAt: new Date()
+          })
+          .where(eq(schema.ecommerceOrders.id, session.customerData.orderId))
+          .returning();
+        order = updatedOrder;
+        orderNumber = order?.orderNumber || orderNumber;
+      }
 
-      const [order] = await db
-        .insert(schema.ecommerceOrders)
-        .values({
-          orderNumber,
-          tenantId: config.tenantId,
-          channelId: config.channelId,
-          conversationId: session.conversationId,
-          customerPhone: to,
-          customerName: session.customerData?.name || "Customer",
-          customerData: session.customerData,
-          productId: product?.id,
-          productName: product?.name,
-          price: product?.price,
-          quantity: session.quantity,
-          deliveryFee: String(deliveryFee),
-          totalAmount: String(totalAmount),
-          currency: config.currency || "INR",
-          paymentMethod: "qr_pay",
-          paymentStatus: "pending_verification",
-          receiptUrl: fileUrl || null,
-          status: "pending"
-        })
-        .returning();
+      // If order was not created previously, create it now as fallback
+      if (!order) {
+        const [product] = await db
+          .select()
+          .from(schema.ecommerceProducts)
+          .where(eq(schema.ecommerceProducts.id, session.productId))
+          .limit(1);
+
+        const deliveryFee = parseFloat(session.customerData?.deliveryFee || "0");
+        const baseAmount = parseFloat(product?.price || "0") * session.quantity;
+        const totalAmount = baseAmount + deliveryFee;
+        orderNumber = await this.generateNextOrderNumber(config.tenantId);
+
+        const [newOrder] = await db
+          .insert(schema.ecommerceOrders)
+          .values({
+            orderNumber,
+            tenantId: config.tenantId,
+            channelId: config.channelId,
+            conversationId: session.conversationId,
+            customerPhone: to,
+            customerName: session.customerData?.name || "Customer",
+            customerData: session.customerData,
+            productId: product?.id,
+            productName: product?.name,
+            price: product?.price,
+            quantity: session.quantity,
+            deliveryFee: String(deliveryFee),
+            totalAmount: String(totalAmount),
+            currency: config.currency || "INR",
+            paymentMethod: "qr_pay",
+            paymentStatus: "pending_verification",
+            receiptUrl: fileUrl || null,
+            status: "pending"
+          })
+          .returning();
+        order = newOrder;
+      }
 
       await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
 
@@ -1892,7 +1956,9 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
       );
 
       // Email notification
-      await this.sendOrderEmail(order);
+      if (order) {
+        await this.sendOrderEmail(order);
+      }
     }
   }
 

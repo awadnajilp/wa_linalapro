@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { storage } from "../storage";
 import * as schema from "@shared/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, or, inArray, sql, gte, lte, desc } from "drizzle-orm";
 import OpenAI from "openai";
 import * as path from "path";
 import * as fs from "fs";

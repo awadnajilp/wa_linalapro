@@ -2,7 +2,7 @@ import { db } from "../db";
 import * as schema from "@shared/schema";
 import { eq, and, lte, gte, sql } from "drizzle-orm";
 import ExcelJS from "exceljs";
-import { getTransporter } from "./email.service";
+import { getTransporter, getSystemFromAddress } from "./email.service";
 import { WhatsAppApiService } from "./whatsapp-api";
 import { AddonManager } from "./addon-manager";
 
@@ -168,8 +168,9 @@ async function checkAndSendTicketReports() {
         
         // Send email via system nodemailer config
         const transporter = await getTransporter();
+        const { from: fromHeader } = await getSystemFromAddress("LINALA Support");
         await transporter.sendMail({
-          from: process.env.SMTP_FROM_EMAIL || "info@linalapro.com",
+          from: fromHeader,
           to: config.reportEmail,
           subject: `📊 WhatsApp Support Tickets Report (${interval.toUpperCase()}) - ${now.toLocaleDateString()}`,
           html: `

@@ -71,6 +71,20 @@ export async function getPanelConfig() {
   return Array.isArray(configs) ? configs[0] : configs;
 }
 
+export async function getSystemFromAddress(customDisplayName?: string): Promise<{ from: string; fromName: string; fromEmail: string }> {
+  const config = await getSMTPConfig();
+  const configs = await getPanelConfigs();
+  const panelConfig = Array.isArray(configs) ? configs[0] : configs;
+  const brandName = panelConfig?.name || "LINALA";
+  const fromName = customDisplayName || config?.fromName || brandName;
+  const fromEmail = config?.fromEmail || config?.user || process.env.SMTP_FROM_EMAIL || process.env.SMTP_FROM || "noreply@linalapro.com";
+  return {
+    from: `"${fromName}" <${fromEmail}>`,
+    fromName,
+    fromEmail,
+  };
+}
+
 export function resetEmailCache() {
   transporter = null;
   cacheInvalidate(CACHE_KEYS.smtpConfig()).catch(() => {});

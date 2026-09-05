@@ -31,7 +31,7 @@ import { AddonManager } from "./addon-manager";
 import { ReminderAIService, getContactTimezoneOffset, getTimezoneLabel, formatLocalTime } from "./reminder-ai-service";
 import { ExpenseAIService } from "./expense-ai-service";
 import { TicketAIService } from "./ticket-ai-service";
-import { getTransporter } from "./email.service";
+import { getTransporter, getSystemFromAddress } from "./email.service";
 import { EcommerceService } from "./ecommerce-service";
 import { AiBillingService } from "./ai-billing-service";
 import { WhatsappFlowsService } from "./whatsapp-flows.service";
@@ -1400,8 +1400,9 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                           if (ticketConfig.forwardEnabled && ticketConfig.forwardEmail) {
                             try {
                               const transporter = await getTransporter();
+                              const { from: fromHeader } = await getSystemFromAddress("Support Ticket");
                               await transporter.sendMail({
-                                from: process.env.SMTP_FROM_EMAIL || "info@linalapro.com",
+                                from: fromHeader,
                                 to: ticketConfig.forwardEmail,
                                 subject: `🎫 [Support Ticket] New Ticket Alert: ${ticketId} - ${parsed.subject}`,
                                 html: `
@@ -1500,8 +1501,9 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                         if (ticketConfig.forwardEnabled && ticketConfig.forwardEmail) {
                           try {
                             const transporter = await getTransporter();
+                            const { from: fromHeader } = await getSystemFromAddress("Support Ticket");
                             await transporter.sendMail({
-                              from: process.env.SMTP_FROM_EMAIL || "info@linalapro.com",
+                              from: fromHeader,
                               to: ticketConfig.forwardEmail,
                               subject: `🎫 [Support Ticket] New Ticket Alert: ${ticketId} - ${parsed.subject}`,
                               html: `
@@ -1621,8 +1623,9 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                         if (ticketConfig.forwardEnabled && ticketConfig.forwardEmail) {
                           try {
                             const transporter = await getTransporter();
+                            const { from: fromHeader } = await getSystemFromAddress("Support Ticket");
                             await transporter.sendMail({
-                              from: process.env.SMTP_FROM_EMAIL || "info@linalapro.com",
+                              from: fromHeader,
                               to: ticketConfig.forwardEmail,
                               subject: `🎫 [Support Ticket] New Ticket Alert: ${ticketId} - ${parsed.subject}`,
                               html: `

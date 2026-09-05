@@ -5,6 +5,7 @@ import { eq, and, or, like, gte, lte, sql } from "drizzle-orm";
 import { requireAuth, requireRole } from "../middlewares/auth.middleware";
 import { AddonManager } from "../services/addon-manager";
 import ExcelJS from "exceljs";
+import { getTransporter, getSystemFromAddress } from "../services/email.service";
 
 export function registerAddonsRoutes(app: Express) {
   // ============================================================
@@ -865,8 +866,9 @@ export function registerAddonsRoutes(app: Express) {
       if (config && config.forwardEnabled && config.forwardEmail) {
         try {
           const transporter = await getTransporter();
+          const { from: fromHeader } = await getSystemFromAddress("Support Ticket");
           await transporter.sendMail({
-            from: process.env.SMTP_FROM_EMAIL || "info@linalapro.com",
+            from: fromHeader,
             to: config.forwardEmail,
             subject: `🎫 [Support Ticket] New Ticket Alert: ${ticketId} - ${subject}`,
             html: `

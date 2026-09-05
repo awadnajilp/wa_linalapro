@@ -7,7 +7,7 @@ import * as path from "path";
 import * as fs from "fs";
 import { AddonManager } from "./addon-manager";
 import { WhatsAppApiService } from "./whatsapp-api";
-import { getTransporter } from "./email.service";
+import { getTransporter, getSystemFromAddress } from "./email.service";
 import { getSMTPConfig } from "../controllers/smtp.controller";
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
@@ -2697,8 +2697,10 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
             .join("")
         : "";
 
+      const { from: fromHeader } = await getSystemFromAddress(order.productName ? `${order.productName} Store` : "Store Orders");
+
       const mailOptions = {
-        from: process.env.SMTP_FROM || '"Marketplace Store" <no-reply@example.com>',
+        from: fromHeader,
         to: user.email,
         subject: `[New Store Order] ${order.orderNumber} - ${order.currency || "INR"} ${order.totalAmount}`,
         html: `
@@ -3438,13 +3440,12 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 
       // Get transporter & SMTP configuration
       const transporter = await getTransporter();
-      const smtpConfig = await getSMTPConfig();
-      const fromEmail = process.env.SMTP_FROM || smtpConfig?.from || `"${storeName}" <notifications@wa.linalapro.com>`;
+      const { from: fromHeader } = await getSystemFromAddress(storeName);
 
-      console.log(`[Ecommerce Reports] Sending daily orders report for ${storeName} to:`, recipients.join(", "));
+      console.log(`[Ecommerce Reports] Sending daily orders report for ${storeName} to:`, recipients.join(", "), "from:", fromHeader);
 
       await transporter.sendMail({
-        from: fromEmail,
+        from: fromHeader,
         to: recipients.join(", "),
         subject: `📊 [${storeName}] Daily Orders Summary Report - ${fileDateStr} (${orders.length} orders)`,
         html,

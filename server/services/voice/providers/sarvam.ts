@@ -105,18 +105,22 @@ export class SarvamVoiceProvider implements VoiceProvider {
     const chunks = splitTextIntoChunks(text, 450);
     const audioBuffers: Buffer[] = [];
 
+    const isClonedVoice = speaker.startsWith("svc-") || speaker.startsWith("cloned_");
+
     for (const chunk of chunks) {
-      const payload = {
+      const payload: any = {
         inputs: [chunk],
         target_language_code: targetLanguage,
         speaker: speaker,
-        model: "bulbul:v3",
-
         pace: 1.0,
-
         output_audio_codec: "opus",
         speech_sample_rate: 24000,
       };
+
+      // Only pass model for standard base speakers; Sarvam cloned voices (svc-...) must not specify model: "bulbul:v3"
+      if (!isClonedVoice) {
+        payload.model = "bulbul:v3";
+      }
 
       try {
         const response = await axios.post("https://api.sarvam.ai/text-to-speech", payload, {

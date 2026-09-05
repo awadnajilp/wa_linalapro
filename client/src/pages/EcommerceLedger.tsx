@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ShoppingCart, Package, Settings, ClipboardList, Users, UserCheck, Shuffle, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles, Download, Truck, Calendar as CalendarIcon, Coins, Key, Bot, Volume2, Mic, Activity, ArrowUpRight, Mail, Clock, FileSpreadsheet, Send } from "lucide-react";
+import { ShoppingCart, Package, Settings, ClipboardList, Users, UserCheck, Shuffle, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles, Download, Truck, Calendar as CalendarIcon, Coins, Key, Bot, Volume2, Mic, Activity, ArrowUpRight, Mail, Clock, FileSpreadsheet, Send, ShoppingBag, RotateCcw, Percent, Flame, MessageCircle, AlertCircle, PhoneCall } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -325,12 +325,37 @@ export default function EcommerceLedger() {
   const [autoAssignUserId, setAutoAssignUserId] = useState<string>("");
   const [autoAssignExcludedUserIds, setAutoAssignExcludedUserIds] = useState<string[]>([]);
 
-  // Daily Orders Report States
+  // Daily Orders Report States (Email)
   const [dailyReportEnabled, setDailyReportEnabled] = useState(false);
   const [dailyReportEmails, setDailyReportEmails] = useState<string[]>([]);
   const [dailyReportEmailInput, setDailyReportEmailInput] = useState("");
   const [dailyReportTime, setDailyReportTime] = useState("21:00");
   const [isSendingTestReport, setIsSendingTestReport] = useState(false);
+
+  // Daily Orders WhatsApp Forwarding States
+  const [dailyReportWaEnabled, setDailyReportWaEnabled] = useState(false);
+  const [dailyReportWaNumbers, setDailyReportWaNumbers] = useState<string[]>([]);
+  const [dailyReportWaNumberInput, setDailyReportWaNumberInput] = useState("");
+  const [dailyReportWaChannelId, setDailyReportWaChannelId] = useState<string>("");
+  const [isSendingTestWaReport, setIsSendingTestWaReport] = useState(false);
+
+  // Abandoned Cart Recovery Automation Settings
+  const [abandonedCartRecoveryEnabled, setAbandonedCartRecoveryEnabled] = useState(false);
+  const [abandonedCartDelay1Minutes, setAbandonedCartDelay1Minutes] = useState(60);
+  const [abandonedCartDelay2Hours, setAbandonedCartDelay2Hours] = useState(18);
+  const [abandonedCartDiscountCode, setAbandonedCartDiscountCode] = useState("");
+  const [abandonedCartDiscountPercent, setAbandonedCartDiscountPercent] = useState("10");
+  const [abandonedCartMessage1, setAbandonedCartMessage1] = useState("");
+  const [abandonedCartMessage2, setAbandonedCartMessage2] = useState("");
+
+  // Abandoned Carts Ledger Tab States
+  const [abandonedPage, setAbandonedPage] = useState(1);
+  const [abandonedStatusFilter, setAbandonedStatusFilter] = useState("all");
+  const [abandonedSearch, setAbandonedSearch] = useState("");
+  const [abandonedChannelFilter, setAbandonedChannelFilter] = useState("all");
+  const [recoveryModalOpen, setRecoveryModalOpen] = useState(false);
+  const [selectedCartForRecovery, setSelectedCartForRecovery] = useState<any | null>(null);
+  const [customRecoveryMessage, setCustomRecoveryMessage] = useState("");
 
   // Fetch Voice Profiles
   const { data: voiceProfiles = [] } = useQuery<any[]>({
@@ -434,6 +459,16 @@ export default function EcommerceLedger() {
       setDailyReportEnabled((config as any).dailyReportEnabled !== undefined ? (config as any).dailyReportEnabled : false);
       setDailyReportEmails(Array.isArray((config as any).dailyReportEmails) ? (config as any).dailyReportEmails : []);
       setDailyReportTime((config as any).dailyReportTime || "21:00");
+      setDailyReportWaEnabled((config as any).dailyReportWaEnabled !== undefined ? (config as any).dailyReportWaEnabled : false);
+      setDailyReportWaNumbers(Array.isArray((config as any).dailyReportWaNumbers) ? (config as any).dailyReportWaNumbers : []);
+      setDailyReportWaChannelId((config as any).dailyReportWaChannelId || "");
+      setAbandonedCartRecoveryEnabled((config as any).abandonedCartRecoveryEnabled !== undefined ? (config as any).abandonedCartRecoveryEnabled : false);
+      setAbandonedCartDelay1Minutes((config as any).abandonedCartDelay1Minutes !== undefined ? (config as any).abandonedCartDelay1Minutes : 60);
+      setAbandonedCartDelay2Hours((config as any).abandonedCartDelay2Hours !== undefined ? (config as any).abandonedCartDelay2Hours : 18);
+      setAbandonedCartDiscountCode((config as any).abandonedCartDiscountCode || "");
+      setAbandonedCartDiscountPercent((config as any).abandonedCartDiscountPercent ? String((config as any).abandonedCartDiscountPercent) : "10");
+      setAbandonedCartMessage1((config as any).abandonedCartMessage1 || "");
+      setAbandonedCartMessage2((config as any).abandonedCartMessage2 || "");
 
       // Standardize loaded checkoutFields Q&A objects
       if (Array.isArray(config.checkoutFields)) {
@@ -460,6 +495,16 @@ export default function EcommerceLedger() {
       }
     }
   }, [config]);
+
+  // Fetch all tenant channels for selector
+  const { data: allChannels = [] } = useQuery<any[]>({
+    queryKey: ["/api/channels"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/channels");
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
 
   // 2. Fetch Products
   const { data: productsData, isLoading: isProductsLoading } = useQuery<{ products: Product[]; total: number }>({
@@ -497,6 +542,41 @@ export default function EcommerceLedger() {
     queryFn: async () => {
       const res = await fetch(`/api/ecommerce/customers?page=${customersPage}&limit=${limit}`);
       if (!res.ok) throw new Error("Failed to fetch customers");
+      return res.json();
+    },
+  });
+
+  // 5. Fetch Abandoned Carts
+  const {
+    data: abandonedCartsData,
+    isLoading: isAbandonedCartsLoading,
+    refetch: refetchAbandonedCarts
+  } = useQuery<{
+    carts: any[];
+    total: number;
+    page: number;
+    limit: number;
+    stats: {
+      totalAbandoned: number;
+      totalRecovered: number;
+      totalCancelled: number;
+      totalCarts: number;
+      recoveredRevenue: number;
+      lostPotentialRevenue: number;
+      recoveryRate: number;
+    };
+  }>({
+    queryKey: ["/api/ecommerce/abandoned-carts", abandonedPage, abandonedStatusFilter, abandonedSearch, abandonedChannelFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: String(abandonedPage),
+        limit: "10",
+        status: abandonedStatusFilter,
+        channelId: abandonedChannelFilter,
+        search: abandonedSearch,
+      });
+      const res = await fetch(`/api/ecommerce/abandoned-carts?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to fetch abandoned carts");
       return res.json();
     },
   });
@@ -810,10 +890,103 @@ export default function EcommerceLedger() {
       dailyReportEnabled,
       dailyReportEmails,
       dailyReportTime,
+      dailyReportWaEnabled,
+      dailyReportWaNumbers,
+      dailyReportWaChannelId: dailyReportWaChannelId || null,
+      abandonedCartRecoveryEnabled,
+      abandonedCartDelay1Minutes,
+      abandonedCartDelay2Hours,
+      abandonedCartDiscountCode,
+      abandonedCartDiscountPercent,
+      abandonedCartMessage1,
+      abandonedCartMessage2,
       isActive: configActive,
     };
 
     saveConfigMutation.mutate(payload);
+  };
+
+  const sendRecoveryMutation = useMutation({
+    mutationFn: async ({ id, customMessage }: { id: string; customMessage?: string }) => {
+      const res = await apiRequest("POST", `/api/ecommerce/abandoned-carts/${id}/send-recovery`, { customMessage });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Recovery Message Sent", description: data.message || "Message delivered to customer." });
+      setRecoveryModalOpen(false);
+      setSelectedCartForRecovery(null);
+      setCustomRecoveryMessage("");
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/abandoned-carts"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to send recovery message", description: err.message, variant: "destructive" });
+    }
+  });
+
+  const updateCartStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const res = await apiRequest("PATCH", `/api/ecommerce/abandoned-carts/${id}/status`, { status });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Cart Status Updated", description: "Abandoned cart status has been updated." });
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/abandoned-carts"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to update status", description: err.message, variant: "destructive" });
+    }
+  });
+
+  const deleteCartMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("DELETE", `/api/ecommerce/abandoned-carts/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Record Deleted", description: "Abandoned cart record removed." });
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/abandoned-carts"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to delete record", description: err.message, variant: "destructive" });
+    }
+  });
+
+  const handleSendTestWaReportNow = async () => {
+    if (!channelId) {
+      toast({ title: "No Channel Selected", description: "Please select a channel first.", variant: "destructive" });
+      return;
+    }
+    if (dailyReportWaNumbers.length === 0) {
+      toast({ title: "No Recipients Configured", description: "Please add at least one recipient WhatsApp number first.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setIsSendingTestWaReport(true);
+      const res = await apiRequest("POST", "/api/ecommerce/config/send-test-wa-report", {
+        channelId,
+        targetNumbers: dailyReportWaNumbers,
+        targetChannelId: dailyReportWaChannelId || channelId
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to send WhatsApp report");
+      }
+
+      toast({
+        title: "WhatsApp Daily Summary Sent!",
+        description: data.message || `Summary report successfully forwarded via WhatsApp to ${dailyReportWaNumbers.join(", ")}`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "WhatsApp Report Failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingTestWaReport(false);
+    }
   };
 
   const handleSendTestReportNow = async () => {
@@ -1090,6 +1263,10 @@ export default function EcommerceLedger() {
           <TabsTrigger value="customers" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
             {t("contacts.title")} ({customersData?.total || 0})
+          </TabsTrigger>
+          <TabsTrigger value="abandoned_carts" className="flex items-center gap-2">
+            <ShoppingCart className="w-4 h-4 text-amber-600" />
+            {t("ecommerce.abandonedCarts.title")} ({abandonedCartsData?.stats?.totalAbandoned || 0})
           </TabsTrigger>
           <TabsTrigger value="config" className="flex items-center gap-2">
             <Settings className="w-4 h-4" />
@@ -1515,6 +1692,479 @@ export default function EcommerceLedger() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* 3.5 ABANDONED CARTS TAB */}
+        <TabsContent value="abandoned_carts">
+          <div className="space-y-4">
+            {/* KPI Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="border border-amber-200 bg-amber-50/40 shadow-xs">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">
+                      {t("ecommerce.abandonedCarts.totalAbandoned")}
+                    </p>
+                    <h3 className="text-2xl font-extrabold text-amber-950 mt-1">
+                      {abandonedCartsData?.stats?.totalAbandoned || 0}
+                    </h3>
+                    <p className="text-[11px] text-amber-600 mt-0.5">
+                      Unfinished checkout sessions
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-amber-100 text-amber-700">
+                    <ShoppingCart className="w-5 h-5" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border border-emerald-200 bg-emerald-50/40 shadow-xs">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">
+                      {t("ecommerce.abandonedCarts.totalRecovered")}
+                    </p>
+                    <h3 className="text-2xl font-extrabold text-emerald-950 mt-1">
+                      {abandonedCartsData?.stats?.totalRecovered || 0}
+                    </h3>
+                    <p className="text-[11px] text-emerald-600 mt-0.5">
+                      Completed after follow-up
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-emerald-100 text-emerald-700">
+                    <CheckCircle className="w-5 h-5" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border border-blue-200 bg-blue-50/40 shadow-xs">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">
+                      {t("ecommerce.abandonedCarts.recoveryRate")}
+                    </p>
+                    <h3 className="text-2xl font-extrabold text-blue-950 mt-1">
+                      {abandonedCartsData?.stats?.recoveryRate || 0}%
+                    </h3>
+                    <p className="text-[11px] text-blue-600 mt-0.5">
+                      Conversion efficiency
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-blue-100 text-blue-700">
+                    <Percent className="w-5 h-5" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border border-purple-200 bg-purple-50/40 shadow-xs">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-purple-700 uppercase tracking-wider">
+                      {t("ecommerce.abandonedCarts.recoveredRevenue")}
+                    </p>
+                    <h3 className="text-2xl font-extrabold text-purple-950 mt-1">
+                      {storeCurrency} {Number(abandonedCartsData?.stats?.recoveredRevenue || 0).toFixed(2)}
+                    </h3>
+                    <p className="text-[11px] text-purple-600 mt-0.5">
+                      Unrecovered: {storeCurrency} {Number(abandonedCartsData?.stats?.lostPotentialRevenue || 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-purple-100 text-purple-700">
+                    <Coins className="w-5 h-5" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Main Abandoned Carts Table Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                      <ShoppingCart className="w-5 h-5 text-amber-600" />
+                      {t("ecommerce.abandonedCarts.title")}
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      {t("ecommerce.abandonedCarts.subtitle")}
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => refetchAbandonedCarts()}
+                    className="text-xs h-8"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                    Refresh
+                  </Button>
+                </div>
+
+                {/* Filter and Search Bar */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
+                  <Input
+                    placeholder={t("ecommerce.abandonedCarts.searchPlaceholder")}
+                    value={abandonedSearch}
+                    onChange={(e) => {
+                      setAbandonedSearch(e.target.value);
+                      setAbandonedPage(1);
+                    }}
+                    className="text-xs h-9 bg-white"
+                  />
+                  <Select
+                    value={abandonedStatusFilter}
+                    onValueChange={(val) => {
+                      setAbandonedStatusFilter(val);
+                      setAbandonedPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="text-xs h-9 bg-white">
+                      <SelectValue placeholder={t("ecommerce.abandonedCarts.allStatuses")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all" className="text-xs">{t("ecommerce.abandonedCarts.allStatuses")}</SelectItem>
+                      <SelectItem value="abandoned" className="text-xs">{t("ecommerce.abandonedCarts.statusAbandoned")}</SelectItem>
+                      <SelectItem value="recovered" className="text-xs">{t("ecommerce.abandonedCarts.statusRecovered")}</SelectItem>
+                      <SelectItem value="cancelled" className="text-xs">{t("ecommerce.abandonedCarts.statusCancelled")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={abandonedChannelFilter}
+                    onValueChange={(val) => {
+                      setAbandonedChannelFilter(val);
+                      setAbandonedPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="text-xs h-9 bg-white">
+                      <SelectValue placeholder="All Channels" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all" className="text-xs">All Connected Channels</SelectItem>
+                      {allChannels.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id} className="text-xs">
+                          {c.name || c.phoneNumber || c.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                {isAbandonedCartsLoading ? (
+                  <div className="text-center py-10 flex items-center justify-center gap-2 text-gray-500 text-sm">
+                    <RefreshCw className="w-4 h-4 animate-spin" /> Loading abandoned carts...
+                  </div>
+                ) : !abandonedCartsData?.carts || abandonedCartsData.carts.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <ShoppingCart className="w-10 h-10 mx-auto mb-2 opacity-40 text-amber-500" />
+                    <p className="font-semibold text-gray-600 text-sm">{t("ecommerce.abandonedCarts.noCartsFound")}</p>
+                    <p className="text-xs text-gray-400 mt-1">When shoppers start checkout and drop off, their sessions will appear here.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="border rounded-md overflow-hidden">
+                      <Table>
+                        <TableHeader className="bg-gray-50/80">
+                          <TableRow>
+                            <TableHead className="text-xs font-bold">{t("ecommerce.abandonedCarts.customer")}</TableHead>
+                            <TableHead className="text-xs font-bold">{t("ecommerce.abandonedCarts.product")}</TableHead>
+                            <TableHead className="text-xs font-bold">{t("ecommerce.abandonedCarts.droppedStep")}</TableHead>
+                            <TableHead className="text-xs font-bold">{t("ecommerce.abandonedCarts.followups")}</TableHead>
+                            <TableHead className="text-xs font-bold">Status</TableHead>
+                            <TableHead className="text-xs font-bold">{t("ecommerce.abandonedCarts.lastActivity")}</TableHead>
+                            <TableHead className="text-xs font-bold text-right">{t("ecommerce.abandonedCarts.actions")}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {abandonedCartsData.carts.map((cart: any) => {
+                            const getStepBadge = (step: string) => {
+                              if (!step) return null;
+                              if (step === "waiting_for_quantity") {
+                                return <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-semibold px-2 py-0.5 rounded-full">{t("ecommerce.abandonedCarts.stepQuantity")}</span>;
+                              }
+                              if (step.startsWith("waiting_for_field:")) {
+                                const fieldVar = step.replace("waiting_for_field:", "");
+                                return <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-semibold px-2 py-0.5 rounded-full">{t("ecommerce.abandonedCarts.stepField")}: {fieldVar}</span>;
+                              }
+                              if (step === "waiting_for_checkout_confirmation") {
+                                return <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold px-2 py-0.5 rounded-full">{t("ecommerce.abandonedCarts.stepConfirmation")}</span>;
+                              }
+                              if (step === "waiting_for_payment_method") {
+                                return <span className="bg-orange-50 text-orange-700 border border-orange-200 text-[10px] font-semibold px-2 py-0.5 rounded-full">{t("ecommerce.abandonedCarts.stepPaymentMethod")}</span>;
+                              }
+                              if (step === "waiting_for_qr_receipt") {
+                                return <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-semibold px-2 py-0.5 rounded-full">{t("ecommerce.abandonedCarts.stepQrReceipt")}</span>;
+                              }
+                              return <span className="bg-gray-100 text-gray-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">{step}</span>;
+                            };
+
+                            const itemTotal = (parseFloat(cart.productPrice || "0") || 0) * (cart.quantity || 1);
+
+                            return (
+                              <TableRow key={cart.id} className="hover:bg-gray-50/50">
+                                {/* Customer */}
+                                <TableCell>
+                                  <div className="font-semibold text-xs text-gray-900">{cart.customerName || "Customer"}</div>
+                                  <div className="font-mono text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
+                                    <PhoneCall className="w-3 h-3 text-gray-400" />
+                                    {cart.customerPhone}
+                                  </div>
+                                </TableCell>
+
+                                {/* Product */}
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    {cart.productPhoto && (
+                                      <img
+                                        src={getPreviewUrl(cart.productPhoto)}
+                                        alt={cart.productName || "Product"}
+                                        className="w-8 h-8 rounded object-cover border shrink-0"
+                                      />
+                                    )}
+                                    <div>
+                                      <div className="font-medium text-xs text-gray-800 line-clamp-1">{cart.productName || "Item"}</div>
+                                      <div className="text-[11px] font-bold text-emerald-700">
+                                        {storeCurrency} {itemTotal.toFixed(2)} (x{cart.quantity || 1})
+                                      </div>
+                                    </div>
+                                  </div>
+                                </TableCell>
+
+                                {/* Dropped Step */}
+                                <TableCell>
+                                  {getStepBadge(cart.currentStep)}
+                                </TableCell>
+
+                                {/* Followups */}
+                                <TableCell>
+                                  <div className="space-y-1">
+                                    <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                      cart.followupCount === 2
+                                        ? "bg-purple-100 text-purple-800"
+                                        : cart.followupCount === 1
+                                        ? "bg-blue-100 text-blue-800"
+                                        : "bg-gray-100 text-gray-600"
+                                    }`}>
+                                      {cart.followupCount || 0}/2 Follow-ups
+                                    </span>
+                                    {cart.followup1SentAt && (
+                                      <div className="text-[10px] text-gray-400">
+                                        1st: {new Date(cart.followup1SentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      </div>
+                                    )}
+                                  </div>
+                                </TableCell>
+
+                                {/* Status */}
+                                <TableCell>
+                                  <span className={`inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full capitalize ${
+                                    cart.status === "recovered"
+                                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                      : cart.status === "cancelled"
+                                      ? "bg-gray-100 text-gray-700 border border-gray-300"
+                                      : "bg-amber-100 text-amber-800 border border-amber-300"
+                                  }`}>
+                                    {cart.status}
+                                  </span>
+                                </TableCell>
+
+                                {/* Last Activity */}
+                                <TableCell className="text-xs text-gray-500 whitespace-nowrap">
+                                  {cart.lastActivityAt ? new Date(cart.lastActivityAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : "N/A"}
+                                </TableCell>
+
+                                {/* Actions */}
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    {/* Send Recovery Message button */}
+                                    {cart.status === "abandoned" && (
+                                      <Button
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedCartForRecovery(cart);
+                                          const defaultMsg = `👋 Hi ${cart.customerName || "there"}! We noticed you left *${cart.productName || "your item"}* in your cart.\n\nItems in your cart are in high demand and might sell out soon. Would you like to complete your order now?`;
+                                          setCustomRecoveryMessage(defaultMsg);
+                                          setRecoveryModalOpen(true);
+                                        }}
+                                        className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center gap-1 px-2.5 shadow-xs"
+                                      >
+                                        <MessageCircle className="w-3.5 h-3.5" />
+                                        {t("ecommerce.abandonedCarts.sendRecovery")}
+                                      </Button>
+                                    )}
+
+                                    {/* Open Chat Link */}
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      asChild
+                                      className="h-7 text-xs px-2 text-gray-700 hover:bg-gray-100"
+                                    >
+                                      <a href={`/inbox?conversationId=${cart.conversationId}`} target="_blank" rel="noreferrer">
+                                        <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                    </Button>
+
+                                    {/* Status Change Popover / Quick Toggle */}
+                                    {cart.status === "abandoned" && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => updateCartStatusMutation.mutate({ id: cart.id, status: "recovered" })}
+                                        disabled={updateCartStatusMutation.isPending}
+                                        className="h-7 text-[11px] text-emerald-700 border-emerald-300 hover:bg-emerald-50 px-2"
+                                        title={t("ecommerce.abandonedCarts.markRecovered")}
+                                      >
+                                        <CheckCircle className="w-3 h-3 text-emerald-600" />
+                                      </Button>
+                                    )}
+
+                                    {/* Delete Button */}
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        if (window.confirm("Are you sure you want to delete this abandoned cart record?")) {
+                                          deleteCartMutation.mutate(cart.id);
+                                        }
+                                      }}
+                                      disabled={deleteCartMutation.isPending}
+                                      className="h-7 text-gray-400 hover:text-red-600 px-1.5"
+                                    >
+                                      <Trash className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* Pagination */}
+                    {abandonedCartsData.total > 10 && (
+                      <div className="flex items-center justify-between pt-2">
+                        <div className="text-xs text-gray-500">
+                          Showing {(abandonedPage - 1) * 10 + 1} to {Math.min(abandonedPage * 10, abandonedCartsData.total)} of {abandonedCartsData.total} abandoned carts
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={abandonedPage === 1}
+                            onClick={() => setAbandonedPage(p => p - 1)}
+                            className="text-xs h-8"
+                          >
+                            Prev
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={abandonedPage * 10 >= abandonedCartsData.total}
+                            onClick={() => setAbandonedPage(p => p + 1)}
+                            className="text-xs h-8"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Manual Recovery Message Dialog */}
+            <Dialog open={recoveryModalOpen} onOpenChange={setRecoveryModalOpen}>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-base">
+                    <MessageCircle className="w-4 h-4 text-amber-600" />
+                    {t("ecommerce.abandonedCarts.sendRecoveryTitle")}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs">
+                    {t("ecommerce.abandonedCarts.sendRecoveryDesc")}
+                  </DialogDescription>
+                </DialogHeader>
+
+                {selectedCartForRecovery && (
+                  <div className="space-y-4 py-2">
+                    {/* Customer & Product Summary Pill */}
+                    <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg text-xs space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-amber-900">
+                          {selectedCartForRecovery.customerName || "Customer"} ({selectedCartForRecovery.customerPhone})
+                        </span>
+                        <span className="font-bold text-emerald-700">
+                          {storeCurrency} {(parseFloat(selectedCartForRecovery.productPrice || "0") * (selectedCartForRecovery.quantity || 1)).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="text-amber-800 text-[11px]">
+                        🛍️ {selectedCartForRecovery.productName} (x{selectedCartForRecovery.quantity || 1}) &bull; Dropped at: <span className="font-semibold">{selectedCartForRecovery.currentStep}</span>
+                      </div>
+                    </div>
+
+                    {/* Message Prompt */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-gray-700">
+                        {t("ecommerce.abandonedCarts.recoveryMessagePrompt")}
+                      </Label>
+                      <Textarea
+                        rows={4}
+                        value={customRecoveryMessage}
+                        onChange={(e) => setCustomRecoveryMessage(e.target.value)}
+                        className="text-xs bg-white font-sans"
+                        placeholder="Type recovery message..."
+                      />
+                      <p className="text-[10px] text-gray-400">
+                        The message will be sent with interactive buttons: <strong>🛒 Complete Order</strong> and <strong>❌ Cancel</strong>.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRecoveryModalOpen(false)}
+                    className="text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      if (selectedCartForRecovery) {
+                        sendRecoveryMutation.mutate({
+                          id: selectedCartForRecovery.id,
+                          customMessage: customRecoveryMessage
+                        });
+                      }
+                    }}
+                    disabled={sendRecoveryMutation.isPending}
+                    className="text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+                  >
+                    {sendRecoveryMutation.isPending ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" />
+                        {t("ecommerce.abandonedCarts.sending")}
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5 mr-1" />
+                        {t("ecommerce.abandonedCarts.sendNow")}
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </TabsContent>
 
         {/* 4. CONFIG TAB */}
@@ -2581,6 +3231,315 @@ You are chatting with a customer regarding this product:
                                 ))}
                               </div>
                             )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Daily Orders Summary WhatsApp Forwarding Card */}
+                  <div className="space-y-4 border p-4 rounded-lg bg-white shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-green-50 text-green-600 border border-green-100">
+                          <MessageSquare className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                            {t("ecommerce.dailyReportWa.title")}
+                            <span className="text-[10px] font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
+                              WhatsApp
+                            </span>
+                          </h3>
+                          <p className="text-xs text-gray-500">
+                            {t("ecommerce.dailyReportWa.subtitle")}
+                          </p>
+                        </div>
+                      </div>
+                      <Switch checked={dailyReportWaEnabled} onCheckedChange={setDailyReportWaEnabled} />
+                    </div>
+
+                    {dailyReportWaEnabled && (
+                      <div className="space-y-4 pt-2 border-t border-gray-100 animate-in fade-in-50 duration-200">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Channel Selector */}
+                          <div className="space-y-2 p-3.5 rounded-lg border border-gray-100 bg-gray-50/50">
+                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                              <PhoneCall className="w-3.5 h-3.5 text-green-600" />
+                              {t("ecommerce.dailyReportWa.selectChannel")}
+                            </Label>
+                            <Select
+                              value={dailyReportWaChannelId || channelId || ""}
+                              onValueChange={setDailyReportWaChannelId}
+                            >
+                              <SelectTrigger className="text-xs bg-white">
+                                <SelectValue placeholder={t("ecommerce.dailyReportWa.selectChannelPlaceholder")} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {allChannels.map((c: any) => (
+                                  <SelectItem key={c.id} value={c.id} className="text-xs">
+                                    {c.name || c.phoneNumber || c.id} ({c.connectionMethod === "qr_code" ? "QR Channel" : "Cloud API"})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-[11px] text-gray-500">
+                              {t("ecommerce.dailyReportWa.selectChannelHelp")}
+                            </p>
+                          </div>
+
+                          {/* Test Send Trigger */}
+                          <div className="space-y-2 p-3.5 rounded-lg border border-green-100 bg-green-50/30 flex flex-col justify-between">
+                            <div>
+                              <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                                <Send className="w-3.5 h-3.5 text-green-600" />
+                                {t("ecommerce.dailyReportWa.sendTestWa")}
+                              </Label>
+                              <p className="text-[11px] text-gray-500 mt-1">
+                                Send today's orders summary directly to configured WhatsApp numbers now for verification.
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={handleSendTestWaReportNow}
+                              disabled={isSendingTestWaReport || dailyReportWaNumbers.length === 0}
+                              className="w-full text-xs font-semibold text-green-700 border-green-300 hover:bg-green-100/60 flex items-center justify-center gap-1.5 mt-2 bg-white shadow-sm"
+                            >
+                              {isSendingTestWaReport ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  {t("ecommerce.dailyReportWa.sendingTestWa")}
+                                </>
+                              ) : (
+                                <>
+                                  <Send className="w-3.5 h-3.5 text-green-600" />
+                                  {t("ecommerce.dailyReportWa.sendTestWa")}
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Recipient WhatsApp Phone Numbers */}
+                        <div className="space-y-2">
+                          <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                            <PhoneCall className="w-3.5 h-3.5 text-green-600" />
+                            {t("ecommerce.dailyReportWa.recipientNumbers")}
+                          </Label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="tel"
+                              value={dailyReportWaNumberInput}
+                              onChange={(e) => setDailyReportWaNumberInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  const trimmed = dailyReportWaNumberInput.trim().replace(/[^0-9+]/g, "");
+                                  if (trimmed && trimmed.length >= 7) {
+                                    if (!dailyReportWaNumbers.includes(trimmed)) {
+                                      setDailyReportWaNumbers([...dailyReportWaNumbers, trimmed]);
+                                      setDailyReportWaNumberInput("");
+                                    } else {
+                                      toast({ title: "Number already added", description: "This phone number is already in the recipient list." });
+                                    }
+                                  } else if (trimmed) {
+                                    toast({ title: "Invalid Phone Number", description: "Please enter a valid phone number with country code.", variant: "destructive" });
+                                  }
+                                }
+                              }}
+                              placeholder={t("ecommerce.dailyReportWa.recipientPlaceholder")}
+                              className="text-xs bg-white flex-1"
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => {
+                                const trimmed = dailyReportWaNumberInput.trim().replace(/[^0-9+]/g, "");
+                                if (trimmed && trimmed.length >= 7) {
+                                  if (!dailyReportWaNumbers.includes(trimmed)) {
+                                    setDailyReportWaNumbers([...dailyReportWaNumbers, trimmed]);
+                                    setDailyReportWaNumberInput("");
+                                  } else {
+                                    toast({ title: "Number already added", description: "This phone number is already in the recipient list." });
+                                  }
+                                } else if (trimmed) {
+                                  toast({ title: "Invalid Phone Number", description: "Please enter a valid phone number with country code.", variant: "destructive" });
+                                }
+                              }}
+                              className="text-xs bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              <Plus className="w-3.5 h-3.5 mr-1" />
+                              {t("ecommerce.dailyReportWa.addNumber")}
+                            </Button>
+                          </div>
+
+                          {/* Numbers Chips */}
+                          <div className="pt-1">
+                            {dailyReportWaNumbers.length === 0 ? (
+                              <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 p-2 rounded-md">
+                                ⚠️ {t("ecommerce.dailyReportWa.noNumbers")}
+                              </p>
+                            ) : (
+                              <div className="flex flex-wrap gap-2 pt-1">
+                                {dailyReportWaNumbers.map((phone, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-800 text-xs px-2.5 py-1 rounded-full transition-colors"
+                                  >
+                                    <PhoneCall className="w-3 h-3 text-green-600" />
+                                    <span className="font-mono text-[11px]">{phone}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setDailyReportWaNumbers(dailyReportWaNumbers.filter((_, i) => i !== idx))}
+                                      className="text-gray-400 hover:text-red-600 ml-1 rounded-full p-0.5"
+                                    >
+                                      <Trash className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Abandoned Cart Recovery Automation Card */}
+                  <div className="space-y-4 border p-4 rounded-lg bg-white shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-amber-50 text-amber-600 border border-amber-100">
+                          <RotateCcw className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                            {t("ecommerce.abandonedCartSettings.title")}
+                            <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                              24h Window
+                            </span>
+                          </h3>
+                          <p className="text-xs text-gray-500">
+                            {t("ecommerce.abandonedCartSettings.subtitle")}
+                          </p>
+                        </div>
+                      </div>
+                      <Switch checked={abandonedCartRecoveryEnabled} onCheckedChange={setAbandonedCartRecoveryEnabled} />
+                    </div>
+
+                    {abandonedCartRecoveryEnabled && (
+                      <div className="space-y-4 pt-2 border-t border-gray-100 animate-in fade-in-50 duration-200">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Follow-up 1 Delay */}
+                          <div className="space-y-1.5 p-3 rounded-lg border border-gray-100 bg-gray-50/50">
+                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-amber-600" />
+                              {t("ecommerce.abandonedCartSettings.delay1")}
+                            </Label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                min={5}
+                                max={1440}
+                                value={abandonedCartDelay1Minutes}
+                                onChange={(e) => setAbandonedCartDelay1Minutes(parseInt(e.target.value) || 60)}
+                                className="text-xs bg-white w-28"
+                              />
+                              <span className="text-xs text-gray-500">minutes</span>
+                            </div>
+                            <p className="text-[11px] text-gray-400">
+                              {t("ecommerce.abandonedCartSettings.delay1Help")}
+                            </p>
+                          </div>
+
+                          {/* Follow-up 2 Delay */}
+                          <div className="space-y-1.5 p-3 rounded-lg border border-gray-100 bg-gray-50/50">
+                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                              <Flame className="w-3.5 h-3.5 text-orange-600" />
+                              {t("ecommerce.abandonedCartSettings.delay2")}
+                            </Label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                min={1}
+                                max={23}
+                                value={abandonedCartDelay2Hours}
+                                onChange={(e) => setAbandonedCartDelay2Hours(parseInt(e.target.value) || 18)}
+                                className="text-xs bg-white w-28"
+                              />
+                              <span className="text-xs text-gray-500">hours</span>
+                            </div>
+                            <p className="text-[11px] text-gray-400">
+                              {t("ecommerce.abandonedCartSettings.delay2Help")}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Optional Incentive Discount Code & % */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                              <Percent className="w-3.5 h-3.5 text-amber-600" />
+                              {t("ecommerce.abandonedCartSettings.discountCode")}
+                            </Label>
+                            <Input
+                              value={abandonedCartDiscountCode}
+                              onChange={(e) => setAbandonedCartDiscountCode(e.target.value.toUpperCase())}
+                              placeholder="e.g. SAVE10 or COMEBACK"
+                              className="text-xs bg-white uppercase font-mono"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                              <Percent className="w-3.5 h-3.5 text-amber-600" />
+                              {t("ecommerce.abandonedCartSettings.discountPercent")}
+                            </Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={abandonedCartDiscountPercent}
+                              onChange={(e) => setAbandonedCartDiscountPercent(e.target.value)}
+                              placeholder="10"
+                              className="text-xs bg-white"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Message Templates */}
+                        <div className="space-y-3">
+                          <div className="space-y-1.5">
+                            <Label className="font-semibold text-gray-700 text-xs">
+                              {t("ecommerce.abandonedCartSettings.message1Template")}
+                            </Label>
+                            <Textarea
+                              rows={3}
+                              value={abandonedCartMessage1}
+                              onChange={(e) => setAbandonedCartMessage1(e.target.value)}
+                              placeholder="👋 Hi {name}! We noticed you left *{product_name}* in your cart. Would you like to complete your order now?"
+                              className="text-xs bg-white font-sans"
+                            />
+                            <p className="text-[10px] text-gray-400">
+                              Available placeholders: <code className="text-gray-600">{"{name}"}</code>, <code className="text-gray-600">{"{product_name}"}</code>, <code className="text-gray-600">{"{price}"}</code>, <code className="text-gray-600">{"{quantity}"}</code>
+                            </p>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label className="font-semibold text-gray-700 text-xs">
+                              {t("ecommerce.abandonedCartSettings.message2Template")}
+                            </Label>
+                            <Textarea
+                              rows={3}
+                              value={abandonedCartMessage2}
+                              onChange={(e) => setAbandonedCartMessage2(e.target.value)}
+                              placeholder="⏰ *Last chance!* Your cart containing *{product_name}* is about to expire.{discount_info} Click Complete Order below to grab it before stock runs out!"
+                              className="text-xs bg-white font-sans"
+                            />
+                            <p className="text-[10px] text-gray-400">
+                              Available placeholders: <code className="text-gray-600">{"{name}"}</code>, <code className="text-gray-600">{"{product_name}"}</code>, <code className="text-gray-600">{"{discount_info}"}</code>
+                            </p>
                           </div>
                         </div>
                       </div>

@@ -2570,6 +2570,16 @@ export const ecommerceConfigs = pgTable("ecommerce_configs", {
   dailyReportEmails: jsonb("daily_report_emails").$type<string[]>().default([]),
   dailyReportTime: text("daily_report_time").default("21:00"), // HH:MM 24h format (e.g. 21:00)
   dailyReportLastSentAt: timestamp("daily_report_last_sent_at"),
+  dailyReportWaEnabled: boolean("daily_report_wa_enabled").default(false),
+  dailyReportWaNumbers: jsonb("daily_report_wa_numbers").$type<string[]>().default([]),
+  dailyReportWaChannelId: varchar("daily_report_wa_channel_id").references(() => channels.id, { onDelete: "set null" }),
+  abandonedCartRecoveryEnabled: boolean("abandoned_cart_recovery_enabled").default(false),
+  abandonedCartDelay1Minutes: integer("abandoned_cart_delay_1_minutes").default(60),
+  abandonedCartDelay2Hours: integer("abandoned_cart_delay_2_hours").default(18),
+  abandonedCartDiscountCode: text("abandoned_cart_discount_code"),
+  abandonedCartDiscountPercent: numeric("abandoned_cart_discount_percent", { precision: 5, scale: 2 }).default("0"),
+  abandonedCartMessage1: text("abandoned_cart_message_1"),
+  abandonedCartMessage2: text("abandoned_cart_message_2"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -2612,11 +2622,40 @@ export const ecommerceSessions = pgTable("ecommerce_sessions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const ecommerceAbandonedCarts = pgTable("ecommerce_abandoned_carts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  customerPhone: text("customer_phone").notNull(),
+  customerName: text("customer_name"),
+  productId: varchar("product_id").references(() => ecommerceProducts.id, { onDelete: "set null" }),
+  productName: text("product_name"),
+  productPrice: numeric("product_price", { precision: 12, scale: 2 }).default("0"),
+  productPhoto: text("product_photo"),
+  quantity: integer("quantity").default(1),
+  customerData: jsonb("customer_data").default({}),
+  currentStep: text("current_step").notNull(), // e.g. "waiting_for_quantity", "waiting_for_field:address", "waiting_for_payment_method", "waiting_for_qr_receipt"
+  status: text("status").default("abandoned"), // "abandoned", "recovered", "cancelled"
+  followup1SentAt: timestamp("followup1_sent_at"),
+  followup2SentAt: timestamp("followup2_sent_at"),
+  followupCount: integer("followup_count").default(0),
+  recoveredAt: timestamp("recovered_at"),
+  recoveredOrderId: varchar("recovered_order_id").references(() => ecommerceOrders.id, { onDelete: "set null" }),
+  lastActivityAt: timestamp("last_activity_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Zod schemas
 export const insertEcommerceProductSchema = createInsertSchema(ecommerceProducts);
 export const insertEcommerceConfigSchema = createInsertSchema(ecommerceConfigs);
 export const insertEcommerceOrderSchema = createInsertSchema(ecommerceOrders);
 export const insertEcommerceSessionSchema = createInsertSchema(ecommerceSessions);
+export const insertEcommerceAbandonedCartSchema = createInsertSchema(ecommerceAbandonedCarts);
+
+export type EcommerceAbandonedCart = typeof ecommerceAbandonedCarts.$inferSelect;
+export type InsertEcommerceAbandonedCart = typeof ecommerceAbandonedCarts.$inferInsert;
 
 // TypeScript types
 export type Addon = typeof addons.$inferSelect;

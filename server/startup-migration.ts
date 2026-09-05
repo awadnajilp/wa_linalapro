@@ -1192,6 +1192,53 @@ const steps: MigrationStep[] = [
   addColumnIfNotExists("ecommerce_configs", "daily_report_emails", "JSONB DEFAULT '[]'::jsonb"),
   addColumnIfNotExists("ecommerce_configs", "daily_report_time", "TEXT DEFAULT '21:00'"),
   addColumnIfNotExists("ecommerce_configs", "daily_report_last_sent_at", "TIMESTAMP"),
+  addColumnIfNotExists("ecommerce_configs", "daily_report_wa_enabled", "BOOLEAN DEFAULT false"),
+  addColumnIfNotExists("ecommerce_configs", "daily_report_wa_numbers", "JSONB DEFAULT '[]'::jsonb"),
+  addColumnIfNotExists("ecommerce_configs", "daily_report_wa_channel_id", "VARCHAR REFERENCES channels (id) ON DELETE SET NULL"),
+  addColumnIfNotExists("ecommerce_configs", "abandoned_cart_recovery_enabled", "BOOLEAN DEFAULT false"),
+  addColumnIfNotExists("ecommerce_configs", "abandoned_cart_delay_1_minutes", "INTEGER DEFAULT 60"),
+  addColumnIfNotExists("ecommerce_configs", "abandoned_cart_delay_2_hours", "INTEGER DEFAULT 18"),
+  addColumnIfNotExists("ecommerce_configs", "abandoned_cart_discount_code", "TEXT"),
+  addColumnIfNotExists("ecommerce_configs", "abandoned_cart_discount_percent", "NUMERIC(5, 2) DEFAULT 0"),
+  addColumnIfNotExists("ecommerce_configs", "abandoned_cart_message_1", "TEXT"),
+  addColumnIfNotExists("ecommerce_configs", "abandoned_cart_message_2", "TEXT"),
+
+  // ────────────────────────────────────────────────────
+  // Ecommerce Abandoned Carts Table
+  // ────────────────────────────────────────────────────
+  {
+    description: "Create table ecommerce_abandoned_carts (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS ecommerce_abandoned_carts (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        channel_id VARCHAR REFERENCES channels (id) ON DELETE CASCADE,
+        conversation_id VARCHAR NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
+        customer_phone TEXT NOT NULL,
+        customer_name TEXT,
+        product_id VARCHAR REFERENCES ecommerce_products (id) ON DELETE SET NULL,
+        product_name TEXT,
+        product_price NUMERIC(12, 2) DEFAULT 0,
+        product_photo TEXT,
+        quantity INTEGER DEFAULT 1,
+        customer_data JSONB DEFAULT '{}'::jsonb,
+        current_step TEXT NOT NULL,
+        status TEXT DEFAULT 'abandoned',
+        followup1_sent_at TIMESTAMP,
+        followup2_sent_at TIMESTAMP,
+        followup_count INTEGER DEFAULT 0,
+        recovered_at TIMESTAMP,
+        recovered_order_id VARCHAR REFERENCES ecommerce_orders (id) ON DELETE SET NULL,
+        last_activity_at TIMESTAMP DEFAULT NOW(),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS ecommerce_abandoned_tenant_idx ON ecommerce_abandoned_carts (tenant_id);
+      CREATE INDEX IF NOT EXISTS ecommerce_abandoned_channel_idx ON ecommerce_abandoned_carts (channel_id);
+      CREATE INDEX IF NOT EXISTS ecommerce_abandoned_status_idx ON ecommerce_abandoned_carts (status);
+      CREATE INDEX IF NOT EXISTS ecommerce_abandoned_last_activity_idx ON ecommerce_abandoned_carts (last_activity_at);
+    `,
+  },
 ];
 
 /**

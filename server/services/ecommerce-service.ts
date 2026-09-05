@@ -711,6 +711,36 @@ export class EcommerceService {
             await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${product.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
             return true;
           }
+        } else if (buttonReplyId.startsWith("resume_checkout_")) {
+          const cartId = buttonReplyId.replace("resume_checkout_", "");
+          const [cart] = await db
+            .select()
+            .from(schema.ecommerceAbandonedCarts)
+            .where(eq(schema.ecommerceAbandonedCarts.id, cartId))
+            .limit(1);
+
+          if (cart && cart.productId) {
+            const [product] = await db
+              .select()
+              .from(schema.ecommerceProducts)
+              .where(eq(schema.ecommerceProducts.id, cart.productId))
+              .limit(1);
+
+            if (product) {
+              await this.autoAssignConversation(config, channelRow, conversationId);
+              await this.resumeCheckoutFlow(channelRow, config, conversationId, contactPhone, product, cart);
+              return true;
+            }
+          }
+        } else if (buttonReplyId.startsWith("cancel_checkout_")) {
+          const cartId = buttonReplyId.replace("cancel_checkout_", "");
+          await db
+            .update(schema.ecommerceAbandonedCarts)
+            .set({ status: "cancelled", updatedAt: new Date() })
+            .where(eq(schema.ecommerceAbandonedCarts.id, cartId));
+          await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+          await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, "❌ *Order cancelled.* Reply *store* anytime to browse our products again!");
+          return true;
         }
       }
 
@@ -1225,6 +1255,25 @@ export class EcommerceService {
       customerData: {}
     });
 
+    // Track initial abandoned cart state
+    const productPhoto = Array.isArray(product.photos)
+      ? product.photos[0]
+      : (typeof product.photos === "string" ? product.photos.split(",")[0] : null);
+
+    await this.trackAbandonedCart({
+      tenantId: config.tenantId,
+      channelId: config.channelId || channelRow?.id,
+      conversationId,
+      customerPhone: contactPhone,
+      productId: product.id,
+      productName: product.name,
+      productPrice: product.price ? String(product.price) : "0",
+      productPhoto: productPhoto || null,
+      quantity: 1,
+      customerData: {},
+      currentStep: "waiting_for_quantity"
+    });
+
     await this.sendAndSaveTextMessage(
       channelRow,
       conversationId,
@@ -1299,6 +1348,7 @@ export class EcommerceService {
     // Support cancelling/resetting active checkout session
     const cleanInput = input.trim().toLowerCase();
     if (cleanInput === "cancel" || cleanInput === "exit" || cleanInput === "reset") {
+      await this.markCartCancelled(conversationId);
       await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
       await this.sendAndSaveTextMessage(channelRow, conversationId, to, "❌ *Checkout cancelled.* Type *store* to open the catalog again.");
       return;
@@ -1732,6 +1782,16 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         return;
       }
 
+      const nextStep = fields.length === 0 ? "waiting_for_payment_method" : `waiting_for_field:${fields[0].variable}`;
+      await this.trackAbandonedCart({
+        tenantId: config.tenantId,
+        channelId: config.channelId || channelRow?.id,
+        conversationId,
+        customerPhone: to,
+        quantity,
+        currentStep: nextStep
+      });
+
       if (fields.length === 0) {
         await db
           .update(schema.ecommerceSessions)
@@ -1768,6 +1828,19 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 
       const currentIndex = fields.findIndex((f) => f.variable === currentFieldVar);
       const nextIndex = currentIndex + 1;
+      const nextStep = (nextIndex < fields.length && currentIndex !== -1)
+        ? `waiting_for_field:${fields[nextIndex].variable}`
+        : "waiting_for_checkout_confirmation";
+
+      await this.trackAbandonedCart({
+        tenantId: config.tenantId,
+        channelId: config.channelId || channelRow?.id,
+        conversationId,
+        customerPhone: to,
+        customerName: customerData.name || customerData.fullName || undefined,
+        customerData,
+        currentStep: nextStep
+      });
 
       if (nextIndex < fields.length && currentIndex !== -1) {
         const nextField = fields[nextIndex];
@@ -2080,6 +2153,7 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         );
 
         if (order) {
+          await this.markCartRecovered(conversationId, order.id);
           await this.sendOrderEmail(order);
         }
         return;
@@ -2220,6 +2294,7 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
       await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
 
       if (selectedMethod === "cod") {
+        await this.markCartRecovered(conversationId, order.id);
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
 
         await this.sendAndSaveTextMessage(
@@ -2232,6 +2307,20 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         await this.sendOrderEmail(order);
       }
       else if (selectedMethod === "upi_direct") {
+        await this.trackAbandonedCart({
+          tenantId: config.tenantId,
+          channelId: config.channelId || channelRow?.id,
+          conversationId,
+          customerPhone: to,
+          customerName: session.customerData?.name,
+          customerData: {
+            ...(session.customerData || {}),
+            orderId: order.id,
+            orderNumber: order.orderNumber
+          },
+          currentStep: "waiting_for_qr_receipt"
+        });
+
         await db
           .update(schema.ecommerceSessions)
           .set({
@@ -2254,6 +2343,20 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         );
       }
       else if (selectedMethod === "qr_pay") {
+        await this.trackAbandonedCart({
+          tenantId: config.tenantId,
+          channelId: config.channelId || channelRow?.id,
+          conversationId,
+          customerPhone: to,
+          customerName: session.customerData?.name,
+          customerData: {
+            ...(session.customerData || {}),
+            orderId: order.id,
+            orderNumber: order.orderNumber
+          },
+          currentStep: "waiting_for_qr_receipt"
+        });
+
         await db
           .update(schema.ecommerceSessions)
           .set({
@@ -2298,6 +2401,7 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
             .where(eq(schema.ecommerceOrders.id, order.id))
             .returning();
 
+          await this.markCartRecovered(conversationId, order.id);
           await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
 
           await this.sendAndSaveTextMessage(
@@ -3466,6 +3570,13 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           .where(eq(schema.ecommerceConfigs.id, config.id));
       }
 
+      // If WhatsApp daily summary report is also enabled, send it
+      if (config.dailyReportWaEnabled) {
+        this.sendDailyWhatsAppReport(config, options).catch((err) =>
+          console.error("[Ecommerce Reports] WhatsApp report forwarding background error:", err?.message)
+        );
+      }
+
       return {
         success: true,
         message: `Successfully sent daily orders report with ${orders.length} orders to ${recipients.join(", ")}`,
@@ -3482,6 +3593,541 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
   }
 
   /**
+   * Send daily orders summary via WhatsApp to configured phone numbers.
+   */
+  public static async sendDailyWhatsAppReport(
+    config: schema.EcommerceConfig,
+    options?: { isManualTest?: boolean; targetNumbers?: string[]; targetChannelId?: string; date?: Date }
+  ): Promise<{ success: boolean; message: string; ordersCount: number }> {
+    try {
+      const numbers: string[] = options?.targetNumbers && options.targetNumbers.length > 0
+        ? options.targetNumbers
+        : (Array.isArray(config.dailyReportWaNumbers) ? config.dailyReportWaNumbers : []).filter(n => typeof n === "string" && n.trim().length > 0);
+
+      if (numbers.length === 0) {
+        return { success: false, message: "No recipient WhatsApp numbers configured.", ordersCount: 0 };
+      }
+
+      const channelId = options?.targetChannelId || config.dailyReportWaChannelId || config.channelId;
+      if (!channelId) {
+        return { success: false, message: "No WhatsApp channel selected for sending report.", ordersCount: 0 };
+      }
+
+      const [channelRow] = await db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, channelId))
+        .limit(1);
+
+      if (!channelRow) {
+        return { success: false, message: "Selected WhatsApp channel not found.", ordersCount: 0 };
+      }
+
+      // Check date boundaries (default: today 00:00:00 to 23:59:59.999)
+      const targetDate = options?.date || new Date();
+      const startOfDay = new Date(targetDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Fetch orders for this channel/tenant for the target date
+      const orders = await db
+        .select()
+        .from(schema.ecommerceOrders)
+        .where(
+          and(
+            eq(schema.ecommerceOrders.tenantId, config.tenantId),
+            eq(schema.ecommerceOrders.channelId, config.channelId),
+            gte(schema.ecommerceOrders.createdAt, startOfDay),
+            lte(schema.ecommerceOrders.createdAt, endOfDay)
+          )
+        )
+        .orderBy(desc(schema.ecommerceOrders.createdAt));
+
+      const storeName = config.storeName || "Store";
+      const dateStr = targetDate.toLocaleDateString("en-US", {
+        weekday: "short",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+
+      let totalRevenue = 0;
+      let paidCount = 0;
+      let codCount = 0;
+      let pendingCount = 0;
+
+      orders.forEach(o => {
+        totalRevenue += parseFloat(String(o.totalAmount || "0")) || 0;
+        if (o.paymentStatus === "paid") paidCount++;
+        else if (o.paymentMethod === "cod") codCount++;
+        else pendingCount++;
+      });
+
+      const currency = config.currency || "INR";
+
+      // Build message text
+      let ordersListText = "";
+      if (orders.length === 0) {
+        ordersListText = "_No orders recorded today._";
+      } else {
+        const previewOrders = orders.slice(0, 15);
+        ordersListText = previewOrders.map((o, idx) => {
+          const statusTag = (o.paymentStatus || "pending").toUpperCase();
+          const modeTag = (o.paymentMethod || "cod").toUpperCase();
+          return `${idx + 1}. *${o.orderNumber}* - ${o.customerName || "Customer"} (${o.customerPhone})\n   🛍️ ${o.productName || "Item"} (x${o.quantity || 1}) • *${currency} ${Number(o.totalAmount || 0).toFixed(2)}* [${statusTag} • ${modeTag}]`;
+        }).join("\n\n");
+
+        if (orders.length > 15) {
+          ordersListText += `\n\n_...and ${orders.length - 15} more order(s)._`;
+        }
+      }
+
+      const waMessage = `📊 *${storeName.toUpperCase()} - DAILY ORDERS SUMMARY*\n📅 Date: *${dateStr}*\n\n` +
+        `📈 *Key Metrics:*\n` +
+        `• 📦 *Total Orders:* ${orders.length}\n` +
+        `• 💰 *Total Sales:* ${currency} ${totalRevenue.toFixed(2)}\n` +
+        `• ✅ *Paid / Verified:* ${paidCount}\n` +
+        `• 🚚 *Cash on Delivery:* ${codCount}\n` +
+        `• ⏳ *Pending Payment:* ${pendingCount}\n\n` +
+        `📋 *Today's Orders Breakdown:*\n${ordersListText}\n\n` +
+        `_Sent automatically by ${storeName} Ecommerce_`;
+
+      const waApi = new WhatsAppApiService(channelRow);
+      let successCount = 0;
+
+      for (const phone of numbers) {
+        try {
+          const cleanPhone = phone.replace(/[^0-9]/g, "");
+          if (cleanPhone.length >= 7) {
+            await waApi.sendTextMessage(cleanPhone, waMessage);
+            successCount++;
+          }
+        } catch (phoneErr: any) {
+          console.error(`[Ecommerce Reports WA] Failed to send to ${phone}:`, phoneErr.message);
+        }
+      }
+
+      return {
+        success: successCount > 0,
+        message: `Successfully forwarded daily orders summary via WhatsApp to ${successCount} recipient(s).`,
+        ordersCount: orders.length
+      };
+    } catch (err: any) {
+      console.error(`[Ecommerce Reports WA] Error sending WhatsApp daily summary:`, err);
+      return {
+        success: false,
+        message: `Failed to send WhatsApp report: ${err.message}`,
+        ordersCount: 0
+      };
+    }
+  }
+
+  /**
+   * Track or update an abandoned cart session.
+   */
+  public static async trackAbandonedCart(params: {
+    tenantId: string;
+    channelId?: string | null;
+    conversationId: string;
+    customerPhone: string;
+    customerName?: string | null;
+    productId?: string | null;
+    productName?: string | null;
+    productPrice?: string | null;
+    productPhoto?: string | null;
+    quantity?: number;
+    customerData?: any;
+    currentStep: string;
+  }): Promise<void> {
+    try {
+      const existing = await db
+        .select()
+        .from(schema.ecommerceAbandonedCarts)
+        .where(
+          and(
+            eq(schema.ecommerceAbandonedCarts.conversationId, params.conversationId),
+            eq(schema.ecommerceAbandonedCarts.status, "abandoned")
+          )
+        )
+        .orderBy(desc(schema.ecommerceAbandonedCarts.createdAt))
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        await db
+          .update(schema.ecommerceAbandonedCarts)
+          .set({
+            customerName: params.customerName || existing[0].customerName,
+            productId: params.productId || existing[0].productId,
+            productName: params.productName || existing[0].productName,
+            productPrice: params.productPrice ? String(params.productPrice) : existing[0].productPrice,
+            productPhoto: params.productPhoto || existing[0].productPhoto,
+            quantity: params.quantity || existing[0].quantity,
+            customerData: params.customerData || existing[0].customerData,
+            currentStep: params.currentStep,
+            lastActivityAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.ecommerceAbandonedCarts.id, existing[0].id));
+      } else {
+        await db.insert(schema.ecommerceAbandonedCarts).values({
+          tenantId: params.tenantId,
+          channelId: params.channelId || null,
+          conversationId: params.conversationId,
+          customerPhone: params.customerPhone,
+          customerName: params.customerName || null,
+          productId: params.productId || null,
+          productName: params.productName || null,
+          productPrice: params.productPrice ? String(params.productPrice) : "0",
+          productPhoto: params.productPhoto || null,
+          quantity: params.quantity || 1,
+          customerData: params.customerData || {},
+          currentStep: params.currentStep,
+          status: "abandoned",
+          followupCount: 0,
+          lastActivityAt: new Date(),
+        });
+      }
+    } catch (err: any) {
+      console.error("[EcommerceService] Failed to track abandoned cart:", err?.message);
+    }
+  }
+
+  /**
+   * Mark active abandoned cart as recovered when an order is completed.
+   */
+  public static async markCartRecovered(conversationId: string, orderId: string): Promise<void> {
+    try {
+      await db
+        .update(schema.ecommerceAbandonedCarts)
+        .set({
+          status: "recovered",
+          recoveredOrderId: orderId,
+          recoveredAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.ecommerceAbandonedCarts.conversationId, conversationId),
+            eq(schema.ecommerceAbandonedCarts.status, "abandoned")
+          )
+        );
+    } catch (err: any) {
+      console.error("[EcommerceService] Failed to mark cart recovered:", err?.message);
+    }
+  }
+
+  /**
+   * Mark active abandoned cart as cancelled when customer exits.
+   */
+  public static async markCartCancelled(conversationId: string): Promise<void> {
+    try {
+      await db
+        .update(schema.ecommerceAbandonedCarts)
+        .set({
+          status: "cancelled",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.ecommerceAbandonedCarts.conversationId, conversationId),
+            eq(schema.ecommerceAbandonedCarts.status, "abandoned")
+          )
+        );
+    } catch (err: any) {
+      console.error("[EcommerceService] Failed to mark cart cancelled:", err?.message);
+    }
+  }
+
+  /**
+   * Resume checkout flow from an abandoned cart, preserving previously collected fields.
+   */
+  public static async resumeCheckoutFlow(
+    channelRow: any,
+    config: any,
+    conversationId: string,
+    contactPhone: string,
+    product: any,
+    cart: schema.EcommerceAbandonedCart
+  ) {
+    // Delete active session
+    await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+
+    const savedData: any = cart.customerData || {};
+    const qty = cart.quantity || 1;
+
+    // Insert new session with preserved customerData
+    await db.insert(schema.ecommerceSessions).values({
+      conversationId,
+      productId: product.id,
+      quantity: qty,
+      currentStep: cart.currentStep || "waiting_for_quantity",
+      customerData: savedData,
+    });
+
+    const currency = product.currency || config.currency || "INR";
+    const basePrice = parseFloat(product.price || "0");
+    const subtotal = basePrice * qty;
+
+    const resumeMsg = `🛒 *Welcome back!*\n\nResuming your order for *${product.name}* (x${qty}) • *${currency} ${subtotal.toFixed(2)}*.\n\n` +
+      `Reply *1* or send your details to continue, or type *cancel* to restart.`;
+
+    await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, resumeMsg);
+  }
+
+  /**
+   * Send automated recovery message to customer for an abandoned cart.
+   */
+  public static async sendRecoveryMessageToCart(
+    cart: schema.EcommerceAbandonedCart,
+    followupNum: 1 | 2,
+    config: schema.EcommerceConfig
+  ): Promise<boolean> {
+    try {
+      const channelId = cart.channelId || config.channelId;
+      if (!channelId) return false;
+
+      const [channelRow] = await db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, channelId))
+        .limit(1);
+
+      if (!channelRow) return false;
+
+      const customerName = cart.customerName || "there";
+      const productName = cart.productName || "your item";
+      const currency = config.currency || "INR";
+      const price = `${currency} ${cart.productPrice || "0"}`;
+      const quantity = String(cart.quantity || 1);
+
+      let text = "";
+      if (followupNum === 1) {
+        const rawTemplate = config.abandonedCartMessage1 || "👋 Hi {name}! We noticed you left *{product_name}* in your cart.\n\nItems in your cart are in high demand and might sell out soon. Would you like to complete your order now?";
+        text = rawTemplate
+          .replace(/{name}/g, customerName)
+          .replace(/{product_name}/g, productName)
+          .replace(/{price}/g, price)
+          .replace(/{quantity}/g, quantity);
+      } else {
+        const rawTemplate = config.abandonedCartMessage2 || "⏰ *Last chance!* Your cart containing *{product_name}* is about to expire.{discount_info}\n\nClick *Complete Order* below or reply *1* to grab it before stock runs out!";
+        let discountInfo = "";
+        if (config.abandonedCartDiscountCode) {
+          discountInfo = `\n\n🎁 *Special Discount:* Use coupon code *${config.abandonedCartDiscountCode}* for *${config.abandonedCartDiscountPercent || 10}% OFF*!`;
+        }
+        text = rawTemplate
+          .replace(/{name}/g, customerName)
+          .replace(/{product_name}/g, productName)
+          .replace(/{price}/g, price)
+          .replace(/{quantity}/g, quantity)
+          .replace(/{discount_info}/g, discountInfo);
+      }
+
+      const to = cart.customerPhone;
+      const conversationId = cart.conversationId;
+
+      if (channelRow.connectionMethod === "qr_code") {
+        const fullMsg = `${text}\n\n👉 *Reply '1' or 'checkout' to complete your order!*`;
+        if (cart.productPhoto) {
+          try {
+            await this.sendAndSaveMediaMessage(channelRow, conversationId, to, cart.productPhoto, "image", fullMsg);
+          } catch {
+            await this.sendAndSaveTextMessage(channelRow, conversationId, to, fullMsg);
+          }
+        } else {
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, fullMsg);
+        }
+      } else {
+        // Cloud API Interactive Buttons
+        const buttons = [
+          { id: `resume_checkout_${cart.id}`, title: "🛒 Complete Order" },
+          { id: `cancel_checkout_${cart.id}`, title: "❌ Cancel" }
+        ];
+
+        if (cart.productPhoto) {
+          try {
+            await this.sendCloudApiButtonMessage(channelRow, conversationId, to, text, { type: "image", image: { link: cart.productPhoto } }, buttons);
+          } catch {
+            await this.sendCloudApiButtonMessage(channelRow, conversationId, to, text, null, buttons);
+          }
+        } else {
+          await this.sendCloudApiButtonMessage(channelRow, conversationId, to, text, null, buttons);
+        }
+      }
+
+      // Update follow-up record
+      const updateData: any = {
+        followupCount: followupNum,
+        updatedAt: new Date()
+      };
+      if (followupNum === 1) {
+        updateData.followup1SentAt = new Date();
+      } else {
+        updateData.followup2SentAt = new Date();
+      }
+
+      await db
+        .update(schema.ecommerceAbandonedCarts)
+        .set(updateData)
+        .where(eq(schema.ecommerceAbandonedCarts.id, cart.id));
+
+      return true;
+    } catch (err: any) {
+      console.error(`[Ecommerce Recovery] Failed to send recovery message for cart ${cart.id}:`, err?.message);
+      return false;
+    }
+  }
+
+  /**
+   * Manually send a recovery message to an abandoned cart from the UI ledger.
+   */
+  public static async sendManualRecoveryMessage(
+    cartId: string,
+    customMessage?: string
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const [cart] = await db
+        .select()
+        .from(schema.ecommerceAbandonedCarts)
+        .where(eq(schema.ecommerceAbandonedCarts.id, cartId))
+        .limit(1);
+
+      if (!cart) {
+        return { success: false, message: "Abandoned cart not found." };
+      }
+
+      const [config] = await db
+        .select()
+        .from(schema.ecommerceConfigs)
+        .where(
+          and(
+            eq(schema.ecommerceConfigs.tenantId, cart.tenantId),
+            eq(schema.ecommerceConfigs.isActive, true)
+          )
+        )
+        .limit(1);
+
+      const channelId = cart.channelId || config?.channelId;
+      if (!channelId) {
+        return { success: false, message: "No active channel found for sending recovery message." };
+      }
+
+      const [channelRow] = await db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, channelId))
+        .limit(1);
+
+      if (!channelRow) {
+        return { success: false, message: "Channel not found." };
+      }
+
+      const customerName = cart.customerName || "Customer";
+      const productName = cart.productName || "Product";
+      const currency = config?.currency || "INR";
+      const price = `${currency} ${cart.productPrice || "0"}`;
+
+      let msgText = customMessage?.trim();
+      if (!msgText) {
+        msgText = `👋 Hi ${customerName}! We noticed you were interested in *${productName}* (${price}). Would you like to complete your order now?`;
+      }
+
+      const to = cart.customerPhone;
+      const conversationId = cart.conversationId;
+
+      if (channelRow.connectionMethod === "qr_code") {
+        const fullMsg = `${msgText}\n\n👉 *Reply '1' or 'checkout' to complete your order!*`;
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, fullMsg);
+      } else {
+        const buttons = [
+          { id: `resume_checkout_${cart.id}`, title: "🛒 Complete Order" },
+          { id: `cancel_checkout_${cart.id}`, title: "❌ Cancel" }
+        ];
+        await this.sendCloudApiButtonMessage(channelRow, conversationId, to, msgText, null, buttons);
+      }
+
+      const nextCount = (cart.followupCount || 0) + 1;
+      await db
+        .update(schema.ecommerceAbandonedCarts)
+        .set({
+          followupCount: nextCount,
+          ...(nextCount === 1 ? { followup1SentAt: new Date() } : { followup2SentAt: new Date() }),
+          updatedAt: new Date()
+        })
+        .where(eq(schema.ecommerceAbandonedCarts.id, cart.id));
+
+      return { success: true, message: `Recovery message successfully sent to ${to}` };
+    } catch (err: any) {
+      console.error(`[Ecommerce Recovery] Manual recovery error for cart ${cartId}:`, err);
+      return { success: false, message: `Failed to send recovery message: ${err.message}` };
+    }
+  }
+
+  /**
+   * Cron check: runs every 5 minutes to find abandoned carts eligible for automated recovery follow-ups.
+   */
+  public static async checkAndRunAbandonedCartRecovery(): Promise<void> {
+    try {
+      const activeConfigs = await db
+        .select()
+        .from(schema.ecommerceConfigs)
+        .where(
+          and(
+            eq(schema.ecommerceConfigs.abandonedCartRecoveryEnabled, true),
+            eq(schema.ecommerceConfigs.isActive, true)
+          )
+        );
+
+      if (activeConfigs.length === 0) return;
+
+      const now = new Date();
+
+      for (const config of activeConfigs) {
+        try {
+          const delay1Minutes = config.abandonedCartDelay1Minutes || 60;
+          const delay2Hours = config.abandonedCartDelay2Hours || 18;
+
+          const cutoff1 = new Date(now.getTime() - delay1Minutes * 60 * 1000);
+          const cutoff2 = new Date(now.getTime() - delay2Hours * 60 * 60 * 1000);
+          // 23.5 hours cutoff to ensure we strictly stay within WhatsApp's 24-hour customer window
+          const cutoffMax24h = new Date(now.getTime() - 23.5 * 60 * 60 * 1000);
+
+          // Fetch all abandoned carts for tenant within 24h window
+          const candidateCarts = await db
+            .select()
+            .from(schema.ecommerceAbandonedCarts)
+            .where(
+              and(
+                eq(schema.ecommerceAbandonedCarts.tenantId, config.tenantId),
+                eq(schema.ecommerceAbandonedCarts.status, "abandoned"),
+                gte(schema.ecommerceAbandonedCarts.lastActivityAt, cutoffMax24h)
+              )
+            );
+
+          for (const cart of candidateCarts) {
+            const lastActivity = cart.lastActivityAt ? new Date(cart.lastActivityAt) : new Date(cart.createdAt || now);
+
+            // Follow-up 1 check: 0 followups sent, and last activity was before cutoff1
+            if ((cart.followupCount || 0) === 0 && lastActivity <= cutoff1) {
+              console.log(`[Ecommerce Recovery] 🛒 Sending Follow-up 1 to ${cart.customerPhone} for abandoned product ${cart.productName}`);
+              await this.sendRecoveryMessageToCart(cart, 1, config);
+            }
+            // Follow-up 2 check: 1 followup sent, and last activity was before cutoff2
+            else if ((cart.followupCount || 0) === 1 && lastActivity <= cutoff2) {
+              console.log(`[Ecommerce Recovery] ⏰ Sending Follow-up 2 to ${cart.customerPhone} for abandoned product ${cart.productName}`);
+              await this.sendRecoveryMessageToCart(cart, 2, config);
+            }
+          }
+        } catch (innerErr: any) {
+          console.error(`[Ecommerce Recovery] Error checking recovery for config ${config.id}:`, innerErr?.message);
+        }
+      }
+    } catch (err: any) {
+      console.error("[Ecommerce Recovery] Error in checkAndRunAbandonedCartRecovery:", err?.message);
+    }
+  }
+
+  /**
    * Cron check: runs every minute to see if any enabled ecommerce configs match the current scheduled time.
    */
   public static async checkAndRunDailyReports(): Promise<void> {
@@ -3491,7 +4137,10 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         .from(schema.ecommerceConfigs)
         .where(
           and(
-            eq(schema.ecommerceConfigs.dailyReportEnabled, true),
+            or(
+              eq(schema.ecommerceConfigs.dailyReportEnabled, true),
+              eq(schema.ecommerceConfigs.dailyReportWaEnabled, true)
+            ),
             eq(schema.ecommerceConfigs.isActive, true)
           )
         );
@@ -3518,12 +4167,6 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
               // Already sent for today
               continue;
             }
-          }
-
-          // Validate recipients
-          const emails = Array.isArray(config.dailyReportEmails) ? config.dailyReportEmails : [];
-          if (emails.length === 0) {
-            continue;
           }
 
           console.log(`[Ecommerce Reports] ⏰ Triggering scheduled daily orders report for config ID: ${config.id} (Scheduled time: ${reportTime})`);

@@ -305,6 +305,16 @@ export function registerEcommerceRoutes(app: Express) {
         dailyReportEnabled,
         dailyReportEmails,
         dailyReportTime,
+        dailyReportWaEnabled,
+        dailyReportWaNumbers,
+        dailyReportWaChannelId,
+        abandonedCartRecoveryEnabled,
+        abandonedCartDelay1Minutes,
+        abandonedCartDelay2Hours,
+        abandonedCartDiscountCode,
+        abandonedCartDiscountPercent,
+        abandonedCartMessage1,
+        abandonedCartMessage2,
         isActive
       } = req.body;
 
@@ -323,6 +333,7 @@ export function registerEcommerceRoutes(app: Express) {
       const parseWelcomes = Array.isArray(welcomeMessages) ? welcomeMessages : [];
       const excludedUsers = Array.isArray(autoAssignExcludedUserIds) ? autoAssignExcludedUserIds : [];
       const emailsList = Array.isArray(dailyReportEmails) ? dailyReportEmails.filter(e => typeof e === "string" && e.trim().length > 0) : [];
+      const waNumbersList = Array.isArray(dailyReportWaNumbers) ? dailyReportWaNumbers.filter(n => typeof n === "string" && n.trim().length > 0) : [];
 
       let config;
       if (existing) {
@@ -373,6 +384,16 @@ export function registerEcommerceRoutes(app: Express) {
             dailyReportEnabled: dailyReportEnabled !== undefined ? dailyReportEnabled : false,
             dailyReportEmails: emailsList,
             dailyReportTime: dailyReportTime || "21:00",
+            dailyReportWaEnabled: dailyReportWaEnabled !== undefined ? dailyReportWaEnabled : false,
+            dailyReportWaNumbers: waNumbersList,
+            dailyReportWaChannelId: dailyReportWaChannelId || null,
+            abandonedCartRecoveryEnabled: abandonedCartRecoveryEnabled !== undefined ? abandonedCartRecoveryEnabled : false,
+            abandonedCartDelay1Minutes: abandonedCartDelay1Minutes !== undefined ? parseInt(String(abandonedCartDelay1Minutes)) : 60,
+            abandonedCartDelay2Hours: abandonedCartDelay2Hours !== undefined ? parseInt(String(abandonedCartDelay2Hours)) : 18,
+            abandonedCartDiscountCode: abandonedCartDiscountCode || null,
+            abandonedCartDiscountPercent: String(abandonedCartDiscountPercent || "0"),
+            abandonedCartMessage1: abandonedCartMessage1 || null,
+            abandonedCartMessage2: abandonedCartMessage2 || null,
             isActive: isActive !== undefined ? isActive : true,
             updatedAt: new Date()
           })
@@ -429,6 +450,16 @@ export function registerEcommerceRoutes(app: Express) {
             dailyReportEnabled: dailyReportEnabled !== undefined ? dailyReportEnabled : false,
             dailyReportEmails: emailsList,
             dailyReportTime: dailyReportTime || "21:00",
+            dailyReportWaEnabled: dailyReportWaEnabled !== undefined ? dailyReportWaEnabled : false,
+            dailyReportWaNumbers: waNumbersList,
+            dailyReportWaChannelId: dailyReportWaChannelId || null,
+            abandonedCartRecoveryEnabled: abandonedCartRecoveryEnabled !== undefined ? abandonedCartRecoveryEnabled : false,
+            abandonedCartDelay1Minutes: abandonedCartDelay1Minutes !== undefined ? parseInt(String(abandonedCartDelay1Minutes)) : 60,
+            abandonedCartDelay2Hours: abandonedCartDelay2Hours !== undefined ? parseInt(String(abandonedCartDelay2Hours)) : 18,
+            abandonedCartDiscountCode: abandonedCartDiscountCode || null,
+            abandonedCartDiscountPercent: String(abandonedCartDiscountPercent || "0"),
+            abandonedCartMessage1: abandonedCartMessage1 || null,
+            abandonedCartMessage2: abandonedCartMessage2 || null,
             isActive: isActive !== undefined ? isActive : true
           })
           .returning();
@@ -441,7 +472,7 @@ export function registerEcommerceRoutes(app: Express) {
     }
   });
 
-  // Manually trigger and send daily orders summary report now (for testing / on-demand)
+  // Manually trigger and send daily orders summary report now via email (for testing / on-demand)
   app.post("/api/ecommerce/config/send-daily-report-now", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req.session as any)?.user;
@@ -478,6 +509,216 @@ export function registerEcommerceRoutes(app: Express) {
       }
 
       res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Manually trigger and send daily orders summary report via WhatsApp (for testing)
+  app.post("/api/ecommerce/config/send-test-wa-report", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { channelId, targetNumbers, targetChannelId } = req.body;
+
+      if (!channelId) {
+        return res.status(400).json({ error: "ChannelId is required" });
+      }
+
+      const [config] = await db
+        .select()
+        .from(schema.ecommerceConfigs)
+        .where(
+          and(
+            eq(schema.ecommerceConfigs.tenantId, tenantId),
+            eq(schema.ecommerceConfigs.channelId, String(channelId))
+          )
+        )
+        .limit(1);
+
+      if (!config) {
+        return res.status(404).json({ error: "Ecommerce configuration not found for this channel." });
+      }
+
+      const result = await EcommerceService.sendDailyWhatsAppReport(config, {
+        isManualTest: true,
+        targetNumbers: Array.isArray(targetNumbers) && targetNumbers.length > 0 ? targetNumbers : undefined,
+        targetChannelId: targetChannelId || undefined,
+      });
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.message });
+      }
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ============================================================
+  // ABANDONED CARTS
+  // ============================================================
+
+  // Get abandoned carts with pagination, search, and KPI stats
+  app.get("/api/ecommerce/abandoned-carts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { page = "1", limit = "10", status, search, channelId } = req.query;
+
+      const pageNum = parseInt(page as string) || 1;
+      const limitNum = parseInt(limit as string) || 10;
+      const offset = (pageNum - 1) * limitNum;
+
+      // Base conditions
+      const conditions: any[] = [eq(schema.ecommerceAbandonedCarts.tenantId, tenantId)];
+
+      if (status && status !== "all") {
+        conditions.push(eq(schema.ecommerceAbandonedCarts.status, String(status)));
+      }
+
+      if (channelId && channelId !== "all") {
+        conditions.push(eq(schema.ecommerceAbandonedCarts.channelId, String(channelId)));
+      }
+
+      if (search && typeof search === "string" && search.trim().length > 0) {
+        const term = `%${search.trim().toLowerCase()}%`;
+        conditions.push(
+          or(
+            sql`lower(${schema.ecommerceAbandonedCarts.customerPhone}) LIKE ${term}`,
+            sql`lower(${schema.ecommerceAbandonedCarts.customerName}) LIKE ${term}`,
+            sql`lower(${schema.ecommerceAbandonedCarts.productName}) LIKE ${term}`
+          )
+        );
+      }
+
+      const whereClause = and(...conditions);
+
+      // Count filtered carts
+      const [countResult] = await db
+        .select({ count: sql`count(*)` })
+        .from(schema.ecommerceAbandonedCarts)
+        .where(whereClause);
+      const total = parseInt(String(countResult?.count || "0"));
+
+      // Fetch list
+      const carts = await db
+        .select()
+        .from(schema.ecommerceAbandonedCarts)
+        .where(whereClause)
+        .orderBy(desc(schema.ecommerceAbandonedCarts.lastActivityAt))
+        .limit(limitNum)
+        .offset(offset);
+
+      // KPI Metrics for all tenant carts
+      const allTenantCarts = await db
+        .select({
+          status: schema.ecommerceAbandonedCarts.status,
+          price: schema.ecommerceAbandonedCarts.productPrice,
+          quantity: schema.ecommerceAbandonedCarts.quantity
+        })
+        .from(schema.ecommerceAbandonedCarts)
+        .where(eq(schema.ecommerceAbandonedCarts.tenantId, tenantId));
+
+      let totalAbandonedCount = 0;
+      let totalRecoveredCount = 0;
+      let totalCancelledCount = 0;
+      let recoveredRevenue = 0;
+      let lostPotentialRevenue = 0;
+
+      for (const c of allTenantCarts) {
+        const itemAmount = (parseFloat(c.price || "0") || 0) * (c.quantity || 1);
+        if (c.status === "recovered") {
+          totalRecoveredCount++;
+          recoveredRevenue += itemAmount;
+        } else if (c.status === "cancelled") {
+          totalCancelledCount++;
+        } else {
+          totalAbandonedCount++;
+          lostPotentialRevenue += itemAmount;
+        }
+      }
+
+      const totalCarts = allTenantCarts.length;
+      const recoveryRate = totalCarts > 0 ? (totalRecoveredCount / totalCarts) * 100 : 0;
+
+      res.json({
+        carts,
+        total,
+        page: pageNum,
+        limit: limitNum,
+        stats: {
+          totalAbandoned: totalAbandonedCount,
+          totalRecovered: totalRecoveredCount,
+          totalCancelled: totalCancelledCount,
+          totalCarts,
+          recoveredRevenue,
+          lostPotentialRevenue,
+          recoveryRate: parseFloat(recoveryRate.toFixed(1))
+        }
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Manually trigger recovery message to a customer
+  app.post("/api/ecommerce/abandoned-carts/:id/send-recovery", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { customMessage } = req.body;
+
+      const result = await EcommerceService.sendManualRecoveryMessage(id, customMessage);
+      if (!result.success) {
+        return res.status(400).json({ error: result.message });
+      }
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Update abandoned cart status (e.g. mark manual recovered or cancelled)
+  app.patch("/api/ecommerce/abandoned-carts/:id/status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      if (!["abandoned", "recovered", "cancelled"].includes(status)) {
+        return res.status(400).json({ error: "Invalid status value" });
+      }
+
+      const [updated] = await db
+        .update(schema.ecommerceAbandonedCarts)
+        .set({
+          status,
+          ...(status === "recovered" ? { recoveredAt: new Date() } : {}),
+          updatedAt: new Date()
+        })
+        .where(eq(schema.ecommerceAbandonedCarts.id, id))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ error: "Abandoned cart not found" });
+      }
+
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Delete abandoned cart record
+  app.delete("/api/ecommerce/abandoned-carts/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      await db
+        .delete(schema.ecommerceAbandonedCarts)
+        .where(eq(schema.ecommerceAbandonedCarts.id, id));
+
+      res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

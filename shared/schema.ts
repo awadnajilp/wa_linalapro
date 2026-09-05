@@ -2566,6 +2566,10 @@ export const ecommerceConfigs = pgTable("ecommerce_configs", {
   autoAssignMode: text("auto_assign_mode").default("permanent"), // "permanent" | "round_robin"
   autoAssignUserId: varchar("auto_assign_user_id").references(() => users.id, { onDelete: "set null" }),
   autoAssignExcludedUserIds: jsonb("auto_assign_excluded_user_ids").$type<string[]>().default([]),
+  dailyReportEnabled: boolean("daily_report_enabled").default(false),
+  dailyReportEmails: jsonb("daily_report_emails").$type<string[]>().default([]),
+  dailyReportTime: text("daily_report_time").default("21:00"), // HH:MM 24h format (e.g. 21:00)
+  dailyReportLastSentAt: timestamp("daily_report_last_sent_at"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

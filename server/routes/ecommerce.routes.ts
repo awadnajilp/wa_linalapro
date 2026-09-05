@@ -302,6 +302,9 @@ export function registerEcommerceRoutes(app: Express) {
         autoAssignMode,
         autoAssignUserId,
         autoAssignExcludedUserIds,
+        dailyReportEnabled,
+        dailyReportEmails,
+        dailyReportTime,
         isActive
       } = req.body;
 
@@ -319,6 +322,7 @@ export function registerEcommerceRoutes(app: Express) {
       const fieldsArray = Array.isArray(checkoutFields) ? checkoutFields : ["name", "phone", "address", "pin"];
       const parseWelcomes = Array.isArray(welcomeMessages) ? welcomeMessages : [];
       const excludedUsers = Array.isArray(autoAssignExcludedUserIds) ? autoAssignExcludedUserIds : [];
+      const emailsList = Array.isArray(dailyReportEmails) ? dailyReportEmails.filter(e => typeof e === "string" && e.trim().length > 0) : [];
 
       let config;
       if (existing) {
@@ -366,6 +370,9 @@ export function registerEcommerceRoutes(app: Express) {
             autoAssignMode: autoAssignMode || "permanent",
             autoAssignUserId: autoAssignUserId || null,
             autoAssignExcludedUserIds: excludedUsers,
+            dailyReportEnabled: dailyReportEnabled !== undefined ? dailyReportEnabled : false,
+            dailyReportEmails: emailsList,
+            dailyReportTime: dailyReportTime || "21:00",
             isActive: isActive !== undefined ? isActive : true,
             updatedAt: new Date()
           })
@@ -419,6 +426,9 @@ export function registerEcommerceRoutes(app: Express) {
             autoAssignMode: autoAssignMode || "permanent",
             autoAssignUserId: autoAssignUserId || null,
             autoAssignExcludedUserIds: excludedUsers,
+            dailyReportEnabled: dailyReportEnabled !== undefined ? dailyReportEnabled : false,
+            dailyReportEmails: emailsList,
+            dailyReportTime: dailyReportTime || "21:00",
             isActive: isActive !== undefined ? isActive : true
           })
           .returning();
@@ -426,6 +436,48 @@ export function registerEcommerceRoutes(app: Express) {
       }
 
       res.json(config);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Manually trigger and send daily orders summary report now (for testing / on-demand)
+  app.post("/api/ecommerce/config/send-daily-report-now", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { channelId, emails } = req.body;
+
+      if (!channelId) {
+        return res.status(400).json({ error: "ChannelId is required" });
+      }
+
+      const [config] = await db
+        .select()
+        .from(schema.ecommerceConfigs)
+        .where(
+          and(
+            eq(schema.ecommerceConfigs.tenantId, tenantId),
+            eq(schema.ecommerceConfigs.channelId, String(channelId))
+          )
+        )
+        .limit(1);
+
+      if (!config) {
+        return res.status(404).json({ error: "Ecommerce configuration not found for this channel." });
+      }
+
+      const overrideEmails = Array.isArray(emails) && emails.length > 0 ? emails : undefined;
+      const result = await EcommerceService.sendDailyOrdersReport(config, {
+        isManualTest: true,
+        targetEmails: overrideEmails
+      });
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.message });
+      }
+
+      res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

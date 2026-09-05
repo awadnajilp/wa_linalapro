@@ -8,6 +8,8 @@ import * as fs from "fs";
 import { AddonManager } from "./addon-manager";
 import { WhatsAppApiService } from "./whatsapp-api";
 import { getTransporter } from "./email.service";
+import { getSMTPConfig } from "../controllers/smtp.controller";
+import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
 import axios from "axios";
 import Razorpay from "razorpay";
@@ -3136,6 +3138,401 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
       console.log(`[EcommerceService] Added/updated contact ${phone} in Customers group`);
     } catch (err) {
       console.error("[EcommerceService] Failed to add contact to Customers group:", err);
+    }
+  }
+
+  /**
+   * Generate an Excel spreadsheet buffer (.xlsx) containing the daily orders list.
+   */
+  public static async generateDailyOrdersExcelBuffer(
+    orders: schema.EcommerceOrder[],
+    config: schema.EcommerceConfig,
+    storeName: string,
+    reportDateStr: string
+  ): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "Linala Ecommerce System";
+    workbook.created = new Date();
+
+    const worksheet = workbook.addWorksheet("Daily Orders", {
+      views: [{ showGridLines: true }]
+    });
+
+    // Define columns
+    worksheet.columns = [
+      { header: "Order #", key: "orderNumber", width: 22 },
+      { header: "Date & Time", key: "createdAt", width: 22 },
+      { header: "Customer Name", key: "customerName", width: 24 },
+      { header: "Customer Phone", key: "customerPhone", width: 18 },
+      { header: "Product Name", key: "productName", width: 28 },
+      { header: "Qty", key: "quantity", width: 10 },
+      { header: "Unit Price", key: "price", width: 14 },
+      { header: "Delivery Fee", key: "deliveryFee", width: 14 },
+      { header: "Total Amount", key: "totalAmount", width: 16 },
+      { header: "Currency", key: "currency", width: 12 },
+      { header: "Payment Mode", key: "paymentMethod", width: 16 },
+      { header: "Payment Status", key: "paymentStatus", width: 16 },
+      { header: "Order Status", key: "status", width: 16 },
+      { header: "Shipping / Customer Details", key: "customerDetails", width: 42 },
+    ];
+
+    // Style header row
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF1E293B" } // Slate 800
+    };
+    headerRow.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    headerRow.height = 28;
+
+    let totalRevenue = 0;
+    let totalItems = 0;
+
+    // Populate rows
+    orders.forEach((order, index) => {
+      const numPrice = parseFloat(String(order.price || "0")) || 0;
+      const numDelivery = parseFloat(String(order.deliveryFee || "0")) || 0;
+      const numTotal = parseFloat(String(order.totalAmount || "0")) || 0;
+      const qty = order.quantity || 1;
+
+      totalRevenue += numTotal;
+      totalItems += qty;
+
+      let extraDetails = "";
+      if (order.customerData && typeof order.customerData === "object") {
+        extraDetails = Object.entries(order.customerData)
+          .filter(([k]) => k !== "name" && k !== "phone")
+          .map(([k, v]) => `${k.toUpperCase()}: ${v}`)
+          .join(" | ");
+      }
+
+      const row = worksheet.addRow({
+        orderNumber: order.orderNumber,
+        createdAt: order.createdAt ? new Date(order.createdAt).toLocaleString() : "",
+        customerName: order.customerName || "Customer",
+        customerPhone: order.customerPhone || "",
+        productName: order.productName || "Unknown",
+        quantity: qty,
+        price: numPrice,
+        deliveryFee: numDelivery,
+        totalAmount: numTotal,
+        currency: order.currency || "INR",
+        paymentMethod: (order.paymentMethod || "").toUpperCase(),
+        paymentStatus: (order.paymentStatus || "").toUpperCase(),
+        status: (order.status || "").toUpperCase(),
+        customerDetails: extraDetails,
+      });
+
+      row.height = 22;
+      row.alignment = { vertical: "middle" };
+
+      if (index % 2 === 1) {
+        row.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFF8FAFC" } // Slate 50
+        };
+      }
+    });
+
+    // Summary / Total row
+    const summaryRow = worksheet.addRow({
+      orderNumber: `TOTAL ORDERS: ${orders.length}`,
+      createdAt: "",
+      customerName: "",
+      customerPhone: "",
+      productName: "",
+      quantity: totalItems,
+      price: "",
+      deliveryFee: "",
+      totalAmount: totalRevenue,
+      currency: config.currency || "INR",
+      paymentMethod: "",
+      paymentStatus: "",
+      status: "",
+      customerDetails: "",
+    });
+
+    summaryRow.height = 26;
+    summaryRow.font = { bold: true, color: { argb: "FF0F172A" }, size: 11 };
+    summaryRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE2E8F0" } // Slate 200
+    };
+    summaryRow.alignment = { vertical: "middle" };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
+  }
+
+  /**
+   * Send the daily orders summary email report with Excel attachment.
+   */
+  public static async sendDailyOrdersReport(
+    config: schema.EcommerceConfig,
+    options?: { isManualTest?: boolean; targetEmails?: string[]; date?: Date }
+  ): Promise<{ success: boolean; message: string; ordersCount: number }> {
+    try {
+      const recipients: string[] = options?.targetEmails && options.targetEmails.length > 0
+        ? options.targetEmails
+        : (Array.isArray(config.dailyReportEmails) ? config.dailyReportEmails : []).filter(e => typeof e === "string" && e.trim().length > 0);
+
+      if (recipients.length === 0) {
+        return { success: false, message: "No recipient emails configured for daily orders report.", ordersCount: 0 };
+      }
+
+      // Check date boundaries (default: today 00:00:00 to 23:59:59.999)
+      const targetDate = options?.date || new Date();
+      const startOfDay = new Date(targetDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Fetch orders for this channel/tenant for the target date
+      const orders = await db
+        .select()
+        .from(schema.ecommerceOrders)
+        .where(
+          and(
+            eq(schema.ecommerceOrders.tenantId, config.tenantId),
+            eq(schema.ecommerceOrders.channelId, config.channelId),
+            gte(schema.ecommerceOrders.createdAt, startOfDay),
+            lte(schema.ecommerceOrders.createdAt, endOfDay)
+          )
+        )
+        .orderBy(desc(schema.ecommerceOrders.createdAt));
+
+      // Fetch merchant/store name
+      const storeName = config.storeName || "Store";
+      const dateStr = targetDate.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+      const fileDateStr = targetDate.toISOString().split("T")[0];
+
+      // Generate Excel Buffer
+      const excelBuffer = await this.generateDailyOrdersExcelBuffer(orders, config, storeName, fileDateStr);
+
+      // Aggregate statistics
+      let totalRevenue = 0;
+      let paidCount = 0;
+      let codCount = 0;
+
+      orders.forEach(o => {
+        totalRevenue += parseFloat(String(o.totalAmount || "0")) || 0;
+        if (o.paymentStatus === "paid") paidCount++;
+        if (o.paymentMethod === "cod") codCount++;
+      });
+
+      const currency = config.currency || "INR";
+
+      // Build HTML Email
+      const recentOrdersRows = orders.slice(0, 25).map(o => `
+        <tr style="border-bottom: 1px solid #E2E8F0; font-size: 13px;">
+          <td style="padding: 10px 8px; font-weight: 600; color: #1E293B;">${o.orderNumber}</td>
+          <td style="padding: 10px 8px; color: #334155;">${o.customerName || "Customer"}<br><span style="font-size: 11px; color: #64748B;">${o.customerPhone}</span></td>
+          <td style="padding: 10px 8px; color: #334155;">${o.productName || "Product"} (x${o.quantity || 1})</td>
+          <td style="padding: 10px 8px; font-weight: 600; color: #059669;">${currency} ${Number(o.totalAmount || 0).toFixed(2)}</td>
+          <td style="padding: 10px 8px;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background-color: ${o.paymentStatus === 'paid' ? '#DEF7EC; color: #03543F' : '#FEF3C7; color: #92400E'};">
+              ${(o.paymentStatus || 'PENDING').toUpperCase()}
+            </span>
+          </td>
+          <td style="padding: 10px 8px; color: #64748B; font-size: 12px;">${(o.paymentMethod || 'N/A').toUpperCase()}</td>
+        </tr>
+      `).join("");
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F8FAFC; margin: 0; padding: 24px; color: #1E293B; }
+            .card { max-width: 680px; margin: 0 auto; background: #FFFFFF; border-radius: 12px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+            .header { background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); color: #FFFFFF; padding: 28px 32px; }
+            .content { padding: 32px; }
+            .table-container { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            .table-container th { background: #F1F5F9; text-align: left; padding: 10px 8px; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; border-bottom: 2px solid #CBD5E1; }
+            .footer { background: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 20px 32px; text-align: center; font-size: 12px; color: #64748B; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="header">
+              <h1 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.5px;">📊 Daily Orders Summary Report</h1>
+              <p style="margin: 6px 0 0 0; font-size: 14px; opacity: 0.85;">${storeName} &bull; ${dateStr}</p>
+            </div>
+            <div class="content">
+              <p style="font-size: 15px; line-height: 1.5; margin-top: 0; color: #334155;">
+                Hello, here is your daily ecommerce orders summary for <strong>${storeName}</strong> for today (<strong>${dateStr}</strong>).
+              </p>
+
+              <!-- KPI Metrics -->
+              <table style="width: 100%; margin: 20px 0; border-spacing: 12px; border-collapse: separate;">
+                <tr>
+                  <td style="background: #EFF6FF; border-radius: 8px; padding: 16px; width: 50%; border-left: 4px solid #3B82F6;">
+                    <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #1E40AF;">Total Orders</div>
+                    <div style="font-size: 24px; font-weight: 800; color: #1E3A8A; margin-top: 4px;">${orders.length}</div>
+                  </td>
+                  <td style="background: #ECFDF5; border-radius: 8px; padding: 16px; width: 50%; border-left: 4px solid #10B981;">
+                    <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #065F46;">Total Sales Revenue</div>
+                    <div style="font-size: 24px; font-weight: 800; color: #064E3B; margin-top: 4px;">${currency} ${totalRevenue.toFixed(2)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background: #F0FDF4; border-radius: 8px; padding: 16px; width: 50%; border-left: 4px solid #22C55E;">
+                    <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #15803D;">Paid / Verified</div>
+                    <div style="font-size: 20px; font-weight: 700; color: #14532D; margin-top: 4px;">${paidCount} Orders</div>
+                  </td>
+                  <td style="background: #FFFBEB; border-radius: 8px; padding: 16px; width: 50%; border-left: 4px solid #F59E0B;">
+                    <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #92400E;">COD / Pending</div>
+                    <div style="font-size: 20px; font-weight: 700; color: #78350F; margin-top: 4px;">${codCount} COD &bull; ${orders.length - paidCount} Pending</div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Orders Table Preview -->
+              <h3 style="font-size: 16px; font-weight: 700; margin: 28px 0 12px 0; color: #0F172A;">
+                📋 Today's Orders Breakdown ${orders.length > 25 ? `<span style="font-size: 12px; font-weight: normal; color: #64748B;">(showing latest 25 of ${orders.length})</span>` : ''}
+              </h3>
+
+              ${orders.length === 0 ? `
+                <div style="background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px; padding: 24px; text-align: center; color: #64748B;">
+                  No new orders were placed today.
+                </div>
+              ` : `
+                <table class="table-container">
+                  <thead>
+                    <tr>
+                      <th>Order #</th>
+                      <th>Customer</th>
+                      <th>Product</th>
+                      <th>Total</th>
+                      <th>Payment</th>
+                      <th>Mode</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${recentOrdersRows}
+                  </tbody>
+                </table>
+              `}
+
+              <div style="margin-top: 24px; padding: 14px 18px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; color: #475569;">
+                📎 <strong>Excel Attachment:</strong> The complete detailed spreadsheet with customer shipping addresses and item breakdown has been attached to this email (<strong>Daily_Orders_${storeName.replace(/[^a-zA-Z0-9]/g, "_")}_${fileDateStr}.xlsx</strong>).
+              </div>
+            </div>
+            <div class="footer">
+              Sent automatically by <strong>${storeName}</strong> Ecommerce Management &bull; Linala
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Get transporter & SMTP configuration
+      const transporter = await getTransporter();
+      const smtpConfig = await getSMTPConfig();
+      const fromEmail = process.env.SMTP_FROM || smtpConfig?.from || `"${storeName}" <notifications@wa.linalapro.com>`;
+
+      console.log(`[Ecommerce Reports] Sending daily orders report for ${storeName} to:`, recipients.join(", "));
+
+      await transporter.sendMail({
+        from: fromEmail,
+        to: recipients.join(", "),
+        subject: `📊 [${storeName}] Daily Orders Summary Report - ${fileDateStr} (${orders.length} orders)`,
+        html,
+        attachments: [
+          {
+            filename: `Daily_Orders_${storeName.replace(/[^a-zA-Z0-9]/g, "_")}_${fileDateStr}.xlsx`,
+            content: excelBuffer,
+            contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          }
+        ]
+      });
+
+      // Update dailyReportLastSentAt if this is a live cron run
+      if (!options?.isManualTest) {
+        await db
+          .update(schema.ecommerceConfigs)
+          .set({ dailyReportLastSentAt: new Date() })
+          .where(eq(schema.ecommerceConfigs.id, config.id));
+      }
+
+      return {
+        success: true,
+        message: `Successfully sent daily orders report with ${orders.length} orders to ${recipients.join(", ")}`,
+        ordersCount: orders.length
+      };
+    } catch (err: any) {
+      console.error(`[Ecommerce Reports] Error sending daily orders report for config ${config.id}:`, err);
+      return {
+        success: false,
+        message: `Failed to send report: ${err.message}`,
+        ordersCount: 0
+      };
+    }
+  }
+
+  /**
+   * Cron check: runs every minute to see if any enabled ecommerce configs match the current scheduled time.
+   */
+  public static async checkAndRunDailyReports(): Promise<void> {
+    try {
+      const activeConfigs = await db
+        .select()
+        .from(schema.ecommerceConfigs)
+        .where(
+          and(
+            eq(schema.ecommerceConfigs.dailyReportEnabled, true),
+            eq(schema.ecommerceConfigs.isActive, true)
+          )
+        );
+
+      if (activeConfigs.length === 0) return;
+
+      const now = new Date();
+      // Format current time in 24-hour HH:MM format
+      const currentHHMM = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+      for (const config of activeConfigs) {
+        try {
+          const reportTime = (config.dailyReportTime || "21:00").trim();
+          
+          if (currentHHMM !== reportTime) {
+            continue;
+          }
+
+          // Check if report was already sent today (within last 20 hours)
+          if (config.dailyReportLastSentAt) {
+            const lastSent = new Date(config.dailyReportLastSentAt);
+            const diffHours = (now.getTime() - lastSent.getTime()) / (1000 * 60 * 60);
+            if (diffHours < 20) {
+              // Already sent for today
+              continue;
+            }
+          }
+
+          // Validate recipients
+          const emails = Array.isArray(config.dailyReportEmails) ? config.dailyReportEmails : [];
+          if (emails.length === 0) {
+            continue;
+          }
+
+          console.log(`[Ecommerce Reports] ⏰ Triggering scheduled daily orders report for config ID: ${config.id} (Scheduled time: ${reportTime})`);
+          await this.sendDailyOrdersReport(config);
+        } catch (innerErr: any) {
+          console.error(`[Ecommerce Reports] Error processing daily report for config ${config.id}:`, innerErr?.message);
+        }
+      }
+    } catch (err: any) {
+      console.error("[Ecommerce Reports] Error in checkAndRunDailyReports:", err?.message);
     }
   }
 }

@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ShoppingCart, Package, Settings, ClipboardList, Users, UserCheck, Shuffle, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles, Download, Truck, Calendar as CalendarIcon, Coins, Key, Bot, Volume2, Mic, Activity, ArrowUpRight } from "lucide-react";
+import { ShoppingCart, Package, Settings, ClipboardList, Users, UserCheck, Shuffle, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles, Download, Truck, Calendar as CalendarIcon, Coins, Key, Bot, Volume2, Mic, Activity, ArrowUpRight, Mail, Clock, FileSpreadsheet, Send } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -323,6 +323,13 @@ export default function EcommerceLedger() {
   const [autoAssignUserId, setAutoAssignUserId] = useState<string>("");
   const [autoAssignExcludedUserIds, setAutoAssignExcludedUserIds] = useState<string[]>([]);
 
+  // Daily Orders Report States
+  const [dailyReportEnabled, setDailyReportEnabled] = useState(false);
+  const [dailyReportEmails, setDailyReportEmails] = useState<string[]>([]);
+  const [dailyReportEmailInput, setDailyReportEmailInput] = useState("");
+  const [dailyReportTime, setDailyReportTime] = useState("21:00");
+  const [isSendingTestReport, setIsSendingTestReport] = useState(false);
+
   // Fetch Voice Profiles
   const { data: voiceProfiles = [] } = useQuery<any[]>({
     queryKey: ["/api/voice-profiles"],
@@ -422,6 +429,9 @@ export default function EcommerceLedger() {
       setAutoAssignMode((config as any).autoAssignMode || "permanent");
       setAutoAssignUserId((config as any).autoAssignUserId || "");
       setAutoAssignExcludedUserIds(Array.isArray((config as any).autoAssignExcludedUserIds) ? (config as any).autoAssignExcludedUserIds : []);
+      setDailyReportEnabled((config as any).dailyReportEnabled !== undefined ? (config as any).dailyReportEnabled : false);
+      setDailyReportEmails(Array.isArray((config as any).dailyReportEmails) ? (config as any).dailyReportEmails : []);
+      setDailyReportTime((config as any).dailyReportTime || "21:00");
 
       // Standardize loaded checkoutFields Q&A objects
       if (Array.isArray(config.checkoutFields)) {
@@ -795,10 +805,50 @@ export default function EcommerceLedger() {
       autoAssignMode,
       autoAssignUserId: autoAssignUserId || null,
       autoAssignExcludedUserIds,
+      dailyReportEnabled,
+      dailyReportEmails,
+      dailyReportTime,
       isActive: configActive,
     };
 
     saveConfigMutation.mutate(payload);
+  };
+
+  const handleSendTestReportNow = async () => {
+    if (!channelId) {
+      toast({ title: "No Channel Selected", description: "Please select a channel first.", variant: "destructive" });
+      return;
+    }
+    if (dailyReportEmails.length === 0) {
+      toast({ title: "No Recipients Configured", description: "Please add at least one recipient email address first.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setIsSendingTestReport(true);
+      const res = await apiRequest("POST", "/api/ecommerce/config/send-daily-report-now", {
+        channelId,
+        emails: dailyReportEmails
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to send report");
+      }
+
+      toast({
+        title: "Daily Report Sent!",
+        description: data.message || `Summary report successfully emailed to ${dailyReportEmails.join(", ")}`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Report Send Failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingTestReport(false);
+    }
   };
 
   const handleAddStateOverride = () => {
@@ -2359,6 +2409,172 @@ You are chatting with a customer regarding this product:
                             })()}
                           </div>
                         )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Daily Orders Summary Email Report Card */}
+                  <div className="space-y-4 border p-4 rounded-lg bg-white shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
+                          <Mail className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                            Daily Orders Summary Email Report
+                            <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                              Excel Attachment (.xlsx)
+                            </span>
+                          </h3>
+                          <p className="text-xs text-gray-500">
+                            Automatically email a daily summary of all orders with an attached Excel spreadsheet (.xlsx) to configured recipient emails at a scheduled time.
+                          </p>
+                        </div>
+                      </div>
+                      <Switch checked={dailyReportEnabled} onCheckedChange={setDailyReportEnabled} />
+                    </div>
+
+                    {dailyReportEnabled && (
+                      <div className="space-y-4 pt-2 border-t border-gray-100 animate-in fade-in-50 duration-200">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Scheduled Send Time */}
+                          <div className="space-y-2 p-3.5 rounded-lg border border-gray-100 bg-gray-50/50">
+                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                              Scheduled Daily Report Time (24h)
+                            </Label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="time"
+                                value={dailyReportTime}
+                                onChange={(e) => setDailyReportTime(e.target.value)}
+                                className="text-xs bg-white w-36 font-mono"
+                              />
+                              <span className="text-[11px] text-gray-400">
+                                (Daily trigger time)
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-gray-500">
+                              Orders will be automatically compiled and emailed every day at this exact time.
+                            </p>
+                          </div>
+
+                          {/* Test Send Trigger */}
+                          <div className="space-y-2 p-3.5 rounded-lg border border-emerald-100 bg-emerald-50/30 flex flex-col justify-between">
+                            <div>
+                              <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                                On-Demand / Test Report
+                              </Label>
+                              <p className="text-[11px] text-gray-500 mt-1">
+                                Send today's orders list and Excel spreadsheet immediately to verify email setup.
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={handleSendTestReportNow}
+                              disabled={isSendingTestReport || dailyReportEmails.length === 0}
+                              className="w-full text-xs font-semibold text-emerald-700 border-emerald-300 hover:bg-emerald-100/60 flex items-center justify-center gap-1.5 mt-2 bg-white shadow-sm"
+                            >
+                              {isSendingTestReport ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  Compiling & Sending Email...
+                                </>
+                              ) : (
+                                <>
+                                  <Send className="w-3.5 h-3.5 text-emerald-600" />
+                                  Send Test Report Now
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Recipient Emails Management */}
+                        <div className="space-y-2">
+                          <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                            <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                            Recipient Email Addresses (Multiple Allowed)
+                          </Label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="email"
+                              value={dailyReportEmailInput}
+                              onChange={(e) => setDailyReportEmailInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  const trimmed = dailyReportEmailInput.trim().toLowerCase();
+                                  if (trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+                                    if (!dailyReportEmails.includes(trimmed)) {
+                                      setDailyReportEmails([...dailyReportEmails, trimmed]);
+                                      setDailyReportEmailInput("");
+                                    } else {
+                                      toast({ title: "Email already added", description: "This email address is already in the recipient list." });
+                                    }
+                                  } else if (trimmed) {
+                                    toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+                                  }
+                                }
+                              }}
+                              placeholder="e.g. storemanager@domain.com or orders@company.com"
+                              className="text-xs bg-white flex-1"
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => {
+                                const trimmed = dailyReportEmailInput.trim().toLowerCase();
+                                if (trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+                                  if (!dailyReportEmails.includes(trimmed)) {
+                                    setDailyReportEmails([...dailyReportEmails, trimmed]);
+                                    setDailyReportEmailInput("");
+                                  } else {
+                                    toast({ title: "Email already added", description: "This email address is already in the recipient list." });
+                                  }
+                                } else if (trimmed) {
+                                  toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+                                }
+                              }}
+                              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                              <Plus className="w-3.5 h-3.5 mr-1" />
+                              Add Email
+                            </Button>
+                          </div>
+
+                          {/* Recipients list chips */}
+                          <div className="pt-1">
+                            {dailyReportEmails.length === 0 ? (
+                              <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 p-2 rounded-md">
+                                ⚠️ No recipient email addresses added. Please enter email addresses above to receive scheduled daily orders reports.
+                              </p>
+                            ) : (
+                              <div className="flex flex-wrap gap-2 pt-1">
+                                {dailyReportEmails.map((email, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-800 text-xs px-2.5 py-1 rounded-full transition-colors"
+                                  >
+                                    <Mail className="w-3 h-3 text-emerald-600" />
+                                    <span className="font-mono text-[11px]">{email}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setDailyReportEmails(dailyReportEmails.filter((_, i) => i !== idx))}
+                                      className="text-gray-400 hover:text-red-600 ml-1 rounded-full p-0.5"
+                                    >
+                                      <Trash className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

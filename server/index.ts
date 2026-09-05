@@ -60,6 +60,7 @@ import { createAdapter } from "@socket.io/redis-adapter";
 import { runStartupMigration } from "./startup-migration";
 import { initExpenseReportCron } from "./services/expense-report-cron";
 import { initTicketReportCron } from "./services/ticket-report-cron";
+import { startEcommerceReportsCron } from "./cron/ecommerce-reports.cron";
 
 const app = express();
 const httpServer = createServer(app);
@@ -705,6 +706,7 @@ app.use((req, res, next) => {
       startRemindersCron();
       initExpenseReportCron();
       initTicketReportCron();
+      startEcommerceReportsCron();
 
       const messageStatusUpdater = new MessageStatusUpdater();
       messageStatusUpdater.startCronJob(60);

@@ -288,10 +288,10 @@ export class EcommerceService {
 
       // Check interactive button clicks FIRST (always high priority)
       // 1. Interactive button replies (Buy Now, Product Info, or Ask AI)
-      if (message.interactive?.type === "button_reply") {
-        const replyId = message.interactive.button_reply.id;
-        if (replyId && replyId.startsWith("buy_")) {
-          const productId = replyId.replace("buy_", "");
+      const buttonReplyId = message.interactive?.button_reply?.id || (message as any)?.button?.payload || (message as any)?.interactive?.buttonReply?.id;
+      if (buttonReplyId) {
+        if (buttonReplyId.startsWith("buy_")) {
+          const productId = buttonReplyId.replace("buy_", "");
           const [product] = await db
             .select()
             .from(schema.ecommerceProducts)
@@ -302,8 +302,8 @@ export class EcommerceService {
             await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, product);
             return true;
           }
-        } else if (replyId && replyId.startsWith("info_")) {
-          const productId = replyId.replace("info_", "");
+        } else if (buttonReplyId.startsWith("info_")) {
+          const productId = buttonReplyId.replace("info_", "");
           const [product] = await db
             .select()
             .from(schema.ecommerceProducts)
@@ -314,8 +314,8 @@ export class EcommerceService {
             await this.sendProductDetailsInfo(channelRow, config, conversationId, contactPhone, product);
             return true;
           }
-        } else if (replyId && replyId.startsWith("ai_ask_")) {
-          const productId = replyId.replace("ai_ask_", "");
+        } else if (buttonReplyId.startsWith("ai_ask_")) {
+          const productId = buttonReplyId.replace("ai_ask_", "");
           const [product] = await db
             .select()
             .from(schema.ecommerceProducts)
@@ -343,20 +343,18 @@ export class EcommerceService {
       }
 
       // 2. Interactive list replies
-      if (message.interactive?.type === "list_reply") {
-        const replyId = message.interactive.list_reply.id;
-        if (replyId && replyId.startsWith("prod_")) {
-          const productId = replyId.replace("prod_", "");
-          const [product] = await db
-            .select()
-            .from(schema.ecommerceProducts)
-            .where(eq(schema.ecommerceProducts.id, productId))
-            .limit(1);
+      const listReplyId = message.interactive?.list_reply?.id || (message as any)?.interactive?.listReply?.id;
+      if (listReplyId && listReplyId.startsWith("prod_")) {
+        const productId = listReplyId.replace("prod_", "");
+        const [product] = await db
+          .select()
+          .from(schema.ecommerceProducts)
+          .where(eq(schema.ecommerceProducts.id, productId))
+          .limit(1);
 
-          if (product) {
-            await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, product);
-            return true;
-          }
+        if (product) {
+          await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, product);
+          return true;
         }
       }
 
@@ -1469,8 +1467,9 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 
     // 2.5 STEP: WAITING FOR CHECKOUT CONFIRMATION (CONFIRM or EDIT)
     if (session.currentStep === "waiting_for_checkout_confirmation") {
-      const isConfirm = cleanInput === "1" || cleanInput === "confirm" || cleanInput.includes("confirm") || cleanInput === "yes" || message.interactive?.button_reply?.id === "confirm_checkout" || (message as any)?.button?.payload === "confirm_checkout";
-      const isEdit = cleanInput === "2" || cleanInput === "edit" || cleanInput.includes("edit") || cleanInput === "change" || message.interactive?.button_reply?.id === "edit_checkout" || (message as any)?.button?.payload === "edit_checkout";
+      const buttonReplyId = message.interactive?.button_reply?.id || (message as any)?.button?.payload || (message as any)?.interactive?.buttonReply?.id;
+      const isConfirm = cleanInput === "1" || cleanInput === "confirm" || cleanInput.includes("confirm") || cleanInput === "yes" || buttonReplyId === "confirm_checkout";
+      const isEdit = cleanInput === "2" || cleanInput === "edit" || cleanInput.includes("edit") || cleanInput === "change" || buttonReplyId === "edit_checkout";
 
       if (isEdit) {
         // Loop back to edit fields again one-by-one from the beginning
@@ -1572,10 +1571,13 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         paymentOptions.push({ id: "gateway", title: config.labelGateway || "Online Payment" });
       }
 
-      if (message.interactive?.type === "button_reply") {
-        selectedMethod = message.interactive.button_reply.id;
-      } else if (message.interactive?.type === "list_reply") {
-        selectedMethod = message.interactive.list_reply.id;
+      const buttonReplyId = message.interactive?.button_reply?.id || (message as any)?.button?.payload || (message as any)?.interactive?.buttonReply?.id;
+      const listReplyId = message.interactive?.list_reply?.id || (message as any)?.interactive?.listReply?.id;
+
+      if (buttonReplyId) {
+        selectedMethod = buttonReplyId;
+      } else if (listReplyId) {
+        selectedMethod = listReplyId;
       } else {
         // IVR selection matching index
         const matchIdx = parseInt(input) - 1;
@@ -1583,15 +1585,32 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           selectedMethod = paymentOptions[matchIdx].id;
         } else {
           // Fallback to text matching
-          const lowerVal = input.toLowerCase();
-          if (lowerVal.includes("cod") || lowerVal.includes("cash") || (config.labelCod && lowerVal.includes(config.labelCod.toLowerCase()))) {
-            selectedMethod = "cod";
-          } else if (lowerVal.includes("direct") || lowerVal.includes("mobile") || (config.labelUpiDirect && lowerVal.includes(config.labelUpiDirect.toLowerCase()))) {
-            selectedMethod = "upi_direct";
-          } else if (lowerVal.includes("qr") || lowerVal.includes("upi") || (config.labelQrPay && lowerVal.includes(config.labelQrPay.toLowerCase()))) {
-            selectedMethod = "qr_pay";
-          } else if (lowerVal.includes("online") || lowerVal.includes("gateway") || (config.labelGateway && lowerVal.includes(config.labelGateway.toLowerCase()))) {
-            selectedMethod = "gateway";
+          const lowerVal = input.toLowerCase().trim();
+          for (const opt of paymentOptions) {
+            const optTitleLower = opt.title.toLowerCase().trim();
+            const optIdLower = opt.id.toLowerCase().trim();
+            if (
+              lowerVal === optIdLower ||
+              lowerVal === optTitleLower ||
+              lowerVal.startsWith(optTitleLower.substring(0, 15)) ||
+              optTitleLower.startsWith(lowerVal) ||
+              optTitleLower.includes(lowerVal) ||
+              lowerVal.includes(optTitleLower)
+            ) {
+              selectedMethod = opt.id;
+              break;
+            }
+          }
+          if (!selectedMethod) {
+            if (lowerVal.includes("cod") || lowerVal.includes("cash") || (config.labelCod && lowerVal.includes(config.labelCod.toLowerCase()))) {
+              selectedMethod = "cod";
+            } else if (lowerVal.includes("direct") || lowerVal.includes("mobile") || (config.labelUpiDirect && lowerVal.includes(config.labelUpiDirect.toLowerCase()))) {
+              selectedMethod = "upi_direct";
+            } else if (lowerVal.includes("qr") || lowerVal.includes("upi") || (config.labelQrPay && lowerVal.includes(config.labelQrPay.toLowerCase()))) {
+              selectedMethod = "qr_pay";
+            } else if (lowerVal.includes("online") || lowerVal.includes("gateway") || (config.labelGateway && lowerVal.includes(config.labelGateway.toLowerCase()))) {
+              selectedMethod = "gateway";
+            }
           }
         }
       }

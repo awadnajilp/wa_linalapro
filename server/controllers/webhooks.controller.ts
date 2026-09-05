@@ -1124,6 +1124,21 @@ if (io) {
       }
     }
 
+    const interceptorPayload = {
+      ...message,
+      from,
+      type,
+      mediaId: (message as any).image?.id || (message as any).audio?.id || (message as any).document?.id || (message as any).video?.id || null,
+      mediaUrl,
+      image: (message as any).image || null,
+      audio: (message as any).audio || null,
+      document: (message as any).document || null,
+      video: (message as any).video || null,
+      interactive: (message as any).interactive || interactive || null,
+      button: (message as any).button || null,
+      text: (message as any).text || null,
+    };
+
     // AI Expense Tracker Interceptor for Cloud API
     if (channel.id && conversation && contact && !isGroupMessage && !automationHandled) {
       try {
@@ -1132,13 +1147,7 @@ if (io) {
           channel.id,
           [conversation],
           [contact],
-          {
-            from,
-            type,
-            mediaId: (message as any).image?.id || (message as any).audio?.id || null,
-            image: (message as any).image || null,
-            audio: (message as any).audio || null
-          },
+          interceptorPayload,
           messageContent,
           isGroupMessage,
           channel
@@ -1159,13 +1168,7 @@ if (io) {
           channel.id,
           [conversation],
           [contact],
-          {
-            from,
-            type,
-            mediaId: (message as any).image?.id || (message as any).audio?.id || null,
-            image: (message as any).image || null,
-            audio: (message as any).audio || null
-          },
+          interceptorPayload,
           messageContent,
           isGroupMessage,
           channel
@@ -1186,13 +1189,7 @@ if (io) {
           channel.id,
           [conversation],
           [contact],
-          {
-            from,
-            type,
-            mediaId: (message as any).image?.id || (message as any).audio?.id || null,
-            image: (message as any).image || null,
-            audio: (message as any).audio || null
-          },
+          interceptorPayload,
           messageContent,
           isGroupMessage,
           channel
@@ -1213,13 +1210,7 @@ if (io) {
           channel.id,
           [conversation],
           [contact],
-          {
-            from,
-            type,
-            mediaId: (message as any).image?.id || (message as any).audio?.id || null,
-            image: (message as any).image || null,
-            audio: (message as any).audio || null
-          },
+          interceptorPayload,
           messageContent,
           isGroupMessage,
           channel

@@ -84,11 +84,83 @@
     "payment_gateway": "بوابة الدفع",
     "support_tickets": "تذاكر الدعم",
     "master_subscriptions": "بيانات الاشتراكات",
-    "message_logs": "سجلات الرسائل"
+    "message_logs": "سجلات الرسائل",
+    "wallet": "المحفظة",
+    "marketplace": "متجر الإضافات",
+    "expenses": "سجل المصروفات",
+    "ecommerce": "المتجر الإلكتروني",
+    "reminders": "سجل التذكيرات",
+    "whatsapp_flows": "تدفقات واتساب",
+    "tenant_wallets": "محافظ المشتركين",
+    "manage_addons": "إدارة الإضافات",
+    "voice_profiles": "ملفات الصوت بالذكاء الاصطناعي",
+    "ai_billing": "استهلاك وفواتير الذكاء الاصطناعي",
+    "warmer": "تهيئة وإحماء واتساب",
+    "crm": "إدارة علاقات العملاء والصفقات",
+    "languages": "اللغات",
+    "plans": "الباقات والاشتراكات",
+    "apiDocs": "توثيق واجهة البرمجة (API)",
+    "documentation": "التوثيق والشروحات"
   },
   "widget": {
-    "title": "منشئ ودجت واتساب",
-    "subtitle": "قم بإنشاء ودجت واتساب مخصص لموقعك الإلكتروني لجذب العملاء والتواصل معهم بسهولة."
+    "title": "منشئ ودجة واتساب للموقع",
+    "subtitle": "إنشاء وتخصيص زر وودجة محادثة واتساب التفاعلية لموقعك الإلكتروني.",
+    "Content": {
+      "messagetitle": "رسائل الترحيب",
+      "messageSubtitle": "تخصيص نصوص ورسائل التحية الافتتاحية للزوار",
+      "Installation": {
+        "title": "كود التثبيت في الموقع",
+        "subtitle": "انسخ الكود والصقه في كود موقعك الإلكتروني"
+      },
+      "Live_Preview": {
+        "title": "المعاينة الحية",
+        "subtitle": "معاينة تفاعلية فورية لشكل وسلوك الودجة"
+      }
+    },
+    "Design": {
+      "Widget": {
+        "title": "مظهر وشكل الودجة",
+        "subtitle": "اختيار نمط وألوان الودجة"
+      },
+      "Home_Screen": {
+        "title": "تخطيط الشاشة الرئيسية",
+        "subtitle": "اختيار الشاشة الافتراضية التي تظهر عند فتح الودجة"
+      },
+      "Copy_and_paste ": {
+        "title": "النسخ واللصق",
+        "subtitle": "انسخ هذا الكود وضعه في موقعك"
+      }
+    },
+    "Layout": {
+      "messenger_layout": {
+        "title": "تخطيط المحادثة (Messenger)",
+        "subtitle": "تخصيص الواجهة الموجهة للمحادثات المباشرة"
+      }
+    },
+    "features": {
+      "Widget_Features": {
+        "title": "ميزات الودجة",
+        "subtitle": "تفعيل أو تعطيل وظائف الودجة المختلفة"
+      }
+    },
+    "team": {
+      "Widget_Features": {
+        "title": "أعضاء الفريق",
+        "subtitle": "تحديد مسؤولي الدعم المتاحين في الودجة"
+      }
+    },
+    "ai": {
+      "Widget_Features": {
+        "title": "تدريب الذكاء الاصطناعي",
+        "subtitle": "تخصيص سلوك وطريقة رد الذكاء الاصطناعي على الزوار"
+      }
+    },
+    "advanced": {
+      "Widget_Features": {
+        "title": "إعدادات متقدمة للودجة",
+        "subtitle": "تخصيص أنماط المحادثة، الخطوط، والمؤثرات البصرية"
+      }
+    }
   },
   "dashboard": {
     "uploadCSV": "تحميل ملف CSV",
@@ -166,7 +238,9 @@
       "Total_Campaigns": "إجمالي الحملات",
       "Total_Signups": "إجمالي التسجيلات",
       "Total_Templates": "إجمالي القوالب"
-    }
+    },
+    "loadingActivities": "جاري تحميل آخر الأنشطة...",
+    "noRecentActivities": "لا توجد أنشطة مسجلة مؤخراً."
   },
   "contacts": {
     "contact": "جهة الاتصال",
@@ -307,8 +381,10 @@
       "successTitle": "تم إنشاء المجموعة",
       "successDesc": "تم إنشاء المجموعة. يمكنك الآن إضافة جهات الاتصال إليها.",
       "errorTitle": "خطأ",
-      "errorDesc": "يرجى إدخال اسم المجموعة"
-    }
+      "errorDesc": "يرجى إدخال اسم المجموعة",
+      "name": "اسم المجموعة"
+    },
+    "addYourFirstContact": "أضف جهة اتصالك الأولى للبدء في التواصل."
   },
   "campaigns": {
     "title": "الحملات",
@@ -384,7 +460,9 @@
     "rows": "صفوف",
     "tabContent": "تسمح حملات API للتطبيقات الخارجية بتشغيل الرسائل باستخدام القوالب الخاصة بك. بعد إنشاء الحملة، ستتلقى نقطة نهاية API ومفتاح.",
     "campaignfilterlabel": "تصفية الحملة حسب المجموعة",
-    "allGroup": "جميع المجموعات"
+    "allGroup": "جميع المجموعات",
+    "selectGroup": "اختر مجموعة جهات الاتصال",
+    "noContactsInGroup": "لا توجد جهات اتصال في المجموعة المحددة"
   },
   "templates": {
     "title": "القوالب",
@@ -592,7 +670,8 @@
     "customerSatisfaction": "رضا العملاء",
     "sections": "الأقسام",
     "allSections": "جميع الأقسام",
-    "selectSections": "تحديد الأقسام"
+    "selectSections": "تحديد الأقسام",
+    "members": "أعضاء فريق العمل"
   },
   "settings": {
     "title": "الإعدادات",
@@ -687,7 +766,9 @@
       "brandPreviewDesc": "كيف ستظهر علامتك التجارية في التطبيق",
       "brandLogoAlt": "شعار العلامة التجارية",
       "logoAlt": "الشعار",
-      "faviconAlt": "أيقونة المفضلة"
+      "faviconAlt": "أيقونة المفضلة",
+      "supportEmail": "البريد الإلكتروني للدعم والمساعدة",
+      "supportEmailHelper": "البريد الإلكتروني المعتمد لاستلام تنبيهات واستفسارات العملاء"
     },
     "storage_setting": {
       "tabName": "إعدادات التخزين",
@@ -732,7 +813,10 @@
       "configurationStatusComplete": "مكتمل",
       "configurationStatusPartial": "جزئي",
       "configurationStatusIncomplete": "غير مكتمل",
-      "lastUpdated": "آخر تحديث"
+      "lastUpdated": "آخر تحديث",
+      "connectionOnline": "الاتصال بالتخزين السحابي متصل ويعمل بنجاح",
+      "testing": "جاري فحص واختبار الاتصال بالتخزين...",
+      "notTested": "لم يتم اختبار الاتصال بالتخزين بعد"
     },
     "ai_setting": {
       "tabName": "إعدادات AI",
@@ -1038,7 +1122,8 @@
       "Active_Campaigns": "الحملات النشطة",
       "Total_Campaigns": "إجمالي الحملات",
       "Unique_Contacts": "جهات اتصال فريدة",
-      "Total_Recipients": "إجمالي المستلمين"
+      "Total_Recipients": "إجمالي المستلمين",
+      "Message_Performance": "أداء وصول وقراءة الرسائل"
     },
     "messageTab": {
       "title": "الرسائل",
@@ -1251,7 +1336,10 @@
           "title": "تكامل API",
           "desc": "تكامل سلس مع أدواتك الحالية ونظام CRM"
         }
-      ]
+      ],
+      "whatsAppAPI": "ربط رسمي عبر واجهة واتساب للأعمال (WhatsApp Cloud API)",
+      "campaign_progress": "متابعة حية لتقدم الحملات ونسب وصول الرسائل",
+      "demo": "تجربة تفاعلية حية للنظام"
     },
     "howItWorksSec": {
       "introTagline": "عملية بسيطة من 4 خطوات",
@@ -1846,7 +1934,8 @@
       "updatePlan": "تحديث الخطة",
       "addFeature": "إضافة ميزة",
       "getStartedFree": "ابدأ مجاناً",
-      "startFreeTrial": "ابدأ النسخة التجريبية المجانية"
+      "startFreeTrial": "ابدأ النسخة التجريبية المجانية",
+      "buy": "ترقية / اشتراك الآن"
     },
     "form": {
       "createTitle": "إنشاء خطة جديدة",
@@ -1884,7 +1973,11 @@
         "automation": "الأتمتة",
         "automationPlaceholder": "0",
         "campaign": "الحملة",
-        "campaignPlaceholder": "0"
+        "campaignPlaceholder": "0",
+        "apiRequestsPerMonth": "الحد الشهري لطلبات واجهة البرمجة (API)",
+        "apiRequestsPerMonthPlaceholder": "مثال: 50000",
+        "apiRateLimitPerMinute": "الحد الأقصى للطلبات في الدقيقة (Rate Limit)",
+        "apiRateLimitPerMinutePlaceholder": "مثال: 100"
       },
       "popularToggle": "تعيين كخطة شائعة",
       "features": "الميزات",
@@ -3344,6 +3437,278 @@
       "perMinute": "حد المعدل في الدقيقة",
       "perMinuteDesc": "الحد الأقصى لعدد الطلبات المسموح بها في الدقيقة.",
       "exceeded": "استجابة عند تجاوز حد المعدل (HTTP 429)"
+    }
+  },
+  "ecommerce": {
+    "title": "إدارة المتجر الإلكتروني",
+    "subtitle": "إدارة متجرك الآلي عبر واتساب، المنتجات، طلبات العملاء، ورسوم التوصيل والشحن.",
+    "orders": {
+      "title": "سجل الطلبات",
+      "subtitle": "متابعة وإدارة جميع طلبات الشراء المستلمة تلقائياً عبر محادثات متجر واتساب.",
+      "searchPlaceholder": "البحث برقم الطلب، اسم العميل، أو رقم الهاتف...",
+      "allStatuses": "جميع الحالات",
+      "allPaymentStatuses": "جميع حالات الدفع",
+      "statusPending": "قيد الانتظار",
+      "statusProcessing": "قيد المعالجة",
+      "statusShipped": "تم الشحن",
+      "statusDelivered": "تم التوصيل",
+      "statusCancelled": "ملغي",
+      "paymentPending": "في انتظار الدفع",
+      "paymentPaid": "مدفوع",
+      "paymentFailed": "فشل الدفع",
+      "paymentVerification": "قيد التحقق",
+      "totalOrders": "إجمالي الطلبات",
+      "totalRevenue": "إجمالي الإيرادات",
+      "paidOrders": "الطلبات المدفوعة",
+      "codOrders": "الدفع عند الاستلام",
+      "orderNumber": "رقم الطلب",
+      "customer": "العميل",
+      "product": "المنتج",
+      "quantity": "الكمية",
+      "amount": "المبلغ الإجمالي",
+      "deliveryFee": "رسوم التوصيل",
+      "paymentMethod": "طريقة الدفع",
+      "paymentStatus": "حالة الدفع",
+      "orderStatus": "حالة الطلب",
+      "date": "التاريخ والوقت",
+      "actions": "الإجراءات",
+      "viewDetails": "عرض التفاصيل",
+      "updateStatus": "تعديل الحالة",
+      "viewReceipt": "عرض إيصال التحويل",
+      "noOrdersFound": "لا توجد طلبات تطابق معايير البحث.",
+      "exportExcel": "تصدير إلى Excel",
+      "exporting": "جاري التصدير...",
+      "detailsTitle": "تفاصيل الطلب",
+      "customerInfo": "بيانات العميل",
+      "orderDetails": "تفاصيل المنتج والدفع",
+      "shippingAddress": "عنوان التوصيل",
+      "receiptTitle": "إيصال الدفع / لقطة الشاشة",
+      "updateStatusTitle": "تغيير حالة الطلب",
+      "statusUpdatedSuccess": "تم تحديث حالة الطلب بنجاح",
+      "statusUpdatedError": "فشل في تحديث حالة الطلب"
+    },
+    "products": {
+      "addProduct": "إضافة منتج جديد",
+      "deleteConfirm": "هل أنت متأكد من رغبتك في حذف هذا المنتج؟ لا يمكن التراجع عن هذا الإجراء.",
+      "deleteProduct": "حذف المنتج",
+      "deleteSuccess": "تم حذف المنتج بنجاح",
+      "editProduct": "تعديل بيانات المنتج",
+      "isTriggerEnabled": "تفعيل الكلمة المفتاحية المباشرة",
+      "isTriggerEnabledHelp": "بدء عملية شراء هذا المنتج فوراً عند كتابة الكلمة المفتاحية المحددة.",
+      "longDescription": "الوصف التفصيلي والمواصفات",
+      "longDescriptionPlaceholder": "المواصفات الكاملة للمنتج للإجابة على استفسارات العملاء بواسطة المساعد الذكي...",
+      "photos": "صور المنتج",
+      "price": "السعر",
+      "pricePlaceholder": "مثال: 499.00",
+      "productName": "اسم المنتج",
+      "productNamePlaceholder": "مثال: سماعة رأس لاسلكية عازلة للضوضاء",
+      "saveSuccess": "تم حفظ بيانات المنتج بنجاح",
+      "shortDescription": "الوصف المختصر",
+      "shortDescriptionPlaceholder": "ملخص سريع يظهر للعميل في قوائم واتساب...",
+      "subtitle": "إدارة كتالوج المنتجات المتاحة للشراء في محادثات المتجر الآلي.",
+      "title": "منتجات المتجر",
+      "triggerKeyword": "الكلمة المفتاحية المباشرة",
+      "triggerKeywordHelp": "عندما يرسل العميل هذه الكلمة عبر واتساب، يتم بدء طلب هذا المنتج مباشرة.",
+      "triggerKeywordPlaceholder": "مثال: سماعة, حذاء, عرض"
+    },
+    "settings": {
+      "addStateRule": "إضافة تسعيرة لمنطقة",
+      "aiAssistantTab": "المساعد الذكي والصوتي",
+      "aiEnabled": "تفعيل المساعد الذكي للمنتجات",
+      "aiEnabledHelp": "السماح للذكاء الاصطناعي بالإجابة على استفسارات العملاء حول مواصفات المنتجات والأسعار والتوافر.",
+      "aiSystemPrompt": "تعليمات مخصصة لذكاء المتجر",
+      "aiTimeoutMinutes": "مهلة محادثة الذكاء الاصطناعي (بالدقائق)",
+      "aiVoiceEnabled": "تفعيل الردود الصوتية الذكية",
+      "aiVoiceEnabledHelp": "توليد الردود كرسائل صوتية طبيعية عبر واتساب عند استلام رسائل صوتية من العميل.",
+      "aiVoiceLanguageMode": "نمط لغة الصوت",
+      "apiKey": "المفتاح / معرف العميل (Key ID)",
+      "apiSecret": "المفتاح السري / الرمز السري",
+      "autoAssignEnabled": "تفعيل التوزيع التلقائي على الفريق",
+      "autoAssignEnabledHelp": "إسناد محادثات عملاء المتجر الإلكتروني تلقائياً لأعضاء فريق الدعم.",
+      "autoAssignMode": "آلية التوزيع",
+      "currency": "عملة المتجر",
+      "dailyReportEnabled": "تفعيل التقرير اليومي بالبريد",
+      "dailyReportEnabledHelp": "توليد وإرسال ملف Excel يومي بجميع الطلبات إلى عناوين البريد المحددة.",
+      "dailyReportsTab": "التقرير اليومي عبر البريد",
+      "defaultDeliveryFee": "رسوم التوصيل الافتراضية للمناطق",
+      "deliveryFeeType": "نموذج حساب رسوم التوصيل",
+      "deliveryFeesTab": "رسوم التوصيل والشحن",
+      "excludeAgents": "استثناء أعضاء محددين من التوزيع الدوري",
+      "flatDeliveryFee": "قيمة التوصيل الثابتة",
+      "flatFee": "سعر توصيل ثابت وموحد",
+      "flowWelcomeTab": "التدفق ورسالة الترحيب",
+      "isStoreFlowActive": "تفعيل المتجر الآلي",
+      "isStoreFlowActiveHelp": "عند التفعيل، سيتم تشغيل المتجر التفاعلي فور إرسال الكلمة المفتاحية من العميل.",
+      "mediaImage": "صورة / ملصق ترويجي",
+      "mediaNone": "بدون وسائط (نص فقط)",
+      "mediaVideo": "فيديو ترويجي",
+      "modeAutoDetect": "كشف لغة العميل تلقائياً",
+      "modePermanent": "موظف مخصص دائم",
+      "modeProfile": "لغة ملف الصوت المحددة",
+      "modeRoundRobin": "توزيع دوري عادل (Round Robin)",
+      "paymentCod": "الدفع عند الاستلام (COD)",
+      "paymentCodLabel": "نص زر الدفع عند الاستلام",
+      "paymentGateway": "بوابة دفع إلكتروني",
+      "paymentGatewayLabel": "نص زر الدفع الإلكتروني",
+      "paymentMethodsTab": "بوابات وطرق الدفع",
+      "paymentQrCode": "الدفع عبر رمز QR",
+      "paymentQrCodeLabel": "نص زر الدفع برمز QR",
+      "paymentUpiDirect": "رابط دفع مباشر (UPI)",
+      "paymentUpiDirectLabel": "نص زر الدفع المباشر",
+      "qrCodeUrl": "رابط صورة رمز QR للدفع",
+      "reportEmails": "عناوين البريد الإلكتروني للمستلمين",
+      "reportEmailsPlaceholder": "أدخل عناوين البريد الإلكتروني مفصولة بفواصل",
+      "reportTime": "وقت إرسال التقرير اليومي (نظام 24 ساعة)",
+      "sandboxMode": "وضع التجربة والاختبار (Sandbox)",
+      "saveConfig": "حفظ إعدادات المتجر",
+      "saveSuccess": "تم حفظ إعدادات المتجر بنجاح",
+      "saving": "جاري الحفظ...",
+      "selectAgent": "اختر الموظف المخصص",
+      "selectGateway": "اختر بوابة الدفع",
+      "selectVoiceProfile": "اختر ملف الصوت الذكي",
+      "sendTestReportNow": "إرسال تقرير تجريبي الآن",
+      "sendingTestReport": "جاري توليد وإرسال التقرير...",
+      "stateBasedFee": "رسوم متغيرة حسب المنطقة / المحافظة",
+      "stateFeesTable": "جدول تسعير المناطق والمحافظات",
+      "stateName": "اسم المنطقة / المحافظة",
+      "storeAddress": "عنوان المتجر / المستودع",
+      "storeAddressPlaceholder": "العنوان بالتفصيل أو المدينة...",
+      "storeCountry": "الدولة",
+      "storeInfoTab": "الملف التعريفي",
+      "storeName": "اسم المتجر",
+      "storeNamePlaceholder": "مثال: متجر لينالا الإلكتروني",
+      "storeTriggerKeyword": "الكلمة المفتاحية للمتجر",
+      "storeTriggerKeywordPlaceholder": "مثال: متجر, طلب, تسوق",
+      "storeWebsite": "رابط الموقع الإلكتروني",
+      "storeWebsitePlaceholder": "https://example.com",
+      "subtitle": "تخصيص هوية المتجر، رسوم الشحن والتوصيل، بوابات الدفع، وإعدادات المساعد الذكي.",
+      "teamAutoAssignTab": "التوزيع التلقائي على الفريق",
+      "testReportError": "تعذر إرسال التقرير التجريبي",
+      "testReportSuccess": "تم إرسال التقرير التجريبي بنجاح إلى البريد الإلكتروني المحدد!",
+      "title": "إعدادات المتجر",
+      "upiId": "معرف الدفع الإلكتروني (VPA / UPI ID)",
+      "upiMerchantName": "اسم التاجر المعروض للدفع",
+      "voiceProfile": "ملف الصوت",
+      "welcomeHeaderType": "نوع وسائط الترحيب",
+      "welcomeHeaderUrl": "رابط وسائط الترحيب (صورة أو فيديو)",
+      "welcomeMessage": "نص الرسالة الترحيبية"
+    }
+  },
+  "crm": {
+    "activityLog": "سجل الأنشطة والجدول الزمني للعميل",
+    "addDeal": "إضافة صفقة جديدة",
+    "assignedTo": "المسؤول عن المتابعة",
+    "contact": "جهة الاتصال",
+    "dealTitle": "عنوان الصفقة",
+    "dealTitlePlaceholder": "مثال: اشتراك سنوي للباقة المتقدمة",
+    "dealValue": "قيمة الصفقة",
+    "deleteDeal": "حذف الصفقة",
+    "deleteSuccess": "تم حذف الصفقة بنجاح",
+    "editDeal": "تعديل بيانات الصفقة",
+    "expectedCloseDate": "تاريخ الإغلاق المتوقع",
+    "followupNotes": "ملاحظات المتابعة",
+    "followupNotesPlaceholder": "نقاط النقاش الهامة أو الخطوة التالية...",
+    "followupTime": "موعد وتاريخ المتابعة",
+    "listView": "عرض القائمة",
+    "pipeline": "لوحة مراحل الصفقات (Pipeline)",
+    "saveSuccess": "تم حفظ الصفقة بنجاح",
+    "selectAgent": "اختر موظف المتابعة",
+    "selectContact": "اختر العميل",
+    "stage": "المرحلة الحالية",
+    "stages": {
+      "contacted": "تم التواصل",
+      "lead": "عميل محتمل جديد",
+      "lost": "صفقة خاسرة",
+      "negotiation": "قيد التفاوض والمتابعة",
+      "proposal": "تم تقديم العرض السعري",
+      "won": "صفقة رابحة / مكتملة"
+    },
+    "stats": {
+      "conversionRate": "معدل الإغلاق والنجاح",
+      "pipelineValue": "قيمة الصفقات النشطة",
+      "totalDeals": "إجمالي الصفقات",
+      "wonValue": "الإيرادات المحققة"
+    },
+    "statusUpdated": "تم تحديث مرحلة الصفقة",
+    "subtitle": "متابعة العملاء المحتملين، مسار مراحل الصفقات، تذكيرات المتابعة، وتوزيع المهام على الفريق.",
+    "title": "إدارة علاقات العملاء والصفقات (CRM)",
+    "unassigned": "غير مسند لأحد"
+  },
+  "warmer": {
+    "active": "التهيئة قيد التشغيل",
+    "completed": "اكتملت تهيئة الرقم بنجاح",
+    "currentStage": "المرحلة الحالية",
+    "dailyLimit": "الحد اليومي للرسائل",
+    "dailyProgress": "إنجاز اليوم",
+    "healthScore": "مؤشر صحة وموثوقية الرقم",
+    "idle": "متوقف",
+    "interval": "الفارق الزمني بين الرسائل (بالثواني)",
+    "logs": "سجل عمليات ورسائل التهيئة",
+    "paused": "موقوف مؤقتاً",
+    "peerPool": "مجموعة الأرقام النشطة للتبادل",
+    "startWarmer": "بدء تهيئة وإحماء الرقم",
+    "status": "حالة التهيئة",
+    "subtitle": "رفع موثوقية وحدود إرسال أرقام واتساب الجديدة تدريجياً لتجنب الحظر.",
+    "title": "أداة تهيئة وإحماء أرقام واتساب"
+  },
+  "voice_profiles": {
+    "createProfile": "إنشاء ملف صوتي ذكي",
+    "deleteProfile": "حذف الملف الصوتي",
+    "editProfile": "تعديل الملف الصوتي",
+    "language": "اللغة المستهدفة",
+    "model": "النموذج",
+    "pitch": "طبقة ونبرة الصوت",
+    "playSample": "تشغيل العينة الصوتية",
+    "profileName": "اسم الملف الصوتي",
+    "provider": "محرك ومزود الصوت",
+    "saveSuccess": "تم حفظ ملف الصوت بنجاح",
+    "speaker": "المتحدث / النبرة والصوت",
+    "speed": "سرعة الإلقاء والحديث",
+    "subtitle": "إنشاء وتخصيص أصوات ذكاء اصطناعي طبيعية للرسائل الصوتية التلقائية والردود الذكية.",
+    "testVoice": "توليد عينة صوت تجريبية",
+    "title": "ملفات الصوت بالذكاء الاصطناعي"
+  },
+  "wallets": {
+    "adminAdjust": "تعديل رصيد المشترك",
+    "adjustSuccess": "تم تحديث رصيد المحفظة بنجاح",
+    "cost": "التكلفة المخصومة",
+    "currentBalance": "الرصيد الحالي",
+    "date": "وقت العملية",
+    "serviceType": "نوع الخدمة الذكية",
+    "subtitle": "إدارة الرصيد لاستهلاك الأصوات الذكية، تحويل الصوت إلى نص، ومحادثات النماذج اللغوية.",
+    "title": "المحفظة وأرصدة الذكاء الاصطناعي",
+    "topUp": "شحن الرصيد",
+    "unitsUsed": "الوحدات / الرموز المستهلكة",
+    "usageLedger": "سجل استهلاك الذكاء الاصطناعي"
+  },
+  "addons": {
+    "activate": "تفعيل الإضافة",
+    "available": "الإضافات المتاحة",
+    "installed": "الإضافات المفعلة لديك",
+    "manage": "إعدادات الإضافة",
+    "purchase": "الاشتراك والتفعيل",
+    "statusActive": "مفعلة",
+    "statusInactive": "غير مفعلة",
+    "subtitle": "توسيع قدرات منصة واتساب بأدوات متقدمة وحلول أتمتة مخصصة لنشاطك التجاري.",
+    "title": "متجر الإضافات والميزات"
+  },
+  "whatsapp_flows": {
+    "createFlow": "إنشاء تدفق جديد",
+    "flowName": "اسم التدفق",
+    "preview": "معاينة شاشات التدفق",
+    "publish": "نشر التدفق في واتساب",
+    "statusDraft": "مسودة",
+    "statusDeprecated": "موقوف",
+    "statusPublished": "منشور ومفعل",
+    "subtitle": "بناء استمارات تفاعلية، حجوزات، واستبيانات متقدمة تعمل مباشرة داخل محادثة واتساب.",
+    "syncMeta": "مزامنة مع Meta API",
+    "title": "تدفقات واتساب التفاعلية (Flows)"
+  },
+  "chatbot": {
+    "title": "منشئ روبوت المحادثة (Chatbot)",
+    "subtitle": "إنشاء ردود تلقائية وتفاعلية تستجيب للكلمات المفتاحية في واتساب.",
+    "addContact": {
+      "title": "إضافة مشغل اتصال جديد"
     }
   }
 }

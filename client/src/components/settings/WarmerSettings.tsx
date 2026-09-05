@@ -19,6 +19,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useTranslation } from "@/lib/i18n";
 import {
   Card,
   CardContent,
@@ -73,6 +74,7 @@ interface WarmerResponse {
 }
 
 export default function WarmerSettings() {
+  const { t } = useTranslation();
   const { user, userPlans } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -374,11 +376,11 @@ export default function WarmerSettings() {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Flame className="w-6 h-6 text-orange-500 fill-orange-500 animate-bounce" />
-            <h2 className="text-xl font-bold text-gray-900">WhatsApp Warmer</h2>
+            <h2 className="text-xl font-bold text-gray-900">{t("warmer.title")}</h2>
             <Badge className="bg-orange-100 text-orange-700 border-orange-200">Beta</Badge>
           </div>
           <p className="text-gray-600 text-sm max-w-2xl leading-relaxed">
-            The warmer periodically simulates activity on your QR-code-based logins by sending random, pre-made messages. This activity keeps the underlying connection warm and prevents WhatsApp from force-disconnecting or logging out inactive sessions.
+            {t("warmer.subtitle")}
           </p>
         </div>
 

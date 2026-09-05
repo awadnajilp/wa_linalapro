@@ -33,8 +33,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Textarea } from "@/components/ui/textarea";
 import CadencesSettingsDialog from "@/components/crm/CadencesSettingsDialog";
 import { useAuth } from "@/contexts/auth-context";
+import { useTranslation } from "@/lib/i18n";
 
 export default function CRM() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -764,7 +766,7 @@ export default function CRM() {
             <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
               <Briefcase className="w-5 h-5" />
             </div>
-            <h1 className="text-xl font-bold text-slate-900">CRM Pipelines</h1>
+            <h1 className="text-xl font-bold text-slate-900">{t("crm.title")}</h1>
           </div>
           <p className="text-xs text-slate-500">
             Pipeline total: <span className="font-semibold text-slate-800">${totalPipelineValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span> | Active Deals: <span className="font-semibold text-slate-800">{activeDealsCount}</span>

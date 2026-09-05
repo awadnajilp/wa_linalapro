@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 
 import { ChannelSwitcher } from "@/components/channel-switcher";
 import { MediaGalleryDialog } from "@/components/media/MediaGalleryDialog";
+import { useTranslation } from "@/lib/i18n";
 
 const DEFAULT_AI_SYSTEM_PROMPT = `You are a helpful customer sales AI assistant for this store.
 You are chatting with a customer regarding this product:
@@ -174,6 +175,7 @@ const countryStates: Record<string, string[]> = {
 
 
 export default function EcommerceLedger() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedChannel } = useChannelContext();
@@ -893,16 +895,16 @@ export default function EcommerceLedger() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <ShoppingCart className="w-6 h-6 text-emerald-600" />
-            Ecommerce Module Store Manager
+            {t("ecommerce.title")}
           </h1>
           <p className="text-gray-500 text-sm">
-            Configure automated checkout flows, products list, and track customer orders.
+            {t("ecommerce.subtitle")}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-600 hidden sm:inline">Active Channel:</span>
+            <span className="text-xs font-semibold text-gray-600 hidden sm:inline">{t("common.active")} Channel:</span>
             <ChannelSwitcher />
           </div>
 
@@ -913,14 +915,14 @@ export default function EcommerceLedger() {
             <DialogTrigger asChild>
               <Button className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2">
                 <Plus className="w-4 h-4" />
-                Add Product
+                {t("ecommerce.products.addProduct")}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
+                <DialogTitle>{editingProduct ? t("ecommerce.products.editProduct") : t("ecommerce.products.addProduct")}</DialogTitle>
                 <DialogDescription>
-                  Provide details of the product to make it purchasable on WhatsApp.
+                  {t("ecommerce.products.subtitle")}
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleProductSubmit} className="space-y-4 pt-2">
@@ -1079,23 +1081,23 @@ export default function EcommerceLedger() {
         <TabsList className="bg-gray-100 p-1 rounded-lg border flex w-fit gap-1 mb-4">
           <TabsTrigger value="products" className="flex items-center gap-2">
             <Package className="w-4 h-4" />
-            Products ({productsData?.total || 0})
+            {t("ecommerce.products.title")} ({productsData?.total || 0})
           </TabsTrigger>
           <TabsTrigger value="orders" className="flex items-center gap-2">
             <ClipboardList className="w-4 h-4" />
-            Orders ({ordersData?.total || 0})
+            {t("ecommerce.orders.title")} ({ordersData?.total || 0})
           </TabsTrigger>
           <TabsTrigger value="customers" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
-            Customers ({customersData?.total || 0})
+            {t("contacts.title")} ({customersData?.total || 0})
           </TabsTrigger>
           <TabsTrigger value="config" className="flex items-center gap-2">
             <Settings className="w-4 h-4" />
-            Store Settings
+            {t("ecommerce.settings.title")}
           </TabsTrigger>
           <TabsTrigger value="ai_usage" className="flex items-center gap-2">
             <Coins className="w-4 h-4 text-indigo-600" />
-            AI Usage & Billing
+            {t("wallets.title")}
           </TabsTrigger>
         </TabsList>
 
@@ -1103,9 +1105,9 @@ export default function EcommerceLedger() {
         <TabsContent value="products">
           <Card>
             <CardHeader>
-              <CardTitle>Catalog Products</CardTitle>
+              <CardTitle>{t("ecommerce.products.title")}</CardTitle>
               <CardDescription>
-                List of products that customers can buy. You can set individual triggers or list them in the store menu.
+                {t("ecommerce.products.subtitle")}
               </CardDescription>
             </CardHeader>
             <CardContent>

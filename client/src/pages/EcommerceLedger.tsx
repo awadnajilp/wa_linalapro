@@ -337,10 +337,14 @@ export default function EcommerceLedger() {
   const { data: teamMembers = [] } = useQuery<any[]>({
     queryKey: ["/api/team/members"],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/team/members?limit=1000");
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.data || [];
+      try {
+        const res = await apiRequest("GET", "/api/team/members?limit=1000");
+        if (!res.ok) return [];
+        const json = await res.json();
+        return Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
+      } catch (e) {
+        return [];
+      }
     },
   });
 
@@ -2256,18 +2260,30 @@ You are chatting with a customer regarding this product:
                               <UserCheck className="w-3.5 h-3.5 text-blue-600" />
                               Select Permanent Assignee
                             </Label>
-                            <Select value={autoAssignUserId || ""} onValueChange={setAutoAssignUserId}>
-                              <SelectTrigger className="h-9 text-xs bg-white">
-                                <SelectValue placeholder="Select team member to assign all chats..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {teamMembers.map((m: any) => (
-                                  <SelectItem key={m.id} value={m.id}>
-                                    {m.firstName ? `${m.firstName} ${m.lastName || ""}` : m.username || m.email} ({m.email})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            {(() => {
+                              const validMembers = Array.isArray(teamMembers) ? teamMembers.filter((m: any) => m && m.id) : [];
+                              return (
+                                <Select 
+                                  value={autoAssignUserId ? String(autoAssignUserId) : undefined} 
+                                  onValueChange={(val) => setAutoAssignUserId(val || "")}
+                                >
+                                  <SelectTrigger className="h-9 text-xs bg-white">
+                                    <SelectValue placeholder="Select team member to assign all chats..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {validMembers.length === 0 ? (
+                                      <div className="p-2 text-xs text-gray-400 italic">No team members available. Create members under Team settings.</div>
+                                    ) : (
+                                      validMembers.map((m: any) => (
+                                        <SelectItem key={String(m.id)} value={String(m.id)}>
+                                          {m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.username || m.email} ({m.email})
+                                        </SelectItem>
+                                      ))
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              );
+                            })()}
                             <span className="text-[10px] text-gray-500 block">
                               All customer interactions in the store flow will be assigned to this user immediately.
                             </span>
@@ -2286,56 +2302,61 @@ You are chatting with a customer regarding this product:
                               </p>
                             </div>
 
-                            {teamMembers.length === 0 ? (
-                              <div className="text-xs text-gray-400 italic bg-white p-3 rounded border text-center">
-                                No team members found. Round robin will fallback to account owner.
-                              </div>
-                            ) : (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
-                                {teamMembers.map((m: any) => {
-                                  const isExcluded = autoAssignExcludedUserIds.includes(m.id);
-                                  const displayName = m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.username || m.email;
-                                  return (
-                                    <div
-                                      key={m.id}
-                                      onClick={() => {
-                                        if (isExcluded) {
-                                          setAutoAssignExcludedUserIds(autoAssignExcludedUserIds.filter((id) => id !== m.id));
-                                        } else {
-                                          setAutoAssignExcludedUserIds([...autoAssignExcludedUserIds, m.id]);
-                                        }
-                                      }}
-                                      className={`flex items-center gap-2.5 p-2.5 rounded-md border text-xs cursor-pointer transition-all ${
-                                        isExcluded
-                                          ? "bg-red-50/70 border-red-200 text-red-700"
-                                          : "bg-white border-gray-200 hover:border-gray-300 text-gray-700"
-                                      }`}
-                                    >
-                                      <Checkbox
-                                        checked={isExcluded}
-                                        onCheckedChange={(checked) => {
-                                          if (checked) {
-                                            setAutoAssignExcludedUserIds([...autoAssignExcludedUserIds, m.id]);
+                            {(() => {
+                              const validMembers = Array.isArray(teamMembers) ? teamMembers.filter((m: any) => m && m.id) : [];
+                              if (validMembers.length === 0) {
+                                return (
+                                  <div className="text-xs text-gray-400 italic bg-white p-3 rounded border text-center">
+                                    No team members found. Round robin will fallback to account owner.
+                                  </div>
+                                );
+                              }
+
+                              const excludedList = Array.isArray(autoAssignExcludedUserIds) ? autoAssignExcludedUserIds : [];
+
+                              return (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                                  {validMembers.map((m: any) => {
+                                    const memberId = String(m.id);
+                                    const isExcluded = excludedList.includes(memberId);
+                                    const displayName = m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.username || m.email;
+                                    return (
+                                      <div
+                                        key={memberId}
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          if (isExcluded) {
+                                            setAutoAssignExcludedUserIds(excludedList.filter((id) => id !== memberId));
                                           } else {
-                                            setAutoAssignExcludedUserIds(autoAssignExcludedUserIds.filter((id) => id !== m.id));
+                                            setAutoAssignExcludedUserIds([...excludedList, memberId]);
                                           }
                                         }}
-                                        className="data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
-                                      />
-                                      <div className="flex-1 truncate">
-                                        <div className="font-medium truncate">{displayName}</div>
-                                        <div className="text-[10px] text-gray-400 truncate">{m.email}</div>
+                                        className={`flex items-center gap-2.5 p-2.5 rounded-md border text-xs cursor-pointer select-none transition-all ${
+                                          isExcluded
+                                            ? "bg-red-50/70 border-red-200 text-red-700"
+                                            : "bg-white border-gray-200 hover:border-gray-300 text-gray-700"
+                                        }`}
+                                      >
+                                        <Checkbox
+                                          checked={isExcluded}
+                                          onCheckedChange={() => {}}
+                                          className="pointer-events-none data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
+                                        />
+                                        <div className="flex-1 truncate">
+                                          <div className="font-medium truncate">{displayName}</div>
+                                          <div className="text-[10px] text-gray-400 truncate">{m.email}</div>
+                                        </div>
+                                        {isExcluded && (
+                                          <span className="text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
+                                            Excluded
+                                          </span>
+                                        )}
                                       </div>
-                                      {isExcluded && (
-                                        <span className="text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
-                                          Excluded
-                                        </span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>

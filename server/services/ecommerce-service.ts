@@ -294,6 +294,183 @@ export class EcommerceService {
   }
 
   /**
+   * Helper to send and save outbound text messages to Postgres messages table & broadcast to live Inbox WebSocket.
+   */
+  public static async sendAndSaveTextMessage(
+    channelRow: any,
+    conversationId: string | null,
+    to: string,
+    text: string,
+    replyToWaId?: string
+  ): Promise<any> {
+    const waApi = new WhatsAppApiService(channelRow);
+    const res = await waApi.sendTextMessage(to, text, replyToWaId);
+    try {
+      if (conversationId) {
+        const waMsgId = res?.messages?.[0]?.id || res?.key?.id || null;
+        const msg = await storage.createMessage({
+          conversationId,
+          content: text,
+          direction: "outbound",
+          fromType: "bot",
+          messageType: "text",
+          status: "delivered",
+          whatsappMessageId: waMsgId,
+          metadata: {},
+          timestamp: new Date(),
+        });
+        await storage.updateConversation(conversationId, {
+          lastMessageAt: new Date(),
+          lastMessageText: text,
+        });
+        if ((global as any).broadcastToConversation) {
+          (global as any).broadcastToConversation(conversationId, {
+            type: "new-message",
+            message: msg,
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error("[EcommerceService] Failed to save outbound text message to DB:", e?.message);
+    }
+    return res;
+  }
+
+  /**
+   * Helper to send and save outbound media messages to Postgres messages table & broadcast to live Inbox WebSocket.
+   */
+  public static async sendAndSaveMediaMessage(
+    channelRow: any,
+    conversationId: string | null,
+    to: string,
+    mediaUrl: string,
+    mediaType: "image" | "video" | "document" | "audio",
+    caption?: string,
+    filename?: string
+  ): Promise<any> {
+    const waApi = new WhatsAppApiService(channelRow);
+    const res = await waApi.sendMediaMessageByUrl(to, mediaUrl, mediaType, caption, filename);
+    try {
+      if (conversationId) {
+        const waMsgId = res?.messages?.[0]?.id || res?.key?.id || null;
+        const msg = await storage.createMessage({
+          conversationId,
+          content: caption || `[${mediaType}]`,
+          direction: "outbound",
+          fromType: "bot",
+          messageType: mediaType,
+          mediaUrl: mediaUrl,
+          status: "delivered",
+          whatsappMessageId: waMsgId,
+          metadata: { filename },
+          timestamp: new Date(),
+        });
+        await storage.updateConversation(conversationId, {
+          lastMessageAt: new Date(),
+          lastMessageText: caption || `[${mediaType}]`,
+        });
+        if ((global as any).broadcastToConversation) {
+          (global as any).broadcastToConversation(conversationId, {
+            type: "new-message",
+            message: msg,
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error("[EcommerceService] Failed to save outbound media message to DB:", e?.message);
+    }
+    return res;
+  }
+
+  /**
+   * Helper to send and save outbound voice notes to Postgres messages table & broadcast to live Inbox WebSocket.
+   */
+  public static async sendAndSaveVoiceNote(
+    channelRow: any,
+    conversationId: string | null,
+    to: string,
+    voiceMediaUrl: string,
+    caption?: string
+  ): Promise<any> {
+    const waApi = new WhatsAppApiService(channelRow);
+    const res = await waApi.sendVoiceNote(to, voiceMediaUrl);
+    try {
+      if (conversationId) {
+        const waMsgId = res?.messages?.[0]?.id || res?.key?.id || null;
+        const msg = await storage.createMessage({
+          conversationId,
+          content: caption || "[Voice Note]",
+          direction: "outbound",
+          fromType: "bot",
+          messageType: "audio",
+          mediaUrl: voiceMediaUrl,
+          status: "delivered",
+          whatsappMessageId: waMsgId,
+          metadata: {},
+          timestamp: new Date(),
+        });
+        await storage.updateConversation(conversationId, {
+          lastMessageAt: new Date(),
+          lastMessageText: caption || "[Voice Note]",
+        });
+        if ((global as any).broadcastToConversation) {
+          (global as any).broadcastToConversation(conversationId, {
+            type: "new-message",
+            message: msg,
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error("[EcommerceService] Failed to save outbound voice note to DB:", e?.message);
+    }
+    return res;
+  }
+
+  /**
+   * Helper to send and save document buffer to Postgres messages table & broadcast to live Inbox WebSocket.
+   */
+  public static async sendAndSaveDocumentBuffer(
+    channelRow: any,
+    conversationId: string | null,
+    to: string,
+    pdfBuffer: Buffer,
+    filename: string,
+    caption?: string
+  ): Promise<any> {
+    const waApi = new WhatsAppApiService(channelRow);
+    const res = await waApi.sendDocumentBuffer(to, pdfBuffer, filename, caption);
+    try {
+      if (conversationId) {
+        const waMsgId = res?.messages?.[0]?.id || res?.key?.id || null;
+        const msg = await storage.createMessage({
+          conversationId,
+          content: caption || filename,
+          direction: "outbound",
+          fromType: "bot",
+          messageType: "document",
+          status: "delivered",
+          whatsappMessageId: waMsgId,
+          metadata: { filename },
+          timestamp: new Date(),
+        });
+        await storage.updateConversation(conversationId, {
+          lastMessageAt: new Date(),
+          lastMessageText: caption || `[Document: ${filename}]`,
+        });
+        if ((global as any).broadcastToConversation) {
+          (global as any).broadcastToConversation(conversationId, {
+            type: "new-message",
+            message: msg,
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error("[EcommerceService] Failed to save outbound document buffer to DB:", e?.message);
+    }
+    return res;
+  }
+
+  /**
    * Calculate Delivery Fee via ZIP/PIN matching
    */
   public static async calculateDeliveryFee(
@@ -435,7 +612,6 @@ export class EcommerceService {
       const conversationId = conversation[0].id;
       const contactPhone = conversation[0].contactPhone;
       const cleanContent = content.trim().toLowerCase();
-      const waApi = new WhatsAppApiService(channelRow);
 
       // Check for trigger keywords first to allow resetting/starting fresh
       const storeKeyword = (config.storeTriggerKeyword || "").trim().toLowerCase();
@@ -450,7 +626,7 @@ export class EcommerceService {
           currentStep: "waiting_for_product_selection",
           customerData: {}
         });
-        await this.sendStoreCatalog(channelRow, config, contactPhone);
+        await this.sendStoreCatalog(channelRow, config, conversationId, contactPhone);
         return true;
       }
 
@@ -530,7 +706,7 @@ export class EcommerceService {
                 aiLastMessageTime: new Date().toISOString()
               }
             });
-            await waApi.sendTextMessage(contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${product.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
+            await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${product.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
             return true;
           }
         }
@@ -565,7 +741,7 @@ export class EcommerceService {
           currentStep: "waiting_for_tracking_ordernumber",
           customerData: {}
         });
-        await waApi.sendTextMessage(contactPhone, "🔍 *Order Tracking*\n\nPlease reply with your *Order Number* (e.g. `ORD-123456`) to check its status:");
+        await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, "🔍 *Order Tracking*\n\nPlease reply with your *Order Number* (e.g. `ORD-123456`) to check its status:");
         return true;
       }
 
@@ -630,7 +806,7 @@ export class EcommerceService {
                     updatedAt: new Date()
                   })
                   .where(eq(schema.ecommerceSessions.id, session.id));
-                await waApi.sendTextMessage(contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${selectedProd.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
+                await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${selectedProd.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
                 return true;
               }
             }
@@ -667,7 +843,9 @@ export class EcommerceService {
               .where(eq(schema.ecommerceProducts.id, session.productId))
               .limit(1);
             const prodName = selectedProd?.name || "Product";
-            await waApi.sendTextMessage(
+            await this.sendAndSaveTextMessage(
+              channelRow,
+              conversationId,
               contactPhone,
               `⚠️ Please choose an option for *${prodName}*:\n\nReply *1* to Buy Now\nReply *2* for Full Product Details\nOr reply *cancel* to exit.`
             );
@@ -707,13 +885,13 @@ export class EcommerceService {
                     updatedAt: new Date()
                   })
                   .where(eq(schema.ecommerceSessions.id, session.id));
-                await waApi.sendTextMessage(contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${firstProd.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
+                await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${firstProd.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
                 return true;
               }
             }
 
             // If invalid catalog choice, keep session and re-prompt
-            await waApi.sendTextMessage(contactPhone, "⚠️ Please reply with the product number to purchase (e.g. *1*), or reply *cancel* to exit.");
+            await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, "⚠️ Please reply with the product number to purchase (e.g. *1*), or reply *cancel* to exit.");
             return true;
           }
         } else {
@@ -734,8 +912,7 @@ export class EcommerceService {
   /**
    * Send the store catalogue of products
    */
-  private static async sendStoreCatalog(channelRow: any, config: any, to: string) {
-    const waApi = new WhatsAppApiService(channelRow);
+  private static async sendStoreCatalog(channelRow: any, config: any, conversationId: string, to: string) {
     const isQr = channelRow.connectionMethod === "qr_code";
 
     // 1. Send Welcome Message Sequence
@@ -750,21 +927,23 @@ export class EcommerceService {
 
     if (sortedWelcomes.length === 0) {
       if (config.welcomeHeaderUrl && config.welcomeHeaderType !== "none") {
-        await waApi.sendMediaMessageByUrl(
+        await this.sendAndSaveMediaMessage(
+          channelRow,
+          conversationId,
           to,
           config.welcomeHeaderUrl,
           config.welcomeHeaderType as "image" | "video",
           config.welcomeMessage || "Welcome to our store!"
         );
       } else {
-        await waApi.sendTextMessage(to, config.welcomeMessage || "Welcome to our store!");
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, config.welcomeMessage || "Welcome to our store!");
       }
     } else {
       for (const msg of sortedWelcomes) {
         if (msg.mediaType !== "none" && msg.mediaUrl) {
-          await waApi.sendMediaMessageByUrl(to, msg.mediaUrl, msg.mediaType as any, msg.text || "");
+          await this.sendAndSaveMediaMessage(channelRow, conversationId, to, msg.mediaUrl, msg.mediaType as any, msg.text || "");
         } else if (msg.text) {
-          await waApi.sendTextMessage(to, msg.text);
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, msg.text);
         }
       }
     }
@@ -776,7 +955,7 @@ export class EcommerceService {
       .where(eq(schema.ecommerceProducts.tenantId, config.tenantId));
 
     if (products.length === 0) {
-      await waApi.sendTextMessage(to, "We currently don't have any products listed in the store.");
+      await this.sendAndSaveTextMessage(channelRow, conversationId, to, "We currently don't have any products listed in the store.");
       return;
     }
 
@@ -805,18 +984,20 @@ export class EcommerceService {
         if (photos.length > 0) {
           for (let p = 0; p < photos.length; p++) {
             if (p === photos.length - 1) {
-              await waApi.sendMediaMessageByUrl(
+              await this.sendAndSaveMediaMessage(
+                channelRow,
+                conversationId,
                 to,
                 photos[p],
                 "image",
                 promptMsg
               );
             } else {
-              await waApi.sendMediaMessageByUrl(to, photos[p], "image");
+              await this.sendAndSaveMediaMessage(channelRow, conversationId, to, photos[p], "image");
             }
           }
         } else {
-          await waApi.sendTextMessage(to, promptMsg);
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, promptMsg);
         }
       } else {
         // For Cloud API: send intermediate photos, and send last image / text as interactive button "Buy Now" / "Product Info" / "Ask AI"
@@ -831,14 +1012,14 @@ export class EcommerceService {
         if (photos.length > 0) {
           // Send first N-1 photos
           for (let p = 0; p < photos.length - 1; p++) {
-            await waApi.sendMediaMessageByUrl(to, photos[p], "image");
+            await this.sendAndSaveMediaMessage(channelRow, conversationId, to, photos[p], "image");
           }
           // Send last photo as header of interactive message
           const lastPhoto = photos[photos.length - 1];
-          await this.sendCloudApiButtonMessage(channelRow, to, descText, lastPhoto, buttons);
+          await this.sendCloudApiButtonMessage(channelRow, conversationId, to, descText, lastPhoto, buttons);
         } else {
           // Send interactive message without image
-          await this.sendCloudApiButtonMessage(channelRow, to, descText, null, buttons);
+          await this.sendCloudApiButtonMessage(channelRow, conversationId, to, descText, null, buttons);
         }
       }
     }
@@ -846,11 +1027,12 @@ export class EcommerceService {
     // 4. Send Store-wide List Message / IVR listing
     if (isQr) {
       const listText = `*Product List:*\n\n` + products.map((p, idx) => `${idx + 1}. ${p.name} - ${(p as any).currency || 'INR'} ${p.price}`).join("\n") + `\n\nReply with the product number (e.g. 1) to start checkout.`;
-      await waApi.sendTextMessage(to, listText);
+      await this.sendAndSaveTextMessage(channelRow, conversationId, to, listText);
     } else {
       // Cloud API: Send interactive list message
       await this.sendCloudApiListMessage(
         channelRow,
+        conversationId,
         to,
         "Store Catalog",
         "Select a product from our catalog below to buy:",
@@ -879,7 +1061,6 @@ export class EcommerceService {
     contactPhone: string,
     product: any
   ) {
-    const waApi = new WhatsAppApiService(channelRow);
     const isQr = channelRow.connectionMethod === "qr_code";
     const showAiButton = config.aiEnabled && config.aiAskButtonEnabled;
     const currency = (product as any).currency || config.currency || 'INR';
@@ -894,7 +1075,7 @@ export class EcommerceService {
     const chunkSize = 3500;
     for (let i = 0; i < fullText.length; i += chunkSize) {
       const chunk = fullText.substring(i, i + chunkSize);
-      await waApi.sendTextMessage(contactPhone, chunk);
+      await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, chunk);
     }
 
     // Send action buttons / options to order or ask AI
@@ -903,7 +1084,7 @@ export class EcommerceService {
       if (showAiButton) {
         navMsg += `\nReply *2* to Talk to Agent about this product.`;
       }
-      await waApi.sendTextMessage(contactPhone, navMsg);
+      await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, navMsg);
     } else {
       const navButtons = [{ id: `buy_${product.id}`, title: "Order Now" }];
       if (showAiButton) {
@@ -911,6 +1092,7 @@ export class EcommerceService {
       }
       await this.sendCloudApiButtonMessage(
         channelRow,
+        conversationId,
         contactPhone,
         `Ready to order *${product.name}* or need assistance?`,
         null,
@@ -939,8 +1121,6 @@ export class EcommerceService {
     contactPhone: string,
     product: any
   ) {
-    const waApi = new WhatsAppApiService(channelRow);
-    
     // Send Welcome Messages Sequence first (even if store trigger is off)
     const sortedWelcomes = (config.welcomeMessages || [])
       .map((w: any) => ({
@@ -953,21 +1133,23 @@ export class EcommerceService {
 
     if (sortedWelcomes.length === 0) {
       if (config.welcomeHeaderUrl && config.welcomeHeaderType !== "none") {
-        await waApi.sendMediaMessageByUrl(
+        await this.sendAndSaveMediaMessage(
+          channelRow,
+          conversationId,
           contactPhone,
           config.welcomeHeaderUrl,
           config.welcomeHeaderType as "image" | "video",
           config.welcomeMessage || "Welcome to our store!"
         );
       } else if (config.welcomeMessage) {
-        await waApi.sendTextMessage(contactPhone, config.welcomeMessage);
+        await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, config.welcomeMessage);
       }
     } else {
       for (const msg of sortedWelcomes) {
         if (msg.mediaType !== "none" && msg.mediaUrl) {
-          await waApi.sendMediaMessageByUrl(contactPhone, msg.mediaUrl, msg.mediaType as any, msg.text || "");
+          await this.sendAndSaveMediaMessage(channelRow, conversationId, contactPhone, msg.mediaUrl, msg.mediaType as any, msg.text || "");
         } else if (msg.text) {
-          await waApi.sendTextMessage(contactPhone, msg.text);
+          await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, msg.text);
         }
       }
     }
@@ -981,7 +1163,7 @@ export class EcommerceService {
 
     // Send product photos one-by-one with product name as caption
     for (const photo of photos) {
-      await waApi.sendMediaMessageByUrl(contactPhone, photo, "image", product.name);
+      await this.sendAndSaveMediaMessage(channelRow, conversationId, contactPhone, photo, "image", product.name);
     }
 
     const isQr = channelRow.connectionMethod === "qr_code";
@@ -996,7 +1178,7 @@ export class EcommerceService {
       if (showAiButton) {
         promptMsg += `\nReply *3* to Talk to Agent!`;
       }
-      await waApi.sendTextMessage(contactPhone, promptMsg);
+      await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, promptMsg);
     } else {
       const buttons: { id: string; title: string }[] = [
         { id: `buy_${product.id}`, title: "Buy Now" },
@@ -1005,7 +1187,7 @@ export class EcommerceService {
       if (showAiButton && buttons.length < 3) {
         buttons.push({ id: `ai_ask_${product.id}`, title: "Talk to Agent" });
       }
-      await this.sendCloudApiButtonMessage(channelRow, contactPhone, descText, null, buttons);
+      await this.sendCloudApiButtonMessage(channelRow, conversationId, contactPhone, descText, null, buttons);
     }
 
     // Create product selection session to capture reply/button click
@@ -1041,8 +1223,9 @@ export class EcommerceService {
       customerData: {}
     });
 
-    const waApi = new WhatsAppApiService(channelRow);
-    await waApi.sendTextMessage(
+    await this.sendAndSaveTextMessage(
+      channelRow,
+      conversationId,
       contactPhone,
       `How many Qty? (type only number)`
     );
@@ -1058,7 +1241,6 @@ export class EcommerceService {
     input: string,
     message: any
   ) {
-    const waApi = new WhatsAppApiService(channelRow);
     const conversationId = session?.conversationId;
     const contactPhone = (channelRow.connectionMethod === "qr_code" && conversationId) 
       ? conversationId.split("@")[0] 
@@ -1104,10 +1286,10 @@ export class EcommerceService {
         const statusEmoji = getStatusEmoji(order.status || "");
         const trackingMsg = `📦 *Order Tracking: ${order.orderNumber}*\nProduct: *${order.productName}* (x${order.quantity})\nTotal Amount: *${order.currency || "INR"} ${order.totalAmount}*\nPayment Mode: *${order.paymentMethod ? order.paymentMethod.toUpperCase() : "N/A"}*\n\nOrder Status: ${statusEmoji} *${(order.status || "pending").toUpperCase()}*\nPayment Status: *${(order.paymentStatus || "pending").toUpperCase()}*\n\nCreated on: _${new Date(order.createdAt).toLocaleDateString()}_`;
 
-        await waApi.sendTextMessage(to, trackingMsg);
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, trackingMsg);
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
       } else {
-        await waApi.sendTextMessage(to, `❌ Order *${orderNumberUpper}* not found for this store. Please verify your order number and reply again, or send *exit* to cancel tracking.`);
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, `❌ Order *${orderNumberUpper}* not found for this store. Please verify your order number and reply again, or send *exit* to cancel tracking.`);
       }
       return;
     }
@@ -1116,7 +1298,7 @@ export class EcommerceService {
     const cleanInput = input.trim().toLowerCase();
     if (cleanInput === "cancel" || cleanInput === "exit" || cleanInput === "reset") {
       await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
-      await waApi.sendTextMessage(to, "❌ *Checkout cancelled.* Type *store* to open the catalog again.");
+      await this.sendAndSaveTextMessage(channelRow, conversationId, to, "❌ *Checkout cancelled.* Type *store* to open the catalog again.");
       return;
     }
 
@@ -1142,7 +1324,7 @@ export class EcommerceService {
       const diffMs = new Date().getTime() - lastMsgTime.getTime();
       if (diffMs > timeoutMin * 60 * 1000) {
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
-        await waApi.sendTextMessage(to, "AI session timed out. Please send store trigger word again to browse products.");
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, "AI session timed out. Please send store trigger word again to browse products.");
         return;
       }
 
@@ -1161,7 +1343,7 @@ export class EcommerceService {
         .limit(1);
 
       if (!product) {
-        await waApi.sendTextMessage(to, "Product no longer available. AI chat session closed.");
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Product no longer available. AI chat session closed.");
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
         return;
       }
@@ -1257,7 +1439,7 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         const walletStatus = await AiBillingService.checkTenantWallet(config.tenantId);
         if (!walletStatus.hasBalance) {
           console.warn(`[Ecommerce AI] Tenant ${config.tenantId} has zero or negative wallet balance (${walletStatus.balance} ${walletStatus.currency}). Pausing AI response.`);
-          await waApi.sendTextMessage(to, "AI Assistant is currently unavailable due to insufficient wallet balance. Please reply with 'checkout' or select a product to buy directly.");
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, "AI Assistant is currently unavailable due to insufficient wallet balance. Please reply with 'checkout' or select a product to buy directly.");
           return;
         }
       }
@@ -1310,7 +1492,7 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
       }
 
       if (!apiKey) {
-        await waApi.sendTextMessage(to, "AI is currently offline. Please try checking out directly by typing 'checkout'.");
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, "AI is currently offline. Please try checking out directly by typing 'checkout'.");
         return;
       }
 
@@ -1517,13 +1699,13 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 
         if (voiceMediaUrl) {
           console.log(`🤖 [Ecommerce AI] Sending voice note reply: ${voiceMediaUrl}`);
-          await waApi.sendVoiceNote(to, voiceMediaUrl);
+          await this.sendAndSaveVoiceNote(channelRow, conversationId, to, voiceMediaUrl, aiResponse);
         } else {
-          await waApi.sendTextMessage(to, aiResponse);
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, aiResponse);
         }
       } catch (err: any) {
         console.error("[AI Chat Session Error]", err.message);
-        await waApi.sendTextMessage(to, "Sorry, I encountered an error processing your query. Please reply with 'checkout' to buy the product directly.");
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Sorry, I encountered an error processing your query. Please reply with 'checkout' to buy the product directly.");
       }
       return;
     }
@@ -1544,7 +1726,7 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
     if (session.currentStep === "waiting_for_quantity") {
       const quantity = parseInt(input);
       if (isNaN(quantity) || quantity <= 0) {
-        await waApi.sendTextMessage(to, "Please enter a valid quantity (positive number):");
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Please enter a valid quantity (positive number):");
         return;
       }
 
@@ -1565,7 +1747,7 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           })
           .where(eq(schema.ecommerceSessions.id, session.id));
 
-        await waApi.sendTextMessage(to, fields[0].text);
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, fields[0].text);
         return;
       }
     }
@@ -1595,7 +1777,7 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           })
           .where(eq(schema.ecommerceSessions.id, session.id));
 
-        await waApi.sendTextMessage(to, nextField.text);
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, nextField.text);
       } else {
         // All fields collected -> Show Order Review & Confirmation step
         if (customerData.deliveryFee === undefined) {
@@ -1647,13 +1829,13 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 
         if (channelRow.connectionMethod === "qr_code") {
           const qrReviewMsg = `${reviewText}\n\nReply *1* to Confirm Order\nReply *2* to Edit Details`;
-          await waApi.sendTextMessage(to, qrReviewMsg);
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, qrReviewMsg);
         } else {
           const confirmButtons = [
             { id: "confirm_checkout", title: "Confirm Order" },
             { id: "edit_checkout", title: "Edit Details" }
           ];
-          await this.sendCloudApiButtonMessage(channelRow, to, reviewText, null, confirmButtons);
+          await this.sendCloudApiButtonMessage(channelRow, conversationId, to, reviewText, null, confirmButtons);
         }
       }
       return;
@@ -1682,9 +1864,9 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           .where(eq(schema.ecommerceSessions.id, session.id));
 
         if (fields.length > 0) {
-          await waApi.sendTextMessage(to, `🔄 *Let's re-enter your details:*\n\n${fields[0].text}`);
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, `🔄 *Let's re-enter your details:*\n\n${fields[0].text}`);
         } else {
-          await waApi.sendTextMessage(to, "Please proceed to select your payment method.");
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Please proceed to select your payment method.");
         }
         return;
       }
@@ -1747,11 +1929,12 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         if (channelRow.connectionMethod === "qr_code" || paymentOptions.length > 3) {
           if (channelRow.connectionMethod === "qr_code") {
             const listOpts = promptText + "\n\n" + paymentOptions.map((opt, idx) => `${idx + 1}. ${opt.title}`).join("\n") + "\n\nReply with option number (e.g. 1):";
-            await waApi.sendTextMessage(to, listOpts);
+            await this.sendAndSaveTextMessage(channelRow, conversationId, to, listOpts);
           } else {
             // Cloud API: Send interactive list message since button count > 3
             await this.sendCloudApiListMessage(
               channelRow,
+              conversationId,
               to,
               "Payment Options",
               promptText,
@@ -1769,13 +1952,13 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           }
         } else {
           // Cloud API: Send interactive buttons
-          await this.sendCloudApiButtonMessage(channelRow, to, promptText, null, paymentOptions);
+          await this.sendCloudApiButtonMessage(channelRow, conversationId, to, promptText, null, paymentOptions);
         }
         return;
       }
 
       // If invalid choice
-      await waApi.sendTextMessage(to, "Please select *Confirm Order* or *Edit Details* to proceed.");
+      await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Please select *Confirm Order* or *Edit Details* to proceed.");
       return;
     }
 
@@ -1802,9 +1985,9 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           .where(eq(schema.ecommerceSessions.id, session.id));
 
         if (fields.length > 0) {
-          await waApi.sendTextMessage(to, `🔄 *Let's re-enter your details:*\n\n${fields[0].text}`);
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, `🔄 *Let's re-enter your details:*\n\n${fields[0].text}`);
         } else {
-          await waApi.sendTextMessage(to, "Please proceed to select your payment method.");
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Please proceed to select your payment method.");
         }
         return;
       }
@@ -1816,6 +1999,7 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         let fileUrl = "";
         if (mediaId) {
           try {
+            const waApi = new WhatsAppApiService(channelRow);
             if (channelRow.connectionMethod === "qr_code") {
               fileUrl = await waApi.fetchMediaUrl(mediaId);
             } else {
@@ -1886,7 +2070,9 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
 
-        await waApi.sendTextMessage(
+        await this.sendAndSaveTextMessage(
+          channelRow,
+          conversationId,
           to,
           `✅ *Receipt Received!*\n\nOrder Number: *${orderNumber}*\nYour payment is being verified by our team. You will receive WhatsApp notifications as your order is processed!`
         );
@@ -1959,9 +2145,9 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           const prompt = orderNum 
             ? `Please upload the payment receipt/screenshot as an image/photo to complete order *${orderNum}*.\n\n👉 Reply *cod* to switch to Cash on Delivery\n👉 Reply *edit* to update details\n👉 Or reply *cancel* to exit.`
             : "Please upload the payment receipt/screenshot as an image/photo to complete your order, or reply *cancel* to exit.";
-          await waApi.sendTextMessage(to, prompt);
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, prompt);
         } else {
-          await waApi.sendTextMessage(to, "Invalid payment method. Please select or reply with the correct option.");
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Invalid payment method. Please select or reply with the correct option.");
         }
         return;
       }
@@ -1973,7 +2159,7 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         .limit(1);
 
       if (!product) {
-        await waApi.sendTextMessage(to, "Sorry, the product you are ordering is no longer available.");
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Sorry, the product you are ordering is no longer available.");
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
         return;
       }
@@ -2034,7 +2220,9 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
       if (selectedMethod === "cod") {
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
 
-        await waApi.sendTextMessage(
+        await this.sendAndSaveTextMessage(
+          channelRow,
+          conversationId,
           to,
           `🎉 *Order Placed Successfully!*\n\nOrder Number: *${orderNumber}*\nProduct: *${product.name}* (x${session.quantity})\nDelivery Fee: *${config.currency || "INR"} ${deliveryFee}*\nTotal Amount: *${config.currency || "INR"} ${totalAmount}*\nPayment Mode: *Cash On Delvry(COD)*\n\nWe will update you as soon as your order status changes!`
         );
@@ -2056,7 +2244,9 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 
         const redirectUrl = `https://wa.linalapro.com/api/ecommerce/checkout/pay?orderId=${order.id}`;
 
-        await waApi.sendTextMessage(
+        await this.sendAndSaveTextMessage(
+          channelRow,
+          conversationId,
           to,
           `📱 *UPI Mobile Direct Pay*\n\nOrder Number: *${orderNumber}*\nTo pay *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) directly using GPay / PhonePe / Paytm:\n\n👉 *Click here to Pay:* ${redirectUrl}\n\nOnce paid, *please send the receipt/payment screenshot here* to verify and complete your order.\n\nReply *cod* to switch to Cash on Delivery, or *edit* to update details.`
         );
@@ -2076,22 +2266,24 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 
         if (config.qrCodeUrl) {
           try {
-            await waApi.sendMediaMessageByUrl(to, config.qrCodeUrl, "image");
+            await this.sendAndSaveMediaMessage(channelRow, conversationId, to, config.qrCodeUrl, "image");
           } catch (mediaErr: any) {
             console.error("[EcommerceService] Failed to send QR code image:", mediaErr.message);
-            await waApi.sendTextMessage(to, `⚠️ Could not display QR code image. Please proceed with payment using details below.`);
+            await this.sendAndSaveTextMessage(channelRow, conversationId, to, `⚠️ Could not display QR code image. Please proceed with payment using details below.`);
           }
         } else {
-          await waApi.sendTextMessage(to, `⚠️ No store QR code is uploaded. Please proceed using the instructions below.`);
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, `⚠️ No store QR code is uploaded. Please proceed using the instructions below.`);
         }
-        await waApi.sendTextMessage(
+        await this.sendAndSaveTextMessage(
+          channelRow,
+          conversationId,
           to,
           `Please scan the QR code to pay a total of *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) via GPAY / PhonePe.\n\nOrder Number: *${orderNumber}*\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.\n\nReply *cod* to switch to Cash on Delivery, or *edit* to update details.`
         );
       }
       else if (selectedMethod === "gateway") {
         try {
-          await waApi.sendTextMessage(to, "Generating your secure online checkout link, please wait...");
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Generating your secure online checkout link, please wait...");
           const paymentLinkData = await this.createPaymentLink(config, product, session.quantity, session.customerData?.name || "Customer", to, deliveryFee);
 
           const [updatedGatewayOrder] = await db
@@ -2106,14 +2298,16 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 
           await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
 
-          await waApi.sendTextMessage(
+          await this.sendAndSaveTextMessage(
+            channelRow,
+            conversationId,
             to,
             `🔗 *Complete Your Payment*\n\nOrder Number: *${orderNumber}*\nTotal Amount: *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*)\n\nPlease complete your payment using this secure link:\n${paymentLinkData.url}\n\nYour order will be verified automatically once paid.`
           );
 
           await this.sendOrderEmail(updatedGatewayOrder || order);
         } catch (err: any) {
-          await waApi.sendTextMessage(to, `Error generating payment link: ${err.message}. Please try again later or select Cash on Delivery.`);
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, `Error generating payment link: ${err.message}. Please try again later or select Cash on Delivery.`);
         }
       }
       return;
@@ -2584,10 +2778,19 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 
       if (!channel) return;
 
-      const waApi = new WhatsAppApiService(channel);
       const message = `🔔 *Order Status Update*\n\nDear *${order.customerName || "Customer"}*,\n\nYour order *${order.orderNumber}* status has been updated to *${status.toUpperCase()}*.\n\nThank you for shopping with us!`;
 
-      await waApi.sendTextMessage(order.customerPhone, message);
+      let convId = order.conversationId || null;
+      if (!convId) {
+        const [conv] = await db
+          .select()
+          .from(schema.conversations)
+          .where(and(eq(schema.conversations.channelId, channel.id), eq(schema.conversations.contactPhone, order.customerPhone)))
+          .limit(1);
+        convId = conv?.id || null;
+      }
+
+      await this.sendAndSaveTextMessage(channel, convId, order.customerPhone, message);
       console.log(`[EcommerceService] WhatsApp notification status sent to ${order.customerPhone} for order ${order.orderNumber}`);
     } catch (err: any) {
       console.error("[EcommerceService] Failed to send status WhatsApp update:", err.message);
@@ -2615,14 +2818,23 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 
       if (!channel) return;
 
-      const waApi = new WhatsAppApiService(channel);
       console.log(`[EcommerceService] Generating and sending invoice PDF for order ${order.orderNumber}...`);
       const pdfBuffer = await this.generateOrderPdf(order);
       
       const fileName = `Invoice_${order.orderNumber}.pdf`;
       const caption = `📄 *Payment Verified!* Here is your invoice for order *${order.orderNumber}*. Thank you for shopping with us!`;
 
-      await waApi.sendDocumentBuffer(order.customerPhone, pdfBuffer, fileName, caption);
+      let convId = order.conversationId || null;
+      if (!convId) {
+        const [conv] = await db
+          .select()
+          .from(schema.conversations)
+          .where(and(eq(schema.conversations.channelId, channel.id), eq(schema.conversations.contactPhone, order.customerPhone)))
+          .limit(1);
+        convId = conv?.id || null;
+      }
+
+      await this.sendAndSaveDocumentBuffer(channel, convId, order.customerPhone, pdfBuffer, fileName, caption);
       console.log(`[EcommerceService] Invoice PDF sent successfully to ${order.customerPhone}!`);
     } catch (err: any) {
       console.error(`[EcommerceService] Failed to send invoice PDF to customer:`, err.message);
@@ -2647,6 +2859,7 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
    */
   private static async sendCloudApiButtonMessage(
     channelRow: any,
+    conversationId: string | null,
     to: string,
     bodyText: string,
     headerImageUrl: string | null,
@@ -2692,10 +2905,42 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
       const err = await response.json();
       throw new Error(err.error?.message || "Interactive button failed");
     }
+
+    const resJson = await response.json();
+    try {
+      if (conversationId) {
+        const waMsgId = resJson?.messages?.[0]?.id || null;
+        const msg = await storage.createMessage({
+          conversationId,
+          content: bodyText,
+          direction: "outbound",
+          fromType: "bot",
+          messageType: "interactive",
+          mediaUrl: headerImageUrl || null,
+          status: "delivered",
+          whatsappMessageId: waMsgId,
+          metadata: { buttons, headerImageUrl },
+          timestamp: new Date(),
+        });
+        await storage.updateConversation(conversationId, {
+          lastMessageAt: new Date(),
+          lastMessageText: bodyText,
+        });
+        if ((global as any).broadcastToConversation) {
+          (global as any).broadcastToConversation(conversationId, {
+            type: "new-message",
+            message: msg,
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error("[EcommerceService] Failed to save interactive button message to DB:", e?.message);
+    }
   }
 
   private static async sendCloudApiListMessage(
     channelRow: any,
+    conversationId: string | null,
     to: string,
     headerText: string,
     bodyText: string,
@@ -2740,6 +2985,37 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
     if (!response.ok) {
       const err = await response.json();
       throw new Error(err.error?.message || "Interactive list failed");
+    }
+
+    const resJson = await response.json();
+    try {
+      if (conversationId) {
+        const waMsgId = resJson?.messages?.[0]?.id || null;
+        const contentText = `${headerText ? headerText + "\n" : ""}${bodyText}`;
+        const msg = await storage.createMessage({
+          conversationId,
+          content: contentText,
+          direction: "outbound",
+          fromType: "bot",
+          messageType: "interactive",
+          status: "delivered",
+          whatsappMessageId: waMsgId,
+          metadata: { buttonText, sections },
+          timestamp: new Date(),
+        });
+        await storage.updateConversation(conversationId, {
+          lastMessageAt: new Date(),
+          lastMessageText: bodyText,
+        });
+        if ((global as any).broadcastToConversation) {
+          (global as any).broadcastToConversation(conversationId, {
+            type: "new-message",
+            message: msg,
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error("[EcommerceService] Failed to save interactive list message to DB:", e?.message);
     }
   }
 

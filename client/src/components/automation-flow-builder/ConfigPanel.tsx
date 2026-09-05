@@ -63,6 +63,7 @@ import {
   ShieldCheck,
   Zap,
   Sparkles,
+  BadgeDollarSign,
 } from "lucide-react";
 import { BuilderNodeData, NodeKind, Template, Member, ListSection } from "./types";
 import { FileUploadButton } from "./FileUploadButton";
@@ -96,6 +97,7 @@ const kindMeta: Record<NodeKind, { icon: any; label: string; color: string; bgTi
   send_template: { icon: FileText, label: "Send Template", color: "text-teal-600", bgTint: "bg-teal-50" },
   assign_user: { icon: Users, label: "Assign Agent", color: "text-indigo-600", bgTint: "bg-indigo-50" },
   route_crm_round_robin: { icon: Shuffle, label: "CRM Round Robin", color: "text-indigo-600", bgTint: "bg-indigo-50" },
+  create_crm_deal: { icon: BadgeDollarSign, label: "Create CRM Deal", color: "text-emerald-600", bgTint: "bg-emerald-50" },
   webhook: { icon: Globe, label: "Webhook", color: "text-orange-600", bgTint: "bg-orange-50" },
   mysql: { icon: Database, label: "MySQL Query", color: "text-teal-600", bgTint: "bg-teal-50" },
   end: { icon: CircleStop, label: "End", color: "text-red-600", bgTint: "bg-red-50" },
@@ -943,6 +945,187 @@ export function ConfigPanel({
                     )}
                   </div>
                 </div>
+              </div>
+            </>
+          )}
+
+          {d.kind === "create_crm_deal" && (
+            <>
+              <SectionHeader>CRM Pipeline & Stage</SectionHeader>
+              <div className="space-y-4 bg-emerald-50/50 rounded-xl p-4 border border-emerald-100">
+                <p className="text-[11px] text-gray-500 leading-normal">
+                  Creates a lead/deal in your CRM pipeline and assigns both the contact and conversation to a team member.
+                </p>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Select Pipeline</Label>
+                  <Select 
+                    value={(d.crmPipelineId as string) || (pipelines.length > 0 ? pipelines[0].id : "default")} 
+                    onValueChange={(v) => onChange({ crmPipelineId: v === "default" ? "" : v, crmStageId: "" })}
+                  >
+                    <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
+                      <SelectValue placeholder="Select Pipeline" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pipelines.length === 0 ? (
+                        <SelectItem value="default" disabled>No pipelines found</SelectItem>
+                      ) : (
+                        pipelines.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Select Stage</Label>
+                  <Select 
+                    value={(d.crmStageId as string) || (stages.length > 0 ? stages[0].id : "default")} 
+                    onValueChange={(v) => onChange({ crmStageId: v === "default" ? "" : v })}
+                  >
+                    <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
+                      <SelectValue placeholder="Select Stage" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stages.length === 0 ? (
+                        <SelectItem value="default" disabled>No stages found</SelectItem>
+                      ) : (
+                        stages.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <SectionHeader>Deal Details</SectionHeader>
+              <div className="space-y-3 bg-gray-50/50 rounded-xl p-4 border border-gray-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Deal Title</Label>
+                  <Input
+                    value={(d.crmDealTitle as string) || ""}
+                    onChange={(e) => onChange({ crmDealTitle: e.target.value })}
+                    placeholder="e.g. {{contact.name}} Deal or WhatsApp Inbound Lead"
+                    className="h-9 text-sm rounded-lg bg-white"
+                  />
+                  <span className="text-[10px] text-gray-400 block">
+                    Supports dynamic placeholders like <code>{"{{contact.name}}"}</code>, <code>{"{{contact.phone}}"}</code>.
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">Deal Value</Label>
+                    <Input
+                      type="number"
+                      value={(d.crmDealValue as string) || ""}
+                      onChange={(e) => onChange({ crmDealValue: e.target.value })}
+                      placeholder="0.00"
+                      className="h-9 text-sm rounded-lg bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">Currency</Label>
+                    <Input
+                      value={(d.crmDealCurrency as string) || "INR"}
+                      onChange={(e) => onChange({ crmDealCurrency: e.target.value.toUpperCase() })}
+                      placeholder="INR"
+                      className="h-9 text-sm rounded-lg bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <SectionHeader>Team Assignment</SectionHeader>
+              <div className="space-y-3 bg-gray-50/50 rounded-xl p-4 border border-gray-100">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Assignment Mode</Label>
+                  <Select
+                    value={(d.crmAssigneeMode as string) || (d.crmAssigneeId ? "member" : "round_robin")}
+                    onValueChange={(v) => onChange({ crmAssigneeMode: v as any })}
+                  >
+                    <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="member">Specific Team Member</SelectItem>
+                      <SelectItem value="round_robin">Round Robin (Automatic Rotation)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {(d.crmAssigneeMode === "member" || (!d.crmAssigneeMode && d.crmAssigneeId)) && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700">Select Assignee</Label>
+                    <Select
+                      value={(d.crmAssigneeId as string) || (members.length > 0 ? members[0].id : "default")}
+                      onValueChange={(v) => onChange({ crmAssigneeId: v === "default" ? "" : v })}
+                    >
+                      <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
+                        <SelectValue placeholder="Select a team member" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {members.length === 0 ? (
+                          <SelectItem value="default" disabled>No members available</SelectItem>
+                        ) : (
+                          members.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.name || `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.id}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {(d.crmAssigneeMode === "round_robin" || (!d.crmAssigneeMode && !d.crmAssigneeId)) && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                      <UserX className="w-3.5 h-3.5 text-indigo-500" /> Exclude Agents (Optional)
+                    </Label>
+                    <div className="bg-white rounded-lg border border-gray-200 p-2.5 max-h-[140px] overflow-y-auto space-y-1.5 shadow-sm">
+                      {(members || []).map((m) => {
+                        const memberName = m.name || `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.id || "Agent";
+                        const excludeList = Array.isArray(d.excludeUserIds) ? d.excludeUserIds : [];
+                        const isExcluded = excludeList.includes(m.id);
+
+                        return (
+                          <label key={m.id} className="flex items-center gap-2 text-xs text-slate-600 hover:text-slate-900 cursor-pointer py-0.5">
+                            <input
+                              type="checkbox"
+                              checked={isExcluded}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                let newList = [...excludeList];
+                                if (checked) {
+                                  newList.push(m.id);
+                                } else {
+                                  newList = newList.filter(id => id !== m.id);
+                                }
+                                onChange({ excludeUserIds: newList });
+                              }}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+                            />
+                            <span className="font-medium">{memberName}</span>
+                            <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full capitalize">
+                              {m.role || "Agent"}
+                            </span>
+                          </label>
+                        );
+                      })}
+                      {(members || []).length === 0 && (
+                        <p className="text-[10px] text-slate-400 italic py-1">No agents found</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}

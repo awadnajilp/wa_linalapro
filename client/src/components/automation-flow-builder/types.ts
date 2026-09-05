@@ -40,6 +40,7 @@ export type NodeKind =
   | "send_contact_message"
   | "scheduler"
   | "route_crm_round_robin"
+  | "create_crm_deal"
   | "razorpay_generate"
   | "razorpay_verify"
   | "instamojo_payment"
@@ -187,6 +188,14 @@ export interface BuilderNodeData {
   whatsappFlowAutoSave?: boolean;
   timeoutMinutes?: number;
   timeoutOnlyAfterDelivered?: boolean;
+  crmPipelineId?: string;
+  crmStageId?: string;
+  crmDealTitle?: string;
+  crmDealValue?: string;
+  crmDealCurrency?: string;
+  crmAssigneeId?: string;
+  crmAssigneeMode?: "member" | "round_robin";
+  excludeUserIds?: string[];
   [key: string]: unknown;
 }
 

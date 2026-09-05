@@ -313,6 +313,10 @@ export class AutomationExecutionService {
           result = await this.executeRouteCrmRoundRobin(node, context);
           break;
 
+        case 'create_crm_deal':
+          result = await this.executeCreateCrmDeal(node, context);
+          break;
+
         case 'conditions':
           result = await this.executeConditions(node, automation, context);
           return; // Conditions handle their own routing
@@ -6818,6 +6822,250 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       action: "crm_round_robin_routed",
       assignedTo: assignedUserId,
       dealId: deal.id,
+      conversationId: context.conversationId,
+    };
+  }
+
+  private async executeCreateCrmDeal(node: any, context: ExecutionContext) {
+    if (!context.conversationId) {
+      throw new Error("No conversationId provided in context for CRM deal creation");
+    }
+
+    const conversation = await storage.getConversation(context.conversationId);
+    if (!conversation) {
+      throw new Error(`Conversation ${context.conversationId} not found`);
+    }
+
+    const channelId = conversation.channelId || context.variables?.channelId;
+    if (!channelId) {
+      throw new Error("No channelId linked to conversation for CRM deal creation");
+    }
+
+    const [channel] = await db
+      .select()
+      .from(channels)
+      .where(eq(channels.id, channelId))
+      .limit(1);
+
+    if (!channel) {
+      throw new Error("Channel not found for CRM deal creation");
+    }
+
+    const ownerUserId = channel.createdBy || "";
+
+    // Determine target assignee
+    let assignedUserId = ownerUserId;
+    const assigneeMode = node.data?.crmAssigneeMode || (node.data?.crmAssigneeId ? "member" : "round_robin");
+
+    if (assigneeMode === "member" && node.data?.crmAssigneeId) {
+      assignedUserId = node.data.crmAssigneeId;
+    } else {
+      // Round Robin assignment
+      const rawCandidates = await db
+        .select()
+        .from(users)
+        .where(
+          and(
+            eq(users.status, "active"),
+            or(
+              eq(users.id, ownerUserId),
+              eq(users.createdBy, ownerUserId)
+            )
+          )
+        );
+
+      const excludeIds = Array.isArray(node.data?.excludeUserIds) ? node.data.excludeUserIds : [];
+      let candidates = rawCandidates.filter((c) => !excludeIds.includes(c.id));
+      if (candidates.length === 0) candidates = rawCandidates;
+
+      if (candidates.length > 0) {
+        const candidateIds = candidates.map((c) => c.id);
+        const latestAssignments = await db
+          .select({
+            userId: conversations.assignedTo,
+            latestTime: sql<Date>`max(${conversations.createdAt})`
+          })
+          .from(conversations)
+          .where(
+            and(
+              eq(conversations.channelId, channelId),
+              inArray(conversations.assignedTo, candidateIds)
+            )
+          )
+          .groupBy(conversations.assignedTo);
+
+        const timeMap = new Map(
+          latestAssignments.map((a) => [a.userId, a.latestTime ? new Date(a.latestTime).getTime() : 0])
+        );
+
+        candidates.sort((a, b) => {
+          const timeA = timeMap.get(a.id) || 0;
+          const timeB = timeMap.get(b.id) || 0;
+          return timeA - timeB;
+        });
+
+        assignedUserId = candidates[0].id;
+      }
+    }
+
+    console.log(`👤 Create CRM Deal: Assigning conversation ${context.conversationId} to user ${assignedUserId}`);
+
+    // Update conversation assignment
+    const updatedConv = await storage.updateConversation(context.conversationId, {
+      assignedTo: assignedUserId,
+      status: "assigned",
+    });
+
+    if (updatedConv && (global as any).broadcastToConversation) {
+      (global as any).broadcastToConversation(context.conversationId, {
+        type: "conversation-updated",
+        conversation: updatedConv,
+      });
+    }
+
+    try {
+      await db.insert(conversationAssignments).values({
+        conversationId: context.conversationId,
+        userId: assignedUserId,
+        status: "active",
+      });
+    } catch (assignErr) {
+      console.warn("Could not insert conversationAssignments record:", assignErr);
+    }
+
+    // Resolve Pipeline & Stage
+    let pipelineId = node.data?.crmPipelineId;
+    let stageId = node.data?.crmStageId;
+
+    if (!pipelineId || pipelineId === "default" || pipelineId === "") {
+      let [pipeline] = await db
+        .select()
+        .from(crmPipelines)
+        .where(eq(crmPipelines.channelId, channelId))
+        .limit(1);
+
+      if (!pipeline) {
+        [pipeline] = await db
+          .insert(crmPipelines)
+          .values({
+            channelId,
+            name: "Sales Pipeline",
+          })
+          .returning();
+      }
+      pipelineId = pipeline.id;
+    }
+
+    if (!stageId || stageId === "default" || stageId === "") {
+      let [stage] = await db
+        .select()
+        .from(crmStages)
+        .where(eq(crmStages.pipelineId, pipelineId))
+        .orderBy(asc(crmStages.position))
+        .limit(1);
+
+      if (!stage) {
+        const defaultStages = [
+          { name: "Lead", position: 0, color: "#94a3b8" },
+          { name: "Contacted", position: 1, color: "#60a5fa" },
+          { name: "Qualified", position: 2, color: "#34d399" },
+          { name: "Proposal", position: 3, color: "#f59e0b" },
+          { name: "Won", position: 4, color: "#10b981" },
+          { name: "Lost", position: 5, color: "#ef4444" },
+        ];
+
+        const insertedStages = [];
+        for (const s of defaultStages) {
+          const [inserted] = await db
+            .insert(crmStages)
+            .values({
+              pipelineId,
+              name: s.name,
+              position: s.position,
+              color: s.color,
+            })
+            .returning();
+          insertedStages.push(inserted);
+        }
+        stage = insertedStages[0];
+      }
+      stageId = stage.id;
+    }
+
+    // Fetch contact details
+    const contact = conversation.contactId
+      ? await db.query.contacts.findFirst({ where: eq(contacts.id, conversation.contactId) })
+      : null;
+
+    const rawTitle = node.data?.crmDealTitle || "{{contact.name}} Deal";
+    let dealTitle = this.replaceVariables(rawTitle, {
+      ...context.variables,
+      "contact.name": contact?.name || "Lead",
+      "contact.phone": conversation.contactPhone || "",
+    });
+    if (!dealTitle || dealTitle.trim() === "") {
+      dealTitle = `${contact?.name || "New Lead"} Deal`;
+    }
+
+    const dealValue = String(node.data?.crmDealValue || "0.00");
+    const dealCurrency = node.data?.crmDealCurrency || "INR";
+
+    // Check if open deal exists
+    let deal;
+    if (conversation.contactId) {
+      const [existingDeal] = await db
+        .select()
+        .from(crmDeals)
+        .where(
+          and(
+            eq(crmDeals.contactId, conversation.contactId),
+            eq(crmDeals.channelId, channelId),
+            eq(crmDeals.status, "open")
+          )
+        )
+        .limit(1);
+
+      if (existingDeal) {
+        const [updatedDeal] = await db
+          .update(crmDeals)
+          .set({
+            assignedTo: assignedUserId,
+            stageId,
+            pipelineId,
+            value: dealValue !== "0.00" ? dealValue : existingDeal.value,
+            currency: dealCurrency || existingDeal.currency,
+            updatedAt: new Date(),
+          })
+          .where(eq(crmDeals.id, existingDeal.id))
+          .returning();
+        deal = updatedDeal;
+      }
+    }
+
+    if (!deal && conversation.contactId) {
+      const [createdDeal] = await db
+        .insert(crmDeals)
+        .values({
+          contactId: conversation.contactId,
+          channelId,
+          pipelineId,
+          stageId,
+          title: dealTitle,
+          value: dealValue,
+          currency: dealCurrency,
+          assignedTo: assignedUserId,
+          status: "open",
+        })
+        .returning();
+      deal = createdDeal;
+    }
+
+    console.log(`✅ CRM Deal created/updated: ${deal?.title || dealTitle} assigned to ${assignedUserId}`);
+
+    return {
+      action: "crm_deal_created",
+      assignedTo: assignedUserId,
+      dealId: deal?.id,
       conversationId: context.conversationId,
     };
   }

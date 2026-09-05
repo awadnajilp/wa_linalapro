@@ -42,7 +42,8 @@ import {
   Shuffle,
   CreditCard,
   ShieldCheck,
-  Zap
+  Zap,
+  BadgeDollarSign
 } from "lucide-react";
 import { NodeKind } from "./types";
 import {
@@ -233,6 +234,15 @@ const nodeCategories = [
         bg: "bg-indigo-50",
         border: "border-indigo-200",
         tip: "Route lead to CRM pipeline & assign to next online team member via round-robin distribution.",
+      },
+      {
+        kind: "create_crm_deal" as NodeKind,
+        name: "Create CRM Deal",
+        icon: BadgeDollarSign,
+        color: "text-emerald-600",
+        bg: "bg-emerald-50",
+        border: "border-emerald-200",
+        tip: "Create a deal/lead in CRM pipeline, set deal value & title, and assign to a team member or round-robin.",
       },
       {
         kind: "webhook" as NodeKind,

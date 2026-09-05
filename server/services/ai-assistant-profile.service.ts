@@ -192,34 +192,22 @@ export class AiAssistantProfileService {
 `;
 
       if (isVoiceOutput) {
-        if (ttsProvider === "openai") {
-          if (targetLangCode.startsWith("ml") || isAutoDetect) {
-            systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
-- The Text-to-Speech voice engine is OpenAI TTS which ONLY pronounces Latin/English alphabet.
-- You MUST write your response in fluent MANGLISH (Malayalam spoken words written phonetically using English letters, for example: "Ningalude message labhichu. Njangal udan thanne ningale contact cheyyaam.").
-- NEVER use native Malayalam Unicode script (മലയാളം അക്ഷരങ്ങൾ) because OpenAI TTS will sound like gibberish.
+        if (targetLangCode.startsWith("ml") || isAutoDetect) {
+          systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
+- The Text-to-Speech voice engine will synthesize your response into spoken audio.
+- You MUST write your response in fluent, natural MANGLISH (Malayalam spoken words written using English/Latin alphabet, for example: "Ningalude message labhichu. Njangal udan thanne ningale contact cheyyaam.").
+- Writing in Manglish ensures 100% natural, accurate pronunciation for both Sarvam AI and OpenAI without broken accents or slurred Hindi phonetics.
 - Keep the response conversational, warm, and under 50 words.`;
-          } else if (targetLangCode.startsWith("hi")) {
-            systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
-- Formulate your response in fluent HINGLISH (Hindi spoken words written phonetically using English letters, e.g. "Aapka message mil gaya hai. Hum jaldi hi aapse contact karenge.").
-- Keep the response concise, conversational, and under 50 words.`;
-          } else {
-            systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
-- Formulate your response in clear, conversational English for natural spoken voice output. Keep under 50 words.`;
-          }
+        } else if (targetLangCode.startsWith("hi")) {
+          systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
+- Formulate your response in fluent, natural HINGLISH (Hindi spoken words written using English/Latin alphabet, e.g. "Aapka message mil gaya hai. Hum jaldi hi aapse contact karenge.").
+- Writing in Hinglish ensures clean, accurate pronunciation. Keep the response concise, conversational, and under 50 words.`;
+        } else if (targetLangCode.startsWith("ar")) {
+          systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
+- Formulate your response in clear Arabic. Keep the response concise and under 50 words.`;
         } else {
-          // Sarvam or ElevenLabs natively support native Indian Unicode scripts
-          if (isAutoDetect) {
-            systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
-- You MUST detect the language of the incoming message/audio note (e.g. Malayalam, Hindi, Arabic, English, Tamil, etc.).
-- Formulate your response in that EXACT same language using proper native script (e.g. if Malayalam, write strictly in Malayalam script മലയാളം, never Bengali or Hindi) so that Sarvam AI voice engine can speak in their native tongue.
-- Keep the response conversational, helpful, and under 60 words.`;
-          } else {
-            systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
-- The active voice language is configured as ${targetLangName} (${targetLangCode}).
-- You MUST formulate your entire response in ${targetLangName} using proper ${targetLangName} script (e.g. if Malayalam, write strictly in Malayalam script മലയാളം, never Bengali or Hindi) so that Sarvam AI voice engine can speak in ${targetLangName}.
-- Keep the response conversational, helpful, and under 60 words.`;
-          }
+          systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
+- Formulate your response in clear, conversational English for natural spoken voice output. Keep under 50 words.`;
         }
       } else if (isIncomingAudio) {
         if (isAutoDetect) {

@@ -97,17 +97,8 @@ export class SarvamVoiceProvider implements VoiceProvider {
       throw new Error("Sarvam.ai API key is missing");
     }
 
-    // bulbul:v3 valid speakers list
-    const validBulbulSpeakers = [
-      "aditya", "ritu", "ashutosh", "priya", "neha", "rahul", "pooja", "rohan",
-      "simran", "kavya", "amit", "dev", "ishita", "shreya", "ratan", "varun",
-      "manan", "sumit", "roopa", "kabir", "aayan", "shubh", "advait", "anand",
-      "tanya", "tarun", "sunny", "mani", "gokul", "vijay", "shruti", "suhani",
-      "mohit", "kavitha", "rehan", "soham", "rupali"
-    ];
-
-    const cleanVoiceId = (voiceId || "").toLowerCase().trim();
-    const speaker = validBulbulSpeakers.includes(cleanVoiceId) ? cleanVoiceId : "rahul";
+    const cleanVoiceId = (voiceId || "").trim();
+    const speaker = cleanVoiceId || "rahul";
     const targetLanguage = languageCode || "en-IN";
 
     // Split text into chunks of at most 450 characters to stay within Sarvam's 500-char limits

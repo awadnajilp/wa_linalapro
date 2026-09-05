@@ -1210,37 +1210,26 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           const ttsProvider = voiceProfile?.provider || "sarvam";
 
           if (config.aiVoiceEnabled) {
-            if (ttsProvider === "openai") {
-              // OpenAI TTS does not support Indic Unicode scripts directly; it needs phonetic Latin script (Manglish / Hinglish)
-              if (targetLangCode.startsWith("ml") || isAutoDetect) {
-                messages.push({
-                  role: "system",
-                  content: `CRITICAL INSTRUCTION FOR VOICE NOTE: The customer sent a WhatsApp audio note in Malayalam (or regional language). The Text-to-Speech voice engine is OpenAI TTS which ONLY pronounces Latin/English alphabet. You MUST write your response in fluent MANGLISH (Malayalam spoken words written using English letters, for example: "ABC shoe-nte price 499 rupees aanu. Ningalkku ethu vaangan '1' athallekil 'checkout' ennu type cheyyaam."). NEVER use Malayalam script (മലയാളം അക്ഷരങ്ങൾ) because OpenAI TTS will sound like gibberish. Keep the response conversational and under 50 words.`
-                });
-              } else if (targetLangCode.startsWith("hi")) {
-                messages.push({
-                  role: "system",
-                  content: `CRITICAL INSTRUCTION FOR VOICE NOTE: Formulate your response in fluent HINGLISH (Hindi words written using English letters, e.g. "ABC shoe ka price 499 rupees hai. Khareedne ke liye '1' type karein."). Keep the response concise and under 50 words.`
-                });
-              } else {
-                messages.push({
-                  role: "system",
-                  content: `CRITICAL INSTRUCTION FOR VOICE NOTE: Formulate your response in clear English for voice output. Keep the response concise and under 50 words.`
-                });
-              }
+            if (targetLangCode.startsWith("ml") || isAutoDetect) {
+              messages.push({
+                role: "system",
+                content: `CRITICAL INSTRUCTION FOR VOICE OUTPUT: The customer sent a WhatsApp voice note. The voice engine will synthesize your response into spoken audio. You MUST formulate your response in fluent, natural MANGLISH (Malayalam spoken words written using English/Latin alphabet, for example: "ABC shoe-nte price 499 rupees aanu. Ningalkku ethu vaangan '1' athallekil 'checkout' ennu type cheyyaam."). Writing in Manglish ensures 100% natural, accurate pronunciation for both Sarvam AI and OpenAI without broken accents or slurred Hindi phonetics. Keep the response conversational, warm, and under 50 words.`
+              });
+            } else if (targetLangCode.startsWith("hi")) {
+              messages.push({
+                role: "system",
+                content: `CRITICAL INSTRUCTION FOR VOICE OUTPUT: Formulate your response in fluent, natural HINGLISH (Hindi spoken words written using English/Latin alphabet, e.g. "ABC shoe ka price 499 rupees hai. Khareedne ke liye '1' type karein."). Writing in Hinglish ensures clean, accurate pronunciation. Keep the response concise, conversational, and under 50 words.`
+              });
+            } else if (targetLangCode.startsWith("ar")) {
+              messages.push({
+                role: "system",
+                content: `CRITICAL INSTRUCTION FOR VOICE OUTPUT: Formulate your response in clear Arabic. Keep the response concise and under 50 words.`
+              });
             } else {
-              // Sarvam or ElevenLabs natively supports native Indian Unicode scripts
-              if (isAutoDetect) {
-                messages.push({
-                  role: "system",
-                  content: `CRITICAL INSTRUCTION: The customer sent a WhatsApp audio/voice note. You MUST detect the language they spoke in (such as Malayalam, Hindi, Arabic, English, Tamil, etc.) and write your response in that EXACT same language and native script (e.g. if Malayalam, write strictly in Malayalam script മലയാളം, never Bengali or Hindi) so that Sarvam AI can speak in their native tongue. Keep the response conversational, helpful, and under 60 words.`
-                });
-              } else {
-                messages.push({
-                  role: "system",
-                  content: `CRITICAL INSTRUCTION: The active voice language for this store is configured as ${targetLangName} (${targetLangCode}). You MUST formulate your entire response in ${targetLangName} using proper ${targetLangName} script (e.g. if Malayalam, use Malayalam script മലയാളം, never Bengali or Hindi) so that Sarvam AI voice engine can speak in ${targetLangName}. Keep the response conversational, helpful, and under 60 words.`
-                });
-              }
+              messages.push({
+                role: "system",
+                content: `CRITICAL INSTRUCTION FOR VOICE OUTPUT: Formulate your response in clear, conversational English for natural spoken voice output. Keep the response concise and under 50 words.`
+              });
             }
           } else {
             // Voice response is disabled: reply in TEXT in the customer's native script

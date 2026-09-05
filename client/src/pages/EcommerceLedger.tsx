@@ -2362,46 +2362,52 @@ You are chatting with a customer regarding this product:
                                 );
                               }
 
-                              const excludedList = Array.isArray(autoAssignExcludedUserIds) ? autoAssignExcludedUserIds : [];
+                              const currentExcluded = Array.isArray(autoAssignExcludedUserIds) ? autoAssignExcludedUserIds.map(String) : [];
 
                               return (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
                                   {validMembers.map((m: any) => {
                                     const memberId = String(m.id);
-                                    const isExcluded = excludedList.includes(memberId);
-                                    const displayName = m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.username || m.email;
+                                    const isExcluded = currentExcluded.includes(memberId);
+                                    const displayName = m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.username || m.email || `Member ${memberId}`;
+                                    const displayEmail = m.email || m.username || "";
+
                                     return (
-                                      <div
+                                      <button
                                         key={memberId}
-                                        onClick={(e) => {
-                                          e.preventDefault();
+                                        type="button"
+                                        onClick={() => {
                                           if (isExcluded) {
-                                            setAutoAssignExcludedUserIds(excludedList.filter((id) => id !== memberId));
+                                            setAutoAssignExcludedUserIds(currentExcluded.filter((id) => String(id) !== memberId));
                                           } else {
-                                            setAutoAssignExcludedUserIds([...excludedList, memberId]);
+                                            setAutoAssignExcludedUserIds([...currentExcluded, memberId]);
                                           }
                                         }}
-                                        className={`flex items-center gap-2.5 p-2.5 rounded-md border text-xs cursor-pointer select-none transition-all ${
+                                        className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs text-left cursor-pointer select-none transition-all ${
                                           isExcluded
-                                            ? "bg-red-50/70 border-red-200 text-red-700"
-                                            : "bg-white border-gray-200 hover:border-gray-300 text-gray-700"
+                                            ? "bg-red-50 border-red-200 text-red-700 ring-1 ring-red-300 shadow-xs"
+                                            : "bg-white border-gray-200 hover:border-gray-300 text-gray-700 hover:bg-gray-50/50"
                                         }`}
                                       >
-                                        <Checkbox
-                                          checked={isExcluded}
-                                          onCheckedChange={() => {}}
-                                          className="pointer-events-none data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
-                                        />
-                                        <div className="flex-1 truncate">
-                                          <div className="font-medium truncate">{displayName}</div>
-                                          <div className="text-[10px] text-gray-400 truncate">{m.email}</div>
+                                        <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] font-bold shrink-0 ${
+                                          isExcluded ? "bg-red-600 border-red-600 text-white" : "border-gray-300 bg-white text-transparent"
+                                        }`}>
+                                          ✓
                                         </div>
-                                        {isExcluded && (
-                                          <span className="text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
+                                        <div className="flex-1 min-w-0 truncate">
+                                          <div className="font-semibold truncate text-gray-900">{displayName}</div>
+                                          {displayEmail && <div className="text-[10px] text-gray-400 truncate font-mono">{displayEmail}</div>}
+                                        </div>
+                                        {isExcluded ? (
+                                          <span className="text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-700 px-1.5 py-0.5 rounded shrink-0">
                                             Excluded
                                           </span>
+                                        ) : (
+                                          <span className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
+                                            Active
+                                          </span>
                                         )}
-                                      </div>
+                                      </button>
                                     );
                                   })}
                                 </div>

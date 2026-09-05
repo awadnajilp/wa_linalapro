@@ -193,19 +193,35 @@ export class EcommerceService {
   }
 
   /**
-   * Generate sequential store/tenant based order numbers starting from ORD-1001
+   * Helper to derive a stable 3-digit tenant/user prefix (e.g. 101, 812)
+   */
+  public static getTenantOrderPrefix(tenantId?: string): string {
+    if (!tenantId) return "101";
+    let hash = 0;
+    for (let i = 0; i < tenantId.length; i++) {
+      hash = ((hash << 5) - hash) + tenantId.charCodeAt(i);
+      hash |= 0;
+    }
+    const num = Math.abs(hash) % 900 + 100;
+    return String(num);
+  }
+
+  /**
+   * Generate sequential store/tenant based order numbers in format ORD-<prefix>-1001
    * Ensures global uniqueness against the database unique constraint
    */
   public static async generateNextOrderNumber(tenantId?: string): Promise<string> {
+    const prefix = this.getTenantOrderPrefix(tenantId);
     try {
       const orders = await db
         .select({ orderNumber: schema.ecommerceOrders.orderNumber })
         .from(schema.ecommerceOrders);
 
       let maxNum = 1000;
+      const regex = new RegExp(`^ORD-${prefix}-(\\d+)$`, 'i');
       for (const o of orders) {
         if (!o.orderNumber) continue;
-        const match = o.orderNumber.match(/^ORD-(\d+)$/i);
+        const match = o.orderNumber.match(regex);
         if (match) {
           const num = parseInt(match[1], 10);
           if (!isNaN(num) && num > maxNum && num < 100000) {
@@ -215,7 +231,7 @@ export class EcommerceService {
       }
 
       for (let attempt = 0; attempt < 50; attempt++) {
-        const candidate = `ORD-${maxNum + 1 + attempt}`;
+        const candidate = `ORD-${prefix}-${maxNum + 1 + attempt}`;
         const [existing] = await db
           .select({ id: schema.ecommerceOrders.id })
           .from(schema.ecommerceOrders)
@@ -230,8 +246,8 @@ export class EcommerceService {
       console.warn("[EcommerceService] Error computing next order number:", err?.message);
     }
 
-    const randomSuffix = Math.floor(100000 + Math.random() * 900000);
-    return `ORD-${randomSuffix}`;
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    return `ORD-${prefix}-${randomSuffix}`;
   }
 
   /**
@@ -656,7 +672,7 @@ export class EcommerceService {
           { id: `info_${product.id}`, title: "Product Info" }
         ];
         if (config.aiEnabled && config.aiAskButtonEnabled && buttons.length < 3) {
-          buttons.push({ id: `ai_ask_${product.id}`, title: "Ask AI" });
+          buttons.push({ id: `ai_ask_${product.id}`, title: "Talk to Agent" });
         }
 
         if (photos.length > 0) {
@@ -732,13 +748,13 @@ export class EcommerceService {
     if (isQr) {
       let navMsg = `👉 *Ready to place an order?*\n\nReply *1* to Buy Now!`;
       if (showAiButton) {
-        navMsg += `\nReply *2* to Ask AI Assistant about this product.`;
+        navMsg += `\nReply *2* to Talk to Agent about this product.`;
       }
       await waApi.sendTextMessage(contactPhone, navMsg);
     } else {
       const navButtons = [{ id: `buy_${product.id}`, title: "Order Now" }];
       if (showAiButton) {
-        navButtons.push({ id: `ai_ask_${product.id}`, title: "Ask AI" });
+        navButtons.push({ id: `ai_ask_${product.id}`, title: "Talk to Agent" });
       }
       await this.sendCloudApiButtonMessage(
         channelRow,
@@ -825,7 +841,7 @@ export class EcommerceService {
     if (isQr) {
       let promptMsg = `${descText}\n\nReply *1* to Buy Now!\nReply *2* for Product Info & Details`;
       if (showAiButton) {
-        promptMsg += `\nReply *3* to Ask AI Assistant!`;
+        promptMsg += `\nReply *3* to Talk to Agent!`;
       }
       await waApi.sendTextMessage(contactPhone, promptMsg);
     } else {
@@ -834,7 +850,7 @@ export class EcommerceService {
         { id: `info_${product.id}`, title: "Product Info" }
       ];
       if (showAiButton && buttons.length < 3) {
-        buttons.push({ id: `ai_ask_${product.id}`, title: "Ask AI" });
+        buttons.push({ id: `ai_ask_${product.id}`, title: "Talk to Agent" });
       }
       await this.sendCloudApiButtonMessage(channelRow, contactPhone, descText, null, buttons);
     }
@@ -907,16 +923,18 @@ export class EcommerceService {
     if (session.currentStep === "waiting_for_tracking_ordernumber") {
       const orderNumberUpper = input.trim().toUpperCase();
       
-      const [order] = await db
+      const allOrders = await db
         .select()
         .from(schema.ecommerceOrders)
-        .where(
-          and(
-            eq(schema.ecommerceOrders.tenantId, config.tenantId),
-            eq(schema.ecommerceOrders.orderNumber, orderNumberUpper)
-          )
-        )
-        .limit(1);
+        .where(eq(schema.ecommerceOrders.tenantId, config.tenantId));
+
+      const order = allOrders.find((o) => {
+        const num = (o.orderNumber || "").toUpperCase();
+        return num === orderNumberUpper ||
+          num === `ORD-${orderNumberUpper}` ||
+          num.endsWith(`-${orderNumberUpper}`) ||
+          (orderNumberUpper.length >= 4 && num.includes(orderNumberUpper));
+      });
 
       if (order) {
         const getStatusEmoji = (status: string) => {
@@ -1008,9 +1026,9 @@ export class EcommerceService {
 
       // Determine available payment methods text for RAG
       const availablePayments: string[] = [];
-      availablePayments.push(config.labelCod || "Cash on Delivery (COD)");
-      if (config.upiId) availablePayments.push(config.labelUpiDirect || "UPI Direct Mobile Pay");
-      if (config.qrCodeUrl) availablePayments.push(config.labelQrPay || "UPI (Pay via QR Code)");
+      availablePayments.push(config.labelCod || "Cash On Delvry(COD)");
+      if (config.upiId) availablePayments.push(config.labelUpiDirect || "GPay/PhonePe(UPI)");
+      if (config.qrCodeUrl) availablePayments.push(config.labelQrPay || "Acc. Info(QR Code)");
       if ((config.razorpayKeyId && config.razorpayKeySecret) || (config.instamojoApiKey && config.instamojoAuthToken)) {
         availablePayments.push(config.labelGateway || "Online Payment Gateway");
       }
@@ -1500,8 +1518,13 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
       const isEdit = cleanInput === "2" || cleanInput === "edit" || cleanInput.includes("edit") || cleanInput === "change" || buttonReplyId === "edit_checkout";
 
       if (isEdit) {
-        // Loop back to edit fields again one-by-one from the beginning
+        // Keep orderId / orderNumber if previously created, but reset field inputs
+        const preservedOrderId = session.customerData?.orderId;
+        const preservedOrderNumber = session.customerData?.orderNumber;
         const resetCustomerData: any = {};
+        if (preservedOrderId) resetCustomerData.orderId = preservedOrderId;
+        if (preservedOrderNumber) resetCustomerData.orderNumber = preservedOrderNumber;
+
         await db
           .update(schema.ecommerceSessions)
           .set({
@@ -1519,6 +1542,34 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
       }
 
       if (isConfirm) {
+        // Recalculate totals if updating an existing order
+        if (session.customerData?.orderId) {
+          try {
+            const [product] = await db
+              .select()
+              .from(schema.ecommerceProducts)
+              .where(eq(schema.ecommerceProducts.id, session.productId))
+              .limit(1);
+
+            const deliveryFee = parseFloat(session.customerData?.deliveryFee || "0");
+            const baseAmount = parseFloat(product?.price || "0") * session.quantity;
+            const totalAmount = baseAmount + deliveryFee;
+
+            await db
+              .update(schema.ecommerceOrders)
+              .set({
+                customerName: session.customerData?.name || conv?.contactName || "Customer",
+                customerData: session.customerData,
+                deliveryFee: String(deliveryFee),
+                totalAmount: String(totalAmount),
+                updatedAt: new Date()
+              })
+              .where(eq(schema.ecommerceOrders.id, session.customerData.orderId));
+          } catch (updateErr: any) {
+            console.warn("[EcommerceService] Error updating existing order on review confirm:", updateErr?.message);
+          }
+        }
+
         // Proceed to payment method selection
         await db
           .update(schema.ecommerceSessions)
@@ -1529,12 +1580,12 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 
         // Generate payment options
         const paymentOptions = [];
-        paymentOptions.push({ id: "cod", title: config.labelCod || "Cash on Delivery (COD)" });
+        paymentOptions.push({ id: "cod", title: config.labelCod || "Cash On Delvry(COD)" });
         if (config.upiId) {
-          paymentOptions.push({ id: "upi_direct", title: config.labelUpiDirect || "UPI Direct Mobile Pay" });
+          paymentOptions.push({ id: "upi_direct", title: config.labelUpiDirect || "GPay/PhonePe(UPI)" });
         }
         if (config.qrCodeUrl) {
-          paymentOptions.push({ id: "qr_pay", title: config.labelQrPay || "UPI (Pay via QR Code)" });
+          paymentOptions.push({ id: "qr_pay", title: config.labelQrPay || "Acc. Info(QR Code)" });
         }
         if (
           (config.razorpayKeyId && config.razorpayKeySecret) ||
@@ -1580,17 +1631,133 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
       return;
     }
 
-    // 3. STEP: WAITING FOR PAYMENT METHOD
-    if (session.currentStep === "waiting_for_payment_method") {
-      let selectedMethod = "";
+    // 3. STEP: WAITING FOR PAYMENT METHOD OR SWITCHING PAYMENT METHOD (while in waiting_for_qr_receipt)
+    if (session.currentStep === "waiting_for_payment_method" || session.currentStep === "waiting_for_qr_receipt") {
+      const buttonReplyId = message.interactive?.button_reply?.id || (message as any)?.button?.payload || (message as any)?.interactive?.buttonReply?.id;
+      const listReplyId = message.interactive?.list_reply?.id || (message as any)?.interactive?.listReply?.id;
 
+      // Check for Edit Details button or edit command
+      const isEdit = cleanInput === "edit" || cleanInput === "change" || cleanInput.includes("change address") || buttonReplyId === "edit_checkout";
+      if (isEdit) {
+        const preservedOrderId = session.customerData?.orderId;
+        const preservedOrderNumber = session.customerData?.orderNumber;
+        const resetCustomerData: any = {};
+        if (preservedOrderId) resetCustomerData.orderId = preservedOrderId;
+        if (preservedOrderNumber) resetCustomerData.orderNumber = preservedOrderNumber;
+
+        await db
+          .update(schema.ecommerceSessions)
+          .set({
+            customerData: resetCustomerData,
+            currentStep: fields.length > 0 ? `waiting_for_field:${fields[0].variable}` : "waiting_for_payment_method"
+          })
+          .where(eq(schema.ecommerceSessions.id, session.id));
+
+        if (fields.length > 0) {
+          await waApi.sendTextMessage(to, `🔄 *Let's re-enter your details:*\n\n${fields[0].text}`);
+        } else {
+          await waApi.sendTextMessage(to, "Please proceed to select your payment method.");
+        }
+        return;
+      }
+
+      // If in waiting_for_qr_receipt and an image is received, handle receipt upload
+      const mediaId = message.image?.id || message.mediaId;
+      const isImage = message.type === "image" || !!mediaId;
+      if (session.currentStep === "waiting_for_qr_receipt" && isImage) {
+        let fileUrl = "";
+        if (mediaId) {
+          try {
+            if (channelRow.connectionMethod === "qr_code") {
+              fileUrl = await waApi.fetchMediaUrl(mediaId);
+            } else {
+              const mimeType = message.image?.mime_type || "image/jpeg";
+              const savedUrl = await this.saveIncomingMedia(mediaId, mimeType, waApi);
+              fileUrl = savedUrl || (await waApi.fetchMediaUrl(mediaId));
+            }
+          } catch (err) {
+            console.error("Failed to fetch media url for receipt:", err);
+            fileUrl = `receipt_media_${mediaId}`;
+          }
+        }
+
+        let order: any = null;
+        let orderNumber = session.customerData?.orderNumber || "";
+
+        if (session.customerData?.orderId) {
+          const [updatedOrder] = await db
+            .update(schema.ecommerceOrders)
+            .set({
+              receiptUrl: fileUrl || null,
+              paymentStatus: "pending_verification",
+              updatedAt: new Date()
+            })
+            .where(eq(schema.ecommerceOrders.id, session.customerData.orderId))
+            .returning();
+          order = updatedOrder;
+          orderNumber = order?.orderNumber || orderNumber;
+        }
+
+        if (!order) {
+          const [product] = await db
+            .select()
+            .from(schema.ecommerceProducts)
+            .where(eq(schema.ecommerceProducts.id, session.productId))
+            .limit(1);
+
+          const deliveryFee = parseFloat(session.customerData?.deliveryFee || "0");
+          const baseAmount = parseFloat(product?.price || "0") * session.quantity;
+          const totalAmount = baseAmount + deliveryFee;
+          orderNumber = await this.generateNextOrderNumber(config.tenantId);
+
+          const [newOrder] = await db
+            .insert(schema.ecommerceOrders)
+            .values({
+              orderNumber,
+              tenantId: config.tenantId,
+              channelId: config.channelId,
+              conversationId: session.conversationId,
+              customerPhone: to,
+              customerName: session.customerData?.name || "Customer",
+              customerData: session.customerData,
+              productId: product?.id,
+              productName: product?.name,
+              price: product?.price,
+              quantity: session.quantity,
+              deliveryFee: String(deliveryFee),
+              totalAmount: String(totalAmount),
+              currency: config.currency || "INR",
+              paymentMethod: "qr_pay",
+              paymentStatus: "pending_verification",
+              receiptUrl: fileUrl || null,
+              status: "pending"
+            })
+            .returning();
+          order = newOrder;
+        }
+
+        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+
+        await waApi.sendTextMessage(
+          to,
+          `✅ *Receipt Received!*\n\nOrder Number: *${orderNumber}*\nYour payment is being verified by our team. You will receive WhatsApp notifications as your order is processed!`
+        );
+
+        if (order) {
+          await this.sendOrderEmail(order);
+        }
+        return;
+      }
+
+      // Check if user selected or changed payment method
+      let selectedMethod = "";
       const paymentOptions = [];
-      paymentOptions.push({ id: "cod", title: config.labelCod || "Cash on Delivery (COD)" });
+      paymentOptions.push({ id: "cod", title: config.labelCod || "Cash On Delvry(COD)" });
       if (config.upiId) {
-        paymentOptions.push({ id: "upi_direct", title: config.labelUpiDirect || "UPI Direct Mobile Pay" });
+        paymentOptions.push({ id: "upi_direct", title: config.labelUpiDirect || "GPay/PhonePe(UPI)" });
       }
       if (config.qrCodeUrl) {
-        paymentOptions.push({ id: "qr_pay", title: config.labelQrPay || "UPI (Pay via QR Code)" });
+        paymentOptions.push({ id: "qr_pay", title: config.labelQrPay || "Acc. Info(QR Code)" });
       }
       if (
         (config.razorpayKeyId && config.razorpayKeySecret) ||
@@ -1599,20 +1766,15 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         paymentOptions.push({ id: "gateway", title: config.labelGateway || "Online Payment" });
       }
 
-      const buttonReplyId = message.interactive?.button_reply?.id || (message as any)?.button?.payload || (message as any)?.interactive?.buttonReply?.id;
-      const listReplyId = message.interactive?.list_reply?.id || (message as any)?.interactive?.listReply?.id;
-
       if (buttonReplyId) {
         selectedMethod = buttonReplyId;
       } else if (listReplyId) {
         selectedMethod = listReplyId;
       } else {
-        // IVR selection matching index
         const matchIdx = parseInt(input) - 1;
         if (!isNaN(matchIdx) && matchIdx >= 0 && matchIdx < paymentOptions.length) {
           selectedMethod = paymentOptions[matchIdx].id;
         } else {
-          // Fallback to text matching
           const lowerVal = input.toLowerCase().trim();
           for (const opt of paymentOptions) {
             const optTitleLower = opt.title.toLowerCase().trim();
@@ -1632,9 +1794,9 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           if (!selectedMethod) {
             if (lowerVal.includes("cod") || lowerVal.includes("cash") || (config.labelCod && lowerVal.includes(config.labelCod.toLowerCase()))) {
               selectedMethod = "cod";
-            } else if (lowerVal.includes("direct") || lowerVal.includes("mobile") || (config.labelUpiDirect && lowerVal.includes(config.labelUpiDirect.toLowerCase()))) {
+            } else if (lowerVal.includes("direct") || lowerVal.includes("mobile") || lowerVal.includes("gpay") || lowerVal.includes("phonepe") || (config.labelUpiDirect && lowerVal.includes(config.labelUpiDirect.toLowerCase()))) {
               selectedMethod = "upi_direct";
-            } else if (lowerVal.includes("qr") || lowerVal.includes("upi") || (config.labelQrPay && lowerVal.includes(config.labelQrPay.toLowerCase()))) {
+            } else if (lowerVal.includes("qr") || lowerVal.includes("upi") || lowerVal.includes("acc") || lowerVal.includes("account") || (config.labelQrPay && lowerVal.includes(config.labelQrPay.toLowerCase()))) {
               selectedMethod = "qr_pay";
             } else if (lowerVal.includes("online") || lowerVal.includes("gateway") || (config.labelGateway && lowerVal.includes(config.labelGateway.toLowerCase()))) {
               selectedMethod = "gateway";
@@ -1644,7 +1806,15 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
       }
 
       if (!selectedMethod || !paymentOptions.find(o => o.id === selectedMethod)) {
-        await waApi.sendTextMessage(to, "Invalid payment method. Please select or reply with the correct option.");
+        if (session.currentStep === "waiting_for_qr_receipt") {
+          const orderNum = session.customerData?.orderNumber;
+          const prompt = orderNum 
+            ? `Please upload the payment receipt/screenshot as an image/photo to complete order *${orderNum}*.\n\n👉 Reply *cod* to switch to Cash on Delivery\n👉 Reply *edit* to update details\n👉 Or reply *cancel* to exit.`
+            : "Please upload the payment receipt/screenshot as an image/photo to complete your order, or reply *cancel* to exit.";
+          await waApi.sendTextMessage(to, prompt);
+        } else {
+          await waApi.sendTextMessage(to, "Invalid payment method. Please select or reply with the correct option.");
+        }
         return;
       }
 
@@ -1664,10 +1834,29 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
       const baseAmount = parseFloat(product.price || "0") * session.quantity;
       const totalAmount = baseAmount + deliveryFee;
 
-      if (selectedMethod === "cod") {
-        // Complete Order COD
-        const orderNumber = await this.generateNextOrderNumber(config.tenantId);
-        const [order] = await db
+      let order: any = null;
+      let orderNumber = session.customerData?.orderNumber;
+
+      // Update existing order if already created in earlier step
+      if (session.customerData?.orderId) {
+        const [updatedOrder] = await db
+          .update(schema.ecommerceOrders)
+          .set({
+            paymentMethod: selectedMethod,
+            paymentStatus: selectedMethod === "cod" ? "pending" : (selectedMethod === "gateway" ? "pending_payment" : "pending_verification"),
+            status: "pending",
+            updatedAt: new Date()
+          })
+          .where(eq(schema.ecommerceOrders.id, session.customerData.orderId))
+          .returning();
+        order = updatedOrder;
+        orderNumber = order?.orderNumber || orderNumber;
+      }
+
+      // If order not yet created, create it now
+      if (!order) {
+        orderNumber = await this.generateNextOrderNumber(config.tenantId);
+        const [newOrder] = await db
           .insert(schema.ecommerceOrders)
           .values({
             orderNumber,
@@ -1684,52 +1873,27 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
             deliveryFee: String(deliveryFee),
             totalAmount: String(totalAmount),
             currency: config.currency || "INR",
-            paymentMethod: "cod",
-            paymentStatus: "pending",
+            paymentMethod: selectedMethod,
+            paymentStatus: selectedMethod === "cod" ? "pending" : (selectedMethod === "gateway" ? "pending_payment" : "pending_verification"),
             status: "pending"
           })
           .returning();
+        order = newOrder;
+      }
 
-        await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
+      await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
 
+      if (selectedMethod === "cod") {
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
 
-        // Send confirmation WhatsApp message
         await waApi.sendTextMessage(
           to,
-          `🎉 *Order Placed Successfully!*\n\nOrder Number: *${orderNumber}*\nProduct: *${product.name}* (x${session.quantity})\nDelivery Fee: *${config.currency || "INR"} ${deliveryFee}*\nTotal Amount: *${config.currency || "INR"} ${totalAmount}*\nPayment Mode: *Cash on Delivery (COD)*\n\nWe will update you as soon as your order status changes!`
+          `🎉 *Order Placed Successfully!*\n\nOrder Number: *${orderNumber}*\nProduct: *${product.name}* (x${session.quantity})\nDelivery Fee: *${config.currency || "INR"} ${deliveryFee}*\nTotal Amount: *${config.currency || "INR"} ${totalAmount}*\nPayment Mode: *Cash On Delvry(COD)*\n\nWe will update you as soon as your order status changes!`
         );
 
-        // Send email with PDF to merchant
         await this.sendOrderEmail(order);
-      } 
+      }
       else if (selectedMethod === "upi_direct") {
-        // Create the order as pending payment
-        const orderNumber = await this.generateNextOrderNumber(config.tenantId);
-        const [order] = await db
-          .insert(schema.ecommerceOrders)
-          .values({
-            orderNumber,
-            tenantId: config.tenantId,
-            channelId: config.channelId,
-            conversationId: session.conversationId,
-            customerPhone: to,
-            customerName: session.customerData?.name || conv?.contactName || "Customer",
-            customerData: session.customerData,
-            productId: product.id,
-            productName: product.name,
-            price: product.price,
-            quantity: session.quantity,
-            deliveryFee: String(deliveryFee),
-            totalAmount: String(totalAmount),
-            currency: config.currency || "INR",
-            paymentMethod: "upi_direct",
-            paymentStatus: "pending_verification",
-            status: "pending"
-          })
-          .returning();
-
-        // Transition session to QR receipt upload and store created order details
         await db
           .update(schema.ecommerceSessions)
           .set({
@@ -1742,43 +1906,14 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           })
           .where(eq(schema.ecommerceSessions.id, session.id));
 
-        await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
-
-        // Send direct payment redirect link
         const redirectUrl = `https://wa.linalapro.com/api/ecommerce/checkout/pay?orderId=${order.id}`;
 
         await waApi.sendTextMessage(
           to,
-          `📱 *UPI Mobile Direct Pay*\n\nOrder Number: *${orderNumber}*\nTo pay *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) directly using GPay / PhonePe / Paytm:\n\n👉 *Click here to Pay:* ${redirectUrl}\n\nOnce paid, *please send the receipt/payment screenshot here* to verify and complete your order.`
+          `📱 *UPI Mobile Direct Pay*\n\nOrder Number: *${orderNumber}*\nTo pay *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) directly using GPay / PhonePe / Paytm:\n\n👉 *Click here to Pay:* ${redirectUrl}\n\nOnce paid, *please send the receipt/payment screenshot here* to verify and complete your order.\n\nReply *cod* to switch to Cash on Delivery, or *edit* to update details.`
         );
       }
       else if (selectedMethod === "qr_pay") {
-        // Create order first
-        const orderNumber = await this.generateNextOrderNumber(config.tenantId);
-        const [order] = await db
-          .insert(schema.ecommerceOrders)
-          .values({
-            orderNumber,
-            tenantId: config.tenantId,
-            channelId: config.channelId,
-            conversationId: session.conversationId,
-            customerPhone: to,
-            customerName: session.customerData?.name || conv?.contactName || "Customer",
-            customerData: session.customerData,
-            productId: product.id,
-            productName: product.name,
-            price: product.price,
-            quantity: session.quantity,
-            deliveryFee: String(deliveryFee),
-            totalAmount: String(totalAmount),
-            currency: config.currency || "INR",
-            paymentMethod: "qr_pay",
-            paymentStatus: "pending_verification",
-            status: "pending"
-          })
-          .returning();
-
-        // Transition session to QR receipt upload and store created order details
         await db
           .update(schema.ecommerceSessions)
           .set({
@@ -1791,9 +1926,6 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
           })
           .where(eq(schema.ecommerceSessions.id, session.id));
 
-        await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
-
-        // Send QR code
         if (config.qrCodeUrl) {
           try {
             await waApi.sendMediaMessageByUrl(to, config.qrCodeUrl, "image");
@@ -1806,42 +1938,23 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
         }
         await waApi.sendTextMessage(
           to,
-          `Please scan the QR code to pay a total of *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) via GPAY / PhonePe.\n\nOrder Number: *${orderNumber}*\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.`
+          `Please scan the QR code to pay a total of *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) via GPAY / PhonePe.\n\nOrder Number: *${orderNumber}*\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.\n\nReply *cod* to switch to Cash on Delivery, or *edit* to update details.`
         );
-      } 
+      }
       else if (selectedMethod === "gateway") {
-        // Transition to gateway creation
         try {
           await waApi.sendTextMessage(to, "Generating your secure online checkout link, please wait...");
           const paymentLinkData = await this.createPaymentLink(config, product, session.quantity, session.customerData?.name || "Customer", to, deliveryFee);
 
-          const orderNumber = await this.generateNextOrderNumber(config.tenantId);
-          const [order] = await db
-            .insert(schema.ecommerceOrders)
-            .values({
-              orderNumber,
-              tenantId: config.tenantId,
-              channelId: config.channelId,
-              conversationId: session.conversationId,
-              customerPhone: to,
-              customerName: session.customerData?.name || "Customer",
-              customerData: session.customerData,
-              productId: product.id,
-              productName: product.name,
-              price: product.price,
-              quantity: session.quantity,
-              deliveryFee: String(deliveryFee),
-              totalAmount: String(totalAmount),
-              currency: config.currency || "INR",
-              paymentMethod: "gateway",
-              paymentStatus: "pending_payment",
+          const [updatedGatewayOrder] = await db
+            .update(schema.ecommerceOrders)
+            .set({
               paymentGateway: paymentLinkData.gateway,
               paymentGatewayOrderId: paymentLinkData.orderId,
-              status: "pending"
+              updatedAt: new Date()
             })
+            .where(eq(schema.ecommerceOrders.id, order.id))
             .returning();
-
-          await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
 
           await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
 
@@ -1850,115 +1963,12 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
             `🔗 *Complete Your Payment*\n\nOrder Number: *${orderNumber}*\nTotal Amount: *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*)\n\nPlease complete your payment using this secure link:\n${paymentLinkData.url}\n\nYour order will be verified automatically once paid.`
           );
 
-          // Email notification of pending order
-          await this.sendOrderEmail(order);
+          await this.sendOrderEmail(updatedGatewayOrder || order);
         } catch (err: any) {
           await waApi.sendTextMessage(to, `Error generating payment link: ${err.message}. Please try again later or select Cash on Delivery.`);
         }
       }
       return;
-    }
-
-    // 4. STEP: WAITING FOR QR RECEIPT
-    if (session.currentStep === "waiting_for_qr_receipt") {
-      const mediaId = message.image?.id || message.mediaId;
-      // Also support checking message type
-      const isImage = message.type === "image" || !!mediaId;
-
-      if (!isImage) {
-        const orderNum = session.customerData?.orderNumber;
-        const prompt = orderNum 
-          ? `Please upload the payment receipt/screenshot as an image/photo to complete order *${orderNum}*, or reply *cancel* to exit.`
-          : "Please upload the payment receipt/screenshot as an image/photo to complete your order, or reply *cancel* to exit.";
-        await waApi.sendTextMessage(to, prompt);
-        return;
-      }
-
-      // We have the receipt image! Let's download URL or save mediaId
-      let fileUrl = "";
-      if (mediaId) {
-        try {
-          if (channelRow.connectionMethod === "qr_code") {
-            fileUrl = await waApi.fetchMediaUrl(mediaId);
-          } else {
-            const mimeType = message.image?.mime_type || "image/jpeg";
-            const savedUrl = await this.saveIncomingMedia(mediaId, mimeType, waApi);
-            fileUrl = savedUrl || (await waApi.fetchMediaUrl(mediaId));
-          }
-        } catch (err) {
-          console.error("Failed to fetch media url for receipt:", err);
-          fileUrl = `receipt_media_${mediaId}`;
-        }
-      }
-
-      let order: any = null;
-      let orderNumber = session.customerData?.orderNumber || "";
-
-      // If order was already created in upi_direct / qr_pay step, update it!
-      if (session.customerData?.orderId) {
-        const [updatedOrder] = await db
-          .update(schema.ecommerceOrders)
-          .set({
-            receiptUrl: fileUrl || null,
-            paymentStatus: "pending_verification",
-            updatedAt: new Date()
-          })
-          .where(eq(schema.ecommerceOrders.id, session.customerData.orderId))
-          .returning();
-        order = updatedOrder;
-        orderNumber = order?.orderNumber || orderNumber;
-      }
-
-      // If order was not created previously, create it now as fallback
-      if (!order) {
-        const [product] = await db
-          .select()
-          .from(schema.ecommerceProducts)
-          .where(eq(schema.ecommerceProducts.id, session.productId))
-          .limit(1);
-
-        const deliveryFee = parseFloat(session.customerData?.deliveryFee || "0");
-        const baseAmount = parseFloat(product?.price || "0") * session.quantity;
-        const totalAmount = baseAmount + deliveryFee;
-        orderNumber = await this.generateNextOrderNumber(config.tenantId);
-
-        const [newOrder] = await db
-          .insert(schema.ecommerceOrders)
-          .values({
-            orderNumber,
-            tenantId: config.tenantId,
-            channelId: config.channelId,
-            conversationId: session.conversationId,
-            customerPhone: to,
-            customerName: session.customerData?.name || "Customer",
-            customerData: session.customerData,
-            productId: product?.id,
-            productName: product?.name,
-            price: product?.price,
-            quantity: session.quantity,
-            deliveryFee: String(deliveryFee),
-            totalAmount: String(totalAmount),
-            currency: config.currency || "INR",
-            paymentMethod: "qr_pay",
-            paymentStatus: "pending_verification",
-            receiptUrl: fileUrl || null,
-            status: "pending"
-          })
-          .returning();
-        order = newOrder;
-      }
-
-      await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
-
-      await waApi.sendTextMessage(
-        to,
-        `✅ *Receipt Received!*\n\nOrder Number: *${orderNumber}*\nYour payment is being verified by our team. You will receive WhatsApp notifications as your order is processed!`
-      );
-
-      // Email notification
-      if (order) {
-        await this.sendOrderEmail(order);
-      }
     }
   }
 

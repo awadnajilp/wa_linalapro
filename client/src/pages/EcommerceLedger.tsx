@@ -292,9 +292,9 @@ export default function EcommerceLedger() {
   const [defaultDeliveryFee, setDefaultDeliveryFee] = useState("0");
   const [stateDeliveryFees, setStateDeliveryFees] = useState<Record<string, string>>({});
   const [storeCountry, setStoreCountry] = useState("IN");
-  const [labelCod, setLabelCod] = useState("Cash on Delivery (COD)");
-  const [labelUpiDirect, setLabelUpiDirect] = useState("UPI Direct Mobile Pay");
-  const [labelQrPay, setLabelQrPay] = useState("UPI (Pay via QR Code)");
+  const [labelCod, setLabelCod] = useState("Cash On Delvry(COD)");
+  const [labelUpiDirect, setLabelUpiDirect] = useState("GPay/PhonePe(UPI)");
+  const [labelQrPay, setLabelQrPay] = useState("Acc. Info(QR Code)");
   const [labelGateway, setLabelGateway] = useState("Online Payment");
   const [selectedStateOverride, setSelectedStateOverride] = useState("");
   const [overrideFeeInput, setOverrideFeeInput] = useState("");
@@ -388,9 +388,9 @@ export default function EcommerceLedger() {
       setDefaultDeliveryFee((config as any).defaultDeliveryFee || "0");
       setStateDeliveryFees((config as any).stateDeliveryFees || {});
       setStoreCountry((config as any).storeCountry || "IN");
-      setLabelCod((config as any).labelCod || "Cash on Delivery (COD)");
-      setLabelUpiDirect((config as any).labelUpiDirect || "UPI Direct Mobile Pay");
-      setLabelQrPay((config as any).labelQrPay || "UPI (Pay via QR Code)");
+      setLabelCod((config as any).labelCod || "Cash On Delvry(COD)");
+      setLabelUpiDirect((config as any).labelUpiDirect || "GPay/PhonePe(UPI)");
+      setLabelQrPay((config as any).labelQrPay || "Acc. Info(QR Code)");
       setLabelGateway((config as any).labelGateway || "Online Payment");
 
       // Standardize loaded checkoutFields Q&A objects
@@ -2048,7 +2048,7 @@ export default function EcommerceLedger() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-purple-100">
                           <div className="flex items-center justify-between">
                             <div className="space-y-0.5">
-                              <Label className="font-semibold text-gray-700">Offer "Ask AI" buttons / choices</Label>
+                              <Label className="font-semibold text-gray-700">Offer "Talk to Agent" buttons / choices</Label>
                               <span className="text-[11px] text-gray-500 block leading-tight">
                                 Show a button / menu prompt next to products so users can opt to chat.
                               </span>

@@ -353,9 +353,9 @@ export function registerEcommerceRoutes(app: Express) {
             defaultDeliveryFee: String(defaultDeliveryFee || "0"),
             stateDeliveryFees: stateDeliveryFees || {},
             storeCountry: storeCountry || "IN",
-            labelCod: labelCod || "Cash on Delivery (COD)",
-            labelUpiDirect: labelUpiDirect || "UPI Direct Mobile Pay",
-            labelQrPay: labelQrPay || "UPI (Pay via QR Code)",
+            labelCod: labelCod || "Cash On Delvry(COD)",
+            labelUpiDirect: labelUpiDirect || "GPay/PhonePe(UPI)",
+            labelQrPay: labelQrPay || "Acc. Info(QR Code)",
             labelGateway: labelGateway || "Online Payment",
             isActive: isActive !== undefined ? isActive : true,
             updatedAt: new Date()
@@ -402,9 +402,9 @@ export function registerEcommerceRoutes(app: Express) {
             defaultDeliveryFee: String(defaultDeliveryFee || "0"),
             stateDeliveryFees: stateDeliveryFees || {},
             storeCountry: storeCountry || "IN",
-            labelCod: labelCod || "Cash on Delivery (COD)",
-            labelUpiDirect: labelUpiDirect || "UPI Direct Mobile Pay",
-            labelQrPay: labelQrPay || "UPI (Pay via QR Code)",
+            labelCod: labelCod || "Cash On Delvry(COD)",
+            labelUpiDirect: labelUpiDirect || "GPay/PhonePe(UPI)",
+            labelQrPay: labelQrPay || "Acc. Info(QR Code)",
             labelGateway: labelGateway || "Online Payment",
             isActive: isActive !== undefined ? isActive : true
           })

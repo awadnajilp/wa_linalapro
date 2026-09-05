@@ -1161,6 +1161,37 @@ const steps: MigrationStep[] = [
     "attachments",
     "JSONB DEFAULT '[]'::jsonb"
   ),
+
+  // ────────────────────────────────────────────────────
+  // Ecommerce Module Updates
+  // ────────────────────────────────────────────────────
+  addColumnIfNotExists("ecommerce_products", "long_description", "TEXT"),
+  addColumnIfNotExists("ecommerce_orders", "delivery_fee", "NUMERIC(12, 2) DEFAULT 0"),
+  addColumnIfNotExists("ecommerce_configs", "ai_voice_enabled", "BOOLEAN DEFAULT false"),
+  addColumnIfNotExists("ecommerce_configs", "voice_profile_id", "VARCHAR REFERENCES voice_profiles (id) ON DELETE SET NULL"),
+  addColumnIfNotExists("ecommerce_configs", "ai_voice_language_mode", "TEXT DEFAULT 'profile'"),
+  addColumnIfNotExists("ecommerce_configs", "ai_system_prompt", "TEXT"),
+  addColumnIfNotExists("ecommerce_configs", "store_name", "TEXT"),
+  addColumnIfNotExists("ecommerce_configs", "store_address", "TEXT"),
+  addColumnIfNotExists("ecommerce_configs", "store_website", "TEXT"),
+  addColumnIfNotExists("ecommerce_configs", "store_logo", "TEXT"),
+  addColumnIfNotExists("ecommerce_configs", "delivery_fee_type", "TEXT DEFAULT 'flat'"),
+  addColumnIfNotExists("ecommerce_configs", "flat_delivery_fee", "NUMERIC(12, 2) DEFAULT 0"),
+  addColumnIfNotExists("ecommerce_configs", "default_delivery_fee", "NUMERIC(12, 2) DEFAULT 0"),
+  addColumnIfNotExists("ecommerce_configs", "state_delivery_fees", "JSONB DEFAULT '{}'::jsonb"),
+  addColumnIfNotExists("ecommerce_configs", "store_country", "TEXT DEFAULT 'IN'"),
+  addColumnIfNotExists("ecommerce_configs", "label_cod", "TEXT DEFAULT 'Cash On Delvry(COD)'"),
+  addColumnIfNotExists("ecommerce_configs", "label_upi_direct", "TEXT DEFAULT 'GPay/PhonePe(UPI)'"),
+  addColumnIfNotExists("ecommerce_configs", "label_qr_pay", "TEXT DEFAULT 'Acc. Info(QR Code)'"),
+  addColumnIfNotExists("ecommerce_configs", "label_gateway", "TEXT DEFAULT 'Online Payment'"),
+  addColumnIfNotExists("ecommerce_configs", "auto_assign_enabled", "BOOLEAN DEFAULT false"),
+  addColumnIfNotExists("ecommerce_configs", "auto_assign_mode", "TEXT DEFAULT 'permanent'"),
+  addColumnIfNotExists("ecommerce_configs", "auto_assign_user_id", "VARCHAR REFERENCES users (id) ON DELETE SET NULL"),
+  addColumnIfNotExists("ecommerce_configs", "auto_assign_excluded_user_ids", "JSONB DEFAULT '[]'::jsonb"),
+  addColumnIfNotExists("ecommerce_configs", "daily_report_enabled", "BOOLEAN DEFAULT false"),
+  addColumnIfNotExists("ecommerce_configs", "daily_report_emails", "JSONB DEFAULT '[]'::jsonb"),
+  addColumnIfNotExists("ecommerce_configs", "daily_report_time", "TEXT DEFAULT '21:00'"),
+  addColumnIfNotExists("ecommerce_configs", "daily_report_last_sent_at", "TIMESTAMP"),
 ];
 
 /**

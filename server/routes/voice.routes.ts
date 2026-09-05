@@ -23,8 +23,8 @@ export function registerVoiceRoutes(app: Express) {
     }
   });
 
-  // Create a new voice profile manually (e.g. standard speaker voice - superadmin only)
-  app.post("/api/voice-profiles", requireAuth, requireRole("superadmin"), async (req: Request, res: Response) => {
+  // Create a new voice profile manually (e.g. standard speaker voice - superadmin & admin)
+  app.post("/api/voice-profiles", requireAuth, requireRole("superadmin", "admin"), async (req: Request, res: Response) => {
     try {
       const { name, provider, voiceId, languageCode } = req.body;
       if (!name || !provider || !voiceId) {
@@ -49,8 +49,8 @@ export function registerVoiceRoutes(app: Express) {
     }
   });
 
-  // Delete a voice profile (superadmin only)
-  app.delete("/api/voice-profiles/:id", requireAuth, requireRole("superadmin"), async (req: Request, res: Response) => {
+  // Delete a voice profile (superadmin & admin)
+  app.delete("/api/voice-profiles/:id", requireAuth, requireRole("superadmin", "admin"), async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const result = await db

@@ -2845,7 +2845,8 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
               channelId,
               contact[0].id,
               conversation[0].id,
-              content
+              content,
+              message.type === "audio" || message.type === "voice"
             );
             if (handled) {
               console.log(`🤖 [Webhook] AI Assistant Profile handled reply/action for conversation: ${conversation[0].id}`);

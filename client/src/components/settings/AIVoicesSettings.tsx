@@ -75,10 +75,17 @@ const INDIC_LANGUAGES = [
 ];
 
 const PREDEFINED_VOICES = [
-  { id: "kavya", name: "Kavya (Female - Hindi/English)" },
-  { id: "rahul", name: "Rahul (Male - Hindi/English)" },
-  { id: "amit", name: "Amit (Male - Hindi/English)" },
-  { id: "anushka", name: "Anushka (Female - Hindi/English)" },
+  { id: "kavya", name: "Kavya (Female - Fluent & Clear)" },
+  { id: "priya", name: "Priya (Female - Expressive)" },
+  { id: "pooja", name: "Pooja (Female - Warm)" },
+  { id: "simran", name: "Simran (Female - Professional)" },
+  { id: "shreya", name: "Shreya (Female - Friendly)" },
+  { id: "kavitha", name: "Kavitha (Female - South Indian/Malayalam)" },
+  { id: "rahul", name: "Rahul (Male - Clear & Balanced)" },
+  { id: "amit", name: "Amit (Male - Conversational)" },
+  { id: "shubh", name: "Shubh (Male - Professional)" },
+  { id: "rohan", name: "Rohan (Male - Youthful)" },
+  { id: "gokul", name: "Gokul (Male - South Indian/Malayalam)" },
   { id: "custom_speaker", name: "Custom Speaker ID (Manually Input)" }
 ];
 
@@ -126,7 +133,7 @@ export default function AIVoicesSettings(): JSX.Element {
   // Predefined voice creation states
   const [stdProvider, setStdProvider] = useState("sarvam");
   const [stdName, setStdName] = useState("");
-  const [stdVoiceId, setStdVoiceId] = useState("anushka");
+  const [stdVoiceId, setStdVoiceId] = useState("kavya");
   const [customSpeakerId, setCustomSpeakerId] = useState("");
   const [stdLanguage, setStdLanguage] = useState("en-IN");
   const [isCreatingStd, setIsCreatingStd] = useState(false);

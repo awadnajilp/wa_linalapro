@@ -605,14 +605,15 @@ export default function AIAssistantProfileSettings() {
                             <SelectValue placeholder="Select target language" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="en-US">English (US)</SelectItem>
-                            <SelectItem value="en-IN">Indian English</SelectItem>
+                            <SelectItem value="auto">🌐 Auto-detect Language</SelectItem>
                             <SelectItem value="ml-IN">Malayalam (India)</SelectItem>
+                            <SelectItem value="en-IN">Indian English</SelectItem>
                             <SelectItem value="hi-IN">Hindi (India)</SelectItem>
                             <SelectItem value="ar-SA">Arabic (Saudi Arabia)</SelectItem>
                             <SelectItem value="ta-IN">Tamil (India)</SelectItem>
                             <SelectItem value="te-IN">Telugu (India)</SelectItem>
                             <SelectItem value="kn-IN">Kannada (India)</SelectItem>
+                            <SelectItem value="en-US">English (US)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

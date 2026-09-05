@@ -80,7 +80,8 @@ export class AiAssistantProfileService {
     channelId: string,
     contactId: string,
     conversationId: string,
-    messageContent: string
+    messageContent: string,
+    isIncomingAudio: boolean = false
   ): Promise<boolean> {
     try {
       const channelRecord = await db.query.channels.findFirst({
@@ -155,12 +156,82 @@ export class AiAssistantProfileService {
         }
       }
 
+      // Resolve configured voice profile early to optimize LLM formulation for TTS
+      let voiceProfile: any = null;
+      if (profile.voiceProfileId) {
+        voiceProfile = await db.query.voiceProfiles.findFirst({
+          where: eq(voiceProfiles.id, profile.voiceProfileId),
+        });
+      }
+
+      const isAutoDetect = profile.voiceLanguage === "auto" || !profile.voiceLanguage;
+      const targetLangCode = voiceProfile?.languageCode || profile.voiceLanguage || "ml-IN";
+      const langMap: Record<string, string> = {
+        "ml-IN": "Malayalam",
+        "hi-IN": "Hindi",
+        "ta-IN": "Tamil",
+        "te-IN": "Telugu",
+        "kn-IN": "Kannada",
+        "bn-IN": "Bengali",
+        "mr-IN": "Marathi",
+        "gu-IN": "Gujarati",
+        "pa-IN": "Punjabi",
+        "ar-SA": "Arabic",
+        "en-IN": "Indian English",
+        "en-US": "English"
+      };
+      const targetLangName = langMap[targetLangCode] || targetLangCode;
+      const isVoiceOutput = !!profile.voiceEnabled && !!voiceProfile;
+      const ttsProvider = voiceProfile?.provider || "sarvam";
+
       // 5. System Prompt Construction
       let systemPrompt = profile.systemPrompt || "You are a fully aware personal assistant.";
       systemPrompt += `\n\n[INSTRUCTIONS]
 - You are representing the account owner. Answer naturally, keeping context of historical activity.
 - Be extremely conversational, clear, and act as a human assistant.
 `;
+
+      if (isVoiceOutput) {
+        if (ttsProvider === "openai") {
+          if (targetLangCode.startsWith("ml") || isAutoDetect) {
+            systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
+- The Text-to-Speech voice engine is OpenAI TTS which ONLY pronounces Latin/English alphabet.
+- You MUST write your response in fluent MANGLISH (Malayalam spoken words written phonetically using English letters, for example: "Ningalude message labhichu. Njangal udan thanne ningale contact cheyyaam.").
+- NEVER use native Malayalam Unicode script (മലയാളം അക്ഷരങ്ങൾ) because OpenAI TTS will sound like gibberish.
+- Keep the response conversational, warm, and under 50 words.`;
+          } else if (targetLangCode.startsWith("hi")) {
+            systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
+- Formulate your response in fluent HINGLISH (Hindi spoken words written phonetically using English letters, e.g. "Aapka message mil gaya hai. Hum jaldi hi aapse contact karenge.").
+- Keep the response concise, conversational, and under 50 words.`;
+          } else {
+            systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
+- Formulate your response in clear, conversational English for natural spoken voice output. Keep under 50 words.`;
+          }
+        } else {
+          // Sarvam or ElevenLabs natively support native Indian Unicode scripts
+          if (isAutoDetect) {
+            systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
+- You MUST detect the language of the incoming message/audio note (e.g. Malayalam, Hindi, Arabic, English, Tamil, etc.).
+- Formulate your response in that EXACT same language using proper native script (e.g. if Malayalam, write strictly in Malayalam script മലയാളം, never Bengali or Hindi) so that Sarvam AI voice engine can speak in their native tongue.
+- Keep the response conversational, helpful, and under 60 words.`;
+          } else {
+            systemPrompt += `\n\n[CRITICAL INSTRUCTION FOR VOICE OUTPUT]
+- The active voice language is configured as ${targetLangName} (${targetLangCode}).
+- You MUST formulate your entire response in ${targetLangName} using proper ${targetLangName} script (e.g. if Malayalam, write strictly in Malayalam script മലയാളം, never Bengali or Hindi) so that Sarvam AI voice engine can speak in ${targetLangName}.
+- Keep the response conversational, helpful, and under 60 words.`;
+          }
+        }
+      } else if (isIncomingAudio) {
+        if (isAutoDetect) {
+          systemPrompt += `\n\n[CRITICAL INSTRUCTION]
+- The customer sent a WhatsApp voice note. Formulate your answer in TEXT format in the EXACT language and script they asked in (e.g. if Malayalam, reply in Malayalam text മലയാളം).
+- Keep the response concise, conversational, and under 80 words.`;
+        } else {
+          systemPrompt += `\n\n[CRITICAL INSTRUCTION]
+- The customer sent a WhatsApp voice note. Formulate your answer in TEXT format in ${targetLangName} (using ${targetLangName} script).
+- Keep the response concise, conversational, and under 80 words.`;
+        }
+      }
 
       if (kbContext) {
         systemPrompt += kbContext;
@@ -196,45 +267,49 @@ export class AiAssistantProfileService {
       });
 
       if (isElevenLabs) {
-        finalApiKey = ownerUser?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || "";
+        finalApiKey = profile.elevenlabsApiKey || ownerUser?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || "";
       } else if (isGroq) {
-        finalApiKey = ownerUser?.groqApiKey || process.env.GROQ_API_KEY || "";
+        finalApiKey = profile.groqApiKey || ownerUser?.groqApiKey || process.env.GROQ_API_KEY || "";
       } else if (isSarvam) {
-        finalApiKey = ownerUser?.sarvamApiKey || process.env.SARVAM_API_KEY || "";
+        finalApiKey = profile.sarvamApiKey || ownerUser?.sarvamApiKey || process.env.SARVAM_API_KEY || "";
       } else {
-        // Fetch OpenAI API Key from active aiSettings table
-        let aiSetting = await db
-          .select()
-          .from(aiSettings)
-          .where(and(eq(aiSettings.channelId, channelId), eq(aiSettings.isActive, true)))
-          .limit(1);
-
-        if (aiSetting.length === 0) {
-          aiSetting = await db
+        if (profile.openaiApiKey) {
+          finalApiKey = profile.openaiApiKey;
+        } else {
+          // Fetch OpenAI API Key from active aiSettings table
+          let aiSetting = await db
             .select()
             .from(aiSettings)
-            .where(eq(aiSettings.channelId, channelId))
+            .where(and(eq(aiSettings.channelId, channelId), eq(aiSettings.isActive, true)))
             .limit(1);
-        }
 
-        if (aiSetting.length === 0) {
-          aiSetting = await db
-            .select()
-            .from(aiSettings)
-            .where(eq(aiSettings.isActive, true))
-            .limit(1);
-        }
+          if (aiSetting.length === 0) {
+            aiSetting = await db
+              .select()
+              .from(aiSettings)
+              .where(eq(aiSettings.channelId, channelId))
+              .limit(1);
+          }
 
-        if (aiSetting.length === 0) {
-          aiSetting = await db
-            .select()
-            .from(aiSettings)
-            .limit(1);
-        }
+          if (aiSetting.length === 0) {
+            aiSetting = await db
+              .select()
+              .from(aiSettings)
+              .where(eq(aiSettings.isActive, true))
+              .limit(1);
+          }
 
-        const activeAI = aiSetting?.[0];
-        if (activeAI && activeAI.apiKey) {
-          finalApiKey = activeAI.apiKey;
+          if (aiSetting.length === 0) {
+            aiSetting = await db
+              .select()
+              .from(aiSettings)
+              .limit(1);
+          }
+
+          const activeAI = aiSetting?.[0];
+          if (activeAI && activeAI.apiKey) {
+            finalApiKey = activeAI.apiKey;
+          }
         }
       }
 
@@ -258,12 +333,12 @@ export class AiAssistantProfileService {
       let functionCalled = false;
 
       if (isElevenLabs && profile.voiceProfileId) {
-        const voiceProfile = await db.query.voiceProfiles.findFirst({
+        const vProf = voiceProfile || (await db.query.voiceProfiles.findFirst({
           where: eq(voiceProfiles.id, profile.voiceProfileId),
-        });
-        if (voiceProfile && voiceProfile.provider === "elevenlabs") {
+        }));
+        if (vProf && vProf.provider === "elevenlabs") {
           const { getElevenLabsAgentResponse } = triggerService.getExecutionService() as any;
-          responseText = await getElevenLabsAgentResponse(voiceProfile.voiceId, finalApiKey, cleanLastMsg);
+          responseText = await getElevenLabsAgentResponse(vProf.voiceId, finalApiKey, cleanLastMsg);
         }
       } else {
         const aiClient = new OpenAI({
@@ -315,38 +390,69 @@ export class AiAssistantProfileService {
       if (functionCalled) return true;
       if (!responseText.trim()) return false;
 
-      // 8. Voice Synthesis if voice mode is enabled
+      // 8. Voice Synthesis if voice mode is enabled with multi-tiered fallback
       let voiceMediaUrl: string | null = null;
       let voiceMimeType = "audio/ogg; codecs=opus";
 
-      if (profile.voiceEnabled && profile.voiceProfileId) {
+      if (profile.voiceEnabled && voiceProfile) {
         try {
-          const voiceProfile = await db.query.voiceProfiles.findFirst({
-            where: eq(voiceProfiles.id, profile.voiceProfileId),
-          });
+          const primaryProvider = voiceProfile.provider || "sarvam";
 
-          if (voiceProfile) {
-            console.log(`🎙️ [AI Assistant Profile] Synthesizing speech via ${voiceProfile.provider}...`);
-            const pInstance = VoiceManager.getProvider(voiceProfile.provider);
-            
-            let synthesizeKey = "";
-            if (voiceProfile.provider === "elevenlabs") {
-              synthesizeKey = ownerUser?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || "";
-            } else if (voiceProfile.provider === "sarvam") {
-              synthesizeKey = ownerUser?.sarvamApiKey || process.env.SARVAM_API_KEY || "";
+          const trySynthesize = async (provName: string, vId?: string, lang?: string) => {
+            try {
+              let sKey = "";
+              if (provName === "elevenlabs") {
+                sKey = profile.elevenlabsApiKey || ownerUser?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || "";
+              } else if (provName === "sarvam") {
+                sKey = profile.sarvamApiKey || ownerUser?.sarvamApiKey || process.env.SARVAM_API_KEY || "";
+              } else if (provName === "groq") {
+                sKey = profile.groqApiKey || ownerUser?.groqApiKey || process.env.GROQ_API_KEY || "";
+              } else if (provName === "openai") {
+                sKey = profile.openaiApiKey || ownerUser?.openaiApiKey || process.env.OPENAI_API_KEY || "";
+              }
+              if (!sKey) return null;
+
+              const defaultSpeaker = provName === "sarvam" 
+                ? (voiceProfile.voiceId || "kavya") 
+                : (provName === "openai" ? "alloy" : "diana");
+              const pInstance = VoiceManager.getProvider(provName);
+              const speakerId = vId || defaultSpeaker;
+              const targetLang = lang || targetLangCode;
+              console.log(`🎙️ [AI Assistant Profile] Synthesizing speech via ${provName} (lang: ${targetLang}, speaker: ${speakerId})...`);
+
+              const audioBufferRes = await pInstance.synthesize(
+                responseText,
+                speakerId,
+                targetLang,
+                { apiKey: sKey }
+              );
+              return audioBufferRes;
+            } catch (e: any) {
+              console.warn(`[AI Assistant Profile] Speech synthesis via ${provName} failed:`, e.message);
+              return null;
             }
+          };
 
-            const audioBuffer = await pInstance.synthesize(
-              responseText,
-              voiceProfile.voiceId,
-              profile.voiceLanguage || "en-US",
-              { apiKey: synthesizeKey }
-            );
+          // 1. Try primary provider
+          let audioBuffer = await trySynthesize(primaryProvider, voiceProfile.voiceId, targetLangCode);
 
-            if (audioBuffer) {
-              const filename = `ai_profile_voice_${Date.now()}.ogg`;
-              voiceMediaUrl = await this.uploadAudioBuffer(audioBuffer, filename, "audio/ogg");
-            }
+          // 2. Fallbacks if primary provider failed
+          if (!audioBuffer && primaryProvider !== "sarvam") {
+            console.log("[AI Assistant Profile] Attempting Sarvam TTS fallback...");
+            audioBuffer = await trySynthesize("sarvam", "kavya", targetLangCode);
+          }
+          if (!audioBuffer && primaryProvider !== "openai") {
+            console.log("[AI Assistant Profile] Attempting OpenAI TTS fallback...");
+            audioBuffer = await trySynthesize("openai", "alloy", targetLangCode);
+          }
+          if (!audioBuffer && primaryProvider !== "groq") {
+            console.log("[AI Assistant Profile] Attempting Groq TTS fallback...");
+            audioBuffer = await trySynthesize("groq", "diana", targetLangCode);
+          }
+
+          if (audioBuffer) {
+            const filename = `ai_profile_voice_${Date.now()}.ogg`;
+            voiceMediaUrl = await this.uploadAudioBuffer(audioBuffer, filename, "audio/ogg");
           }
         } catch (vErr) {
           console.error("❌ [AI Assistant Profile] Voice synthesis failed:", vErr);

@@ -1332,8 +1332,8 @@ if (io) {
       }
     }
 
-    // AI auto reply — only fires when no automation handled this message, text only
-    if (!automationHandled && type === "text" && messageContent) {
+    // AI auto reply — fires when no automation handled this message
+    if (!automationHandled && (type === "text" || type === "audio") && messageContent) {
       try {
         const { AiAssistantProfileService } = await import("../services/ai-assistant-profile.service");
         let handled = false;
@@ -1342,7 +1342,8 @@ if (io) {
             channel.id,
             contact.id,
             conversation.id,
-            messageContent
+            messageContent,
+            type === "audio"
           );
         } catch (aiProfileErr) {
           console.error("❌ [Webhook] Error running AI Assistant Profile:", aiProfileErr);

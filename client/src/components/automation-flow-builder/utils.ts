@@ -266,6 +266,25 @@ export const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
     whatsappFlowCtaText: "Start Form",
     whatsappFlowAutoSave: true,
   },
+  route_crm_round_robin: {
+    kind: "route_crm_round_robin",
+    label: "CRM Round Robin",
+    crmPipelineId: "",
+    crmStageId: "",
+    excludeUserIds: [],
+  },
+  create_crm_deal: {
+    kind: "create_crm_deal",
+    label: "Create CRM Deal",
+    crmPipelineId: "",
+    crmStageId: "",
+    crmDealTitle: "{{contact.name}} Deal",
+    crmDealValue: "",
+    crmDealCurrency: "INR",
+    crmAssigneeMode: "round_robin",
+    crmAssigneeId: "",
+    excludeUserIds: [],
+  },
 };
 
 export function transformAutomationToFlow(automation: any): {

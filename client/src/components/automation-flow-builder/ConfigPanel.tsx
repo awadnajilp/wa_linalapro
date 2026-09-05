@@ -837,14 +837,23 @@ export function ConfigPanel({
                   <Label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5 text-indigo-500" /> Select Agent
                   </Label>
-                  <Select value={d.assigneeId || ""} onValueChange={(v) => onChange({ assigneeId: v })}>
-                    <SelectTrigger className="h-9 text-sm bg-white rounded-lg"><SelectValue placeholder="Select agent" /></SelectTrigger>
+                  <Select 
+                    value={d.assigneeId ? String(d.assigneeId) : undefined} 
+                    onValueChange={(v) => onChange({ assigneeId: v === "__none__" ? "" : v })}
+                  >
+                    <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
+                      <SelectValue placeholder="Select agent..." />
+                    </SelectTrigger>
                     <SelectContent>
-                      {(members || []).map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.name || `${m.firstName || ""} ${m.lastName || ""}`}
-                        </SelectItem>
-                      ))}
+                      {(!members || members.length === 0) ? (
+                        <SelectItem value="__none__" disabled>No team members found</SelectItem>
+                      ) : (
+                        members.filter((m: any) => m && m.id).map((m: any) => (
+                          <SelectItem key={String(m.id)} value={String(m.id)}>
+                            {m.name || `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.username || m.email || String(m.id)}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -863,19 +872,19 @@ export function ConfigPanel({
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-gray-700">Select Pipeline</Label>
                   <Select 
-                    value={(d.crmPipelineId as string) || (pipelines.length > 0 ? pipelines[0].id : "default")} 
-                    onValueChange={(v) => onChange({ crmPipelineId: v === "default" ? "" : v, crmStageId: "" })}
+                    value={d.crmPipelineId ? String(d.crmPipelineId) : (pipelines && pipelines.length > 0 ? String(pipelines[0].id) : undefined)} 
+                    onValueChange={(v) => onChange({ crmPipelineId: v === "__none__" ? "" : v, crmStageId: "" })}
                   >
                     <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
                       <SelectValue placeholder="Select Pipeline" />
                     </SelectTrigger>
                     <SelectContent>
-                      {pipelines.length === 0 ? (
-                        <SelectItem value="default" disabled>No pipelines found</SelectItem>
+                      {(!pipelines || pipelines.length === 0) ? (
+                        <SelectItem value="__none__" disabled>No pipelines found</SelectItem>
                       ) : (
-                        pipelines.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
+                        pipelines.filter((p: any) => p && p.id).map((p: any) => (
+                          <SelectItem key={String(p.id)} value={String(p.id)}>
+                            {p.name || "Pipeline"}
                           </SelectItem>
                         ))
                       )}
@@ -886,19 +895,19 @@ export function ConfigPanel({
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-gray-700">Select Initial Stage</Label>
                   <Select 
-                    value={(d.crmStageId as string) || (stages.length > 0 ? stages[0].id : "default")} 
-                    onValueChange={(v) => onChange({ crmStageId: v === "default" ? "" : v })}
+                    value={d.crmStageId ? String(d.crmStageId) : (stages && stages.length > 0 ? String(stages[0].id) : undefined)} 
+                    onValueChange={(v) => onChange({ crmStageId: v === "__none__" ? "" : v })}
                   >
                     <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
                       <SelectValue placeholder="Select Stage" />
                     </SelectTrigger>
                     <SelectContent>
-                      {stages.length === 0 ? (
-                        <SelectItem value="default" disabled>No stages found</SelectItem>
+                      {(!stages || stages.length === 0) ? (
+                        <SelectItem value="__none__" disabled>No stages found</SelectItem>
                       ) : (
-                        stages.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
+                        stages.filter((s: any) => s && s.id).map((s: any) => (
+                          <SelectItem key={String(s.id)} value={String(s.id)}>
+                            {s.name || "Stage"}
                           </SelectItem>
                         ))
                       )}
@@ -911,13 +920,14 @@ export function ConfigPanel({
                     <UserX className="w-3.5 h-3.5 text-indigo-500" /> Exclude Agents (Optional)
                   </Label>
                   <div className="bg-white rounded-lg border border-indigo-100/50 p-2.5 max-h-[140px] overflow-y-auto space-y-1.5 shadow-sm">
-                    {(members || []).map((m) => {
-                      const memberName = m.name || `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.email || "Agent";
-                      const excludeList = Array.isArray(d.excludeUserIds) ? d.excludeUserIds : [];
-                      const isExcluded = excludeList.includes(m.id);
+                    {(members || []).filter((m: any) => m && m.id).map((m: any) => {
+                      const memberId = String(m.id);
+                      const memberName = m.name || `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.username || m.email || "Agent";
+                      const excludeList = Array.isArray(d.excludeUserIds) ? d.excludeUserIds.map(String) : [];
+                      const isExcluded = excludeList.includes(memberId);
 
                       return (
-                        <label key={m.id} className="flex items-center gap-2 text-xs text-slate-600 hover:text-slate-900 cursor-pointer py-0.5">
+                        <label key={memberId} className="flex items-center gap-2 text-xs text-slate-600 hover:text-slate-900 cursor-pointer py-0.5">
                           <input
                             type="checkbox"
                             checked={isExcluded}
@@ -925,9 +935,9 @@ export function ConfigPanel({
                               const checked = e.target.checked;
                               let newList = [...excludeList];
                               if (checked) {
-                                newList.push(m.id);
+                                newList.push(memberId);
                               } else {
-                                newList = newList.filter(id => id !== m.id);
+                                newList = newList.filter(id => id !== memberId);
                               }
                               onChange({ excludeUserIds: newList });
                             }}
@@ -940,7 +950,7 @@ export function ConfigPanel({
                         </label>
                       );
                     })}
-                    {(members || []).length === 0 && (
+                    {(!members || members.length === 0) && (
                       <p className="text-[10px] text-slate-400 italic py-1">No agents found</p>
                     )}
                   </div>
@@ -960,19 +970,19 @@ export function ConfigPanel({
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-gray-700">Select Pipeline</Label>
                   <Select 
-                    value={(d.crmPipelineId as string) || (pipelines.length > 0 ? pipelines[0].id : "default")} 
-                    onValueChange={(v) => onChange({ crmPipelineId: v === "default" ? "" : v, crmStageId: "" })}
+                    value={d.crmPipelineId ? String(d.crmPipelineId) : (pipelines && pipelines.length > 0 ? String(pipelines[0].id) : undefined)} 
+                    onValueChange={(v) => onChange({ crmPipelineId: v === "__none__" ? "" : v, crmStageId: "" })}
                   >
                     <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
                       <SelectValue placeholder="Select Pipeline" />
                     </SelectTrigger>
                     <SelectContent>
-                      {pipelines.length === 0 ? (
-                        <SelectItem value="default" disabled>No pipelines found</SelectItem>
+                      {(!pipelines || pipelines.length === 0) ? (
+                        <SelectItem value="__none__" disabled>No pipelines found</SelectItem>
                       ) : (
-                        pipelines.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
+                        pipelines.filter((p: any) => p && p.id).map((p: any) => (
+                          <SelectItem key={String(p.id)} value={String(p.id)}>
+                            {p.name || "Pipeline"}
                           </SelectItem>
                         ))
                       )}
@@ -983,19 +993,19 @@ export function ConfigPanel({
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-gray-700">Select Stage</Label>
                   <Select 
-                    value={(d.crmStageId as string) || (stages.length > 0 ? stages[0].id : "default")} 
-                    onValueChange={(v) => onChange({ crmStageId: v === "default" ? "" : v })}
+                    value={d.crmStageId ? String(d.crmStageId) : (stages && stages.length > 0 ? String(stages[0].id) : undefined)} 
+                    onValueChange={(v) => onChange({ crmStageId: v === "__none__" ? "" : v })}
                   >
                     <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
                       <SelectValue placeholder="Select Stage" />
                     </SelectTrigger>
                     <SelectContent>
-                      {stages.length === 0 ? (
-                        <SelectItem value="default" disabled>No stages found</SelectItem>
+                      {(!stages || stages.length === 0) ? (
+                        <SelectItem value="__none__" disabled>No stages found</SelectItem>
                       ) : (
-                        stages.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
+                        stages.filter((s: any) => s && s.id).map((s: any) => (
+                          <SelectItem key={String(s.id)} value={String(s.id)}>
+                            {s.name || "Stage"}
                           </SelectItem>
                         ))
                       )}
@@ -1064,19 +1074,19 @@ export function ConfigPanel({
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-gray-700">Select Assignee</Label>
                     <Select
-                      value={(d.crmAssigneeId as string) || (members.length > 0 ? members[0].id : "default")}
-                      onValueChange={(v) => onChange({ crmAssigneeId: v === "default" ? "" : v })}
+                      value={d.crmAssigneeId ? String(d.crmAssigneeId) : undefined}
+                      onValueChange={(v) => onChange({ crmAssigneeId: v === "__none__" ? "" : v })}
                     >
                       <SelectTrigger className="h-9 text-sm bg-white rounded-lg">
                         <SelectValue placeholder="Select a team member" />
                       </SelectTrigger>
                       <SelectContent>
-                        {members.length === 0 ? (
-                          <SelectItem value="default" disabled>No members available</SelectItem>
+                        {(!members || members.length === 0) ? (
+                          <SelectItem value="__none__" disabled>No members available</SelectItem>
                         ) : (
-                          members.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>
-                              {m.name || `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.id}
+                          members.filter((m: any) => m && m.id).map((m: any) => (
+                            <SelectItem key={String(m.id)} value={String(m.id)}>
+                              {m.name || `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.username || m.email || String(m.id)}
                             </SelectItem>
                           ))
                         )}
@@ -1091,13 +1101,14 @@ export function ConfigPanel({
                       <UserX className="w-3.5 h-3.5 text-indigo-500" /> Exclude Agents (Optional)
                     </Label>
                     <div className="bg-white rounded-lg border border-gray-200 p-2.5 max-h-[140px] overflow-y-auto space-y-1.5 shadow-sm">
-                      {(members || []).map((m) => {
-                        const memberName = m.name || `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.id || "Agent";
-                        const excludeList = Array.isArray(d.excludeUserIds) ? d.excludeUserIds : [];
-                        const isExcluded = excludeList.includes(m.id);
+                      {(members || []).filter((m: any) => m && m.id).map((m: any) => {
+                        const memberId = String(m.id);
+                        const memberName = m.name || `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.username || m.email || "Agent";
+                        const excludeList = Array.isArray(d.excludeUserIds) ? d.excludeUserIds.map(String) : [];
+                        const isExcluded = excludeList.includes(memberId);
 
                         return (
-                          <label key={m.id} className="flex items-center gap-2 text-xs text-slate-600 hover:text-slate-900 cursor-pointer py-0.5">
+                          <label key={memberId} className="flex items-center gap-2 text-xs text-slate-600 hover:text-slate-900 cursor-pointer py-0.5">
                             <input
                               type="checkbox"
                               checked={isExcluded}
@@ -1105,9 +1116,9 @@ export function ConfigPanel({
                                 const checked = e.target.checked;
                                 let newList = [...excludeList];
                                 if (checked) {
-                                  newList.push(m.id);
+                                  newList.push(memberId);
                                 } else {
-                                  newList = newList.filter(id => id !== m.id);
+                                  newList = newList.filter(id => id !== memberId);
                                 }
                                 onChange({ excludeUserIds: newList });
                               }}
@@ -1120,7 +1131,7 @@ export function ConfigPanel({
                           </label>
                         );
                       })}
-                      {(members || []).length === 0 && (
+                      {(!members || members.length === 0) && (
                         <p className="text-[10px] text-slate-400 italic py-1">No agents found</p>
                       )}
                     </div>

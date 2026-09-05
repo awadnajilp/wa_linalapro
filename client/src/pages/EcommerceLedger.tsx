@@ -2322,11 +2322,11 @@ You are chatting with a customer regarding this product:
                                   </SelectTrigger>
                                   <SelectContent>
                                     {validMembers.length === 0 ? (
-                                      <div className="p-2 text-xs text-gray-400 italic">No team members available. Create members under Team settings.</div>
+                                      <SelectItem value="__none__" disabled>No team members available. Create members under Team settings.</SelectItem>
                                     ) : (
                                       validMembers.map((m: any) => (
                                         <SelectItem key={String(m.id)} value={String(m.id)}>
-                                          {m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.username || m.email} ({m.email})
+                                          {m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.username || m.email || String(m.id)} ({m.email || m.username || "Member"})
                                         </SelectItem>
                                       ))
                                     )}

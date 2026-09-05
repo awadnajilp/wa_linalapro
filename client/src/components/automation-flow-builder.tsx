@@ -266,6 +266,25 @@ const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
   time_gap: { kind: "time_gap", label: "Delay", delay: 60 },
   send_template: { kind: "send_template", label: "Template", templateId: "" },
   assign_user: { kind: "assign_user", label: "Assign User", assigneeId: "" },
+  route_crm_round_robin: {
+    kind: "route_crm_round_robin",
+    label: "CRM Round Robin",
+    crmPipelineId: "",
+    crmStageId: "",
+    excludeUserIds: [],
+  },
+  create_crm_deal: {
+    kind: "create_crm_deal",
+    label: "Create CRM Deal",
+    crmPipelineId: "",
+    crmStageId: "",
+    crmDealTitle: "{{contact.name}} Deal",
+    crmDealValue: "",
+    crmDealCurrency: "INR",
+    crmAssigneeMode: "round_robin",
+    crmAssigneeId: "",
+    excludeUserIds: [],
+  },
 };
 
 // -----------------------

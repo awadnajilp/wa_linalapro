@@ -181,8 +181,11 @@ export default function AutomationFlowBuilder({
       apiRequest("GET", "/api/team/members").then((res) => res.json()),
   });
 
-  
-  const members = teamMembers?.data || [];
+  const members = Array.isArray(teamMembers)
+    ? teamMembers
+    : Array.isArray((teamMembers as any)?.data)
+      ? (teamMembers as any).data
+      : [];
 
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
 

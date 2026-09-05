@@ -2562,6 +2562,10 @@ export const ecommerceConfigs = pgTable("ecommerce_configs", {
   labelUpiDirect: text("label_upi_direct").default("GPay/PhonePe(UPI)"),
   labelQrPay: text("label_qr_pay").default("Acc. Info(QR Code)"),
   labelGateway: text("label_gateway").default("Online Payment"),
+  autoAssignEnabled: boolean("auto_assign_enabled").default(false),
+  autoAssignMode: text("auto_assign_mode").default("permanent"), // "permanent" | "round_robin"
+  autoAssignUserId: varchar("auto_assign_user_id").references(() => users.id, { onDelete: "set null" }),
+  autoAssignExcludedUserIds: jsonb("auto_assign_excluded_user_ids").$type<string[]>().default([]),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

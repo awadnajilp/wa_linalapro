@@ -8,9 +8,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ShoppingCart, Package, Settings, ClipboardList, Users, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles, Download, Truck, Calendar as CalendarIcon, Coins, Key, Bot, Volume2, Mic, Activity, ArrowUpRight } from "lucide-react";
+import { ShoppingCart, Package, Settings, ClipboardList, Users, UserCheck, Shuffle, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles, Download, Truck, Calendar as CalendarIcon, Coins, Key, Bot, Volume2, Mic, Activity, ArrowUpRight } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -83,6 +84,10 @@ interface EcommerceConfig {
   instamojoSandbox: boolean;
   razorpayKeyId: string | null;
   razorpayKeySecret: string | null;
+  autoAssignEnabled?: boolean;
+  autoAssignMode?: "permanent" | "round_robin";
+  autoAssignUserId?: string | null;
+  autoAssignExcludedUserIds?: string[];
   isActive: boolean;
 }
 
@@ -312,6 +317,12 @@ export default function EcommerceLedger() {
   const [editOrderPaymentStatus, setEditOrderPaymentStatus] = useState("");
   const [editOrderStatus, setEditOrderStatus] = useState("");
 
+  // Auto-Assignment States
+  const [autoAssignEnabled, setAutoAssignEnabled] = useState(false);
+  const [autoAssignMode, setAutoAssignMode] = useState<"permanent" | "round_robin">("permanent");
+  const [autoAssignUserId, setAutoAssignUserId] = useState<string>("");
+  const [autoAssignExcludedUserIds, setAutoAssignExcludedUserIds] = useState<string[]>([]);
+
   // Fetch Voice Profiles
   const { data: voiceProfiles = [] } = useQuery<any[]>({
     queryKey: ["/api/voice-profiles"],
@@ -320,6 +331,17 @@ export default function EcommerceLedger() {
       if (!res.ok) return [];
       return res.json();
     }
+  });
+
+  // Fetch Team Members
+  const { data: teamMembers = [] } = useQuery<any[]>({
+    queryKey: ["/api/team/members"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/team/members?limit=1000");
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.data || [];
+    },
   });
 
   // Queries
@@ -392,6 +414,10 @@ export default function EcommerceLedger() {
       setLabelUpiDirect((config as any).labelUpiDirect || "GPay/PhonePe(UPI)");
       setLabelQrPay((config as any).labelQrPay || "Acc. Info(QR Code)");
       setLabelGateway((config as any).labelGateway || "Online Payment");
+      setAutoAssignEnabled((config as any).autoAssignEnabled !== undefined ? (config as any).autoAssignEnabled : false);
+      setAutoAssignMode((config as any).autoAssignMode || "permanent");
+      setAutoAssignUserId((config as any).autoAssignUserId || "");
+      setAutoAssignExcludedUserIds(Array.isArray((config as any).autoAssignExcludedUserIds) ? (config as any).autoAssignExcludedUserIds : []);
 
       // Standardize loaded checkoutFields Q&A objects
       if (Array.isArray(config.checkoutFields)) {
@@ -761,6 +787,10 @@ export default function EcommerceLedger() {
       labelUpiDirect,
       labelQrPay,
       labelGateway,
+      autoAssignEnabled,
+      autoAssignMode,
+      autoAssignUserId: autoAssignUserId || null,
+      autoAssignExcludedUserIds,
       isActive: configActive,
     };
 
@@ -2143,6 +2173,173 @@ You are chatting with a customer regarding this product:
                       </>
                     )}
                     </div>
+                  </div>
+
+                  {/* Team Auto-Assignment Settings */}
+                  <div className="border p-4 rounded-lg space-y-4 bg-white shadow-xs">
+                    <div className="flex items-center justify-between border-b pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                          <Users className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-800 text-sm">Team Auto-Assignment & Conversation Routing</h3>
+                          <p className="text-xs text-gray-500">
+                            Automatically assign incoming store shoppers and conversations to team members so chats appear directly under their inbox login.
+                          </p>
+                        </div>
+                      </div>
+                      <Switch checked={autoAssignEnabled} onCheckedChange={setAutoAssignEnabled} />
+                    </div>
+
+                    {autoAssignEnabled && (
+                      <div className="space-y-4 pt-1 animate-in fade-in-50 duration-200">
+                        {/* Mode Selector */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div
+                            onClick={() => setAutoAssignMode("permanent")}
+                            className={`cursor-pointer rounded-lg p-3.5 border transition-all ${
+                              autoAssignMode === "permanent"
+                                ? "border-blue-600 bg-blue-50/50 ring-2 ring-blue-600/20 shadow-sm"
+                                : "border-gray-200 hover:border-gray-300 bg-white"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="autoAssignMode"
+                                checked={autoAssignMode === "permanent"}
+                                onChange={() => setAutoAssignMode("permanent")}
+                                className="text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
+                                <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                                Permanent Team Member
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
+                              Assign all incoming store chats strictly to one dedicated team member.
+                            </p>
+                          </div>
+
+                          <div
+                            onClick={() => setAutoAssignMode("round_robin")}
+                            className={`cursor-pointer rounded-lg p-3.5 border transition-all ${
+                              autoAssignMode === "round_robin"
+                                ? "border-blue-600 bg-blue-50/50 ring-2 ring-blue-600/20 shadow-sm"
+                                : "border-gray-200 hover:border-gray-300 bg-white"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="autoAssignMode"
+                                checked={autoAssignMode === "round_robin"}
+                                onChange={() => setAutoAssignMode("round_robin")}
+                                className="text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
+                                <Shuffle className="w-3.5 h-3.5 text-blue-600" />
+                                Round Robin (Multi-Agent Distribution)
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
+                              Evenly distribute incoming chats among available team members based on least recent activity.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Mode Specific Settings */}
+                        {autoAssignMode === "permanent" && (
+                          <div className="p-3.5 rounded-lg border border-blue-100 bg-blue-50/30 space-y-2">
+                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                              <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                              Select Permanent Assignee
+                            </Label>
+                            <Select value={autoAssignUserId || ""} onValueChange={setAutoAssignUserId}>
+                              <SelectTrigger className="h-9 text-xs bg-white">
+                                <SelectValue placeholder="Select team member to assign all chats..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {teamMembers.map((m: any) => (
+                                  <SelectItem key={m.id} value={m.id}>
+                                    {m.firstName ? `${m.firstName} ${m.lastName || ""}` : m.username || m.email} ({m.email})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <span className="text-[10px] text-gray-500 block">
+                              All customer interactions in the store flow will be assigned to this user immediately.
+                            </span>
+                          </div>
+                        )}
+
+                        {autoAssignMode === "round_robin" && (
+                          <div className="p-3.5 rounded-lg border border-blue-100 bg-blue-50/30 space-y-3">
+                            <div>
+                              <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                                <Shuffle className="w-3.5 h-3.5 text-blue-600" />
+                                Round Robin Pool & Exclusions
+                              </Label>
+                              <p className="text-[11px] text-gray-500 mt-0.5">
+                                Select any team members to <strong>exclude</strong> from the round-robin distribution pool (e.g. managers or offline members):
+                              </p>
+                            </div>
+
+                            {teamMembers.length === 0 ? (
+                              <div className="text-xs text-gray-400 italic bg-white p-3 rounded border text-center">
+                                No team members found. Round robin will fallback to account owner.
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                                {teamMembers.map((m: any) => {
+                                  const isExcluded = autoAssignExcludedUserIds.includes(m.id);
+                                  const displayName = m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.username || m.email;
+                                  return (
+                                    <div
+                                      key={m.id}
+                                      onClick={() => {
+                                        if (isExcluded) {
+                                          setAutoAssignExcludedUserIds(autoAssignExcludedUserIds.filter((id) => id !== m.id));
+                                        } else {
+                                          setAutoAssignExcludedUserIds([...autoAssignExcludedUserIds, m.id]);
+                                        }
+                                      }}
+                                      className={`flex items-center gap-2.5 p-2.5 rounded-md border text-xs cursor-pointer transition-all ${
+                                        isExcluded
+                                          ? "bg-red-50/70 border-red-200 text-red-700"
+                                          : "bg-white border-gray-200 hover:border-gray-300 text-gray-700"
+                                      }`}
+                                    >
+                                      <Checkbox
+                                        checked={isExcluded}
+                                        onCheckedChange={(checked) => {
+                                          if (checked) {
+                                            setAutoAssignExcludedUserIds([...autoAssignExcludedUserIds, m.id]);
+                                          } else {
+                                            setAutoAssignExcludedUserIds(autoAssignExcludedUserIds.filter((id) => id !== m.id));
+                                          }
+                                        }}
+                                        className="data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
+                                      />
+                                      <div className="flex-1 truncate">
+                                        <div className="font-medium truncate">{displayName}</div>
+                                        <div className="text-[10px] text-gray-400 truncate">{m.email}</div>
+                                      </div>
+                                      {isExcluded && (
+                                        <span className="text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
+                                          Excluded
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Checkout & UPI Configuration */}

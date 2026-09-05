@@ -298,6 +298,10 @@ export function registerEcommerceRoutes(app: Express) {
         labelUpiDirect,
         labelQrPay,
         labelGateway,
+        autoAssignEnabled,
+        autoAssignMode,
+        autoAssignUserId,
+        autoAssignExcludedUserIds,
         isActive
       } = req.body;
 
@@ -314,6 +318,7 @@ export function registerEcommerceRoutes(app: Express) {
 
       const fieldsArray = Array.isArray(checkoutFields) ? checkoutFields : ["name", "phone", "address", "pin"];
       const parseWelcomes = Array.isArray(welcomeMessages) ? welcomeMessages : [];
+      const excludedUsers = Array.isArray(autoAssignExcludedUserIds) ? autoAssignExcludedUserIds : [];
 
       let config;
       if (existing) {
@@ -357,6 +362,10 @@ export function registerEcommerceRoutes(app: Express) {
             labelUpiDirect: labelUpiDirect || "GPay/PhonePe(UPI)",
             labelQrPay: labelQrPay || "Acc. Info(QR Code)",
             labelGateway: labelGateway || "Online Payment",
+            autoAssignEnabled: autoAssignEnabled !== undefined ? autoAssignEnabled : false,
+            autoAssignMode: autoAssignMode || "permanent",
+            autoAssignUserId: autoAssignUserId || null,
+            autoAssignExcludedUserIds: excludedUsers,
             isActive: isActive !== undefined ? isActive : true,
             updatedAt: new Date()
           })
@@ -406,6 +415,10 @@ export function registerEcommerceRoutes(app: Express) {
             labelUpiDirect: labelUpiDirect || "GPay/PhonePe(UPI)",
             labelQrPay: labelQrPay || "Acc. Info(QR Code)",
             labelGateway: labelGateway || "Online Payment",
+            autoAssignEnabled: autoAssignEnabled !== undefined ? autoAssignEnabled : false,
+            autoAssignMode: autoAssignMode || "permanent",
+            autoAssignUserId: autoAssignUserId || null,
+            autoAssignExcludedUserIds: excludedUsers,
             isActive: isActive !== undefined ? isActive : true
           })
           .returning();

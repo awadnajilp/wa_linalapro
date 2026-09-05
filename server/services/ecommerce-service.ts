@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { storage } from "../storage";
 import * as schema from "@shared/schema";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import OpenAI from "openai";
@@ -20,6 +21,150 @@ export class EcommerceService {
    */
   public static async isEcommerceActive(tenantId: string): Promise<boolean> {
     return await AddonManager.isAddonActive(tenantId, "ecommerce");
+  }
+
+  /**
+   * Auto-assign conversation to a team member (Permanent or Round Robin) based on ecommerce config.
+   */
+  public static async autoAssignConversation(
+    config: schema.EcommerceConfig,
+    channelRow: any,
+    conversationId: string
+  ): Promise<string | null> {
+    try {
+      if (!config.autoAssignEnabled) {
+        return null;
+      }
+
+      const tenantId = channelRow?.createdBy;
+      if (!tenantId) return null;
+
+      // 1. Fetch current conversation
+      const [currConv] = await db
+        .select()
+        .from(schema.conversations)
+        .where(eq(schema.conversations.id, conversationId))
+        .limit(1);
+
+      if (!currConv) return null;
+
+      let targetUserId: string | null = null;
+
+      if (config.autoAssignMode === "permanent") {
+        if (!config.autoAssignUserId) {
+          return null;
+        }
+        targetUserId = config.autoAssignUserId;
+
+        // If already assigned to target user, nothing to change
+        if (currConv.assignedTo === targetUserId) {
+          return targetUserId;
+        }
+      } else if (config.autoAssignMode === "round_robin") {
+        const ownerUserId = channelRow.createdBy || tenantId;
+
+        // 2. Fetch candidates (active team members under tenant + owner)
+        const rawCandidates = await db
+          .select()
+          .from(schema.users)
+          .where(
+            and(
+              eq(schema.users.status, "active"),
+              or(
+                eq(schema.users.id, ownerUserId),
+                eq(schema.users.createdBy, ownerUserId)
+              )
+            )
+          );
+
+        const excludeIds: string[] = Array.isArray(config.autoAssignExcludedUserIds)
+          ? (config.autoAssignExcludedUserIds as string[])
+          : [];
+
+        let candidates = rawCandidates.filter((c) => !excludeIds.includes(c.id));
+
+        // Fallback: If all candidates are excluded, restore rawCandidates to prevent failure
+        if (candidates.length === 0) {
+          candidates = rawCandidates;
+        }
+
+        if (candidates.length === 0) {
+          return null;
+        }
+
+        // If conversation is already assigned to an eligible candidate, keep them
+        if (currConv.assignedTo && candidates.some((c) => c.id === currConv.assignedTo)) {
+          return currConv.assignedTo;
+        }
+
+        const candidateIds = candidates.map((c) => c.id);
+
+        // Find candidate with least recently assigned conversation in this channel
+        const latestAssignments = await db
+          .select({
+            userId: schema.conversations.assignedTo,
+            latestTime: sql<Date>`max(${schema.conversations.createdAt})`
+          })
+          .from(schema.conversations)
+          .where(
+            and(
+              eq(schema.conversations.channelId, channelRow.id),
+              inArray(schema.conversations.assignedTo, candidateIds)
+            )
+          )
+          .groupBy(schema.conversations.assignedTo);
+
+        const timeMap = new Map(
+          latestAssignments.map((a) => [
+            a.userId,
+            a.latestTime ? new Date(a.latestTime).getTime() : 0
+          ])
+        );
+
+        // Sort candidates ascending by last assignment timestamp
+        candidates.sort((a, b) => {
+          const timeA = timeMap.get(a.id) || 0;
+          const timeB = timeMap.get(b.id) || 0;
+          return timeA - timeB;
+        });
+
+        targetUserId = candidates[0].id;
+      }
+
+      if (!targetUserId) return null;
+
+      console.log(`[EcommerceService] Auto-assigning conversation ${conversationId} to user ${targetUserId} (mode: ${config.autoAssignMode})`);
+
+      // Update conversation
+      const updatedConv = await storage.updateConversation(conversationId, {
+        assignedTo: targetUserId,
+        status: "assigned",
+      });
+
+      // Insert or log assignment record
+      try {
+        await db.insert(schema.conversationAssignments).values({
+          conversationId,
+          userId: targetUserId,
+          status: "active",
+        });
+      } catch (assignErr) {
+        console.warn(`[EcommerceService] Could not insert conversationAssignments log:`, assignErr);
+      }
+
+      // Broadcast update via WebSocket
+      if (updatedConv && (global as any).broadcastToConversation) {
+        (global as any).broadcastToConversation(conversationId, {
+          type: "conversation-updated",
+          conversation: updatedConv,
+        });
+      }
+
+      return targetUserId;
+    } catch (err) {
+      console.error(`[EcommerceService] Error in autoAssignConversation:`, err);
+      return null;
+    }
   }
 
   /**
@@ -295,6 +440,7 @@ export class EcommerceService {
       // Check for trigger keywords first to allow resetting/starting fresh
       const storeKeyword = (config.storeTriggerKeyword || "").trim().toLowerCase();
       if (config.isStoreFlowActive && storeKeyword && cleanContent === storeKeyword) {
+        await this.autoAssignConversation(config, channelRow, conversationId);
         // Delete any active sessions first
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
         // Create session
@@ -324,6 +470,7 @@ export class EcommerceService {
       );
 
       if (matchedProduct) {
+        await this.autoAssignConversation(config, channelRow, conversationId);
         // Delete any active sessions first
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
         await this.startIndividualProductFlow(channelRow, config, conversationId, contactPhone, matchedProduct);
@@ -343,6 +490,7 @@ export class EcommerceService {
             .limit(1);
 
           if (product) {
+            await this.autoAssignConversation(config, channelRow, conversationId);
             await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, product);
             return true;
           }
@@ -355,6 +503,7 @@ export class EcommerceService {
             .limit(1);
 
           if (product) {
+            await this.autoAssignConversation(config, channelRow, conversationId);
             await this.sendProductDetailsInfo(channelRow, config, conversationId, contactPhone, product);
             return true;
           }
@@ -367,6 +516,7 @@ export class EcommerceService {
             .limit(1);
 
           if (product && config.aiEnabled) {
+            await this.autoAssignConversation(config, channelRow, conversationId);
             // Delete active sessions
             await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
             // Create AI chat session
@@ -397,6 +547,7 @@ export class EcommerceService {
           .limit(1);
 
         if (product) {
+          await this.autoAssignConversation(config, channelRow, conversationId);
           await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, product);
           return true;
         }
@@ -404,6 +555,7 @@ export class EcommerceService {
 
       // Check for order tracking trigger keywords
       if (cleanContent === "track" || cleanContent === "status") {
+        await this.autoAssignConversation(config, channelRow, conversationId);
         // Delete any active sessions first
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
         // Create session in tracking mode
@@ -425,6 +577,7 @@ export class EcommerceService {
         .limit(1);
 
       if (session) {
+        await this.autoAssignConversation(config, channelRow, conversationId);
         const lastUpdated = session.updatedAt || session.createdAt;
         const diffMs = Date.now() - new Date(lastUpdated).getTime();
         const timeoutMs = 15 * 60 * 1000;

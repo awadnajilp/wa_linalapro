@@ -1333,14 +1333,20 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
             // 1. Try primary provider
             let audioBuffer = await trySynthesize(primaryProvider, voiceProfile?.voiceId, targetLangCode);
 
-            // 2. Fallbacks if primary provider failed
+            // 2. If primary provider was Sarvam with custom/cloned voice that failed, retry Sarvam with natural speaker (kavya)
+            if (!audioBuffer && primaryProvider === "sarvam") {
+              console.log("[Ecommerce AI] Retrying Sarvam TTS with natural speaker (kavya)...");
+              audioBuffer = await trySynthesize("sarvam", "kavya", targetLangCode);
+            }
+
+            // 3. Fallbacks if primary provider failed
             if (!audioBuffer && primaryProvider !== "openai") {
               console.log("[Ecommerce AI] Attempting OpenAI TTS fallback...");
               audioBuffer = await trySynthesize("openai", "alloy", targetLangCode);
             }
             if (!audioBuffer && primaryProvider !== "sarvam") {
               console.log("[Ecommerce AI] Attempting Sarvam TTS fallback...");
-              audioBuffer = await trySynthesize("sarvam", "rahul", targetLangCode);
+              audioBuffer = await trySynthesize("sarvam", "kavya", targetLangCode);
             }
             if (!audioBuffer && primaryProvider !== "groq") {
               console.log("[Ecommerce AI] Attempting Groq TTS fallback...");

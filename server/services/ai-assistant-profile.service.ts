@@ -424,7 +424,13 @@ export class AiAssistantProfileService {
           // 1. Try primary provider
           let audioBuffer = await trySynthesize(primaryProvider, voiceProfile.voiceId, targetLangCode);
 
-          // 2. Fallbacks if primary provider failed
+          // 2. If primary provider was Sarvam with a custom/cloned voice that failed, retry Sarvam with natural speaker (kavya)
+          if (!audioBuffer && primaryProvider === "sarvam") {
+            console.log("[AI Assistant Profile] Retrying Sarvam TTS with natural speaker (kavya)...");
+            audioBuffer = await trySynthesize("sarvam", "kavya", targetLangCode);
+          }
+
+          // 3. Fallbacks if primary provider failed
           if (!audioBuffer && primaryProvider !== "sarvam") {
             console.log("[AI Assistant Profile] Attempting Sarvam TTS fallback...");
             audioBuffer = await trySynthesize("sarvam", "kavya", targetLangCode);

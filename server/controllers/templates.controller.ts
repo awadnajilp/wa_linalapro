@@ -27,6 +27,7 @@ import type { RequestWithChannel } from '../middlewares/channel.middleware';
 import { checkUtilityHelperPermission } from '../services/plan-permission.service';
 import fs from "fs";
 import sharp from 'sharp';
+import { getEcommerceStarterTemplates } from "../services/ecommerce-templates";
 
 async function getFileBuffer(url: string): Promise<Buffer> {
   if (url && /^https?:\/\//i.test(url)) {
@@ -1733,6 +1734,7 @@ function getStarterTemplates() {
         ],
       },
     },
+    ...getEcommerceStarterTemplates(),
   ];
 }
 

@@ -5,6 +5,11 @@ import { eq, and, desc, sql, like, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { EcommerceService } from "../services/ecommerce-service";
 import { AiBillingService } from "../services/ai-billing-service";
+import {
+  ECOMMERCE_TEMPLATES_DEFINITIONS,
+  provisionEcommerceTemplatesForChannel,
+  submitEcommerceTemplateToMeta
+} from "../services/ecommerce-templates";
 
 export function registerEcommerceRoutes(app: Express) {
   // Redirect to UPI deep link for customer checkouts
@@ -864,6 +869,14 @@ export function registerEcommerceRoutes(app: Express) {
         await EcommerceService.sendOrderStatusUpdateNotification(updated.id, status);
       }
 
+      if (paymentStatus && paymentStatus !== existing.paymentStatus) {
+        try {
+          await EcommerceService.sendPaymentStatusAlert(updated.id, paymentStatus);
+        } catch (pErr) {
+          console.error("Failed to send payment status alert:", pErr);
+        }
+      }
+
       if (paymentStatus === "paid" && existing.paymentStatus !== "paid") {
         try {
           await EcommerceService.sendInvoiceToCustomer(updated.id);
@@ -941,6 +954,14 @@ export function registerEcommerceRoutes(app: Express) {
           await EcommerceService.sendOrderStatusUpdateNotification(updated.id, status);
         } catch (e) {
           console.error("Failed to send order status update notification:", e);
+        }
+      }
+
+      if (paymentStatus && paymentStatus !== existing.paymentStatus) {
+        try {
+          await EcommerceService.sendPaymentStatusAlert(updated.id, paymentStatus);
+        } catch (pErr) {
+          console.error("Failed to send payment status alert:", pErr);
         }
       }
 
@@ -1098,6 +1119,120 @@ export function registerEcommerceRoutes(app: Express) {
         page: pageNum,
         limit: limitNum
       });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ============================================================
+  // E-COMMERCE WHATSAPP TEMPLATES (UTILITY CATEGORY)
+  // ============================================================
+
+  // Get all ecommerce templates & their approval statuses for channel
+  app.get("/api/ecommerce/templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { channelId } = req.query;
+      if (!channelId || typeof channelId !== "string") {
+        return res.status(400).json({ error: "channelId query param is required" });
+      }
+
+      // Fetch channel
+      const [channel] = await db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, channelId))
+        .limit(1);
+
+      if (!channel) {
+        return res.status(404).json({ error: "Channel not found" });
+      }
+
+      const isCloudApi = channel.connectionMethod === "embedded" || channel.connectionMethod === "waba" || !channel.connectionMethod;
+
+      // Fetch all templates for channel from DB
+      const dbTemplates = await db
+        .select()
+        .from(schema.templates)
+        .where(eq(schema.templates.channelId, channelId));
+
+      const dbTemplatesByName = new Map(dbTemplates.map((t) => [t.name, t]));
+
+      const items = Object.values(ECOMMERCE_TEMPLATES_DEFINITIONS).map((def) => {
+        const existing = dbTemplatesByName.get(def.name);
+        return {
+          key: def.key,
+          name: def.name,
+          title: def.title,
+          description: def.description,
+          category: "UTILITY",
+          language: def.language,
+          variables: def.variables,
+          defaultHeader: def.defaultHeader,
+          defaultBody: def.defaultBody,
+          defaultFooter: def.defaultFooter,
+          header: existing?.header || def.defaultHeader || "",
+          body: existing?.body || def.defaultBody,
+          footer: existing?.footer || def.defaultFooter || "",
+          status: existing ? (existing.status || "PENDING").toUpperCase() : (isCloudApi ? "NOT_CREATED" : "APPROVED"),
+          whatsappTemplateId: existing?.whatsappTemplateId || null,
+          rejectionReason: existing?.rejectionReason || null,
+          channelConnectionMethod: channel.connectionMethod || "embedded",
+          isCloudApi,
+          updatedAt: existing?.updatedAt || null,
+        };
+      });
+
+      res.json({
+        channelId,
+        channelName: channel.name,
+        channelMethod: channel.connectionMethod || "embedded",
+        isCloudApi,
+        templates: items,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Provision / auto-create all missing ecommerce templates
+  app.post("/api/ecommerce/templates/provision", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { channelId } = req.body;
+
+      if (!channelId) {
+        return res.status(400).json({ error: "channelId is required" });
+      }
+
+      const result = await provisionEcommerceTemplatesForChannel(channelId, tenantId);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Save edits to a template and submit to Meta for re-approval
+  app.post("/api/ecommerce/templates/submit", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { channelId, templateName, header, body, footer } = req.body;
+
+      if (!channelId || !templateName || !body) {
+        return res.status(400).json({ error: "channelId, templateName, and body are required" });
+      }
+
+      const result = await submitEcommerceTemplateToMeta(
+        channelId,
+        tenantId,
+        templateName,
+        body,
+        header,
+        footer
+      );
+
+      res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

@@ -16,6 +16,11 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import { VoiceManager } from "./voice";
 import { AiBillingService } from "./ai-billing-service";
+import {
+  formatEcomTemplateForQR,
+  buildMetaTemplateParameters,
+  ECOMMERCE_TEMPLATES_DEFINITIONS
+} from "./ecommerce-templates";
 
 export class EcommerceService {
   /**
@@ -2896,13 +2901,7 @@ CRITICAL DIRECTIVES:
         await this.markCartRecovered(conversationId, order.id);
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
 
-        await this.sendAndSaveTextMessage(
-          channelRow,
-          conversationId,
-          to,
-          `🎉 *Order Placed Successfully!*\n\nOrder Number: *${orderNumber}*\nProduct: *${product.name}* (x${session.quantity})\nDelivery Fee: *${config.currency || "INR"} ${deliveryFee}*\nTotal Amount: *${config.currency || "INR"} ${totalAmount}*\nPayment Mode: *Cash On Delvry(COD)*\n\nWe will update you as soon as your order status changes!`
-        );
-
+        await this.sendCustomerOrderAlert(order, channelRow);
         await this.sendOrderEmail(order);
       }
       else if (selectedMethod === "upi_direct") {
@@ -3461,6 +3460,215 @@ CRITICAL DIRECTIVES:
       console.log(`[EcommerceService] Email sent to ${user.email} for order ${order.orderNumber}`);
     } catch (err: any) {
       console.error("[EcommerceService] Failed to send order email:", err.message);
+    }
+  }
+
+  /**
+   * Send Customer Order Alert using ecom_order_alert template (Meta Cloud API) or formatted text (QR Code)
+   */
+  public static async sendCustomerOrderAlert(order: any, customChannelRow?: any): Promise<void> {
+    try {
+      if (!order) return;
+      const channelRow = customChannelRow || (await db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, order.channelId || ""))
+        .limit(1)
+        .then(rows => rows[0]));
+
+      if (!channelRow) return;
+
+      const customerName = order.customerName || "Customer";
+      const orderNumber = order.orderNumber || "Order";
+      const productName = order.productName || "Item";
+      const quantity = String(order.quantity || 1);
+      const currency = order.currency || "INR";
+      const totalAmount = `${currency} ${Number(order.totalAmount || 0).toFixed(2)}`;
+      const paymentMethod = order.paymentMethod ? (
+        order.paymentMethod === "cod" ? "Cash on Delivery" :
+        order.paymentMethod === "upi_direct" ? "UPI Direct" :
+        order.paymentMethod === "qr_pay" ? "QR Code Payment" :
+        order.paymentMethod === "gateway" ? "Online Payment" : order.paymentMethod.toUpperCase()
+      ) : "Cash on Delivery";
+
+      const address = order.customerData?.address 
+        ? `${order.customerData.address}${order.customerData.pin ? `, PIN: ${order.customerData.pin}` : ""}`
+        : (order.customerData?.pin ? `PIN: ${order.customerData.pin}` : "Provided during checkout");
+
+      const to = order.customerPhone;
+      let convId = order.conversationId || null;
+      if (!convId) {
+        const [conv] = await db
+          .select()
+          .from(schema.conversations)
+          .where(and(eq(schema.conversations.channelId, channelRow.id), eq(schema.conversations.contactPhone, to)))
+          .limit(1);
+        convId = conv?.id || null;
+      }
+
+      const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+
+      // Check if ecom_order_alert template is available and approved
+      if (isCloudApi) {
+        const [tpl] = await db
+          .select()
+          .from(schema.templates)
+          .where(
+            and(
+              eq(schema.templates.channelId, channelRow.id),
+              eq(schema.templates.name, "ecom_order_alert"),
+              eq(schema.templates.status, "APPROVED")
+            )
+          )
+          .limit(1);
+
+        if (tpl) {
+          const components = buildMetaTemplateParameters("ecom_order_alert", [
+            customerName,
+            orderNumber,
+            productName,
+            quantity,
+            totalAmount,
+            paymentMethod,
+            address
+          ]);
+
+          try {
+            await WhatsAppApiService.sendTemplateMessage(
+              channelRow,
+              to,
+              "ecom_order_alert",
+              components,
+              tpl.language || "en_US",
+              false
+            );
+            console.log(`[EcommerceService] Sent ecom_order_alert template to ${to} for ${orderNumber}`);
+            return;
+          } catch (tplErr: any) {
+            console.warn(`[EcommerceService] Cloud API template send failed, falling back to text:`, tplErr.message);
+          }
+        }
+      }
+
+      // QR Code or fallback plain text format (No buttons for QR)
+      const qrText = formatEcomTemplateForQR("ecom_order_alert", {
+        customer_name: customerName,
+        order_number: orderNumber,
+        product_name: productName,
+        quantity,
+        total_amount: totalAmount,
+        payment_method: paymentMethod,
+        delivery_address: address
+      });
+
+      await this.sendAndSaveTextMessage(channelRow, convId, to, qrText);
+      console.log(`[EcommerceService] Sent formatted order alert to ${to} for ${orderNumber}`);
+    } catch (err: any) {
+      console.error(`[EcommerceService] Failed to send customer order alert:`, err.message);
+    }
+  }
+
+  /**
+   * Send Payment Status Alert using ecom_payment_status_alert template (Meta Cloud API) or formatted text (QR Code)
+   */
+  public static async sendPaymentStatusAlert(orderId: string, paymentStatus: string): Promise<void> {
+    try {
+      const [order] = await db
+        .select()
+        .from(schema.ecommerceOrders)
+        .where(eq(schema.ecommerceOrders.id, orderId))
+        .limit(1);
+
+      if (!order) return;
+
+      const [channelRow] = await db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, order.channelId || ""))
+        .limit(1);
+
+      if (!channelRow) return;
+
+      const customerName = order.customerName || "Customer";
+      const orderNumber = order.orderNumber || "Order";
+      const statusLabel = paymentStatus ? paymentStatus.toUpperCase() : "PAID";
+      const currency = order.currency || "INR";
+      const amount = `${currency} ${Number(order.totalAmount || 0).toFixed(2)}`;
+      const paymentMethod = order.paymentMethod ? (
+        order.paymentMethod === "cod" ? "Cash on Delivery" :
+        order.paymentMethod === "upi_direct" ? "UPI Direct" :
+        order.paymentMethod === "qr_pay" ? "QR Code Payment" :
+        order.paymentMethod === "gateway" ? "Online Payment" : order.paymentMethod.toUpperCase()
+      ) : "Online";
+      const referenceId = order.paymentGatewayOrderId || order.receiptUrl || order.orderNumber;
+
+      const to = order.customerPhone;
+      let convId = order.conversationId || null;
+      if (!convId) {
+        const [conv] = await db
+          .select()
+          .from(schema.conversations)
+          .where(and(eq(schema.conversations.channelId, channelRow.id), eq(schema.conversations.contactPhone, to)))
+          .limit(1);
+        convId = conv?.id || null;
+      }
+
+      const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+
+      if (isCloudApi) {
+        const [tpl] = await db
+          .select()
+          .from(schema.templates)
+          .where(
+            and(
+              eq(schema.templates.channelId, channelRow.id),
+              eq(schema.templates.name, "ecom_payment_status_alert"),
+              eq(schema.templates.status, "APPROVED")
+            )
+          )
+          .limit(1);
+
+        if (tpl) {
+          const components = buildMetaTemplateParameters("ecom_payment_status_alert", [
+            customerName,
+            orderNumber,
+            statusLabel,
+            amount,
+            paymentMethod,
+            referenceId
+          ]);
+
+          try {
+            await WhatsAppApiService.sendTemplateMessage(
+              channelRow,
+              to,
+              "ecom_payment_status_alert",
+              components,
+              tpl.language || "en_US",
+              false
+            );
+            console.log(`[EcommerceService] Sent ecom_payment_status_alert template to ${to} for ${orderNumber}`);
+            return;
+          } catch (tplErr: any) {
+            console.warn(`[EcommerceService] Payment template send failed, falling back to text:`, tplErr.message);
+          }
+        }
+      }
+
+      // QR Code or fallback plain text format
+      const qrText = formatEcomTemplateForQR("ecom_payment_status_alert", {
+        customer_name: customerName,
+        order_number: orderNumber,
+        payment_status: statusLabel,
+        amount: amount,
+        payment_method: paymentMethod,
+        reference_id: referenceId
+      });
+
+      await this.sendAndSaveTextMessage(channelRow, convId, to, qrText);
+      console.log(`[EcommerceService] Sent formatted payment status alert to ${to} for ${orderNumber}`);
+    } catch (err: any) {
+      console.error(`[EcommerceService] Failed to send payment status alert:`, err.message);
     }
   }
 
@@ -4292,6 +4500,24 @@ CRITICAL DIRECTIVES:
         `📋 *Today's Orders Breakdown:*\n${ordersListText}\n\n` +
         `_Sent automatically by ${storeName} Ecommerce_`;
 
+      const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+      let summaryTemplate: any = null;
+
+      if (isCloudApi) {
+        const [tpl] = await db
+          .select()
+          .from(schema.templates)
+          .where(
+            and(
+              eq(schema.templates.channelId, channelRow.id),
+              eq(schema.templates.name, "ecom_daily_order_summary"),
+              eq(schema.templates.status, "APPROVED")
+            )
+          )
+          .limit(1);
+        summaryTemplate = tpl || null;
+      }
+
       const waApi = new WhatsAppApiService(channelRow);
       let successCount = 0;
 
@@ -4299,6 +4525,31 @@ CRITICAL DIRECTIVES:
         try {
           const cleanPhone = phone.replace(/[^0-9]/g, "");
           if (cleanPhone.length >= 7) {
+            if (isCloudApi && summaryTemplate) {
+              const components = buildMetaTemplateParameters("ecom_daily_order_summary", [
+                storeName,
+                dateStr,
+                String(orders.length),
+                `${currency} ${totalRevenue.toFixed(2)}`,
+                String(paidCount),
+                String(codCount + pendingCount)
+              ]);
+              try {
+                await WhatsAppApiService.sendTemplateMessage(
+                  channelRow,
+                  cleanPhone,
+                  "ecom_daily_order_summary",
+                  components,
+                  summaryTemplate.language || "en_US",
+                  false
+                );
+                successCount++;
+                continue;
+              } catch (tplErr: any) {
+                console.warn(`[Ecommerce Reports WA] Template send failed for ${cleanPhone}, falling back to text:`, tplErr.message);
+              }
+            }
+
             await waApi.sendTextMessage(cleanPhone, waMessage);
             successCount++;
           }
@@ -4524,33 +4775,76 @@ CRITICAL DIRECTIVES:
 
       const to = cart.customerPhone;
       const conversationId = cart.conversationId;
+      const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+      const tplName = followupNum === 1 ? "ecom_abandoned_cart_1" : "ecom_abandoned_cart_2";
 
-      if (channelRow.connectionMethod === "qr_code") {
-        const fullMsg = `${text}\n\n👉 *Reply '1' or 'checkout' to complete your order!*`;
-        if (cart.productPhoto) {
-          try {
-            await this.sendAndSaveMediaMessage(channelRow, conversationId, to, cart.productPhoto, "image", fullMsg);
-          } catch {
+      let approvedTemplate: any = null;
+      if (isCloudApi) {
+        const [tpl] = await db
+          .select()
+          .from(schema.templates)
+          .where(
+            and(
+              eq(schema.templates.channelId, channelRow.id),
+              eq(schema.templates.name, tplName),
+              eq(schema.templates.status, "APPROVED")
+            )
+          )
+          .limit(1);
+        approvedTemplate = tpl || null;
+      }
+
+      let templateSent = false;
+      if (isCloudApi && approvedTemplate) {
+        try {
+          const params = followupNum === 1
+            ? [customerName, productName, price]
+            : [customerName, productName, config.abandonedCartDiscountCode || "SAVE10", `${config.abandonedCartDiscountPercent || 10}%`];
+          const components = buildMetaTemplateParameters(tplName, params);
+
+          await WhatsAppApiService.sendTemplateMessage(
+            channelRow,
+            to,
+            tplName,
+            components,
+            approvedTemplate.language || "en_US",
+            false
+          );
+          templateSent = true;
+          console.log(`[Ecommerce Recovery] Sent ${tplName} template to ${to} for cart ${cart.id}`);
+        } catch (tplErr: any) {
+          console.warn(`[Ecommerce Recovery] Template send failed for ${to}, falling back to interactive/text:`, tplErr.message);
+        }
+      }
+
+      if (!templateSent) {
+        if (channelRow.connectionMethod === "qr_code") {
+          const fullMsg = `${text}\n\n👉 *Reply '1' or 'checkout' to complete your order!*`;
+          if (cart.productPhoto) {
+            try {
+              await this.sendAndSaveMediaMessage(channelRow, conversationId, to, cart.productPhoto, "image", fullMsg);
+            } catch {
+              await this.sendAndSaveTextMessage(channelRow, conversationId, to, fullMsg);
+            }
+          } else {
             await this.sendAndSaveTextMessage(channelRow, conversationId, to, fullMsg);
           }
         } else {
-          await this.sendAndSaveTextMessage(channelRow, conversationId, to, fullMsg);
-        }
-      } else {
-        // Cloud API Interactive Buttons
-        const buttons = [
-          { id: `resume_checkout_${cart.id}`, title: "🛒 Complete Order" },
-          { id: `cancel_checkout_${cart.id}`, title: "❌ Cancel" }
-        ];
+          // Cloud API Interactive Buttons fallback
+          const buttons = [
+            { id: `resume_checkout_${cart.id}`, title: "🛒 Complete Order" },
+            { id: `cancel_checkout_${cart.id}`, title: "❌ Cancel" }
+          ];
 
-        if (cart.productPhoto) {
-          try {
-            await this.sendCloudApiButtonMessage(channelRow, conversationId, to, text, { type: "image", image: { link: cart.productPhoto } }, buttons);
-          } catch {
+          if (cart.productPhoto) {
+            try {
+              await this.sendCloudApiButtonMessage(channelRow, conversationId, to, text, { type: "image", image: { link: cart.productPhoto } }, buttons);
+            } catch {
+              await this.sendCloudApiButtonMessage(channelRow, conversationId, to, text, null, buttons);
+            }
+          } else {
             await this.sendCloudApiButtonMessage(channelRow, conversationId, to, text, null, buttons);
           }
-        } else {
-          await this.sendCloudApiButtonMessage(channelRow, conversationId, to, text, null, buttons);
         }
       }
 

@@ -513,6 +513,84 @@ export default function EcommerceLedger() {
     }
   });
 
+  // Template edits local state
+  const [templateEdits, setTemplateEdits] = useState<Record<string, { header?: string; body?: string; footer?: string }>>({});
+  const [submittingTemplateName, setSubmittingTemplateName] = useState<string | null>(null);
+
+  // Fetch Ecommerce WhatsApp Templates
+  const {
+    data: ecomTemplatesData,
+    isLoading: isLoadingEcomTemplates,
+    refetch: refetchEcomTemplates
+  } = useQuery<any>({
+    queryKey: ["/api/ecommerce/templates", channelId],
+    queryFn: async () => {
+      if (!channelId) return null;
+      const res = await apiRequest("GET", `/api/ecommerce/templates?channelId=${channelId}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!channelId,
+  });
+
+  const provisionTemplatesMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/ecommerce/templates/provision", { channelId });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to provision templates");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Templates Provisioned",
+        description: `Successfully provisioned/synced: ${data.created || 0} created, ${data.updated || 0} updated.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/templates", channelId] });
+      refetchEcomTemplates();
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Provisioning Failed",
+        description: err.message || "Failed to provision templates",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const submitTemplateMutation = useMutation({
+    mutationFn: async (payload: { templateName: string; header?: string; body: string; footer?: string }) => {
+      setSubmittingTemplateName(payload.templateName);
+      const res = await apiRequest("POST", "/api/ecommerce/templates/submit", {
+        channelId,
+        ...payload,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to submit template");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setSubmittingTemplateName(null);
+      toast({
+        title: "Template Saved & Submitted",
+        description: data.message || "Template submitted to Meta for approval.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/templates", channelId] });
+      refetchEcomTemplates();
+    },
+    onError: (err: any) => {
+      setSubmittingTemplateName(null);
+      toast({
+        title: "Submission Failed",
+        description: err.message || "Failed to submit template to Meta",
+        variant: "destructive",
+      });
+    },
+  });
+
   // 2. Fetch Products
   const { data: productsData, isLoading: isProductsLoading } = useQuery<{ products: Product[]; total: number }>({
     queryKey: ["/api/ecommerce/products", productsPage],
@@ -2199,7 +2277,7 @@ export default function EcommerceLedger() {
             <CardContent className="pt-6">
               <form id="store-config-form" onSubmit={handleConfigSubmit} className="space-y-6">
                 <Tabs value={configSubTab} onValueChange={setConfigSubTab} className="w-full">
-                  <TabsList className="grid grid-cols-2 md:grid-cols-5 h-auto p-1 bg-slate-100/90 rounded-xl mb-6 gap-1">
+                  <TabsList className="grid grid-cols-2 md:grid-cols-6 h-auto p-1 bg-slate-100/90 rounded-xl mb-6 gap-1">
                     <TabsTrigger value="general" className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-purple-700 data-[state=active]:shadow-sm rounded-lg">
                       <Settings className="w-3.5 h-3.5 text-purple-600" />
                       General Settings
@@ -2207,6 +2285,10 @@ export default function EcommerceLedger() {
                     <TabsTrigger value="checkout" className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm rounded-lg">
                       <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
                       Checkout & Payments
+                    </TabsTrigger>
+                    <TabsTrigger value="templates" className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-teal-700 data-[state=active]:shadow-sm rounded-lg">
+                      <MessageSquare className="w-3.5 h-3.5 text-teal-600" />
+                      WhatsApp Templates
                     </TabsTrigger>
                     <TabsTrigger value="abandoned_cart" className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-amber-700 data-[state=active]:shadow-sm rounded-lg">
                       <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
@@ -2987,6 +3069,249 @@ export default function EcommerceLedger() {
                       <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={saveConfigMutation.isPending}>
                         {saveConfigMutation.isPending ? "Saving..." : "Save Checkout & Payments"}
                       </Button>
+                    </div>
+                  </TabsContent>
+
+                  {/* Sub-Tab: WhatsApp Templates (Meta & QR) */}
+                  <TabsContent value="templates" className="space-y-6 mt-0">
+                    {/* Header Banner */}
+                    <div className="border p-4 rounded-xl bg-gradient-to-r from-teal-50/80 via-emerald-50/50 to-blue-50/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-teal-100 shadow-sm">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-teal-600 text-white shadow-sm">
+                            <MessageSquare className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-gray-900 text-base flex items-center gap-2">
+                              WhatsApp Notification Templates
+                              <span className="text-[10px] font-semibold bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                Category: UTILITY
+                              </span>
+                            </h3>
+                            <p className="text-xs text-gray-600 mt-0.5">
+                              Pre-formatted for guaranteed Meta Cloud API <strong className="text-teal-700 font-semibold">UTILITY</strong> approval. Automatically delivered as rich templates on Cloud API channels and plain formatted text on QR Code channels.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 w-full md:w-auto">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => refetchEcomTemplates()}
+                          className="text-xs border-teal-200 text-teal-700 hover:bg-teal-50"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                          Refresh Status
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => provisionTemplatesMutation.mutate()}
+                          disabled={provisionTemplatesMutation.isPending}
+                          className="text-xs bg-teal-600 hover:bg-teal-700 text-white shadow-sm flex items-center gap-1.5"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          {provisionTemplatesMutation.isPending ? "Provisioning..." : "⚡ Auto-Provision & Sync All"}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Meta Guidelines & QR Compatibility Info */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-3.5 rounded-lg border border-blue-200 bg-blue-50/60 text-xs space-y-1.5 text-blue-900">
+                        <div className="font-bold flex items-center gap-1.5 text-blue-800">
+                          <CheckCircle className="w-4 h-4 text-blue-600" />
+                          Meta Cloud API (WABA) Standard
+                        </div>
+                        <p className="text-blue-700 text-[11px] leading-relaxed">
+                          Templates are submitted in the <strong>UTILITY</strong> category with full variable samples so Meta approves them instantly. Edit the copy below and click <em>Save & Submit</em> to re-submit modified templates for live re-approval.
+                        </p>
+                      </div>
+                      <div className="p-3.5 rounded-lg border border-purple-200 bg-purple-50/60 text-xs space-y-1.5 text-purple-900">
+                        <div className="font-bold flex items-center gap-1.5 text-purple-800">
+                          <Activity className="w-4 h-4 text-purple-600" />
+                          QR Code (Baileys) Auto-Formatting
+                        </div>
+                        <p className="text-purple-700 text-[11px] leading-relaxed">
+                          If you are using a QR-connected WhatsApp number, our engine automatically interpolates all variables into clean WhatsApp markdown with text call-to-actions (e.g. <em>Reply '1' to complete order</em>) without unsupported buttons.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Templates List */}
+                    <div className="space-y-6">
+                      {(ecomTemplatesData?.templates || []).map((tpl: any) => {
+                        const currentEdit = templateEdits[tpl.name] || {
+                          header: tpl.header || tpl.defaultHeader || "",
+                          body: tpl.body || tpl.defaultBody || "",
+                          footer: tpl.footer || tpl.defaultFooter || "",
+                        };
+
+                        const isSubmitting = submittingTemplateName === tpl.name;
+
+                        const renderStatusBadge = (status: string) => {
+                          const s = (status || "").toUpperCase();
+                          if (s === "APPROVED") {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <CheckCircle className="w-3 h-3 text-emerald-600" />
+                                Meta Approved
+                              </span>
+                            );
+                          }
+                          if (s === "PENDING") {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                Pending Meta Review
+                              </span>
+                            );
+                          }
+                          if (s === "REJECTED") {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">
+                                <AlertCircle className="w-3 h-3 text-rose-600" />
+                                Rejected by Meta
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                              <Sparkles className="w-3 h-3 text-slate-500" />
+                              Not Submitted
+                            </span>
+                          );
+                        };
+
+                        return (
+                          <div key={tpl.name} className="border rounded-xl bg-white shadow-sm overflow-hidden transition-all hover:border-teal-300">
+                            <div className="p-4 bg-slate-50/70 border-b flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                  <span className="font-mono text-xs font-bold text-slate-700 bg-slate-200/80 px-2 py-0.5 rounded">
+                                    {tpl.name}
+                                  </span>
+                                  <h4 className="font-bold text-gray-900 text-sm">
+                                    {tpl.title}
+                                  </h4>
+                                  {renderStatusBadge(tpl.status)}
+                                  <span className="text-[10px] font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                                    {tpl.category}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                  {tpl.description}
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={isSubmitting}
+                                onClick={() => {
+                                  submitTemplateMutation.mutate({
+                                    templateName: tpl.name,
+                                    header: currentEdit.header,
+                                    body: currentEdit.body,
+                                    footer: currentEdit.footer,
+                                  });
+                                }}
+                                className="text-xs bg-teal-600 hover:bg-teal-700 text-white shrink-0 shadow-sm"
+                              >
+                                <Send className="w-3.5 h-3.5 mr-1.5" />
+                                {isSubmitting ? "Submitting..." : "Save & Submit to Meta"}
+                              </Button>
+                            </div>
+
+                            <div className="p-4 space-y-4">
+                              {/* Dynamic Variables */}
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                                  <span>Available Dynamic Variables (click to append to body):</span>
+                                </Label>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {(tpl.variables || []).map((v: any) => (
+                                    <button
+                                      key={v.index}
+                                      type="button"
+                                      onClick={() => {
+                                        const tag = `{{${v.index}}}`;
+                                        const newBody = `${currentEdit.body} ${tag}`;
+                                        setTemplateEdits(prev => ({
+                                          ...prev,
+                                          [tpl.name]: { ...currentEdit, body: newBody }
+                                        }));
+                                        toast({
+                                          title: "Variable Added",
+                                          description: `Appended ${tag} (${v.label}) to template body.`,
+                                        });
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 border text-[11px] text-gray-700 font-medium transition-colors"
+                                    >
+                                      <span className="font-mono font-bold text-teal-600">{`{{${v.index}}}`}</span>
+                                      <span>{v.label}</span>
+                                      <span className="text-[10px] text-gray-400">({v.sample})</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Header & Footer */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-semibold text-gray-700">Template Header (Optional Text Header)</Label>
+                                  <Input
+                                    value={currentEdit.header}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setTemplateEdits(prev => ({
+                                        ...prev,
+                                        [tpl.name]: { ...currentEdit, header: val }
+                                      }));
+                                    }}
+                                    placeholder="e.g. Order Confirmation"
+                                    className="h-9 text-xs"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-semibold text-gray-700">Template Footer (Optional)</Label>
+                                  <Input
+                                    value={currentEdit.footer}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setTemplateEdits(prev => ({
+                                        ...prev,
+                                        [tpl.name]: { ...currentEdit, footer: val }
+                                      }));
+                                    }}
+                                    placeholder="e.g. Thank you for shopping with us"
+                                    className="h-9 text-xs"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Body */}
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-gray-700">Template Body (Message Copy)</Label>
+                                <Textarea
+                                  rows={4}
+                                  value={currentEdit.body}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setTemplateEdits(prev => ({
+                                      ...prev,
+                                      [tpl.name]: { ...currentEdit, body: val }
+                                    }));
+                                  }}
+                                  className="text-xs font-sans leading-relaxed resize-y"
+                                  placeholder="Enter template body text..."
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </TabsContent>
 

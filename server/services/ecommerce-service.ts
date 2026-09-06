@@ -898,28 +898,22 @@ export class EcommerceService {
               }
             }
 
-            if (cleanContent === "ai" || cleanContent.includes("ask ai")) {
-              const allActiveProducts = await db
-                .select()
-                .from(schema.ecommerceProducts)
-                .where(eq(schema.ecommerceProducts.tenantId, tenantId));
-              if (allActiveProducts.length > 0 && config.aiEnabled) {
-                const firstProd = allActiveProducts[0];
-                await db
-                  .update(schema.ecommerceSessions)
-                  .set({
-                    productId: firstProd.id,
-                    currentStep: "ai_chat",
-                    customerData: {
-                      aiStartTime: new Date().toISOString(),
-                      aiLastMessageTime: new Date().toISOString()
-                    },
-                    updatedAt: new Date()
-                  })
-                  .where(eq(schema.ecommerceSessions.id, session.id));
-                await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, `🤖 *Product AI Assistant*\n\nAsk me any question about *${firstProd.name}*!\n\nWhen you are ready to buy, simply say *Checkout* or reply *1*.`);
-                return true;
-              }
+            // If customer typed a custom message/question and AI is enabled, transition to store AI chat and answer it!
+            if (config.aiEnabled) {
+              await db
+                .update(schema.ecommerceSessions)
+                .set({
+                  currentStep: "ai_chat",
+                  customerData: {
+                    aiStartTime: new Date().toISOString(),
+                    aiLastMessageTime: new Date().toISOString()
+                  },
+                  updatedAt: new Date()
+                })
+                .where(eq(schema.ecommerceSessions.id, session.id));
+              session.currentStep = "ai_chat";
+              await this.processSessionInput(channelRow, config, session, (content || "").trim(), message);
+              return true;
             }
 
             // If invalid catalog choice, keep session and re-prompt
@@ -933,6 +927,94 @@ export class EcommerceService {
         }
       }
     }
+
+      // 5. Active Product Direct Inbound Flow (for first/new messages of a contact)
+      if (config.activeProductId) {
+        const [msgCountResult] = await db
+          .select({
+            total: sql<number>`count(*)`,
+            outbound: sql<number>`count(case when ${schema.messages.fromUser} = true or ${schema.messages.direction} = 'outbound' then 1 end)`
+          })
+          .from(schema.messages)
+          .where(eq(schema.messages.conversationId, conversationId));
+
+        const isFirstContactMessage = !msgCountResult || Number(msgCountResult.outbound) === 0 || Number(msgCountResult.total) <= 1;
+
+        if (isFirstContactMessage) {
+          const [activeProduct] = await db
+            .select()
+            .from(schema.ecommerceProducts)
+            .where(
+              and(
+                eq(schema.ecommerceProducts.id, config.activeProductId),
+                eq(schema.ecommerceProducts.tenantId, tenantId)
+              )
+            )
+            .limit(1);
+
+          if (activeProduct) {
+            await this.autoAssignConversation(config, channelRow, conversationId);
+            await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+            await this.startIndividualProductFlow(channelRow, config, conversationId, contactPhone, activeProduct);
+            return true;
+          }
+        }
+      }
+
+      // 6. AI Store Takeover for all incoming inbox messages
+      if (config.aiEnabled && config.aiTakeoverEnabled) {
+        await this.autoAssignConversation(config, channelRow, conversationId);
+
+        const allProducts = await db
+          .select()
+          .from(schema.ecommerceProducts)
+          .where(eq(schema.ecommerceProducts.tenantId, tenantId));
+
+        // Check if customer directly requested checkout / buy for a product
+        const isBuyKeyword = ["checkout", "buy", "buy now", "purchase", "order", "1"].includes(cleanContent);
+        if (isBuyKeyword && allProducts.length === 1) {
+          await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, allProducts[0]);
+          return true;
+        }
+
+        if (cleanContent.startsWith("buy ") || cleanContent.startsWith("order ") || cleanContent.startsWith("checkout ")) {
+          const targetName = cleanContent.replace(/^(buy|order|checkout)\s+/, "").trim();
+          const found = allProducts.find(
+            (p) => p.name.toLowerCase() === targetName ||
+                   (targetName.length >= 3 && p.name.toLowerCase().includes(targetName)) ||
+                   (p.triggerKeyword && p.triggerKeyword.toLowerCase() === targetName)
+          );
+          if (found) {
+            await this.startCheckoutFlow(channelRow, config, conversationId, contactPhone, found);
+            return true;
+          }
+        }
+
+        // Delete any stale sessions and create fresh AI chat takeover session
+        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+        const [takeoverSession] = await db
+          .insert(schema.ecommerceSessions)
+          .values({
+            conversationId,
+            productId: null,
+            quantity: 1,
+            currentStep: "ai_chat",
+            customerData: {
+              aiStartTime: new Date().toISOString(),
+              aiLastMessageTime: new Date().toISOString()
+            }
+          })
+          .returning();
+
+        await this.processSessionInput(
+          channelRow,
+          config,
+          takeoverSession,
+          (content || "").trim(),
+          message
+        );
+        return true;
+      }
 
       return false;
     } catch (err: any) {
@@ -1246,40 +1328,132 @@ export class EcommerceService {
     // Delete any active sessions for this conversation first
     await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
 
-    // Create session
-    await db.insert(schema.ecommerceSessions).values({
-      conversationId,
-      productId: product.id,
-      quantity: 1,
-      currentStep: "waiting_for_quantity",
-      customerData: {}
+    const askQuantity = config.askQuantity !== false;
+
+    const rawFields = config.checkoutFields || ["name", "phone", "address", "pin"];
+    const fields = rawFields.map((f: any) => {
+      if (typeof f === "string") {
+        return { text: `Please enter your *${this.getFieldLabel(f)}*:`, variable: f };
+      }
+      return { 
+        text: f.text || `Please enter your *${this.getFieldLabel(f.variable)}*:`, 
+        variable: f.variable || "custom_field" 
+      };
     });
 
-    // Track initial abandoned cart state
     const productPhoto = Array.isArray(product.photos)
       ? product.photos[0]
       : (typeof product.photos === "string" ? product.photos.split(",")[0] : null);
 
-    await this.trackAbandonedCart({
-      tenantId: config.tenantId,
-      channelId: config.channelId || channelRow?.id,
-      conversationId,
-      customerPhone: contactPhone,
-      productId: product.id,
-      productName: product.name,
-      productPrice: product.price ? String(product.price) : "0",
-      productPhoto: productPhoto || null,
-      quantity: 1,
-      customerData: {},
-      currentStep: "waiting_for_quantity"
-    });
+    if (askQuantity) {
+      // Create session waiting for quantity
+      await db.insert(schema.ecommerceSessions).values({
+        conversationId,
+        productId: product.id,
+        quantity: 1,
+        currentStep: "waiting_for_quantity",
+        customerData: {}
+      });
 
-    await this.sendAndSaveTextMessage(
-      channelRow,
-      conversationId,
-      contactPhone,
-      `How many Qty? (type only number)`
-    );
+      // Track initial abandoned cart state
+      await this.trackAbandonedCart({
+        tenantId: config.tenantId,
+        channelId: config.channelId || channelRow?.id,
+        conversationId,
+        customerPhone: contactPhone,
+        productId: product.id,
+        productName: product.name,
+        productPrice: product.price ? String(product.price) : "0",
+        productPhoto: productPhoto || null,
+        quantity: 1,
+        customerData: {},
+        currentStep: "waiting_for_quantity"
+      });
+
+      await this.sendAndSaveTextMessage(
+        channelRow,
+        conversationId,
+        contactPhone,
+        `How many Qty? (type only number)`
+      );
+    } else {
+      // Quantity question is disabled: default quantity to 1
+      const initialStep = fields.length === 0 ? "waiting_for_payment_method" : `waiting_for_field:${fields[0].variable}`;
+
+      await db.insert(schema.ecommerceSessions).values({
+        conversationId,
+        productId: product.id,
+        quantity: 1,
+        currentStep: initialStep,
+        customerData: {}
+      });
+
+      await this.trackAbandonedCart({
+        tenantId: config.tenantId,
+        channelId: config.channelId || channelRow?.id,
+        conversationId,
+        customerPhone: contactPhone,
+        productId: product.id,
+        productName: product.name,
+        productPrice: product.price ? String(product.price) : "0",
+        productPhoto: productPhoto || null,
+        quantity: 1,
+        customerData: {},
+        currentStep: initialStep
+      });
+
+      if (fields.length === 0) {
+        const paymentOptions = [];
+        paymentOptions.push({ id: "cod", title: config.labelCod || "Cash On Delvry(COD)" });
+        if (config.upiId) {
+          paymentOptions.push({ id: "upi_direct", title: config.labelUpiDirect || "GPay/PhonePe(UPI)" });
+        }
+        if (config.qrCodeUrl) {
+          paymentOptions.push({ id: "qr_pay", title: config.labelQrPay || "Acc. Info(QR Code)" });
+        }
+        if (
+          (config.razorpayKeyId && config.razorpayKeySecret) ||
+          (config.instamojoApiKey && config.instamojoAuthToken)
+        ) {
+          paymentOptions.push({ id: "gateway", title: config.labelGateway || "Online Payment" });
+        }
+
+        const promptText = "Please select your preferred checkout payment method:";
+        if (channelRow.connectionMethod === "qr_code" || paymentOptions.length > 3) {
+          if (channelRow.connectionMethod === "qr_code") {
+            const listOpts = promptText + "\n\n" + paymentOptions.map((opt, idx) => `${idx + 1}. ${opt.title}`).join("\n") + "\n\nReply with option number (e.g. 1):";
+            await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, listOpts);
+          } else {
+            await this.sendCloudApiListMessage(
+              channelRow,
+              conversationId,
+              contactPhone,
+              "Payment Options",
+              promptText,
+              "Select Payment",
+              [
+                {
+                  title: "Available Options",
+                  rows: paymentOptions.map(opt => ({
+                    id: opt.id,
+                    title: opt.title.substring(0, 24)
+                  }))
+                }
+              ]
+            );
+          }
+        } else {
+          await this.sendCloudApiButtonMessage(channelRow, conversationId, contactPhone, promptText, null, paymentOptions);
+        }
+      } else {
+        await this.sendAndSaveTextMessage(
+          channelRow,
+          conversationId,
+          contactPhone,
+          fields[0].text
+        );
+      }
+    }
   }
 
   /**
@@ -1357,17 +1531,7 @@ export class EcommerceService {
     // AI Chat Step check
     if (session.currentStep === "ai_chat") {
       const buyKeywords = ["checkout", "buy", "buy now", "purchase", "1"];
-      if (buyKeywords.includes(input.toLowerCase().trim())) {
-        const [product] = await db
-          .select()
-          .from(schema.ecommerceProducts)
-          .where(eq(schema.ecommerceProducts.id, session.productId))
-          .limit(1);
-        if (product) {
-          await this.startCheckoutFlow(channelRow, config, session.conversationId, to, product);
-          return;
-        }
-      }
+      const cleanInputLower = input.toLowerCase().trim();
 
       // Check timeout
       const customerData = session.customerData || {};
@@ -1387,28 +1551,48 @@ export class EcommerceService {
         .set({ customerData, updatedAt: new Date() })
         .where(eq(schema.ecommerceSessions.id, session.id));
 
-      // Fetch product details
-      const [product] = await db
+      // 1. Fetch all store products for catalog awareness
+      const allStoreProducts = await db
         .select()
         .from(schema.ecommerceProducts)
-        .where(eq(schema.ecommerceProducts.id, session.productId))
-        .limit(1);
+        .where(eq(schema.ecommerceProducts.tenantId, config.tenantId));
 
-      if (!product) {
-        await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Product no longer available. AI chat session closed.");
-        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
-        return;
+      // Check buy / checkout intent
+      if (buyKeywords.includes(cleanInputLower)) {
+        if (session.productId) {
+          const product = allStoreProducts.find((p) => p.id === session.productId);
+          if (product) {
+            await this.startCheckoutFlow(channelRow, config, session.conversationId, to, product);
+            return;
+          }
+        } else if (allStoreProducts.length === 1) {
+          await this.startCheckoutFlow(channelRow, config, session.conversationId, to, allStoreProducts[0]);
+          return;
+        }
+      }
+
+      if (cleanInputLower.startsWith("buy ") || cleanInputLower.startsWith("order ") || cleanInputLower.startsWith("checkout ")) {
+        const targetName = cleanInputLower.replace(/^(buy|order|checkout)\s+/, "").trim();
+        const found = allStoreProducts.find(
+          (p) => p.name.toLowerCase() === targetName ||
+                 (targetName.length >= 3 && p.name.toLowerCase().includes(targetName)) ||
+                 (p.triggerKeyword && p.triggerKeyword.toLowerCase() === targetName)
+        );
+        if (found) {
+          await this.startCheckoutFlow(channelRow, config, session.conversationId, to, found);
+          return;
+        }
       }
 
       // Determine delivery fee information text for RAG
       let deliveryInfoText = "Free Delivery";
       if (config.deliveryFeeType === "flat") {
         const flatFee = parseFloat(config.flatDeliveryFee || "0");
-        deliveryInfoText = flatFee > 0 ? `${product.currency || "INR"} ${flatFee.toFixed(2)} (Flat delivery fee across India)` : "Free Delivery";
+        deliveryInfoText = flatFee > 0 ? `${config.currency || "INR"} ${flatFee.toFixed(2)} (Flat delivery fee across India)` : "Free Delivery";
       } else if (config.deliveryFeeType === "state") {
         const stateFees = config.stateDeliveryFees || {};
-        const stateList = Object.entries(stateFees).map(([st, fee]) => `${st}: ${product.currency || "INR"} ${fee}`).join(", ");
-        deliveryInfoText = `State-wise delivery rates (Default: ${product.currency || "INR"} ${config.defaultDeliveryFee || "0"}${stateList ? `; ${stateList}` : ""})`;
+        const stateList = Object.entries(stateFees).map(([st, fee]) => `${st}: ${config.currency || "INR"} ${fee}`).join(", ");
+        deliveryInfoText = `State-wise delivery rates (Default: ${config.currency || "INR"} ${config.defaultDeliveryFee || "0"}${stateList ? `; ${stateList}` : ""})`;
       }
 
       // Determine available payment methods text for RAG
@@ -1420,22 +1604,28 @@ export class EcommerceService {
         availablePayments.push(config.labelGateway || "Online Payment Gateway");
       }
 
-      // Fetch other available products in the store for catalog awareness
-      const otherProducts = await db
-        .select({ name: schema.ecommerceProducts.name, price: schema.ecommerceProducts.price, currency: schema.ecommerceProducts.currency })
-        .from(schema.ecommerceProducts)
-        .where(eq(schema.ecommerceProducts.tenantId, config.tenantId))
-        .limit(10);
-      const otherProductsSummary = otherProducts
-        .map(p => `- ${p.name} (${p.currency || "INR"} ${p.price})`)
-        .join("\n");
+      let basePrompt = "";
 
-      // Build comprehensive RAG Store & Product Context
-      const productPrice = `${product.currency || "INR"} ${product.price}`;
-      const shortDesc = product.description || "N/A";
-      const longDesc = product.longDescription || product.description || "N/A";
+      if (session.productId) {
+        // Specific product AI session
+        const product = allStoreProducts.find((p) => p.id === session.productId);
+        if (!product) {
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Product no longer available. AI chat session closed.");
+          await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+          return;
+        }
 
-      const storeInfoSection = `
+        const otherProductsSummary = allStoreProducts
+          .filter((p) => p.id !== product.id)
+          .slice(0, 10)
+          .map(p => `- ${p.name} (${p.currency || config.currency || "INR"} ${p.price})`)
+          .join("\n");
+
+        const productPrice = `${product.currency || config.currency || "INR"} ${product.price}`;
+        const shortDesc = product.description || "N/A";
+        const longDesc = product.longDescription || product.description || "N/A";
+
+        const storeInfoSection = `
 --- STORE & SHIPPING KNOWLEDGE ---
 • Store Name: ${config.storeName || "Official Store"}
 • Store Address / Location: ${config.storeAddress || "Available online across India"}
@@ -1445,7 +1635,7 @@ export class EcommerceService {
 ${otherProductsSummary ? `• Other Products in Store:\n${otherProductsSummary}` : ""}
 `;
 
-      const defaultSystemPrompt = `You are a knowledgeable, friendly customer sales AI assistant for this store.
+        const defaultSystemPrompt = `You are a knowledgeable, friendly customer sales AI assistant for this store.
 You are chatting with a customer regarding this product:
 - Product Name: {product_name}
 - Price: {product_price}
@@ -1456,14 +1646,49 @@ ${storeInfoSection}
 
 CRITICAL DIRECTIVE: Use the complete product specifications, description, store delivery details, and accepted payment methods above to accurately answer any customer inquiries. Keep responses concise, natural, and conversational for WhatsApp (under 120 words). Always encourage the customer to purchase when their doubts are answered, and remind them they can type 'checkout' or '1' at any time to order!`;
 
-      const rawPrompt = config.aiSystemPrompt ? `${config.aiSystemPrompt}\n\n${storeInfoSection}` : defaultSystemPrompt;
+        const rawPrompt = config.aiSystemPrompt ? `${config.aiSystemPrompt}\n\n${storeInfoSection}` : defaultSystemPrompt;
 
-      // Replace placeholders
-      const basePrompt = rawPrompt
-        .replace(/{product_name}/g, product.name)
-        .replace(/{product_price}/g, productPrice)
-        .replace(/{product_description}/g, shortDesc)
-        .replace(/{product_long_description}/g, longDesc);
+        basePrompt = rawPrompt
+          .replace(/{product_name}/g, product.name)
+          .replace(/{product_price}/g, productPrice)
+          .replace(/{product_description}/g, shortDesc)
+          .replace(/{product_long_description}/g, longDesc);
+      } else {
+        // Store-wide Takeover AI session (all products catalog knowledge)
+        const catalogList = allStoreProducts.map((p, idx) => {
+          const pPrice = `${p.currency || config.currency || "INR"} ${p.price}`;
+          const pDesc = p.description || "N/A";
+          const pLongDesc = p.longDescription ? `\n   Specifications/Details: ${p.longDescription}` : "";
+          const pTrigger = p.triggerKeyword ? `\n   Trigger Word: ${p.triggerKeyword}` : "";
+          return `${idx + 1}. *${p.name}* — Price: ${pPrice}\n   Description: ${pDesc}${pLongDesc}${pTrigger}`;
+        }).join("\n\n");
+
+        const storeKnowledgeSection = `
+--- STORE & SHIPPING KNOWLEDGE ---
+• Store Name: ${config.storeName || "Official Store"}
+• Store Address / Location: ${config.storeAddress || "Available online across India"}
+• Store Website: ${config.storeWebsite || "N/A"}
+• Delivery / Shipping: ${deliveryInfoText}
+• Accepted Payment Modes: ${availablePayments.join(", ")}
+
+--- COMPLETE STORE PRODUCT CATALOG (${allStoreProducts.length} Products) ---
+${catalogList || "No products currently listed in the store."}
+`;
+
+        const defaultStoreSystemPrompt = `You are the knowledgeable, friendly, and expert customer sales AI assistant for "${config.storeName || "our official store"}".
+You have full access and complete awareness of all products listed in our store catalog and store policies.
+
+${storeKnowledgeSection}
+
+CRITICAL DIRECTIVES:
+1. Use the full product specifications, catalog descriptions, delivery rates, and accepted payment methods above to accurately answer any customer inquiries.
+2. If the customer asks for product recommendations or details, help them choose from our catalog.
+3. If the customer expresses interest in purchasing or ordering, warmly encourage them and explain that they can order anytime by saying "Buy <Product Name>" or "Checkout", or by typing "store" to open the interactive WhatsApp catalog.
+4. Keep responses concise, warm, natural, and conversational for WhatsApp (under 120 words).
+5. Never invent products or policies that are not listed in the store knowledge.`;
+
+        basePrompt = config.aiSystemPrompt ? `${config.aiSystemPrompt}\n\n${storeKnowledgeSection}` : defaultStoreSystemPrompt;
+      }
 
       // 1. Fetch channel-specific active AI Settings
       let aiSetting = await db
@@ -1632,6 +1857,33 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
               });
             }
           }
+        }
+        // Load recent message history for multi-turn conversation memory
+        try {
+          const recentDbMessages = await db
+            .select({
+              content: schema.messages.content,
+              fromUser: schema.messages.fromUser,
+              direction: schema.messages.direction,
+            })
+            .from(schema.messages)
+            .where(eq(schema.messages.conversationId, conversationId))
+            .orderBy(desc(schema.messages.createdAt))
+            .limit(6);
+
+          const chronological = recentDbMessages.reverse();
+          for (const m of chronological) {
+            if (!m.content || typeof m.content !== "string") continue;
+            // Avoid duplicating the current incoming message if it was already saved
+            if (m.content.trim() === input.trim()) continue;
+            const isAssistant = m.fromUser || m.direction === "outbound";
+            messages.push({
+              role: isAssistant ? "assistant" : "user",
+              content: m.content
+            });
+          }
+        } catch (msgHistoryErr: any) {
+          console.warn("[Ecommerce AI] Could not load message history:", msgHistoryErr?.message);
         }
 
         messages.push({ role: "user", content: input });

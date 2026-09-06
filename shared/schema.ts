@@ -2525,6 +2525,7 @@ export const ecommerceConfigs = pgTable("ecommerce_configs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  activeProductId: varchar("active_product_id").references(() => ecommerceProducts.id, { onDelete: "set null" }),
   storeTriggerKeyword: text("store_trigger_keyword").default("store"),
   isStoreFlowActive: boolean("is_store_flow_active").default(true),
   welcomeMessage: text("welcome_message").default("Welcome to our store!"),
@@ -2542,12 +2543,14 @@ export const ecommerceConfigs = pgTable("ecommerce_configs", {
   currency: text("currency").default("INR"),
   apiKeySource: text("api_key_source").default("own_key"), // "own_key" | "admin_key"
   aiEnabled: boolean("ai_enabled").default(false),
+  aiTakeoverEnabled: boolean("ai_takeover_enabled").default(false),
   aiVoiceEnabled: boolean("ai_voice_enabled").default(false),
   voiceProfileId: varchar("voice_profile_id").references(() => voiceProfiles.id, { onDelete: "set null" }),
   aiVoiceLanguageMode: text("ai_voice_language_mode").default("profile"), // "profile" (speak in voice profile language) or "auto" (detect customer's language)
   aiTimeoutMinutes: integer("ai_timeout_minutes").default(30),
   aiAskButtonEnabled: boolean("ai_ask_button_enabled").default(true),
   aiSystemPrompt: text("ai_system_prompt"),
+  askQuantity: boolean("ask_quantity").default(true),
   welcomeMessages: jsonb("welcome_messages").default([]),
   storeName: text("store_name"),
   storeAddress: text("store_address"),

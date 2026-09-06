@@ -259,6 +259,7 @@ export default function EcommerceLedger() {
   };
 
   // Store Configuration Form states
+  const [activeProductId, setActiveProductId] = useState<string>("");
   const [storeKeyword, setStoreKeyword] = useState("store");
   const [storeFlowActive, setStoreFlowActive] = useState(true);
   const [welcomeMsg, setWelcomeMsg] = useState("Welcome to our store!");
@@ -279,7 +280,9 @@ export default function EcommerceLedger() {
   // AI & Welcome Messages States
   const [apiKeySource, setApiKeySource] = useState<"own_key" | "admin_key">("own_key");
   const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiTakeoverEnabled, setAiTakeoverEnabled] = useState(false);
   const [aiVoiceEnabled, setAiVoiceEnabled] = useState(false);
+  const [askQuantity, setAskQuantity] = useState(true);
   const [configVoiceProfileId, setConfigVoiceProfileId] = useState<string>("");
   const [configAiVoiceLanguageMode, setConfigAiVoiceLanguageMode] = useState<string>("profile");
   const [aiTimeoutMinutes, setAiTimeoutMinutes] = useState(30);
@@ -415,6 +418,7 @@ export default function EcommerceLedger() {
   // Populate config form when loaded
   React.useEffect(() => {
     if (config) {
+      setActiveProductId((config as any).activeProductId || "");
       setStoreKeyword(config.storeTriggerKeyword || "store");
       setStoreFlowActive(config.isStoreFlowActive !== undefined ? config.isStoreFlowActive : true);
       setWelcomeMsg(config.welcomeMessage || "Welcome to our store!");
@@ -431,7 +435,9 @@ export default function EcommerceLedger() {
       setStoreCurrency((config as any).currency || "INR");
       setApiKeySource((config as any).apiKeySource || "own_key");
       setAiEnabled((config as any).aiEnabled !== undefined ? (config as any).aiEnabled : false);
+      setAiTakeoverEnabled((config as any).aiTakeoverEnabled !== undefined ? (config as any).aiTakeoverEnabled : false);
       setAiVoiceEnabled((config as any).aiVoiceEnabled !== undefined ? (config as any).aiVoiceEnabled : false);
+      setAskQuantity((config as any).askQuantity !== undefined ? (config as any).askQuantity : true);
       setConfigVoiceProfileId((config as any).voiceProfileId || "");
       setConfigAiVoiceLanguageMode((config as any).aiVoiceLanguageMode || "profile");
       setAiTimeoutMinutes((config as any).aiTimeoutMinutes !== undefined ? (config as any).aiTimeoutMinutes : 30);
@@ -846,6 +852,7 @@ export default function EcommerceLedger() {
 
     const payload = {
       channelId,
+      activeProductId: activeProductId || null,
       storeTriggerKeyword: storeKeyword,
       isStoreFlowActive: storeFlowActive,
       welcomeMessage: welcomeMsg,
@@ -863,12 +870,14 @@ export default function EcommerceLedger() {
       currency: storeCurrency,
       apiKeySource,
       aiEnabled,
+      aiTakeoverEnabled,
       aiVoiceEnabled,
       voiceProfileId: configVoiceProfileId || null,
       aiVoiceLanguageMode: configAiVoiceLanguageMode,
       aiTimeoutMinutes,
       aiAskButtonEnabled,
       aiSystemPrompt,
+      askQuantity,
       welcomeMessages,
       storeName,
       storeAddress,
@@ -2420,6 +2429,32 @@ export default function EcommerceLedger() {
                       <Switch checked={storeFlowActive} onCheckedChange={setStoreFlowActive} />
                     </div>
 
+                    {/* Active Product Direct Inbound Flow Option */}
+                    <div className="space-y-1.5 p-3 rounded-lg border bg-emerald-50/40 border-emerald-100/80">
+                      <div className="space-y-0.5">
+                        <Label className="font-semibold text-gray-800 text-xs flex items-center gap-1.5">
+                          <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
+                          Active Product for Direct Inbound Flow (New / First Messages)
+                        </Label>
+                        <span className="text-[11px] text-gray-500 block leading-tight">
+                          Select a product to automatically initiate its product details & checkout flow for any new contact's first message without needing a trigger keyword. Select "None" to keep trigger keyword based behavior.
+                        </span>
+                      </div>
+                      <Select value={activeProductId || "none"} onValueChange={(val) => setActiveProductId(val === "none" ? "" : val)}>
+                        <SelectTrigger className="h-9 text-xs bg-white mt-1">
+                          <SelectValue placeholder="None (Trigger Keyword Based)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None (Trigger Keyword Based)</SelectItem>
+                          {products.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name} — {(p as any).currency || storeCurrency} {p.price} {p.triggerKeyword ? `(Trigger: "${p.triggerKeyword}")` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label htmlFor="storeKeyword">Store Trigger Keyword</Label>
@@ -2784,6 +2819,19 @@ export default function EcommerceLedger() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-purple-100">
                           <div className="flex items-center justify-between">
                             <div className="space-y-0.5">
+                              <Label className="font-semibold text-gray-700 flex items-center gap-1.5">
+                                <Bot className="w-4 h-4 text-purple-600" />
+                                AI Store Takeover (All Inbox Messages)
+                              </Label>
+                              <span className="text-[11px] text-gray-500 block leading-tight">
+                                Automatically handle every incoming customer message and voice note with AI — not just after clicking trigger words or buttons. The AI agent will have full awareness of all products, prices, descriptions, and store information.
+                              </span>
+                            </div>
+                            <Switch checked={aiTakeoverEnabled} onCheckedChange={setAiTakeoverEnabled} />
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
                               <Label className="font-semibold text-gray-700">Offer "Talk to Agent" buttons / choices</Label>
                               <span className="text-[11px] text-gray-500 block leading-tight">
                                 Show a button / menu prompt next to products so users can opt to chat.
@@ -2794,9 +2842,12 @@ export default function EcommerceLedger() {
 
                           <div className="flex items-center justify-between">
                             <div className="space-y-0.5">
-                              <Label className="font-semibold text-gray-700">Respond with Audio / Voice Notes</Label>
+                              <Label className="font-semibold text-gray-700 flex items-center gap-1.5">
+                                <Mic className="w-4 h-4 text-purple-600" />
+                                Respond with Audio / Voice Notes
+                              </Label>
                               <span className="text-[11px] text-gray-500 block leading-tight">
-                                Reply to incoming customer voice notes with synthesized speech.
+                                Reply to incoming customer voice notes with synthesized speech (or in native text if turned off).
                               </span>
                             </div>
                             <Switch checked={aiVoiceEnabled} onCheckedChange={setAiVoiceEnabled} />
@@ -3552,6 +3603,19 @@ You are chatting with a customer regarding this product:
                       <ClipboardList className="w-4 h-4 text-emerald-600" />
                       Checkout Questions Flow
                     </h3>
+
+                    <div className="flex items-center justify-between p-3 bg-emerald-50/40 border border-emerald-100 rounded-lg">
+                      <div className="space-y-0.5">
+                        <Label className="font-semibold text-gray-800 flex items-center gap-1.5 text-xs">
+                          <Package className="w-4 h-4 text-emerald-600" />
+                          Ask Quantity Question during Checkout
+                        </Label>
+                        <span className="text-[11px] text-gray-500 block leading-tight">
+                          When disabled, checkout skips asking "How many Qty?" (defaults to 1) and proceeds directly to customer details and payment.
+                        </span>
+                      </div>
+                      <Switch checked={askQuantity} onCheckedChange={setAskQuantity} />
+                    </div>
 
                     <div className="space-y-3">
                       <Label className="font-semibold text-gray-700 block">Checkout Fields (Q&A List)</Label>

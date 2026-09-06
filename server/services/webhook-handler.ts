@@ -2992,6 +2992,12 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
 
     const conversationHistory = existingMessages
       .sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .filter((msg: any) => {
+        if (!msg.content || typeof msg.content !== "string") return false;
+        const trimmed = msg.content.trim();
+        if (/^\[(video|image|audio|document|sticker|location|contact|media)\]$/i.test(trimmed)) return false;
+        return true;
+      })
       .slice(-11, -1) // gets the last 10 messages before the current one
       .map((msg: any) => ({
         role: msg.direction === "inbound" ? "user" as const : "assistant" as const,
@@ -3029,7 +3035,7 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
     const siteName = site?.name || channelData?.name || "our company";
     const basePrompt = widgetCfg.systemPrompt ||
       `You are a helpful, friendly customer support assistant for ${siteName}. Answer questions using the provided facts in the knowledge base. Be conversational and helpful. Keep responses concise for WhatsApp (under 300 words). If you don't know the answer, be honest about it.
-CRITICAL LANGUAGE RULE: Understand Manglish (Malayalam written in English/Latin letters, e.g. "ithinte price ethra?", "evideya sthalam?") as MALAYALAM language. Always respond in natural, clear MALAYALAM SCRIPT (മലയാളം). NEVER reply in English to a Manglish or Malayalam query! If in Malayalam script (മലയാളം), reply in Malayalam script. If in Hinglish, reply in Hindi script. If in Arabic, reply in Arabic. If in English, reply in English.`;
+CRITICAL LANGUAGE & INFORMATION RULE: Understand Manglish (Malayalam written in English/Latin letters, e.g. "ithinte price ethra?", "evideya sthalam?") as MALAYALAM language. Always respond in natural, clear MALAYALAM SCRIPT (മലയാളം). NEVER reply in English to a Manglish or Malayalam query! If in Malayalam script (മലയാളം), reply in Malayalam script. If in Hinglish, reply in Hindi script. If in Arabic, reply in Arabic. If in English, reply in English. If the user asks for unavailable information or media (such as product videos, custom demonstrations, or unlisted details), politely explain in Malayalam script (or matching language) that you are an AI assistant and do not have this information/video, but our team will help them soon, or they can call us for urgent matters. NEVER mention videos or media unless the user explicitly requested it in their query.`;
 
     const escalationInstruction = `\n\nCRITICAL INSTRUCTIONS:
 - You are strictly restricted to only answering questions using the facts provided in the "RELEVANT KNOWLEDGE BASE & TRAINING DATA" or "RELEVANT FAQ PAIRS" sections above.

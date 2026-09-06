@@ -1641,7 +1641,7 @@ ${otherProductsSummary ? `• Other Products in Store:\n${otherProductsSummary}`
 `;
 
         const languageDirective = `
-CRITICAL LANGUAGE MATCHING RULE:
+CRITICAL LANGUAGE & INFORMATION RULES:
 1. UNDERSTAND MANGLISH & MALAYALAM:
    - When the customer messages in MANGLISH (Malayalam words written in English/Latin alphabet, e.g. "ithinte price ethra aanu?", "order cheyyan enthu cheyyanam?", "delivery undo?", "details parayamo?"):
      Understand it as MALAYALAM language.
@@ -1652,7 +1652,12 @@ CRITICAL LANGUAGE MATCHING RULE:
    - If the customer messages in Hinglish or Hindi: reply in Hindi.
    - If the customer messages in Arabic: reply in Arabic.
    - If the customer messages in English: reply in English.
-3. Keep responses natural, warm, and concise for WhatsApp (under 100 words).`;
+3. HANDLING UNAVAILABLE INFORMATION / MEDIA / CUSTOM REQUESTS (E.G. PRODUCT VIDEOS, SPECIAL REQUESTS):
+   - If the customer asks for something not available in the store data (like requesting video demonstration, custom photos, or unlisted details):
+     Politely explain in Malayalam script (or matching language) that you are an AI assistant and do not have this information/video, but a member of our team will help them soon, or they can call for urgent matters.
+     (e.g.: "ഞാൻ ഒരു AI അസിസ്റ്റന്റാണ്. ഈ വിവരങ്ങൾ/വീഡിയോ ഇപ്പോൾ എന്റെ പക്കൽ ലഭ്യമല്ല. ഞങ്ങളുടെ ടീമിലെ ഒരാൾ ഉടൻ തന്നെ നിങ്ങളെ സഹായിക്കുന്നതാണ്. അടിയന്തര ആവശ്യങ്ങൾക്ക് ദയവായി ഞങ്ങളെ നേരിട്ട് വിളിക്കാവുന്നതാണ്.")
+   - NEVER talk about videos or media unless the customer explicitly asked for it in their current query.
+4. Keep responses natural, warm, and concise for WhatsApp (under 100 words).`;
 
         const defaultSystemPrompt = `You are a knowledgeable, friendly customer sales AI assistant for this store.
 You are chatting with a customer regarding this product:
@@ -1697,7 +1702,7 @@ ${catalogList || "No products currently listed in the store."}
 `;
 
         const languageDirective = `
-CRITICAL LANGUAGE MATCHING RULE:
+CRITICAL LANGUAGE & INFORMATION RULES:
 1. UNDERSTAND MANGLISH & MALAYALAM:
    - When the customer messages in MANGLISH (Malayalam words written in English/Latin alphabet, e.g. "ithinte price ethra aanu?", "order cheyyan enthu cheyyanam?", "delivery undo?", "details parayamo?"):
      Understand it as MALAYALAM language.
@@ -1708,7 +1713,12 @@ CRITICAL LANGUAGE MATCHING RULE:
    - If the customer messages in Hinglish or Hindi: reply in Hindi.
    - If the customer messages in Arabic: reply in Arabic.
    - If the customer messages in English: reply in English.
-3. Keep responses natural, warm, and concise for WhatsApp (under 100 words).`;
+3. HANDLING UNAVAILABLE INFORMATION / MEDIA / CUSTOM REQUESTS (E.G. PRODUCT VIDEOS, SPECIAL REQUESTS):
+   - If the customer asks for something not available in the store data (like requesting video demonstration, custom photos, or unlisted details):
+     Politely explain in Malayalam script (or matching language) that you are an AI assistant and do not have this information/video, but a member of our team will help them soon, or they can call for urgent matters.
+     (e.g.: "ഞാൻ ഒരു AI അസിസ്റ്റന്റാണ്. ഈ വിവരങ്ങൾ/വീഡിയോ ഇപ്പോൾ എന്റെ പക്കൽ ലഭ്യമല്ല. ഞങ്ങളുടെ ടീമിലെ ഒരാൾ ഉടൻ തന്നെ നിങ്ങളെ സഹായിക്കുന്നതാണ്. അടിയന്തര ആവശ്യങ്ങൾക്ക് ദയവായി ഞങ്ങളെ നേരിട്ട് വിളിക്കാവുന്നതാണ്.")
+   - NEVER talk about videos or media unless the customer explicitly asked for it in their current query.
+4. Keep responses natural, warm, and concise for WhatsApp (under 100 words).`;
 
         const defaultStoreSystemPrompt = `You are the knowledgeable, friendly, and expert customer sales AI assistant for "${config.storeName || "our official store"}".
 You have full access and complete awareness of all products listed in our store catalog and store policies.
@@ -1918,14 +1928,18 @@ CRITICAL DIRECTIVES:
             // Native text response
             messages.push({
               role: "system",
-              content: `CRITICAL LANGUAGE DIRECTIVE FOR TEXT RESPONSE:
+              content: `CRITICAL LANGUAGE & INFORMATION DIRECTIVE FOR TEXT RESPONSE:
 - Always understand Manglish (Malayalam written in English/Latin letters) as Malayalam language.
 - Formulate your WhatsApp text answer in natural, fluent **MALAYALAM SCRIPT (മലയാളം)**.
 - NEVER reply in English to a customer asking in Manglish or Malayalam, unless they explicitly asked in English!
 - If the customer messages in Malayalam (script or Manglish): reply in MALAYALAM SCRIPT (മലയാളം).
 - If the customer messages in Hinglish or Hindi: reply in Hindi script.
 - If the customer messages in Arabic: reply in Arabic.
-- If the customer messages in English: reply in English.`
+- If the customer messages in English: reply in English.
+- If the customer asks for unavailable media/details (like product videos, custom photos, or unlisted information):
+  Politely reply in Malayalam script (or matching language) that you are an AI assistant and do not have this information/video, but our team will help them soon, or they can call for urgent matters.
+  (e.g.: "ഞാൻ ഒരു AI അസിസ്റ്റന്റാണ്. ഈ വിവരങ്ങൾ/വീഡിയോ ഇപ്പോൾ എന്റെ പക്കൽ ലഭ്യമല്ല. ഞങ്ങളുടെ ടീമിലെ ഒരാൾ ഉടൻ തന്നെ നിങ്ങളെ സഹായിക്കുന്നതാണ്. അടിയന്തര ആവശ്യങ്ങൾക്ക് ദയവായി ഞങ്ങളെ നേരിട്ട് വിളിക്കാവുന്നതാണ്.")
+- NEVER mention videos or media unless the customer explicitly asked for a video in their message.`
             });
           }
         }
@@ -1940,13 +1954,16 @@ CRITICAL DIRECTIVES:
             .from(schema.messages)
             .where(eq(schema.messages.conversationId, conversationId))
             .orderBy(desc(schema.messages.createdAt))
-            .limit(6);
+            .limit(8);
 
           const chronological = recentDbMessages.reverse();
           for (const m of chronological) {
             if (!m.content || typeof m.content !== "string") continue;
+            const trimmed = m.content.trim();
+            // Filter out raw media bracket tags (e.g. [Video], [Image], [Audio]) so LLM is not confused by media sent by human agent or user
+            if (/^\[(video|image|audio|document|sticker|location|contact|media)\]$/i.test(trimmed)) continue;
             // Avoid duplicating the current incoming message if it was already saved
-            if (m.content.trim() === input.trim()) continue;
+            if (trimmed === input.trim()) continue;
             const isAssistant = m.fromUser || m.direction === "outbound";
             messages.push({
               role: isAssistant ? "assistant" : "user",

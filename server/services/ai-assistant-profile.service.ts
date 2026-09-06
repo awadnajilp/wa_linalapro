@@ -119,11 +119,19 @@ export class AiAssistantProfileService {
         .orderBy(sql`${messages.timestamp} desc`)
         .limit(20);
 
-      // Construct history messages for LLM context
-      const chatHistory = [...recentMessages].reverse().map(msg => ({
-        role: msg.direction === "inbound" ? ("user" as const) : ("assistant" as const),
-        content: msg.content || "",
-      }));
+      // Construct history messages for LLM context (filtering raw media bracket tags like [Video], [Image])
+      const chatHistory = [...recentMessages]
+        .reverse()
+        .filter(msg => {
+          if (!msg.content || typeof msg.content !== "string") return false;
+          const trimmed = msg.content.trim();
+          if (/^\[(video|image|audio|document|sticker|location|contact|media)\]$/i.test(trimmed)) return false;
+          return true;
+        })
+        .map(msg => ({
+          role: msg.direction === "inbound" ? ("user" as const) : ("assistant" as const),
+          content: msg.content || "",
+        }));
 
       // Add the new message if not already present
       const cleanLastMsg = (messageContent || "").trim();
@@ -228,7 +236,11 @@ export class AiAssistantProfileService {
 - If the customer writes in Malayalam script (മലയാളം) or Manglish, reply in Malayalam script (മലയാളം).
 - If the customer writes in Hinglish or Hindi, reply in Hindi script.
 - If the customer writes in Arabic, reply in Arabic.
-- If the customer writes in English, reply in English.`;
+- If the customer writes in English, reply in English.
+- If the customer asks for unavailable media/details (like product videos, custom photos, or unlisted information):
+  Politely reply in Malayalam script (or matching language) that you are an AI assistant and do not have this information/video, but our team will help them soon, or they can call for urgent matters.
+  (e.g.: "ഞാൻ ഒരു AI അസിസ്റ്റന്റാണ്. ഈ വിവരങ്ങൾ/വീഡിയോ ഇപ്പോൾ എന്റെ പക്കൽ ലഭ്യമല്ല. ഞങ്ങളുടെ ടീമിലെ ഒരാൾ ഉടൻ തന്നെ നിങ്ങളെ സഹായിക്കുന്നതാണ്. അടിയന്തര ആവശ്യങ്ങൾക്ക് ദയവായി ഞങ്ങളെ നേരിട്ട് വിളിക്കാവുന്നതാണ്.")
+- NEVER mention videos or media unless the customer explicitly asked for a video in their message.`;
       }
 
       if (kbContext) {

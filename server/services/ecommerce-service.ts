@@ -1060,11 +1060,14 @@ export class EcommerceService {
 
     // 4. Check if text without common punctuation contains keyword
     const strippedText = cleanText.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"'–—]/g, " ").replace(/\s+/g, " ").trim();
+    const strippedKw = cleanKw.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"'–—]/g, " ").replace(/\s+/g, " ").trim();
     if (
       strippedText === cleanKw ||
-      strippedText.startsWith(cleanKw + " ") ||
-      strippedText.endsWith(" " + cleanKw) ||
-      strippedText.includes(` ${cleanKw} `)
+      strippedText === strippedKw ||
+      strippedText.startsWith(strippedKw + " ") ||
+      strippedText.endsWith(" " + strippedKw) ||
+      strippedText.includes(` ${strippedKw} `) ||
+      (strippedKw.length >= 3 && strippedText.includes(strippedKw))
     ) {
       return true;
     }
@@ -1078,9 +1081,13 @@ export class EcommerceService {
 
     if (
       withoutGreetings === cleanKw ||
+      withoutGreetings === strippedKw ||
       withoutGreetings.startsWith(cleanKw + " ") ||
+      withoutGreetings.startsWith(strippedKw + " ") ||
       withoutGreetings.endsWith(" " + cleanKw) ||
-      withoutGreetings.includes(` ${cleanKw} `)
+      withoutGreetings.endsWith(" " + strippedKw) ||
+      withoutGreetings.includes(` ${cleanKw} `) ||
+      withoutGreetings.includes(` ${strippedKw} `)
     ) {
       return true;
     }
@@ -1111,6 +1118,7 @@ export class EcommerceService {
     const referralHeadline = (referral?.headline || "").trim().toLowerCase();
     const referralBody = (referral?.body || "").trim().toLowerCase();
     const referralSourceUrl = (referral?.source_url || "").trim().toLowerCase();
+    const referralWelcome = (referral?.welcome_message?.text || referral?.welcome_message || "").toString().trim().toLowerCase();
 
     // Filter products with trigger enabled
     const triggeredProducts = products.filter((p: any) => p.isTriggerEnabled && p.triggerKeyword && p.triggerKeyword.trim().length > 0);
@@ -1121,16 +1129,17 @@ export class EcommerceService {
     // 1. Exact match on triggerKeyword
     for (const prod of triggeredProducts) {
       const kw = prod.triggerKeyword!.trim().toLowerCase();
-      if (cleanContent === kw) {
+      if (cleanContent === kw || (referralWelcome && referralWelcome === kw)) {
         return prod;
       }
     }
 
-    // 2. Meta Referral Headline / Body / URL Match (Click-to-WhatsApp Ads)
-    if (referralHeadline || referralBody || referralSourceUrl) {
+    // 2. Meta Referral Headline / Body / URL / Welcome Message Match (Click-to-WhatsApp Ads)
+    if (referralHeadline || referralBody || referralSourceUrl || referralWelcome) {
       for (const prod of triggeredProducts) {
         const kw = prod.triggerKeyword!.trim().toLowerCase();
         if (
+          (referralWelcome && this.matchKeywordPhrase(referralWelcome, kw)) ||
           (referralHeadline && this.matchKeywordPhrase(referralHeadline, kw)) ||
           (referralBody && this.matchKeywordPhrase(referralBody, kw)) ||
           (referralSourceUrl && referralSourceUrl.includes(encodeURIComponent(kw)))
@@ -1139,11 +1148,12 @@ export class EcommerceService {
         }
       }
 
-      // Also check if referral headline / body matches product name
+      // Also check if referral headline / body / welcome matches product name
       for (const prod of products) {
         const prodName = (prod.name || "").trim().toLowerCase();
         if (prodName.length >= 3) {
           if (
+            (referralWelcome && this.matchKeywordPhrase(referralWelcome, prodName)) ||
             (referralHeadline && this.matchKeywordPhrase(referralHeadline, prodName)) ||
             (referralBody && this.matchKeywordPhrase(referralBody, prodName))
           ) {

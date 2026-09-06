@@ -54,14 +54,14 @@ const Footer: React.FC = () => {
       {link.href.startsWith("/") ? (
         <Link
           to={link.href}
-          className="text-slate-400 hover:text-emerald-400 text-xs sm:text-sm transition-all duration-200 hover:translate-x-0.5 inline-block"
+          className="text-slate-400 hover:text-purple-400 text-xs sm:text-sm transition-all duration-200 hover:translate-x-0.5 inline-block"
         >
           {link.name}
         </Link>
       ) : (
         <a
           href={link.href}
-          className="text-slate-400 hover:text-emerald-400 text-xs sm:text-sm transition-all duration-200 hover:translate-x-0.5 inline-block"
+          className="text-slate-400 hover:text-purple-400 text-xs sm:text-sm transition-all duration-200 hover:translate-x-0.5 inline-block"
         >
           {link.name}
         </a>
@@ -71,7 +71,7 @@ const Footer: React.FC = () => {
 
   return (
     <footer className="bg-slate-950 text-white relative border-t border-slate-900">
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-500/40 to-transparent" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-8">
@@ -94,7 +94,7 @@ const Footer: React.FC = () => {
                   style={{ filter: "brightness(0) invert(1)" }}
                 />
               ) : (
-                <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-xl p-2">
+                <div className="bg-purple-600/20 border border-purple-500/30 text-purple-400 rounded-xl p-2">
                   <MessageSquare className="h-6 w-6" />
                 </div>
               )}
@@ -107,21 +107,21 @@ const Footer: React.FC = () => {
             <div className="flex space-x-2.5 pt-2">
               <a
                 href="https://x.com"
-                className="bg-slate-900 p-2.5 rounded-xl hover:bg-emerald-950 border border-slate-800 hover:border-emerald-500/40 transition-all text-slate-400 hover:text-emerald-400"
+                className="bg-slate-900 p-2.5 rounded-xl hover:bg-purple-950 border border-slate-800 hover:border-purple-500/40 transition-all text-slate-400 hover:text-purple-400"
                 aria-label="Twitter"
               >
                 <Twitter className="w-4 h-4" />
               </a>
               <a
                 href="https://linkedin.com"
-                className="bg-slate-900 p-2.5 rounded-xl hover:bg-emerald-950 border border-slate-800 hover:border-emerald-500/40 transition-all text-slate-400 hover:text-emerald-400"
+                className="bg-slate-900 p-2.5 rounded-xl hover:bg-purple-950 border border-slate-800 hover:border-purple-500/40 transition-all text-slate-400 hover:text-purple-400"
                 aria-label="LinkedIn"
               >
                 <Linkedin className="w-4 h-4" />
               </a>
               <a
                 href="https://github.com"
-                className="bg-slate-900 p-2.5 rounded-xl hover:bg-emerald-950 border border-slate-800 hover:border-emerald-500/40 transition-all text-slate-400 hover:text-emerald-400"
+                className="bg-slate-900 p-2.5 rounded-xl hover:bg-purple-950 border border-slate-800 hover:border-purple-500/40 transition-all text-slate-400 hover:text-purple-400"
                 aria-label="GitHub"
               >
                 <Github className="w-4 h-4" />

@@ -71,16 +71,16 @@ const Hero: React.FC = () => {
   }, [isPlayingAudio]);
 
   return (
-    <section className="relative pt-28 pb-20 lg:pt-36 lg:pb-28 overflow-hidden bg-gradient-to-b from-emerald-50/40 via-white to-slate-50/50">
+    <section className="relative pt-28 pb-20 lg:pt-36 lg:pb-28 overflow-hidden bg-gradient-to-b from-purple-50/50 via-white to-slate-50/50">
       {/* Background Decorative Gradients */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[1000px] h-[550px] bg-gradient-to-tr from-emerald-200/25 via-teal-100/30 to-emerald-300/15 rounded-full blur-3xl opacity-70 animate-pulse duration-10000" />
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/3 -left-20 w-80 h-80 bg-teal-300/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-10 right-10 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[1000px] h-[550px] bg-gradient-to-tr from-purple-200/25 via-indigo-100/30 to-purple-300/15 rounded-full blur-3xl opacity-70 animate-pulse duration-10000" />
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 -left-20 w-80 h-80 bg-indigo-300/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-10 right-10 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl" />
         
         {/* Subtle grid pattern */}
-        <div className="absolute inset-0 bg-[radial-gradient(#059669_0.75px,transparent_0.75px)] [background-size:24px_24px] opacity-[0.08]" />
+        <div className="absolute inset-0 bg-[radial-gradient(#9333EA_0.75px,transparent_0.75px)] [background-size:24px_24px] opacity-[0.07]" />
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -89,13 +89,13 @@ const Hero: React.FC = () => {
         <div className="flex justify-center mb-6">
           <Link
             href="/#features"
-            className="group inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 border border-emerald-200/80 shadow-xs hover:border-emerald-300 hover:bg-emerald-100/60 transition-all duration-300"
+            className="group inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-50 border border-purple-200/80 shadow-xs hover:border-purple-300 hover:bg-purple-100/60 transition-all duration-300"
           >
-            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
-            <span className="text-xs font-semibold text-emerald-800 tracking-wide">
+            <span className="flex h-2 w-2 rounded-full bg-purple-600 animate-ping" />
+            <span className="text-xs font-semibold text-purple-900 tracking-wide">
               NEW: AI Voice Note Replies & Instant WhatsApp Store
             </span>
-            <span className="inline-flex items-center text-xs font-medium text-emerald-700 group-hover:translate-x-0.5 transition-transform">
+            <span className="inline-flex items-center text-xs font-medium text-purple-700 group-hover:translate-x-0.5 transition-transform">
               See what's new <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
             </span>
           </Link>
@@ -105,9 +105,9 @@ const Hero: React.FC = () => {
         <div className="text-center max-w-4xl mx-auto mb-12 lg:mb-16">
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-slate-900 tracking-tight leading-[1.12]">
             The All-in-One WhatsApp Platform for{" "}
-            <span className="block mt-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 bg-clip-text text-transparent">
+            <span className="block mt-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 bg-clip-text text-transparent">
               {displayText}
-              <span className="inline-block w-[3px] h-[0.85em] bg-emerald-500 ml-1.5 align-middle animate-pulse" />
+              <span className="inline-block w-[3px] h-[0.85em] bg-purple-600 ml-1.5 align-middle animate-pulse" />
             </span>
           </h1>
 
@@ -120,7 +120,7 @@ const Hero: React.FC = () => {
           <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               href="/signup"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base shadow-lg shadow-emerald-600/25 hover:shadow-xl hover:shadow-emerald-600/35 hover:-translate-y-0.5 transition-all duration-200"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base shadow-lg shadow-purple-600/25 hover:shadow-xl hover:shadow-purple-600/35 hover:-translate-y-0.5 transition-all duration-200"
             >
               <span>Start 14-Day Free Trial</span>
               <ArrowRight className="w-5 h-5" />
@@ -130,7 +130,7 @@ const Hero: React.FC = () => {
               href="/contact"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-semibold text-base border border-slate-200 hover:border-slate-300 shadow-sm hover:shadow transition-all duration-200"
             >
-              <Sparkles className="w-4 h-4 text-emerald-600" />
+              <Sparkles className="w-4 h-4 text-purple-600" />
               <span>Book Live Demo</span>
             </Link>
           </div>
@@ -138,19 +138,19 @@ const Hero: React.FC = () => {
           {/* Trust Value Badges */}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-y-2 gap-x-6 text-xs sm:text-sm font-medium text-slate-600">
             <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 text-purple-600" />
               <span>No credit card required</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 text-purple-600" />
               <span>5-minute zero-code setup</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 text-purple-600" />
               <span>Meta Cloud API & QR channel</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 text-purple-600" />
               <span>99.9% Uptime SLA</span>
             </div>
           </div>
@@ -159,7 +159,7 @@ const Hero: React.FC = () => {
         {/* Hero Interactive App & WhatsApp Showcase (Brevo/SaaS Style) */}
         <div className="relative max-w-6xl mx-auto">
           {/* Outer glow frame */}
-          <div className="absolute -inset-1.5 bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-emerald-600/20 rounded-3xl blur-xl opacity-80" />
+          <div className="absolute -inset-1.5 bg-gradient-to-r from-purple-500/20 via-indigo-500/20 to-purple-600/20 rounded-3xl blur-xl opacity-80" />
 
           {/* Main Dashboard Preview Container */}
           <div className="relative rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white/95 backdrop-blur-xl shadow-2xl shadow-slate-900/10 overflow-hidden">
@@ -182,7 +182,7 @@ const Hero: React.FC = () => {
                   onClick={() => setActiveTab("chat")}
                   className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
                     activeTab === "chat"
-                      ? "bg-white text-emerald-700 shadow-xs font-semibold"
+                      ? "bg-white text-purple-700 shadow-xs font-semibold"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
@@ -193,7 +193,7 @@ const Hero: React.FC = () => {
                   onClick={() => setActiveTab("checkout")}
                   className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
                     activeTab === "checkout"
-                      ? "bg-white text-emerald-700 shadow-xs font-semibold"
+                      ? "bg-white text-purple-700 shadow-xs font-semibold"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
@@ -204,7 +204,7 @@ const Hero: React.FC = () => {
                   onClick={() => setActiveTab("analytics")}
                   className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
                     activeTab === "analytics"
-                      ? "bg-white text-emerald-700 shadow-xs font-semibold"
+                      ? "bg-white text-purple-700 shadow-xs font-semibold"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
@@ -222,7 +222,7 @@ const Hero: React.FC = () => {
                 <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center font-bold text-white text-sm shadow">
+                      <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white text-sm shadow">
                         W
                       </div>
                       <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-slate-900 rounded-full" />
@@ -230,10 +230,10 @@ const Hero: React.FC = () => {
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-semibold text-sm text-white">Zenta Premium Store</span>
-                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                        <ShieldCheck className="w-4 h-4 text-purple-400" />
                       </div>
-                      <span className="text-[11px] text-emerald-400 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                      <span className="text-[11px] text-purple-400 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
                         AI Agent Active (Malayalam, Manglish, English)
                       </span>
                     </div>
@@ -257,23 +257,23 @@ const Hero: React.FC = () => {
 
                   {/* AI Autopilot Voice Note Reply */}
                   <div className="flex justify-end">
-                    <div className="bg-emerald-900/60 border border-emerald-500/30 text-white rounded-2xl rounded-tr-xs p-3 max-w-[90%] shadow-sm">
+                    <div className="bg-purple-950/70 border border-purple-500/30 text-white rounded-2xl rounded-tr-xs p-3 max-w-[90%] shadow-sm">
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[10px] font-semibold text-emerald-300 flex items-center gap-1">
-                          <Sparkles className="w-3 h-3 text-emerald-300" /> AI Voice Note (Malayalam)
+                        <span className="text-[10px] font-semibold text-purple-300 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-purple-300" /> AI Voice Note (Malayalam)
                         </span>
-                        <span className="text-[10px] text-emerald-200">0:14</span>
+                        <span className="text-[10px] text-purple-200">0:14</span>
                       </div>
 
                       {/* Interactive Audio Player Pill */}
-                      <div className="flex items-center gap-2.5 bg-emerald-950/70 p-2 rounded-xl border border-emerald-600/30">
+                      <div className="flex items-center gap-2.5 bg-slate-900/90 p-2 rounded-xl border border-purple-600/30">
                         <button
                           type="button"
                           onClick={() => setIsPlayingAudio(!isPlayingAudio)}
-                          className="w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center transition-all flex-shrink-0"
+                          className="w-8 h-8 rounded-full bg-purple-500 hover:bg-purple-400 text-white flex items-center justify-center transition-all flex-shrink-0"
                           title={isPlayingAudio ? "Pause Voice Note" : "Play Voice Note"}
                         >
-                          {isPlayingAudio ? <Pause className="w-4 h-4 fill-slate-950" /> : <Play className="w-4 h-4 fill-slate-950 ml-0.5" />}
+                          {isPlayingAudio ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
                         </button>
                         
                         {/* Audio Waveform Bars */}
@@ -284,17 +284,17 @@ const Hero: React.FC = () => {
                               <div
                                 key={i}
                                 className={`flex-1 rounded-full transition-all duration-150 ${
-                                  isBarActive ? "bg-emerald-400" : "bg-emerald-800/60"
+                                  isBarActive ? "bg-purple-400" : "bg-purple-900/60"
                                 }`}
                                 style={{ height: `${h}%` }}
                               />
                             );
                           })}
                         </div>
-                        <Volume2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                        <Volume2 className="w-4 h-4 text-purple-400 flex-shrink-0" />
                       </div>
 
-                      <p className="text-[11px] text-emerald-100 mt-2 leading-relaxed">
+                      <p className="text-[11px] text-purple-100 mt-2 leading-relaxed">
                         "തീർച്ചയായും! Blue Linen Shirt സ്റ്റോക്കിൽ ഉണ്ട്. ₹1,499 ആണ് വില. താഴെയുള്ള ബട്ടൺ വഴി UPI / Card ഉപയോഗിച്ച് direct ആയി ഓർഡർ ചെയ്യാം."
                       </p>
                     </div>
@@ -304,14 +304,14 @@ const Hero: React.FC = () => {
                   <div className="flex justify-end">
                     <div className="bg-slate-800 rounded-2xl rounded-tr-xs p-3 max-w-[88%] border border-slate-700/80 shadow-md">
                       <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 rounded-xl bg-emerald-950/60 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                          <ShoppingBag className="w-7 h-7 text-emerald-400" />
+                        <div className="w-14 h-14 rounded-xl bg-purple-950/60 border border-purple-500/20 flex items-center justify-center flex-shrink-0">
+                          <ShoppingBag className="w-7 h-7 text-purple-400" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-semibold text-white truncate">
                             Signature Linen Shirt (Blue)
                           </div>
-                          <div className="text-emerald-400 font-bold text-sm mt-0.5">
+                          <div className="text-purple-400 font-bold text-sm mt-0.5">
                             ₹1,499 <span className="text-[10px] text-slate-400 line-through">₹2,499</span>
                           </div>
                           <span className="text-[10px] text-emerald-300 font-medium">✓ In Stock (Express Delivery)</span>
@@ -322,7 +322,7 @@ const Hero: React.FC = () => {
                       <div className="mt-2.5 pt-2 border-t border-slate-700/60 grid grid-cols-2 gap-2">
                         <button
                           type="button"
-                          className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition-colors"
+                          className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-[11px] transition-colors"
                         >
                           <ShoppingBag className="w-3 h-3" /> Buy Now
                         </button>
@@ -342,9 +342,9 @@ const Hero: React.FC = () => {
               <div className="lg:col-span-6 space-y-4">
                 
                 {/* Floating Metric 1: Conversion Rate & Speed */}
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 shadow-xs flex items-center justify-between">
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100 shadow-xs flex items-center justify-between">
                   <div className="flex items-center gap-3.5">
-                    <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/20">
+                    <div className="w-11 h-11 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-600/20">
                       <TrendingUp className="w-6 h-6" />
                     </div>
                     <div>
@@ -352,12 +352,12 @@ const Hero: React.FC = () => {
                         WhatsApp Conversion Velocity
                       </div>
                       <div className="text-2xl font-bold text-slate-900">
-                        3.8x <span className="text-xs font-semibold text-emerald-600">+280% vs Email</span>
+                        3.8x <span className="text-xs font-semibold text-purple-600">+280% vs Email</span>
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
                       ⚡ 1.8s AI Latency
                     </span>
                   </div>
@@ -367,7 +367,7 @@ const Hero: React.FC = () => {
                 <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
                         <CreditCard className="w-5 h-5" />
                       </div>
                       <div>
@@ -379,15 +379,15 @@ const Hero: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">
+                    <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded-md">
                       +₹1,499.00
                     </span>
                   </div>
 
                   {/* Flow Progress Step */}
                   <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                    <span className="flex items-center gap-1 text-emerald-700 font-medium">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="flex items-center gap-1 text-purple-700 font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" />
                       Receipt Sent on WhatsApp
                     </span>
                     <span>Tracking URL Dispatched</span>
@@ -398,7 +398,7 @@ const Hero: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                     <div className="flex items-center gap-2 mb-1.5">
-                      <Zap className="w-4 h-4 text-emerald-600" />
+                      <Zap className="w-4 h-4 text-purple-600" />
                       <span className="text-xs font-bold text-slate-900">Drip Followup Cadence</span>
                     </div>
                     <p className="text-[11px] text-slate-500 leading-snug">
@@ -408,7 +408,7 @@ const Hero: React.FC = () => {
 
                   <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                     <div className="flex items-center gap-2 mb-1.5">
-                      <Bot className="w-4 h-4 text-teal-600" />
+                      <Bot className="w-4 h-4 text-indigo-600" />
                       <span className="text-xs font-bold text-slate-900">SME Expense Scanner</span>
                     </div>
                     <p className="text-[11px] text-slate-500 leading-snug">
@@ -433,7 +433,7 @@ const Hero: React.FC = () => {
               (brand, idx) => (
                 <span
                   key={idx}
-                  className="px-3.5 py-1.5 rounded-lg bg-white border border-slate-200/80 text-slate-700 font-semibold text-xs sm:text-sm tracking-tight shadow-2xs hover:border-emerald-300 hover:text-emerald-700 hover:shadow-xs transition-all"
+                  className="px-3.5 py-1.5 rounded-lg bg-white border border-slate-200/80 text-slate-700 font-semibold text-xs sm:text-sm tracking-tight shadow-2xs hover:border-purple-300 hover:text-purple-700 hover:shadow-xs transition-all"
                 >
                   {brand}
                 </span>

@@ -124,8 +124,8 @@ export const UseCases: React.FC = () => {
         
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold uppercase tracking-wider mb-4">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-800 text-xs font-semibold uppercase tracking-wider mb-4">
+            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
             Tailored Industry Solutions
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
@@ -148,11 +148,11 @@ export const UseCases: React.FC = () => {
                 onClick={() => setActiveIdx(idx)}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm whitespace-nowrap transition-all duration-200 cursor-pointer ${
                   isActive
-                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20 font-semibold"
+                    ? "bg-purple-600 text-white shadow-md shadow-purple-600/20 font-semibold"
                     : "bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/80"
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-emerald-600"}`} />
+                <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-purple-600"}`} />
                 <span>{item.title.split("&")[0].trim()}</span>
               </button>
             );
@@ -160,13 +160,13 @@ export const UseCases: React.FC = () => {
         </div>
 
         {/* Active Industry Showcase Card */}
-        <div className="bg-gradient-to-br from-slate-50 to-emerald-50/30 rounded-3xl p-8 sm:p-12 border border-emerald-100 shadow-sm">
+        <div className="bg-gradient-to-br from-slate-50 to-purple-50/30 rounded-3xl p-8 sm:p-12 border border-purple-100 shadow-sm">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
             
             {/* Left Content */}
             <div className="lg:col-span-7 space-y-6">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-white border border-emerald-200 text-emerald-800 text-xs font-semibold">
-                <activeCase.icon className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-white border border-purple-200 text-purple-800 text-xs font-semibold">
+                <activeCase.icon className="w-3.5 h-3.5 text-purple-600" />
                 {activeCase.badge}
               </span>
 
@@ -181,7 +181,7 @@ export const UseCases: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 {activeCase.highlights.map((h, i) => (
                   <div key={i} className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    <CheckCircle2 className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
                     <span className="text-xs sm:text-sm text-slate-700">{h}</span>
                   </div>
                 ))}
@@ -190,7 +190,7 @@ export const UseCases: React.FC = () => {
               <div className="pt-4">
                 <Link
                   href="/signup"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-all"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm transition-all shadow-md shadow-purple-600/20"
                 >
                   <span>Explore {activeCase.title.split("&")[0]} Solution</span>
                   <ArrowRight className="w-4 h-4" />
@@ -199,14 +199,14 @@ export const UseCases: React.FC = () => {
             </div>
 
             {/* Right Metric Box */}
-            <div className="lg:col-span-5 bg-white rounded-2xl p-8 border border-emerald-200 shadow-md flex flex-col justify-center items-center text-center">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-4">
-                <TrendingUp className="w-7 h-7 text-emerald-600" />
+            <div className="lg:col-span-5 bg-white rounded-2xl p-8 border border-purple-200 shadow-md flex flex-col justify-center items-center text-center">
+              <div className="w-14 h-14 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center mb-4">
+                <TrendingUp className="w-7 h-7 text-purple-600" />
               </div>
               <div className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">
                 {activeCase.growthMetric}
               </div>
-              <div className="text-sm font-bold text-emerald-800 mt-2">
+              <div className="text-sm font-bold text-purple-800 mt-2">
                 {activeCase.metricLabel}
               </div>
               <p className="text-xs text-slate-500 mt-3 max-w-xs">

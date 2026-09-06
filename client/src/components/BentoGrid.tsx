@@ -23,8 +23,8 @@ export const BentoGrid: React.FC = () => {
         
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold uppercase tracking-wider mb-4">
-            <Layers className="w-3.5 h-3.5 text-emerald-600" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-800 text-xs font-semibold uppercase tracking-wider mb-4">
+            <Layers className="w-3.5 h-3.5 text-purple-600" />
             Engineered for Modern Growth
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
@@ -40,10 +40,10 @@ export const BentoGrid: React.FC = () => {
           
           {/* Bento Card 1 (Large - 7 cols): Zapier, Webhooks & API Ecosystem */}
           <div className="lg:col-span-7 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 rounded-3xl p-8 text-white border border-slate-800 flex flex-col justify-between relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-semibold mb-6 border border-emerald-500/30">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-semibold mb-6 border border-purple-500/30">
                 <Share2 className="w-3.5 h-3.5" />
                 1,000+ App Connectors
               </div>
@@ -66,7 +66,7 @@ export const BentoGrid: React.FC = () => {
                 ].map((item, idx) => (
                   <div key={idx} className="bg-slate-800/70 p-3 rounded-xl border border-slate-700/60">
                     <div className="text-xs font-bold text-white">{item.name}</div>
-                    <div className="text-[10px] text-emerald-400 mt-1 font-mono">{item.badge}</div>
+                    <div className="text-[10px] text-purple-400 mt-1 font-mono">{item.badge}</div>
                   </div>
                 ))}
               </div>
@@ -74,9 +74,9 @@ export const BentoGrid: React.FC = () => {
           </div>
 
           {/* Bento Card 2 (5 cols): Native Android & iOS Mobile Apps */}
-          <div className="lg:col-span-5 bg-gradient-to-br from-emerald-50 via-teal-50/50 to-white rounded-3xl p-8 border border-emerald-200/80 flex flex-col justify-between">
+          <div className="lg:col-span-5 bg-gradient-to-br from-purple-50 via-indigo-50/50 to-white rounded-3xl p-8 border border-purple-200/80 flex flex-col justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-semibold mb-6 shadow-xs">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-purple-600 text-white text-xs font-semibold mb-6 shadow-xs">
                 <Smartphone className="w-3.5 h-3.5" />
                 Mobile First
               </div>
@@ -88,17 +88,17 @@ export const BentoGrid: React.FC = () => {
               </p>
             </div>
 
-            <div className="mt-8 p-4 rounded-2xl bg-white border border-emerald-100 shadow-sm flex items-center justify-between">
+            <div className="mt-8 p-4 rounded-2xl bg-white border border-purple-100 shadow-sm flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold text-sm">
                   📱
                 </div>
                 <div>
                   <div className="text-xs font-bold text-slate-900">App Store & Play Store</div>
-                  <div className="text-[11px] text-emerald-700 font-medium">Real-time Push Notifications</div>
+                  <div className="text-[11px] text-purple-700 font-medium">Real-time Push Notifications</div>
                 </div>
               </div>
-              <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+              <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full">
                 Available Now
               </span>
             </div>
@@ -107,7 +107,7 @@ export const BentoGrid: React.FC = () => {
           {/* Bento Card 3 (4 cols): Dynamic Tags & Smart CRM Segmentation */}
           <div className="lg:col-span-4 bg-slate-50 rounded-3xl p-7 border border-slate-200 flex flex-col justify-between">
             <div>
-              <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center mb-5 font-bold">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-5 font-bold">
                 <Tags className="w-5 h-5" />
               </div>
               <h3 className="text-xl font-bold text-slate-900">
@@ -144,7 +144,7 @@ export const BentoGrid: React.FC = () => {
             <div className="mt-6 p-3 rounded-xl bg-white border border-slate-200 text-xs text-slate-700">
               <div className="flex justify-between items-center mb-1">
                 <span className="font-semibold text-slate-900">Lead Score: 94 / 100</span>
-                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">High Intent</span>
+                <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded">High Intent</span>
               </div>
               <span className="text-[11px] text-slate-500">Auto routed to Senior Sales Agent</span>
             </div>
@@ -153,7 +153,7 @@ export const BentoGrid: React.FC = () => {
           {/* Bento Card 5 (4 cols): Dual Channels (Official Cloud API + QR) */}
           <div className="lg:col-span-4 bg-slate-50 rounded-3xl p-7 border border-slate-200 flex flex-col justify-between">
             <div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-5 font-bold">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-5 font-bold">
                 <QrCode className="w-5 h-5" />
               </div>
               <h3 className="text-xl font-bold text-slate-900">
@@ -165,11 +165,11 @@ export const BentoGrid: React.FC = () => {
             </div>
 
             <div className="mt-6 flex items-center justify-between p-3 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800">
-              <span className="flex items-center gap-1.5 text-emerald-700">
-                <CheckCircle className="w-4 h-4 text-emerald-600" /> Meta Verified
+              <span className="flex items-center gap-1.5 text-purple-700">
+                <CheckCircle className="w-4 h-4 text-purple-600" /> Meta Verified
               </span>
-              <span className="flex items-center gap-1.5 text-teal-700">
-                <CheckCircle className="w-4 h-4 text-teal-600" /> QR Channel
+              <span className="flex items-center gap-1.5 text-indigo-700">
+                <CheckCircle className="w-4 h-4 text-indigo-600" /> QR Channel
               </span>
             </div>
           </div>

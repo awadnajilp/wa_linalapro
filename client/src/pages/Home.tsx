@@ -22,7 +22,7 @@ const Home: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 selection:bg-emerald-500 selection:text-white">
+    <div className="min-h-screen bg-white text-slate-900 selection:bg-purple-600 selection:text-white">
       {/* 1. Brevo-Inspired Hero Section */}
       <Hero />
 

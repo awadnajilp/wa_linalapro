@@ -671,7 +671,7 @@ async function handleMessageChange(value: any) {
       interactiveData = { type: "system", systemType: message.system?.type };
 
     } else if (type === "referral") {
-      messageContent = message.text?.body || "[Referral message]";
+      messageContent = message.text?.body || message.referral?.headline || message.referral?.body || "[Referral message]";
       interactiveData = { type: "referral", referral: message.referral };
 
     } else if (type === "unsupported") {
@@ -1057,7 +1057,7 @@ if (io) {
       console.error("❌ Error sending new message notification:", notifError);
     }
 
-    // Automations (run first — takes priority over AI)
+    // Automations & Interceptors (Pending execution responses first, then module interceptors, then general automations)
     let automationHandled = false;
     try {
       const hasPendingExecution =
@@ -1083,38 +1083,8 @@ if (io) {
         }
       }
 
-      if (!automationHandled) {
-        if (isNewConversation) {
-          automationHandled = await triggerService.handleNewConversation(
-            conversation.id,
-            channel.id,
-            contact?.id
-          );
-        }
-        
-        // If it was a new conversation but no "new_conversation" flow was triggered,
-        // or if it's an existing conversation, try triggering "message_received" flows!
-        if (!automationHandled) {
-          automationHandled = await triggerService.handleMessageReceived(
-            conversation.id,
-            {
-              content: messageContent,
-              text: messageContent,
-              body: messageContent,
-              type,
-              from,
-              whatsappMessageId,
-              timestamp,
-              interactive: interactiveData,
-            },
-            channel.id,
-            contact?.id
-          );
-        }
-      }
-
     } catch (automationError) {
-      console.error("Automation Error:", automationError);
+      console.error("Automation User Response Error:", automationError);
 
       if (io) {
         io.to(`conversation_${conversation.id}`).emit("automation-error", {
@@ -1137,6 +1107,8 @@ if (io) {
       interactive: (message as any).interactive || interactive || null,
       button: (message as any).button || null,
       text: (message as any).text || null,
+      referral: (message as any).referral || null,
+      context: (message as any).context || null,
     };
 
     // AI Expense Tracker Interceptor for Cloud API
@@ -1202,7 +1174,7 @@ if (io) {
       }
     }
 
-    // AI Ecommerce Interceptor for Cloud API
+    // AI Ecommerce Interceptor for Cloud API (Supports product trigger words & FB/Instagram CTWA Ads greetings)
     if (channel.id && conversation && contact && !isGroupMessage && !automationHandled) {
       try {
         const { EcommerceService } = await import("../services/ecommerce-service");
@@ -1220,6 +1192,48 @@ if (io) {
         }
       } catch (err: any) {
         console.error("Failed to execute AI Ecommerce interceptor for Cloud API:", err.message);
+      }
+    }
+
+    // General Automations (new_conversation & message_received triggers)
+    if (!isGroupMessage && !automationHandled) {
+      try {
+        if (isNewConversation) {
+          automationHandled = await triggerService.handleNewConversation(
+            conversation.id,
+            channel.id,
+            contact?.id
+          );
+        }
+        
+        // If it was a new conversation but no "new_conversation" flow was triggered,
+        // or if it's an existing conversation, try triggering "message_received" flows!
+        if (!automationHandled) {
+          automationHandled = await triggerService.handleMessageReceived(
+            conversation.id,
+            {
+              content: messageContent,
+              text: messageContent,
+              body: messageContent,
+              type,
+              from,
+              whatsappMessageId,
+              timestamp,
+              interactive: interactiveData,
+            },
+            channel.id,
+            contact?.id
+          );
+        }
+      } catch (automationError) {
+        console.error("Automation Trigger Error:", automationError);
+
+        if (io) {
+          io.to(`conversation_${conversation.id}`).emit("automation-error", {
+            type: "automation-error",
+            error: automationError,
+          });
+        }
       }
     }
 

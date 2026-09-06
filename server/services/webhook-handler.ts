@@ -2017,7 +2017,7 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
           break;
 
         case "referral":
-          content = message.text?.body || "[Referral message]";
+          content = message.text?.body || (message as any).referral?.headline || (message as any).referral?.body || "[Referral message]";
           metadata = { referral: (message as any).referral };
           break;
 

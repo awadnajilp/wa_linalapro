@@ -613,19 +613,12 @@ export class EcommerceService {
 
       const conversationId = conversation[0].id;
       const contactPhone = conversation[0].contactPhone;
-      const cleanContent = content.trim().toLowerCase();
+      const cleanContent = (content || "").trim().toLowerCase();
 
-      // Check for trigger keywords first to allow resetting/starting fresh
-      const storeKeyword = (config.storeTriggerKeyword || "").trim().toLowerCase();
-      const isCatalogTrigger = (config.isStoreFlowActive && storeKeyword && cleanContent === storeKeyword)
-        || cleanContent === "view catalog"
-        || cleanContent === "🏬 view catalog"
-        || cleanContent === "view catalogue"
-        || cleanContent === "open store"
-        || cleanContent === "catalog"
-        || cleanContent === "catalogue";
+      // 1. Check store catalogue trigger (Exact, Phrase, or FB/IG Ad greeting)
+      const isCatalogTrigger = this.isStoreCatalogTrigger(config, content, message);
 
-      if (config.isStoreFlowActive && isCatalogTrigger) {
+      if (isCatalogTrigger) {
         await this.autoAssignConversation(config, channelRow, conversationId);
         // Delete any active sessions first
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
@@ -640,20 +633,17 @@ export class EcommerceService {
         return true;
       }
 
-      // Check individual product trigger
+      // 2. Check individual product triggers (Supports manual messages & FB/IG Click-to-WhatsApp Ads greetings/referrals)
       const products = await db
         .select()
         .from(schema.ecommerceProducts)
         .where(
           and(
-            eq(schema.ecommerceProducts.tenantId, tenantId),
-            eq(schema.ecommerceProducts.isTriggerEnabled, true)
+            eq(schema.ecommerceProducts.tenantId, tenantId)
           )
         );
 
-      const matchedProduct = products.find(
-        (p) => p.triggerKeyword && p.triggerKeyword.trim().toLowerCase() === cleanContent
-      );
+      const matchedProduct = this.findMatchingProduct(products, content, message);
 
       if (matchedProduct) {
         await this.autoAssignConversation(config, channelRow, conversationId);
@@ -1040,6 +1030,202 @@ export class EcommerceService {
       console.error("[Ecommerce Interceptor] Error:", err.message);
       return false;
     }
+  }
+
+  /**
+   * Helper to check if a text contains a keyword as a whole word or phrase,
+   * supporting multi-lingual characters (Latin, Arabic, Cyrillic, etc.)
+   */
+  public static matchKeywordPhrase(text: string, keyword: string): boolean {
+    if (!text || !keyword) return false;
+    const cleanText = text.trim().toLowerCase();
+    const cleanKw = keyword.trim().toLowerCase();
+    if (!cleanText || !cleanKw) return false;
+
+    // 1. Exact match
+    if (cleanText === cleanKw) return true;
+
+    // 2. Starts with / Ends with with word separator
+    if (cleanText.startsWith(cleanKw + " ") || cleanText.endsWith(" " + cleanKw)) return true;
+
+    // 3. Regex word/phrase boundary matching (Unicode aware)
+    try {
+      const escaped = cleanKw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`(?:^|[^\\p{L}\\p{N}])${escaped}(?:$|[^\\p{L}\\p{N}])`, "iu");
+      if (regex.test(cleanText)) return true;
+    } catch {
+      // Fallback if RegExp unicode flag not supported
+      if (cleanText.includes(cleanKw)) return true;
+    }
+
+    // 4. Check if text without common punctuation contains keyword
+    const strippedText = cleanText.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"'–—]/g, " ").replace(/\s+/g, " ").trim();
+    if (
+      strippedText === cleanKw ||
+      strippedText.startsWith(cleanKw + " ") ||
+      strippedText.endsWith(" " + cleanKw) ||
+      strippedText.includes(` ${cleanKw} `)
+    ) {
+      return true;
+    }
+
+    // 5. Common greeting and ad prefix removal
+    // e.g. "Hi, I'm interested in pure honey" -> "pure honey"
+    const withoutGreetings = cleanText
+      .replace(/^(hi|hello|hey|salam|marhaba|hola|bonjour|namaste|good morning|good afternoon|good evening|dear sir|dear madam)[\s,!:.]+/i, "")
+      .replace(/^(i(?:'m| am)? interested in|interested in|i saw this on (?:facebook|instagram|fb|meta|ad|ads)|i want to buy|please send details for|can i get details for|is this available|tell me more about)[\s,!:.]+/i, "")
+      .trim();
+
+    if (
+      withoutGreetings === cleanKw ||
+      withoutGreetings.startsWith(cleanKw + " ") ||
+      withoutGreetings.endsWith(" " + cleanKw) ||
+      withoutGreetings.includes(` ${cleanKw} `)
+    ) {
+      return true;
+    }
+
+    // 6. Substring match if keyword is at least 3 characters long
+    if (cleanKw.length >= 3 && cleanText.includes(cleanKw)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Find a product matching trigger keywords, product name, or Meta ad referral payloads
+   */
+  public static findMatchingProduct(
+    products: any[],
+    content: string,
+    message: any
+  ): any | null {
+    if (!products || products.length === 0) return null;
+
+    const cleanContent = (content || "").trim().toLowerCase();
+    const referral = message?.referral 
+      || (message as any)?.metadata?.referral 
+      || (message as any)?.interactiveData?.referral;
+    
+    const referralHeadline = (referral?.headline || "").trim().toLowerCase();
+    const referralBody = (referral?.body || "").trim().toLowerCase();
+    const referralSourceUrl = (referral?.source_url || "").trim().toLowerCase();
+
+    // Filter products with trigger enabled
+    const triggeredProducts = products.filter((p: any) => p.isTriggerEnabled && p.triggerKeyword && p.triggerKeyword.trim().length > 0);
+
+    // Sort by triggerKeyword length descending so longer/more specific triggers match first (e.g. "pure honey" before "honey")
+    triggeredProducts.sort((a: any, b: any) => (b.triggerKeyword?.length || 0) - (a.triggerKeyword?.length || 0));
+
+    // 1. Exact match on triggerKeyword
+    for (const prod of triggeredProducts) {
+      const kw = prod.triggerKeyword!.trim().toLowerCase();
+      if (cleanContent === kw) {
+        return prod;
+      }
+    }
+
+    // 2. Meta Referral Headline / Body / URL Match (Click-to-WhatsApp Ads)
+    if (referralHeadline || referralBody || referralSourceUrl) {
+      for (const prod of triggeredProducts) {
+        const kw = prod.triggerKeyword!.trim().toLowerCase();
+        if (
+          (referralHeadline && this.matchKeywordPhrase(referralHeadline, kw)) ||
+          (referralBody && this.matchKeywordPhrase(referralBody, kw)) ||
+          (referralSourceUrl && referralSourceUrl.includes(encodeURIComponent(kw)))
+        ) {
+          return prod;
+        }
+      }
+
+      // Also check if referral headline / body matches product name
+      for (const prod of products) {
+        const prodName = (prod.name || "").trim().toLowerCase();
+        if (prodName.length >= 3) {
+          if (
+            (referralHeadline && this.matchKeywordPhrase(referralHeadline, prodName)) ||
+            (referralBody && this.matchKeywordPhrase(referralBody, prodName))
+          ) {
+            return prod;
+          }
+        }
+      }
+    }
+
+    // 3. Phrase / Word-Boundary Match on triggerKeyword
+    for (const prod of triggeredProducts) {
+      const kw = prod.triggerKeyword!.trim().toLowerCase();
+      if (this.matchKeywordPhrase(cleanContent, kw)) {
+        return prod;
+      }
+    }
+
+    // 4. Product Name matching in message (for FB/IG ads greeting that contains product name)
+    // E.g. "Hi, I'm interested in X Pure Honey"
+    for (const prod of products) {
+      const prodName = (prod.name || "").trim().toLowerCase();
+      if (prodName.length >= 3 && this.matchKeywordPhrase(cleanContent, prodName)) {
+        return prod;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Check if message or referral matches the store catalogue flow
+   */
+  public static isStoreCatalogTrigger(
+    config: any,
+    content: string,
+    message: any
+  ): boolean {
+    if (!config?.isStoreFlowActive) return false;
+
+    const cleanContent = (content || "").trim().toLowerCase();
+    const storeKeyword = (config.storeTriggerKeyword || "").trim().toLowerCase();
+
+    // 1. Exact or phrase match on custom store trigger keyword
+    if (storeKeyword && this.matchKeywordPhrase(cleanContent, storeKeyword)) {
+      return true;
+    }
+
+    // 2. Meta referral matching store keyword or catalog
+    const referral = message?.referral 
+      || (message as any)?.metadata?.referral 
+      || (message as any)?.interactiveData?.referral;
+    
+    if (referral) {
+      const referralHeadline = (referral.headline || "").trim().toLowerCase();
+      const referralBody = (referral.body || "").trim().toLowerCase();
+      if (storeKeyword && (this.matchKeywordPhrase(referralHeadline, storeKeyword) || this.matchKeywordPhrase(referralBody, storeKeyword))) {
+        return true;
+      }
+      if (referralHeadline.includes("catalog") || referralHeadline.includes("store") || referralHeadline.includes("shop")) {
+        return true;
+      }
+    }
+
+    // 3. Common catalog trigger phrases
+    const catalogKeywords = [
+      "view catalog",
+      "🏬 view catalog",
+      "view catalogue",
+      "open store",
+      "open catalogue",
+      "open catalog",
+      "catalog",
+      "catalogue",
+      "browse catalog",
+      "browse store",
+      "see products",
+      "show catalog",
+      "show store",
+      "view store"
+    ];
+
+    return catalogKeywords.some((k) => this.matchKeywordPhrase(cleanContent, k));
   }
 
   /**

@@ -617,7 +617,15 @@ export class EcommerceService {
 
       // Check for trigger keywords first to allow resetting/starting fresh
       const storeKeyword = (config.storeTriggerKeyword || "").trim().toLowerCase();
-      if (config.isStoreFlowActive && storeKeyword && cleanContent === storeKeyword) {
+      const isCatalogTrigger = (config.isStoreFlowActive && storeKeyword && cleanContent === storeKeyword)
+        || cleanContent === "view catalog"
+        || cleanContent === "🏬 view catalog"
+        || cleanContent === "view catalogue"
+        || cleanContent === "open store"
+        || cleanContent === "catalog"
+        || cleanContent === "catalogue";
+
+      if (config.isStoreFlowActive && isCatalogTrigger) {
         await this.autoAssignConversation(config, channelRow, conversationId);
         // Delete any active sessions first
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
@@ -657,7 +665,13 @@ export class EcommerceService {
 
       // Check interactive button clicks FIRST (always high priority)
       // 1. Interactive button replies (Buy Now, Product Info, or Ask AI)
-      const buttonReplyId = message.interactive?.button_reply?.id || (message as any)?.button?.payload || (message as any)?.interactive?.buttonReply?.id;
+      const buttonReplyId = message.interactive?.button_reply?.id 
+        || (message as any)?.button?.payload 
+        || (message as any)?.interactive?.buttonReply?.id
+        || (message as any)?.metadata?.buttonReplyId
+        || (message as any)?.button_reply?.id
+        || (message as any)?.selectedButtonId;
+
       if (buttonReplyId) {
         if (buttonReplyId.startsWith("buy_")) {
           const productId = buttonReplyId.replace("buy_", "");
@@ -744,7 +758,7 @@ export class EcommerceService {
         } else if (buttonReplyId === "store_catalog" || buttonReplyId === "view_store" || buttonReplyId === "open_store") {
           await this.autoAssignConversation(config, channelRow, conversationId);
           await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
-          await this.sendCatalogOrWelcome(channelRow, config, conversationId, contactPhone);
+          await this.sendStoreCatalog(channelRow, config, conversationId, contactPhone);
           return true;
         }
       }
@@ -2093,10 +2107,10 @@ CRITICAL DIRECTIVES:
           console.log(`🤖 [Ecommerce AI] Sending voice note reply: ${voiceMediaUrl}`);
           await this.sendAndSaveVoiceNote(channelRow, conversationId, to, voiceMediaUrl, aiResponse);
         } else {
-          // If Cloud API channel, attach interactive 'Buy Now' button to start product checkout flow
+          // If Cloud API channel, attach relevant interactive buttons
           const isCloudApi = !channelRow.channelType || channelRow.channelType === "cloud_api" || channelRow.channelType === "official";
           let sentInteractive = false;
-          if (isCloudApi) {
+          if (isCloudApi && allStoreProducts.length > 0) {
             let targetProduct = null;
             if (session?.productId) {
               targetProduct = allStoreProducts.find(p => p.id === session.productId);
@@ -2104,21 +2118,27 @@ CRITICAL DIRECTIVES:
             if (!targetProduct && config.activeProductId) {
               targetProduct = allStoreProducts.find(p => p.id === config.activeProductId);
             }
-            if (!targetProduct && allStoreProducts.length > 0) {
+            if (!targetProduct) {
               const lowerContext = (aiResponse + " " + input).toLowerCase();
-              targetProduct = allStoreProducts.find(p => lowerContext.includes(p.name.toLowerCase())) || allStoreProducts[0];
+              targetProduct = allStoreProducts.find(p => p.name && lowerContext.includes(p.name.toLowerCase()));
             }
 
-            if (targetProduct) {
-              try {
-                const buttons = [
-                  { id: `buy_${targetProduct.id}`, title: "🛒 Buy Now" }
-                ];
+            try {
+              const buttons: { id: string; title: string }[] = [];
+              if (targetProduct) {
+                // Specific product is in context: provide Buy Now and Product Info
+                buttons.push({ id: `buy_${targetProduct.id}`, title: "🛒 Buy Now" });
                 if (allStoreProducts.length > 1) {
-                  buttons.push({ id: `store_catalog`, title: "🏬 View Catalog" });
+                  buttons.push({ id: "store_catalog", title: "🏬 View Catalog" });
                 } else {
                   buttons.push({ id: `info_${targetProduct.id}`, title: "ℹ️ Product Info" });
                 }
+              } else {
+                // General store inquiry: offer View Catalog only (do NOT initiate checkout on a random product)
+                buttons.push({ id: "store_catalog", title: "🏬 View Catalog" });
+              }
+
+              if (buttons.length > 0) {
                 await this.sendCloudApiButtonMessage(
                   channelRow,
                   conversationId,
@@ -2128,9 +2148,9 @@ CRITICAL DIRECTIVES:
                   buttons
                 );
                 sentInteractive = true;
-              } catch (btnErr: any) {
-                console.warn("[Ecommerce AI] Failed to send Cloud API button reply, falling back to text:", btnErr?.message);
               }
+            } catch (btnErr: any) {
+              console.warn("[Ecommerce AI] Failed to send Cloud API button reply, falling back to text:", btnErr?.message);
             }
           }
 

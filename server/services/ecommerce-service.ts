@@ -1635,6 +1635,18 @@ export class EcommerceService {
 ${otherProductsSummary ? `• Other Products in Store:\n${otherProductsSummary}` : ""}
 `;
 
+        const languageDirective = `
+CRITICAL LANGUAGE MATCHING RULE:
+1. Detect and reply in the EXACT language, script, and style used by the customer:
+   - If the customer messages in MANGLISH (Malayalam spoken words written using English/Latin alphabet, e.g. "ithinte price ethra aanu?", "order cheyyan enthu cheyyanam?", "delivery undo?", "details parayamo?"):
+     You MUST reply in fluent, natural MANGLISH (Malayalam words in English letters) or Malayalam script. NEVER reply in plain English to a Manglish message!
+   - If the customer messages in Malayalam script (മലയാളം): reply in Malayalam text (മലയാളം).
+   - If the customer messages in Hinglish (Hindi written in English alphabet): reply in Hinglish.
+   - If the customer messages in Hindi script: reply in Hindi script.
+   - If the customer messages in Arabic: reply in Arabic.
+   - If the customer messages in English: reply in English.
+2. Keep responses natural, warm, and concise for WhatsApp (under 100 words).`;
+
         const defaultSystemPrompt = `You are a knowledgeable, friendly customer sales AI assistant for this store.
 You are chatting with a customer regarding this product:
 - Product Name: {product_name}
@@ -1644,9 +1656,11 @@ You are chatting with a customer regarding this product:
 
 ${storeInfoSection}
 
+${languageDirective}
+
 CRITICAL DIRECTIVE: Use the complete product specifications, description, store delivery details, and accepted payment methods above to accurately answer any customer inquiries. Keep responses concise, natural, and conversational for WhatsApp (under 120 words). Always encourage the customer to purchase when their doubts are answered, and remind them they can type 'checkout' or '1' at any time to order!`;
 
-        const rawPrompt = config.aiSystemPrompt ? `${config.aiSystemPrompt}\n\n${storeInfoSection}` : defaultSystemPrompt;
+        const rawPrompt = config.aiSystemPrompt ? `${config.aiSystemPrompt}\n\n${storeInfoSection}\n\n${languageDirective}` : defaultSystemPrompt;
 
         basePrompt = rawPrompt
           .replace(/{product_name}/g, product.name)
@@ -1675,10 +1689,24 @@ CRITICAL DIRECTIVE: Use the complete product specifications, description, store 
 ${catalogList || "No products currently listed in the store."}
 `;
 
+        const languageDirective = `
+CRITICAL LANGUAGE MATCHING RULE:
+1. Detect and reply in the EXACT language, script, and style used by the customer:
+   - If the customer messages in MANGLISH (Malayalam spoken words written using English/Latin alphabet, e.g. "ithinte price ethra aanu?", "order cheyyan enthu cheyyanam?", "delivery undo?", "details parayamo?"):
+     You MUST reply in fluent, natural MANGLISH (Malayalam words in English letters) or Malayalam script. NEVER reply in plain English to a Manglish message!
+   - If the customer messages in Malayalam script (മലയാളം): reply in Malayalam text (മലയാളം).
+   - If the customer messages in Hinglish (Hindi written in English alphabet): reply in Hinglish.
+   - If the customer messages in Hindi script: reply in Hindi script.
+   - If the customer messages in Arabic: reply in Arabic.
+   - If the customer messages in English: reply in English.
+2. Keep responses natural, warm, and concise for WhatsApp (under 100 words).`;
+
         const defaultStoreSystemPrompt = `You are the knowledgeable, friendly, and expert customer sales AI assistant for "${config.storeName || "our official store"}".
 You have full access and complete awareness of all products listed in our store catalog and store policies.
 
 ${storeKnowledgeSection}
+
+${languageDirective}
 
 CRITICAL DIRECTIVES:
 1. Use the full product specifications, catalog descriptions, delivery rates, and accepted payment methods above to accurately answer any customer inquiries.
@@ -1687,7 +1715,7 @@ CRITICAL DIRECTIVES:
 4. Keep responses concise, warm, natural, and conversational for WhatsApp (under 120 words).
 5. Never invent products or policies that are not listed in the store knowledge.`;
 
-        basePrompt = config.aiSystemPrompt ? `${config.aiSystemPrompt}\n\n${storeKnowledgeSection}` : defaultStoreSystemPrompt;
+        basePrompt = config.aiSystemPrompt ? `${config.aiSystemPrompt}\n\n${storeKnowledgeSection}\n\n${languageDirective}` : defaultStoreSystemPrompt;
       }
 
       // 1. Fetch channel-specific active AI Settings
@@ -1856,6 +1884,40 @@ CRITICAL DIRECTIVES:
                 content: `CRITICAL INSTRUCTION: The customer asked a question via a WhatsApp voice note. The store language is ${targetLangName} (${targetLangCode}). Formulate your answer in TEXT format in ${targetLangName} (using ${targetLangName} script). Keep the response concise, conversational, and under 80 words.`
               });
             }
+          }
+        } else {
+          // Incoming is TEXT message
+          if (config.aiVoiceEnabled) {
+            // Audio response is active
+            if (targetLangCode.startsWith("ml") || isAutoDetect) {
+              messages.push({
+                role: "system",
+                content: `CRITICAL INSTRUCTION FOR VOICE OUTPUT: The voice engine will synthesize your response into spoken audio. If the customer messages in Manglish, Malayalam, or English, formulate your response in fluent, natural MANGLISH (Malayalam spoken words written using English/Latin alphabet, e.g. "ABC shoe-nte price 499 rupees aanu. Ningalkku ithu vaangano?"). Writing in Manglish ensures 100% natural pronunciation for Text-to-Speech voice notes. Keep under 50 words.`
+              });
+            } else if (targetLangCode.startsWith("hi")) {
+              messages.push({
+                role: "system",
+                content: `CRITICAL INSTRUCTION FOR VOICE OUTPUT: Formulate your response in fluent, natural HINGLISH (Hindi spoken words written in Latin letters). Keep under 50 words.`
+              });
+            } else if (targetLangCode.startsWith("ar")) {
+              messages.push({
+                role: "system",
+                content: `CRITICAL INSTRUCTION FOR VOICE OUTPUT: Formulate your response in clear Arabic. Keep under 50 words.`
+              });
+            }
+          } else {
+            // Native text response
+            messages.push({
+              role: "system",
+              content: `CRITICAL LANGUAGE DIRECTIVE FOR TEXT RESPONSE:
+- Always match the EXACT language and script of the customer:
+  * If the customer messages in MANGLISH (Malayalam words written in English letters, e.g. "ithinte price ethra aanu?", "delivery undo?", "order cheyyan enthu cheyyanam?"): You MUST reply in natural, fluent MANGLISH (or Malayalam script). NEVER reply in plain English to a Manglish message!
+  * If the customer messages in Malayalam script (മലയാളം): reply in Malayalam script (മലയാളം).
+  * If the customer messages in Hinglish: reply in Hinglish.
+  * If the customer messages in Hindi script: reply in Hindi script.
+  * If the customer messages in Arabic: reply in Arabic.
+  * If the customer messages in English: reply in English.`
+            });
           }
         }
         // Load recent message history for multi-turn conversation memory

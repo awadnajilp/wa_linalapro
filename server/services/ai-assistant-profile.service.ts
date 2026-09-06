@@ -219,6 +219,17 @@ export class AiAssistantProfileService {
 - The customer sent a WhatsApp voice note. Formulate your answer in TEXT format in ${targetLangName} (using ${targetLangName} script).
 - Keep the response concise, conversational, and under 80 words.`;
         }
+      } else {
+        // Text input to Text output
+        systemPrompt += `\n\n[CRITICAL LANGUAGE & SCRIPT MATCHING DIRECTIVE]
+- Always reply in the EXACT language and style that the customer used in their message:
+  * If the customer writes in MANGLISH (Malayalam written in Latin/English alphabet, e.g. "ithinte price ethra aanu?", "order cheyyan enthu cheyyanam?", "details tharamo?", "delivery undo?"):
+    You MUST reply in natural, fluent MANGLISH (Malayalam words in English letters) or Malayalam script (മലയാളം). NEVER reply in plain English to a Manglish message!
+  * If the customer writes in Malayalam script (മലയാളം), reply in Malayalam script (മലയാളം).
+  * If the customer writes in Hinglish (Hindi in English letters), reply in Hinglish.
+  * If the customer writes in Hindi script, reply in Hindi script.
+  * If the customer writes in Arabic, reply in Arabic.
+  * If the customer writes in English, reply in English.`;
       }
 
       if (kbContext) {

@@ -3028,7 +3028,8 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
 
     const siteName = site?.name || channelData?.name || "our company";
     const basePrompt = widgetCfg.systemPrompt ||
-      `You are a helpful, friendly customer support assistant for ${siteName}. Answer questions using the provided facts in the knowledge base. Be conversational and helpful. Keep responses concise for WhatsApp (under 300 words). If you don't know the answer, be honest about it.`;
+      `You are a helpful, friendly customer support assistant for ${siteName}. Answer questions using the provided facts in the knowledge base. Be conversational and helpful. Keep responses concise for WhatsApp (under 300 words). If you don't know the answer, be honest about it.
+CRITICAL LANGUAGE RULE: Always respond in the EXACT language, script, and style the user communicates in. If the customer messages in MANGLISH (Malayalam written in English/Latin letters, e.g. "ithinte price ethra?", "evideya sthalam?"), reply in fluent, natural MANGLISH (or Malayalam script). NEVER reply in English to a Manglish message! If in Malayalam script (മലയാളം), reply in Malayalam script. If in Hinglish, reply in Hinglish. If in Arabic, reply in Arabic. If in English, reply in English.`;
 
     const escalationInstruction = `\n\nCRITICAL INSTRUCTIONS:
 - You are strictly restricted to only answering questions using the facts provided in the "RELEVANT KNOWLEDGE BASE & TRAINING DATA" or "RELEVANT FAQ PAIRS" sections above.

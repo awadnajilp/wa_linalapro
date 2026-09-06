@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Link } from "wouter";
 import {
   ShoppingBag,
@@ -7,502 +7,480 @@ import {
   Calendar,
   Receipt,
   Users,
-  CheckCircle2,
+  CheckCircle,
   ArrowRight,
   Sparkles,
-  CreditCard,
-  Mic,
-  Zap,
-  Tag,
-  ShieldCheck,
-  TrendingUp,
-  Volume2,
-  Play,
-  Pause,
-  Layers,
+  ChevronLeft,
   ChevronRight,
+  Mic,
+  CreditCard,
+  Volume2,
+  TrendingUp,
 } from "lucide-react";
 
-interface ProductModule {
+interface AgentSlide {
   id: string;
+  agentName: string;
   badge: string;
+  badgeColor: string;
   icon: React.ElementType;
   title: string;
-  tagline: string;
   description: string;
-  benefits: string[];
+  bullets: string[];
   ctaText: string;
   ctaLink: string;
-  previewType: "ecommerce" | "voice_ai" | "flow_builder" | "cadence" | "expense" | "crm";
+  preview: React.ReactNode;
 }
 
-const PRODUCT_MODULES: ProductModule[] = [
-  {
-    id: "ecommerce",
-    badge: "Instant WhatsApp Commerce",
-    icon: ShoppingBag,
-    title: "WhatsApp Storefront & 1-Click Checkout",
-    tagline: "Turn every WhatsApp conversation into a frictionless purchasing funnel.",
-    description:
-      "Showcase interactive product catalogs, send smart Buy Now buttons, collect payments via UPI QR, Razorpay, Stripe, or Cash on Delivery, and auto-recover abandoned carts.",
-    benefits: [
-      "Native WhatsApp single-product & multi-product catalog cards",
-      "One-click direct checkout flow with automatic address collection",
-      "Seamless payment gateway integration (Razorpay, Stripe, UPI QR, COD)",
-      "Automated abandoned cart recovery drip sequences (+32% recovery rate)",
-      "Instant PDF order invoices, payment confirmations & tracking alerts",
-    ],
-    ctaText: "Launch WhatsApp Store",
-    ctaLink: "/signup",
-    previewType: "ecommerce",
-  },
-  {
-    id: "voice_ai",
-    badge: "Multilingual Conversational AI",
-    icon: Bot,
-    title: "Voice Note AI & Autonomous Store Assistant",
-    tagline: "Human-grade AI that understands & replies in Malayalam, Manglish, Hinglish & English.",
-    description:
-      "Deliver lifelike audio replies with natural accent synthesis, understand mixed regional dialects, answer customer queries with zero hallucinations, and trigger product flows automatically.",
-    benefits: [
-      "Realistic voice note synthesis with Sarvam AI, OpenAI & Groq engines",
-      "Fluent understanding of Malayalam script, Manglish, Hinglish, Arabic & English",
-      "Autonomous product advisor that recommends items from your catalog",
-      "Intelligent human handoff with graceful fallbacks for custom inquiries",
-      "Customizable brand tone, assistant profiles & knowledge base grounding",
-    ],
-    ctaText: "Explore Voice AI",
-    ctaLink: "/signup",
-    previewType: "voice_ai",
-  },
-  {
-    id: "flow_builder",
-    badge: "Visual Automation Canvas",
-    icon: Workflow,
-    title: "Drag-and-Drop Workflow & Bot Builder",
-    tagline: "Build sophisticated automated customer journeys without touching code.",
-    description:
-      "Design complex conversational flows with intuitive drag-and-drop nodes, conditional branching based on user intent, time delays, webhook dispatches, and interactive list menus.",
-    benefits: [
-      "Intuitive canvas with triggers, actions, conditions, and delay nodes",
-      "Branch conversations based on keywords, tags, or button clicks",
-      "Send interactive quick replies, list pickers, media cards, and CTA buttons",
-      "Trigger webhooks and sync customer data instantly with your CRM or ERP",
-      "Zero-latency execution powered by high-concurrency event queues",
-    ],
-    ctaText: "Build Your First Flow",
-    ctaLink: "/signup",
-    previewType: "flow_builder",
-  },
-  {
-    id: "cadence",
-    badge: "Smart Follow-Up Engine",
-    icon: Calendar,
-    title: "Automated Cadence & Recurring Campaigns",
-    tagline: "High-deliverability broadcasts and automated multi-touch nurturing.",
-    description:
-      "Schedule recurring broadcast campaigns, launch multi-day automated follow-up cadences, and re-engage dormant contacts with personalized dynamic tag segmentation.",
-    benefits: [
-      "Automated multi-step drip sequences triggered by contact actions",
-      "Recurring campaigns with daily, weekly, or custom interval scheduling",
-      "Dynamic placeholder tags ({{first_name}}, {{order_id}}, {{due_date}})",
-      "Smart throttling and anti-ban safeguards with humanized delivery rates",
-      "Detailed delivery, read, and reply rate telemetry with real-time logs",
-    ],
-    ctaText: "Start Campaign",
-    ctaLink: "/signup",
-    previewType: "cadence",
-  },
-  {
-    id: "expense",
-    badge: "SME Financial Management",
-    icon: Receipt,
-    title: "WhatsApp Expense & Financial Ledger",
-    tagline: "Snap receipts on WhatsApp and get an automated business ledger.",
-    description:
-      "Effortlessly manage small business finances. Employees or business owners can snap receipts on WhatsApp; our AI automatically extracts vendor, tax, amount, and category into a clean balance sheet.",
-    benefits: [
-      "AI OCR receipt scanning directly from WhatsApp camera messages",
-      "Automated expense categorization (inventory, travel, marketing, operations)",
-      "Real-time cash flow, revenue vs expense breakdown, and profit analytics",
-      "Multi-currency support with one-click PDF & Excel ledger exports",
-      "Role-based expense approval workflows for SME teams",
-    ],
-    ctaText: "Explore Expense Ledger",
-    ctaLink: "/signup",
-    previewType: "expense",
-  },
-  {
-    id: "crm",
-    badge: "Unified Customer Hub",
-    icon: Users,
-    title: "Multi-Agent Team Inbox & CRM Pipeline",
-    tagline: "Empower your entire sales and support team on a single WhatsApp number.",
-    description:
-      "Manage all customer conversations across multiple WhatsApp channels in a collaborative inbox. Assign conversations, track deal stages with Kanban pipelines, and qualify leads automatically.",
-    benefits: [
-      "Shared multi-agent inbox with collision detection and agent assignment",
-      "Kanban deal pipeline with stages: New Lead, Contacted, Qualified, Won",
-      "Automated lead qualification questionnaires & smart scoring",
-      "Dynamic tagging, custom contact attributes, and private internal notes",
-      "Android & iOS native mobile apps for on-the-go customer engagement",
-    ],
-    ctaText: "Try Team Inbox",
-    ctaLink: "/signup",
-    previewType: "crm",
-  },
-];
-
-const Features: React.FC = () => {
+export const Features: React.FC = () => {
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
   const [activeIdx, setActiveIdx] = useState(0);
-  const activeModule = PRODUCT_MODULES[activeIdx];
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+
+  const AGENT_SLIDES: AgentSlide[] = [
+    {
+      id: "commerce",
+      agentName: "Commerce Agent",
+      badge: "WhatsApp Commerce",
+      badgeColor: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+      icon: ShoppingBag,
+      title: "1-Click WhatsApp Store",
+      description:
+        "Send interactive product catalogs and collect instant payments inside WhatsApp with zero redirect friction.",
+      bullets: [
+        "Native multi-item catalogs & variant selection",
+        "Instant checkout with Razorpay, Stripe & UPI",
+        "Automated abandoned cart recovery",
+      ],
+      ctaText: "Explore WhatsApp Store",
+      ctaLink: "/signup",
+      preview: (
+        <div className="bg-slate-900 rounded-2xl p-4 text-white shadow-inner font-sans border border-slate-800">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 text-xs">
+            <span className="font-semibold text-purple-400 flex items-center gap-1.5">
+              <ShoppingBag className="w-3.5 h-3.5" /> Order #LN-8924
+            </span>
+            <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[11px] font-semibold">
+              Paid • UPI Instant
+            </span>
+          </div>
+
+          <div className="bg-slate-800/80 rounded-xl p-3 mb-3 flex items-center gap-3">
+            <div className="w-12 h-12 bg-purple-600/30 rounded-lg flex items-center justify-center text-purple-300 font-bold text-xs flex-shrink-0">
+              PRO
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold truncate">Premium Linen Shirt</p>
+              <p className="text-[11px] text-slate-400">Size: L • Navy Blue</p>
+              <p className="text-xs font-semibold text-purple-300 mt-0.5">$49.00</p>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold text-center transition-colors">
+              1-Click Buy Now
+            </button>
+            <button className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-colors">
+              Details
+            </button>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "voice",
+      agentName: "Voice AI Agent",
+      badge: "Multilingual Voice AI",
+      badgeColor: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
+      icon: Mic,
+      title: "Human-Like Voice Notes",
+      description:
+        "Understand voice notes in regional dialects and reply with ultra-fast, natural synthesized audio.",
+      bullets: [
+        "Regional languages: Malayalam, Hindi, Arabic, English",
+        "Instant audio transcription & sentiment context",
+        "0.4s response time with zero robotic tone",
+      ],
+      ctaText: "Test Voice AI",
+      ctaLink: "/signup",
+      preview: (
+        <div className="bg-slate-900 rounded-2xl p-4 text-white shadow-inner border border-slate-800">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 text-xs">
+            <span className="font-semibold text-indigo-400 flex items-center gap-1.5">
+              <Mic className="w-3.5 h-3.5" /> Voice Note Reply
+            </span>
+            <span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[11px] font-semibold">
+              Malayalam / Manglish
+            </span>
+          </div>
+
+          <div className="bg-indigo-950/60 border border-indigo-800/40 rounded-xl p-3.5 mb-3">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">
+                AI
+              </div>
+              <span className="text-xs font-medium text-indigo-200">Linala Voice Synthesizer</span>
+            </div>
+            
+            <div className="flex items-center gap-1 h-7 px-1">
+              {[40, 65, 30, 90, 100, 75, 45, 80, 95, 60, 35, 70, 85, 40, 20].map((h, i) => (
+                <div
+                  key={i}
+                  className="flex-1 bg-indigo-400/80 rounded-full"
+                  style={{ height: `${h}%` }}
+                />
+              ))}
+            </div>
+            <div className="flex justify-between text-[10px] text-indigo-300/80 mt-1.5 font-mono">
+              <span>0:18</span>
+              <span>128 kbps • High Quality</span>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "leads",
+      agentName: "Lead CRM Agent",
+      badge: "Lead Qualification",
+      badgeColor: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+      icon: Users,
+      title: "Autonomous Lead Scoring",
+      description:
+        "Qualify incoming prospects 24/7, capture custom attributes, and route high-intent buyers to top closers.",
+      bullets: [
+        "AI buyer intent score (0-100)",
+        "Dynamic qualification questionnaires",
+        "Auto-routing & collision-free team inbox",
+      ],
+      ctaText: "Automate Lead Flow",
+      ctaLink: "/signup",
+      preview: (
+        <div className="bg-slate-900 rounded-2xl p-4 text-white shadow-inner border border-slate-800">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 text-xs">
+            <span className="font-semibold text-emerald-400 flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5" /> High-Intent Lead
+            </span>
+            <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[11px] font-semibold">
+              Score: 96 / 100
+            </span>
+          </div>
+
+          <div className="bg-slate-800/80 rounded-xl p-3 mb-3 space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Budget:</span>
+              <span className="font-semibold text-emerald-300">$5,000+ / mo</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Timeline:</span>
+              <span className="font-semibold text-white">Immediate (Next 7 Days)</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Action:</span>
+              <span className="font-semibold text-purple-300">Auto-assigned to Senior Rep</span>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "expense",
+      agentName: "Expense OCR Agent",
+      badge: "SME Accounting",
+      badgeColor: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+      icon: Receipt,
+      title: "Receipt OCR & Ledger",
+      description:
+        "Snap photos of receipts on WhatsApp. AI extracts vendor, tax, and totals into an instant exportable ledger.",
+      bullets: [
+        "Camera receipt photo scanning via WhatsApp",
+        "Automatic GST / VAT tax categorizing",
+        "1-click export to CSV & balance sheets",
+      ],
+      ctaText: "Try Receipt OCR",
+      ctaLink: "/signup",
+      preview: (
+        <div className="bg-slate-900 rounded-2xl p-4 text-white shadow-inner border border-slate-800">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 text-xs">
+            <span className="font-semibold text-amber-400 flex items-center gap-1.5">
+              <Receipt className="w-3.5 h-3.5" /> AI Receipt OCR
+            </span>
+            <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded text-[11px] font-semibold">
+              Auto-Logged
+            </span>
+          </div>
+
+          <div className="bg-slate-800/80 rounded-xl p-3 mb-3 space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Vendor:</span>
+              <span className="font-semibold text-white">Office Depot</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Tax / VAT:</span>
+              <span className="font-semibold text-amber-300">$18.40 (5%)</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Total:</span>
+              <span className="font-bold text-emerald-400">$386.40</span>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "cadence",
+      agentName: "Cadence Agent",
+      badge: "Sales Follow-Ups",
+      badgeColor: "bg-rose-500/20 text-rose-300 border-rose-500/30",
+      icon: Calendar,
+      title: "Smart Follow-Up Cadence",
+      description:
+        "Run automated multi-touch follow-up sequences that auto-pause instantly as soon as a customer responds.",
+      bullets: [
+        "Recurring multi-day nurturing sequences",
+        "Smart auto-stop on incoming reply",
+        "Zero spam risk with cadence delays",
+      ],
+      ctaText: "Build Cadence Sequence",
+      ctaLink: "/signup",
+      preview: (
+        <div className="bg-slate-900 rounded-2xl p-4 text-white shadow-inner border border-slate-800">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 text-xs">
+            <span className="font-semibold text-rose-400 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5" /> 3-Step Sequence
+            </span>
+            <span className="bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded text-[11px] font-semibold">
+              Active Flow
+            </span>
+          </div>
+
+          <div className="space-y-2 text-xs">
+            <div className="flex items-center gap-2 p-2 bg-slate-800/80 rounded-lg">
+              <span className="w-5 h-5 rounded-full bg-purple-600/40 text-purple-300 flex items-center justify-center font-bold text-[10px]">
+                1
+              </span>
+              <span className="text-slate-200 flex-1 font-medium">Day 1: Intro & Demo Video</span>
+              <span className="text-[10px] text-emerald-400 font-semibold">Sent</span>
+            </div>
+            <div className="flex items-center gap-2 p-2 bg-slate-800/80 rounded-lg">
+              <span className="w-5 h-5 rounded-full bg-purple-600/40 text-purple-300 flex items-center justify-center font-bold text-[10px]">
+                2
+              </span>
+              <span className="text-slate-200 flex-1 font-medium">Day 3: Case Study & Proof</span>
+              <span className="text-[10px] text-amber-400 font-semibold">Queued</span>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "workflow",
+      agentName: "Workflow Agent",
+      badge: "Visual Automations",
+      badgeColor: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+      icon: Workflow,
+      title: "Visual Automations & Zapier",
+      description:
+        "Design drag-and-drop conversational workflows and sync seamlessly with Zapier, webhooks, and your tech stack.",
+      bullets: [
+        "Drag-and-drop visual logic canvas",
+        "Native Zapier & REST API endpoints",
+        "Custom tags, attributes & webhook triggers",
+      ],
+      ctaText: "Explore Automations",
+      ctaLink: "/signup",
+      preview: (
+        <div className="bg-slate-900 rounded-2xl p-4 text-white shadow-inner border border-slate-800">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 text-xs">
+            <span className="font-semibold text-blue-400 flex items-center gap-1.5">
+              <Workflow className="w-3.5 h-3.5" /> Flow Builder
+            </span>
+            <span className="bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded text-[11px] font-semibold">
+              Live Sync
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between p-2.5 bg-slate-800/80 rounded-xl text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="font-medium text-slate-300">Trigger: New Order</span>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
+            <span className="font-semibold text-purple-300">Sync Zapier + CRM</span>
+          </div>
+        </div>
+      ),
+    },
+  ];
+
+  const checkScroll = () => {
+    if (!sliderRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = sliderRef.current;
+    setCanScrollLeft(scrollLeft > 10);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 10);
+
+    const cardWidth = sliderRef.current.clientWidth > 768 ? 420 : 320;
+    const currentIdx = Math.round(scrollLeft / cardWidth);
+    setActiveIdx(Math.min(currentIdx, AGENT_SLIDES.length - 1));
+  };
+
+  useEffect(() => {
+    const el = sliderRef.current;
+    if (el) {
+      el.addEventListener("scroll", checkScroll);
+      checkScroll();
+    }
+    return () => el?.removeEventListener("scroll", checkScroll);
+  }, []);
+
+  const scroll = (direction: "left" | "right") => {
+    if (!sliderRef.current) return;
+    const cardWidth = sliderRef.current.clientWidth > 768 ? 420 : 320;
+    const shift = direction === "left" ? -cardWidth : cardWidth;
+    sliderRef.current.scrollBy({ left: shift, behavior: "smooth" });
+  };
+
+  const scrollToIndex = (index: number) => {
+    if (!sliderRef.current) return;
+    const cardWidth = sliderRef.current.clientWidth > 768 ? 420 : 320;
+    sliderRef.current.scrollTo({ left: index * cardWidth, behavior: "smooth" });
+    setActiveIdx(index);
+  };
 
   return (
-    <section id="features" className="py-24 lg:py-32 bg-slate-50/70 relative overflow-hidden">
-      {/* Background accents */}
-      <div className="absolute top-0 right-1/3 w-96 h-96 bg-purple-200/20 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-indigo-200/20 rounded-full blur-3xl pointer-events-none" />
+    <section id="features" className="py-20 lg:py-28 bg-slate-950 text-white relative overflow-hidden">
+      {/* Background Subtle Ambient Glow */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-1/4 -left-40 w-96 h-96 bg-purple-600/15 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 -right-40 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl" />
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
-        {/* Section Header (Brevo Style) */}
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-100/70 border border-purple-200/80 text-purple-800 text-xs font-semibold uppercase tracking-wider mb-4">
-            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-            The Unified WhatsApp Growth Suite
+        {/* Section Header with Brevo-Style Navigation Arrows */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-semibold uppercase tracking-wider mb-4">
+              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              Linala WhatsApp CRM AI Agents
+            </div>
+            
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
+              AI agents that work with you, and for you
+            </h2>
+            
+            <p className="mt-3 text-base sm:text-lg text-slate-400 max-w-2xl">
+              Specialized autonomous AI agents built into <strong className="text-purple-300 font-semibold">Linala WhatsApp CRM</strong> to qualify leads, process store orders, and scale sales.
+            </p>
           </div>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
-            One Platform. Every Tool You Need to{" "}
-            <span className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 bg-clip-text text-transparent">
-              Acquire, Sell & Retain.
-            </span>
-          </h2>
-          <p className="mt-4 text-base sm:text-lg text-slate-600">
-            Replace 6 disconnected tools with one integrated WhatsApp operating system designed for maximum conversion.
-          </p>
+
+          {/* Navigation Arrows (Brevo Style) */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => scroll("left")}
+              disabled={!canScrollLeft}
+              className={`w-12 h-12 rounded-full border border-slate-800 flex items-center justify-center transition-all ${
+                canScrollLeft
+                  ? "bg-slate-900 text-white hover:bg-purple-600 hover:border-purple-500 shadow-lg cursor-pointer"
+                  : "bg-slate-900/40 text-slate-600 cursor-not-allowed border-slate-800/40"
+              }`}
+              aria-label="Previous slide"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => scroll("right")}
+              disabled={!canScrollRight}
+              className={`w-12 h-12 rounded-full border border-slate-800 flex items-center justify-center transition-all ${
+                canScrollRight
+                  ? "bg-slate-900 text-white hover:bg-purple-600 hover:border-purple-500 shadow-lg cursor-pointer"
+                  : "bg-slate-900/40 text-slate-600 cursor-not-allowed border-slate-800/40"
+              }`}
+              aria-label="Next slide"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Brevo-Style Interactive Cloud Tabs Bar */}
-        <div className="flex items-center justify-start lg:justify-center gap-2 overflow-x-auto pb-4 mb-10 no-scrollbar">
-          {PRODUCT_MODULES.map((mod, idx) => {
-            const Icon = mod.icon;
-            const isActive = activeIdx === idx;
+        {/* Horizontal Slider Track */}
+        <div
+          ref={sliderRef}
+          className="flex gap-6 overflow-x-auto snap-x snap-mandatory pb-6 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 scroll-smooth"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        >
+          {AGENT_SLIDES.map((slide, idx) => {
             return (
-              <button
-                key={mod.id}
-                type="button"
-                onClick={() => setActiveIdx(idx)}
-                className={`flex items-center gap-2.5 px-4 py-3 rounded-xl font-medium text-xs sm:text-sm whitespace-nowrap transition-all duration-200 cursor-pointer ${
-                  isActive
-                    ? "bg-purple-600 text-white shadow-md shadow-purple-600/25 font-semibold"
-                    : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80 hover:border-slate-300 hover:bg-slate-100/50"
-                }`}
+              <div
+                key={slide.id}
+                className="w-[85vw] sm:w-[380px] lg:w-[410px] flex-shrink-0 snap-start bg-slate-900/90 rounded-3xl p-6 sm:p-7 border border-slate-800/80 hover:border-purple-500/50 transition-all duration-300 flex flex-col justify-between group shadow-xl"
               >
-                <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-purple-600"}`} />
-                <span>{mod.title.split("&")[0].trim()}</span>
-              </button>
+                <div>
+                  {/* Visual Preview Window */}
+                  <div className="mb-6 rounded-2xl overflow-hidden group-hover:scale-[1.01] transition-transform duration-300">
+                    {slide.preview}
+                  </div>
+
+                  {/* Agent Category Badge */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${slide.badgeColor}`}>
+                      {slide.badge}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500 font-mono">
+                      0{idx + 1} / 0{AGENT_SLIDES.length}
+                    </span>
+                  </div>
+
+                  {/* Title & Short Description */}
+                  <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 group-hover:text-purple-300 transition-colors">
+                    {slide.title}
+                  </h3>
+                  
+                  <p className="text-slate-400 text-sm leading-relaxed mb-5">
+                    {slide.description}
+                  </p>
+
+                  {/* Bullets */}
+                  <div className="space-y-2 mb-6">
+                    {slide.bullets.map((b, bIdx) => (
+                      <div key={bIdx} className="flex items-start gap-2 text-xs text-slate-300">
+                        <CheckCircle className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
+                        <span>{b}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bottom CTA Link */}
+                <Link
+                  href={slide.ctaLink}
+                  className="inline-flex items-center justify-between w-full py-3 px-4 rounded-xl bg-slate-800/80 hover:bg-purple-600 text-slate-200 hover:text-white text-xs font-semibold transition-all duration-200"
+                >
+                  <span>{slide.ctaText}</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </div>
             );
           })}
         </div>
 
-        {/* Tab Content Display: Brevo Feature Stage */}
-        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xl shadow-slate-900/5 overflow-hidden transition-all duration-300">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 p-6 sm:p-10 lg:p-12 items-center">
-            
-            {/* Left Column: Feature Deep Details */}
-            <div className="lg:col-span-5 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-purple-50 text-purple-800 text-xs font-semibold border border-purple-200/60">
-                <activeModule.icon className="w-3.5 h-3.5 text-purple-600" />
-                {activeModule.badge}
-              </div>
-
-              <div>
-                <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight leading-tight">
-                  {activeModule.title}
-                </h3>
-                <p className="mt-2 text-sm sm:text-base font-medium text-purple-700">
-                  {activeModule.tagline}
-                </p>
-                <p className="mt-3 text-sm text-slate-600 leading-relaxed">
-                  {activeModule.description}
-                </p>
-              </div>
-
-              {/* Value Bullets */}
-              <div className="space-y-2.5 pt-2">
-                {activeModule.benefits.map((benefit, bIdx) => (
-                  <div key={bIdx} className="flex items-start gap-2.5">
-                    <div className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" />
-                    </div>
-                    <span className="text-xs sm:text-sm text-slate-700 font-normal leading-relaxed">
-                      {benefit}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Action Link */}
-              <div className="pt-4">
-                <Link
-                  href={activeModule.ctaLink}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm shadow-md shadow-purple-600/20 hover:shadow-lg hover:shadow-purple-600/30 transition-all"
-                >
-                  <span>{activeModule.ctaText}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-            </div>
-
-            {/* Right Column: Simulated Live Interactive Visual Preview */}
-            <div className="lg:col-span-7 bg-slate-950 rounded-2xl p-4 sm:p-6 lg:p-7 text-white shadow-2xl border border-slate-800">
-              
-              {/* Preview Window Header */}
-              <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-800">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
-                  <span className="text-[11px] font-mono text-slate-400 ml-2">
-                    module://linala/{activeModule.id}
-                  </span>
-                </div>
-                <span className="text-[10px] font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2.5 py-0.5 rounded-full">
-                  Live Engine Active
-                </span>
-              </div>
-
-              {/* Dynamic Preview Modes */}
-              {activeModule.previewType === "ecommerce" && (
-                <div className="space-y-3 font-sans">
-                  <div className="bg-slate-900 rounded-xl p-3.5 border border-slate-800">
-                    <div className="flex items-center justify-between mb-2.5">
-                      <span className="text-xs font-semibold text-purple-400">🛍️ WhatsApp Native Catalog Message</span>
-                      <span className="text-[10px] text-slate-400">Status: Sent & Read</span>
-                    </div>
-                    
-                    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex gap-3 items-center">
-                      <div className="w-16 h-16 rounded-lg bg-purple-900/50 flex items-center justify-center flex-shrink-0">
-                        <ShoppingBag className="w-8 h-8 text-purple-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-white">Linen Slim-Fit Shirt (Teal Blue)</div>
-                        <div className="text-xs text-slate-400 mt-0.5">SKU: LNN-4092 · In Stock (18 units)</div>
-                        <div className="text-sm font-bold text-purple-400 mt-1">₹1,499 <span className="text-xs text-slate-500 line-through">₹2,299</span></div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button className="py-2 px-3 rounded-lg bg-purple-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm">
-                        <CreditCard className="w-3.5 h-3.5" /> 1-Click Buy Now
-                      </button>
-                      <button className="py-2 px-3 rounded-lg bg-slate-800 text-slate-200 text-xs font-medium flex items-center justify-center gap-1.5">
-                        🏬 Browse Catalog
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="bg-purple-950/60 border border-purple-800/50 rounded-xl p-3 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-purple-400" />
-                      <span className="text-purple-200">Payment Gateway Handshake: Razorpay / Stripe / UPI QR</span>
-                    </div>
-                    <span className="font-mono text-purple-400 font-bold">200 OK</span>
-                  </div>
-                </div>
-              )}
-
-              {activeModule.previewType === "voice_ai" && (
-                <div className="space-y-3 font-sans">
-                  <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
-                    <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                      <span>Customer Audio Input (Malayalam / Manglish)</span>
-                      <span className="text-purple-400 font-mono">Recognized: ml-IN</span>
-                    </div>
-                    <div className="bg-slate-950 p-2.5 rounded-lg text-xs text-slate-300 font-mono">
-                      "നമസ്കാരം, ഈ പ്രോഡക്റ്റിന്റെ വാറന്റി എത്ര കാലമാണ്? നാളെ ഡെലിവറി കിട്ടുമോ?"
-                    </div>
-                  </div>
-
-                  <div className="bg-purple-900/40 border border-purple-500/30 rounded-xl p-4">
-                    <div className="flex items-center justify-between text-xs text-purple-300 font-semibold mb-2">
-                      <span className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> Synthesized Voice Note Audio</span>
-                      <span className="text-[11px] text-purple-400 font-mono">Sarvam AI / Groq</span>
-                    </div>
-
-                    <div className="bg-slate-900 p-2.5 rounded-lg flex items-center gap-3">
-                      <button
-                        onClick={() => setIsPlayingAudio(!isPlayingAudio)}
-                        className="w-9 h-9 rounded-full bg-purple-500 text-white flex items-center justify-center flex-shrink-0 hover:bg-purple-400 transition-colors"
-                      >
-                        {isPlayingAudio ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
-                      </button>
-                      <div className="flex-1 flex items-center gap-1 h-6">
-                        {[30, 80, 45, 90, 60, 100, 75, 40, 85, 95, 50, 70, 30, 85, 40, 60].map((h, i) => (
-                          <div key={i} className="flex-1 bg-purple-400 rounded-full" style={{ height: `${h}%` }} />
-                        ))}
-                      </div>
-                      <Volume2 className="w-4 h-4 text-purple-400" />
-                    </div>
-                    
-                    <p className="text-xs text-purple-100 mt-2.5 leading-relaxed">
-                      "നമസ്കാരം! ഇതിന് 1 വർഷത്തെ വാറന്റി ലഭ്യമാണ്. ഇന്ന് 3 മണിക്ക് മുൻപ് ഓർഡർ ചെയ്താൽ നാളെ തന്നെ എക്സ്പ്രസ് ഡെലിവറി ലഭിക്കും!"
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {activeModule.previewType === "flow_builder" && (
-                <div className="space-y-2.5 font-sans">
-                  <div className="bg-slate-900 rounded-xl p-3.5 border border-slate-800 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-xs">
-                        TRG
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-white">Trigger: Keyword "PRICING" or "CATALOG"</div>
-                        <div className="text-[10px] text-slate-400">Match Type: Regex or Fuzzy Word</div>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-mono bg-purple-950 text-purple-300 px-2 py-0.5 rounded">Trigger 01</span>
-                  </div>
-
-                  <div className="flex justify-center text-slate-600">↓</div>
-
-                  <div className="bg-slate-900 rounded-xl p-3.5 border border-slate-800 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs">
-                        ACT
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-white">Action: Send Interactive Store Catalog</div>
-                        <div className="text-[10px] text-slate-400">Interactive Buy Now Buttons Attached</div>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-mono bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded">Action 02</span>
-                  </div>
-
-                  <div className="flex justify-center text-slate-600">↓</div>
-
-                  <div className="bg-slate-900 rounded-xl p-3.5 border border-slate-800 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs">
-                        CND
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-white">Condition: If Abandoned in Cart (2 Hours)</div>
-                        <div className="text-[10px] text-slate-400">Dispatch Auto Follow-up Promo #OFFER10</div>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-mono bg-amber-950 text-amber-300 px-2 py-0.5 rounded">Delay 2h</span>
-                  </div>
-                </div>
-              )}
-
-              {activeModule.previewType === "cadence" && (
-                <div className="space-y-3 font-sans">
-                  <div className="bg-slate-900 rounded-xl p-3.5 border border-slate-800">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-white">Cadence: 3-Step Automated Nurturing</span>
-                      <span className="text-[10px] text-purple-400 font-semibold">98.2% Delivery Rate</span>
-                    </div>
-
-                    <div className="space-y-2 mt-3">
-                      <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
-                        <span className="text-slate-300">Day 0: Welcome Video & Brand Introduction</span>
-                        <span className="text-purple-400 font-mono text-[11px]">Delivered (1,402)</span>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
-                        <span className="text-slate-300">Day 2: Customer Case Study & Social Proof</span>
-                        <span className="text-purple-400 font-mono text-[11px]">84% Open Rate</span>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
-                        <span className="text-slate-300">Day 4: Limited VIP Discount Checkout Link</span>
-                        <span className="text-amber-400 font-mono text-[11px]">41% Conversions</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                    <span>Recurring Broadcast Engine</span>
-                    <span className="text-purple-400 font-medium">Smart Anti-Ban Throttling: Active</span>
-                  </div>
-                </div>
-              )}
-
-              {activeModule.previewType === "expense" && (
-                <div className="space-y-3 font-sans">
-                  <div className="bg-slate-900 rounded-xl p-3.5 border border-slate-800">
-                    <div className="flex items-center justify-between mb-2 text-xs">
-                      <span className="font-bold text-purple-400">📸 WhatsApp Bill Photo Scanner</span>
-                      <span className="text-slate-400 text-[10px]">AI OCR Extraction in 1.4s</span>
-                    </div>
-
-                    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 grid grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <span className="text-slate-500 text-[10px] block">Vendor / Store</span>
-                        <span className="font-semibold text-white">Apple Store Dubai Mall</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 text-[10px] block">Amount & Currency</span>
-                        <span className="font-bold text-purple-400">AED 4,899.00</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 text-[10px] block">Category Auto-Tag</span>
-                        <span className="text-indigo-300">Office Hardware / Capex</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 text-[10px] block">Tax / VAT Included</span>
-                        <span className="text-slate-300">5% (AED 244.95)</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-purple-950/60 border border-purple-800/50 p-3 rounded-xl flex items-center justify-between text-xs">
-                    <span className="text-purple-200 font-medium">Ledger Status: Balanced & Export Ready</span>
-                    <span className="text-purple-400 font-mono font-bold">PDF / XLS</span>
-                  </div>
-                </div>
-              )}
-
-              {activeModule.previewType === "crm" && (
-                <div className="space-y-3 font-sans">
-                  <div className="bg-slate-900 rounded-xl p-3.5 border border-slate-800">
-                    <div className="flex items-center justify-between mb-2 text-xs">
-                      <span className="font-bold text-white">Kanban Sales Pipeline</span>
-                      <span className="text-purple-400 text-[11px] font-semibold">12 Active Deals ($48,200)</span>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                      <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
-                        <div className="text-[10px] text-slate-400 font-semibold mb-1">New Lead (4)</div>
-                        <div className="bg-slate-900 p-1.5 rounded text-[11px] text-slate-200">Anand R. · ₹45k</div>
-                      </div>
-                      <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
-                        <div className="text-[10px] text-amber-400 font-semibold mb-1">Negotiation (3)</div>
-                        <div className="bg-slate-900 p-1.5 rounded text-[11px] text-slate-200">Zenta Labs · $2.4k</div>
-                      </div>
-                      <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
-                        <div className="text-[10px] text-emerald-400 font-semibold mb-1">Won & Paid (5)</div>
-                        <div className="bg-slate-900 p-1.5 rounded text-[11px] text-emerald-300">Apex Retail · $8.1k</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-900/70 p-3 rounded-xl border border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                    <span className="flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-purple-400" />
-                      Multi-Agent Collision Shield Active
-                    </span>
-                    <span className="text-slate-200 font-medium">iOS & Android App Synced</span>
-                  </div>
-                </div>
-              )}
-
-            </div>
-
-          </div>
+        {/* Bottom Progress Indicator Dots */}
+        <div className="flex items-center justify-center gap-2 mt-8">
+          {AGENT_SLIDES.map((_, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => scrollToIndex(idx)}
+              className={`h-2 rounded-full transition-all duration-300 ${
+                activeIdx === idx ? "w-8 bg-purple-500" : "w-2 bg-slate-800 hover:bg-slate-700"
+              }`}
+              aria-label={`Go to slide ${idx + 1}`}
+            />
+          ))}
         </div>
 
       </div>

@@ -5,120 +5,111 @@ import {
   Share2,
   Tags,
   CheckCircle,
-  QrCode,
-  CreditCard,
-  ArrowRight,
-  Sparkles,
   Zap,
   Shield,
   Layers,
-  FileSpreadsheet,
-  Globe2,
 } from "lucide-react";
 
 export const BentoGrid: React.FC = () => {
   return (
-    <section className="py-24 bg-white relative overflow-hidden">
+    <section className="py-20 bg-white relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-800 text-xs font-semibold uppercase tracking-wider mb-4">
+        <div className="text-center max-w-2xl mx-auto mb-14">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-800 text-xs font-semibold uppercase tracking-wider mb-3">
             <Layers className="w-3.5 h-3.5 text-purple-600" />
-            Engineered for Modern Growth
+            Linala WhatsApp CRM Features
           </div>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
-            Built with Every Micro-Feature Your Business Demands
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+            Built for Modern Commerce & Scale
           </h2>
-          <p className="mt-4 text-base sm:text-lg text-slate-600">
-            From Zapier integrations to native mobile apps, experience enterprise agility without enterprise complexity.
+          <p className="mt-2.5 text-sm sm:text-base text-slate-600">
+            From Zapier webhooks to native mobile apps, manage your entire WhatsApp funnel in one place.
           </p>
         </div>
 
-        {/* Bento Grid Layout (Brevo-Style) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-12 gap-6">
+        {/* Bento Grid Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-12 gap-5">
           
-          {/* Bento Card 1 (Large - 7 cols): Zapier, Webhooks & API Ecosystem */}
-          <div className="lg:col-span-7 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 rounded-3xl p-8 text-white border border-slate-800 flex flex-col justify-between relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+          {/* Bento Card 1 (7 cols): Zapier & API */}
+          <div className="lg:col-span-7 bg-slate-900 rounded-3xl p-7 text-white border border-slate-800 flex flex-col justify-between relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
 
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-semibold mb-6 border border-purple-500/30">
-                <Share2 className="w-3.5 h-3.5" />
-                1,000+ App Connectors
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-semibold mb-4 border border-purple-500/30">
+                <Share2 className="w-3 h-3" /> 1,000+ Integrations
               </div>
-              <h3 className="text-2xl sm:text-3xl font-bold tracking-tight">
+              <h3 className="text-xl sm:text-2xl font-bold tracking-tight">
                 Zapier, Webhooks & REST API Connectors
               </h3>
-              <p className="mt-3 text-sm text-slate-400 max-w-lg leading-relaxed">
-                Connect your WhatsApp sales engine directly with Shopify, WooCommerce, Salesforce, HubSpot, Google Sheets, or custom backend webhooks with zero delay.
+              <p className="mt-2 text-xs sm:text-sm text-slate-400 leading-relaxed max-w-md">
+                Sync Linala WhatsApp CRM with Shopify, WooCommerce, HubSpot, Salesforce, and Google Sheets instantly.
               </p>
             </div>
 
-            {/* Interactive Node Network Visual */}
-            <div className="mt-8 pt-6 border-t border-slate-800/80">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="mt-6 pt-5 border-t border-slate-800">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {[
-                  { name: "Zapier & Make", badge: "Instant Sync" },
+                  { name: "Zapier & Make", badge: "Live Sync" },
                   { name: "Shopify / Woo", badge: "Auto Orders" },
                   { name: "Google Sheets", badge: "2-Way Sync" },
-                  { name: "Custom API", badge: "JSON Webhooks" },
+                  { name: "Custom API", badge: "REST & Hooks" },
                 ].map((item, idx) => (
-                  <div key={idx} className="bg-slate-800/70 p-3 rounded-xl border border-slate-700/60">
-                    <div className="text-xs font-bold text-white">{item.name}</div>
-                    <div className="text-[10px] text-purple-400 mt-1 font-mono">{item.badge}</div>
+                  <div key={idx} className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
+                    <div className="text-xs font-bold text-white truncate">{item.name}</div>
+                    <div className="text-[10px] text-purple-400 mt-0.5 font-mono">{item.badge}</div>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Bento Card 2 (5 cols): Native Android & iOS Mobile Apps */}
-          <div className="lg:col-span-5 bg-gradient-to-br from-purple-50 via-indigo-50/50 to-white rounded-3xl p-8 border border-purple-200/80 flex flex-col justify-between">
+          {/* Bento Card 2 (5 cols): Native Android & iOS Apps */}
+          <div className="lg:col-span-5 bg-purple-50/60 rounded-3xl p-7 border border-purple-200/80 flex flex-col justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-purple-600 text-white text-xs font-semibold mb-6 shadow-xs">
-                <Smartphone className="w-3.5 h-3.5" />
-                Mobile First
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-purple-600 text-white text-xs font-semibold mb-4">
+                <Smartphone className="w-3 h-3" /> Mobile Apps
               </div>
-              <h3 className="text-2xl font-bold text-slate-900 tracking-tight">
-                Native Android & iOS Mobile Apps
+              <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+                Native Android & iOS Apps
               </h3>
-              <p className="mt-3 text-sm text-slate-600 leading-relaxed">
-                Never miss an urgent VIP customer inquiry or high-ticket order. Reply in real time, view deals, and manage catalog orders directly from your phone.
+              <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                Reply to high-ticket leads and track live orders on the go with real-time push alerts.
               </p>
             </div>
 
-            <div className="mt-8 p-4 rounded-2xl bg-white border border-purple-100 shadow-sm flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold text-sm">
+            <div className="mt-6 p-3.5 rounded-2xl bg-white border border-purple-100 shadow-xs flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold text-sm">
                   📱
                 </div>
                 <div>
                   <div className="text-xs font-bold text-slate-900">App Store & Play Store</div>
-                  <div className="text-[11px] text-purple-700 font-medium">Real-time Push Notifications</div>
+                  <div className="text-[11px] text-purple-700 font-medium">Real-time Push Alerts</div>
                 </div>
               </div>
-              <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full">
-                Available Now
+              <span className="text-[11px] font-semibold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+                Live
               </span>
             </div>
           </div>
 
-          {/* Bento Card 3 (4 cols): Dynamic Tags & Smart CRM Segmentation */}
-          <div className="lg:col-span-4 bg-slate-50 rounded-3xl p-7 border border-slate-200 flex flex-col justify-between">
+          {/* Bento Card 3 (4 cols): Dynamic Tags */}
+          <div className="lg:col-span-4 bg-slate-50 rounded-3xl p-6 border border-slate-200 flex flex-col justify-between">
             <div>
-              <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-5 font-bold">
-                <Tags className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-4 font-bold">
+                <Tags className="w-4 h-4" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900">
-                Advanced Dynamic Tagging
+              <h3 className="text-lg font-bold text-slate-900">
+                Dynamic Tags & Segmentation
               </h3>
-              <p className="mt-2 text-xs text-slate-600 leading-relaxed">
-                Auto-tag leads as "VIP Buyer", "High Intent", "Cart Abandoned", or "Follow-Up Pending" based on real-time conversational triggers.
+              <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                Auto-tag contacts based on behavior, purchase intent, and response triggers.
               </p>
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-1.5">
+            <div className="mt-5 flex flex-wrap gap-1.5">
               {["🏷️ VIP Buyer", "⚡ Hot Lead", "🛒 Cart Pending", "🔥 Re-order Due"].map((tag, i) => (
                 <span key={i} className="text-[11px] font-semibold bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700">
                   {tag}
@@ -127,49 +118,49 @@ export const BentoGrid: React.FC = () => {
             </div>
           </div>
 
-          {/* Bento Card 4 (4 cols): Automated Lead Qualification */}
-          <div className="lg:col-span-4 bg-slate-50 rounded-3xl p-7 border border-slate-200 flex flex-col justify-between">
+          {/* Bento Card 4 (4 cols): Lead Scoring */}
+          <div className="lg:col-span-4 bg-slate-50 rounded-3xl p-6 border border-slate-200 flex flex-col justify-between">
             <div>
-              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mb-5 font-bold">
-                <Zap className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mb-4 font-bold">
+                <Zap className="w-4 h-4" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900">
-                AI Lead Qualification & Scoring
+              <h3 className="text-lg font-bold text-slate-900">
+                AI Lead Qualification
               </h3>
-              <p className="mt-2 text-xs text-slate-600 leading-relaxed">
-                Filter high-intent buyers from casual window shoppers automatically using interactive branching questions and AI sentiment score.
+              <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                Score incoming buyer intent and route hot prospects to your closers instantly.
               </p>
             </div>
 
-            <div className="mt-6 p-3 rounded-xl bg-white border border-slate-200 text-xs text-slate-700">
+            <div className="mt-5 p-3 rounded-xl bg-white border border-slate-200 text-xs text-slate-700">
               <div className="flex justify-between items-center mb-1">
-                <span className="font-semibold text-slate-900">Lead Score: 94 / 100</span>
-                <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded">High Intent</span>
+                <span className="font-semibold text-slate-900">Score: 96 / 100</span>
+                <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded">Hot Lead</span>
               </div>
-              <span className="text-[11px] text-slate-500">Auto routed to Senior Sales Agent</span>
+              <span className="text-[11px] text-slate-500">Auto-routed to senior rep</span>
             </div>
           </div>
 
-          {/* Bento Card 5 (4 cols): Enterprise Meta Cloud API & Green Badge */}
-          <div className="lg:col-span-4 bg-slate-50 rounded-3xl p-7 border border-slate-200 flex flex-col justify-between">
+          {/* Bento Card 5 (4 cols): Meta Cloud API */}
+          <div className="lg:col-span-4 bg-slate-50 rounded-3xl p-6 border border-slate-200 flex flex-col justify-between">
             <div>
-              <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-5 font-bold">
-                <Shield className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-4 font-bold">
+                <Shield className="w-4 h-4" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900">
+              <h3 className="text-lg font-bold text-slate-900">
                 Official Meta Cloud API
               </h3>
-              <p className="mt-2 text-xs text-slate-600 leading-relaxed">
-                Enterprise-grade security with official green badge verification, high deliverability throughput, and 99.9% uptime SLA.
+              <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                Enterprise security, green badge verification, and 99.9% message deliverability.
               </p>
             </div>
 
-            <div className="mt-6 flex items-center justify-between p-3 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800">
+            <div className="mt-5 flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800">
               <span className="flex items-center gap-1.5 text-purple-700">
-                <CheckCircle className="w-4 h-4 text-purple-600" /> Meta Verified
+                <CheckCircle className="w-3.5 h-3.5 text-purple-600" /> Meta Verified
               </span>
               <span className="flex items-center gap-1.5 text-emerald-700">
-                <CheckCircle className="w-4 h-4 text-emerald-600" /> 99.9% Deliverability
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> 99.9% Uptime
               </span>
             </div>
           </div>

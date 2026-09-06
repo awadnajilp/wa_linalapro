@@ -102,18 +102,17 @@ const Hero: React.FC = () => {
         </div>
 
         {/* Hero Main Copy */}
-        <div className="text-center max-w-4xl mx-auto mb-12 lg:mb-16">
+        <div className="text-center max-w-4xl mx-auto mb-10 lg:mb-14">
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-slate-900 tracking-tight leading-[1.12]">
-            The All-in-One WhatsApp Platform for{" "}
+            Grow Faster with <span className="text-purple-600">Linala WhatsApp CRM</span> for{" "}
             <span className="block mt-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 bg-clip-text text-transparent">
               {displayText}
               <span className="inline-block w-[3px] h-[0.85em] bg-purple-600 ml-1.5 align-middle animate-pulse" />
             </span>
           </h1>
 
-          <p className="mt-6 text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed font-normal">
-            Turn chats into automated revenue. Delight buyers with human-like multilingual AI voice notes, 
-            sell instantly with WhatsApp Native checkout, automate cadences, and track SME expenses—all in one unified workspace.
+          <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed font-normal">
+            The all-in-one Linala WhatsApp CRM. Deploy autonomous AI agents, launch WhatsApp stores with 1-click checkout, qualify leads, and automate revenue 24/7.
           </p>
 
           {/* Dual CTAs (Brevo Style) */}

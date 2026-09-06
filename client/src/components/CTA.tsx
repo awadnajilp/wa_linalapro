@@ -1,109 +1,70 @@
-/**
- * ============================================================
- * © 2025 Diploy — a brand of Bisht Technologies Private Limited
- * Original Author: BTPL Engineering Team
- * Website: https://diploy.in
- * Contact: cs@diploy.in
- *
- * Distributed under the Envato / CodeCanyon License Agreement.
- * Licensed to the purchaser for use as defined by the
- * Envato Market (CodeCanyon) Regular or Extended License.
- *
- * You are NOT permitted to redistribute, resell, sublicense,
- * or share this source code, in whole or in part.
- * Respect the author's rights and Envato licensing terms.
- * ============================================================
- */
-
 import React from "react";
-import { ArrowRight, MessageCircle, Zap, Shield, Clock } from "lucide-react";
-import { useTranslation } from "@/lib/i18n";
 import { Link } from "wouter";
+import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, Zap, Headphones } from "lucide-react";
 
-const CTA: React.FC = () => {
-  const { t } = useTranslation();
-
-  const iconMap = {
-    "Instant Setup": Zap,
-    "Secure & Compliant": Shield,
-    "24/7 Support": Clock,
-    "Free Forever": MessageCircle,
-  };
-
+export const CTA: React.FC = () => {
   return (
-    <section className="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-purple-600 via-indigo-500 to-cyan-600 relative overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-32 -right-32 w-96 h-96 bg-white/[0.07] rounded-full blur-2xl"></div>
-        <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-white/[0.07] rounded-full blur-2xl"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-white/[0.04] rounded-full blur-3xl"></div>
-        <div className="absolute top-20 left-20 w-2 h-2 bg-white/20 rounded-full"></div>
-        <div className="absolute bottom-32 right-40 w-1.5 h-1.5 bg-white/25 rounded-full"></div>
-        <div className="absolute top-40 right-1/4 w-1 h-1 bg-white/30 rounded-full"></div>
-      </div>
+    <section className="py-20 lg:py-28 bg-gradient-to-br from-emerald-900 via-slate-900 to-slate-950 text-white relative overflow-hidden">
+      {/* Ambient background glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-20 right-10 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="max-w-6xl mx-auto relative">
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center bg-white/15 backdrop-blur-md text-white/90 px-5 py-2 rounded-full text-sm font-medium mb-8 border border-white/10">
-            <MessageCircle className="w-4 h-4 mr-2" />
-            {t("Landing.ctaSec.introTagline")}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+        
+        {/* Top Badge */}
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold uppercase tracking-wider mb-6">
+          <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+          Start Converting Today
+        </div>
+
+        {/* Main Headline */}
+        <h2 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight max-w-4xl mx-auto">
+          Ready to Turn WhatsApp into Your Most Profitable Sales Channel?
+        </h2>
+
+        <p className="mt-6 text-base sm:text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed">
+          Join thousands of high-performing brands using multilingual AI voice notes, instant store checkout, and automated marketing flows.
+        </p>
+
+        {/* Action Buttons */}
+        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <Link
+            href="/signup"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-base shadow-xl shadow-emerald-500/25 hover:shadow-2xl hover:shadow-emerald-500/35 hover:-translate-y-0.5 transition-all duration-200"
+          >
+            <span>Start 14-Day Free Trial</span>
+            <ArrowRight className="w-5 h-5 text-slate-950" />
+          </Link>
+
+          <Link
+            href="/contact"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-base border border-white/20 hover:border-white/30 backdrop-blur-sm transition-all duration-200"
+          >
+            <Headphones className="w-4 h-4 text-emerald-400" />
+            <span>Talk to a Sales Specialist</span>
+          </Link>
+        </div>
+
+        {/* Trust Badges */}
+        <div className="mt-12 pt-8 border-t border-slate-800/80 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto text-xs text-slate-300">
+          <div className="flex items-center justify-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span>No credit card required</span>
           </div>
-
-          <h2 className="text-4xl md:text-6xl font-bold text-white mb-6 leading-tight tracking-tight">
-            {t("Landing.ctaSec.headline")}
-          </h2>
-
-          <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto mb-12 leading-relaxed">
-            {t("Landing.ctaSec.subHeadline")}
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-5 justify-center items-center mb-16">
-            <Link
-              href="/contact"
-              className="bg-white text-purple-700 px-8 py-4 rounded-xl font-semibold hover:bg-white/95 transition-all duration-200 transform hover:scale-[1.02] shadow-lg shadow-black/10 flex items-center group text-lg"
-            >
-              {t("Landing.ctaSec.buttons.startTrial")}
-              <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-            </Link>
+          <div className="flex items-center justify-center gap-2">
+            <Zap className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span>5-minute zero-code setup</span>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5 max-w-4xl mx-auto">
-            {(t("Landing.ctaSec.trustIndicators") as unknown as any[]).map(
-              (item: any, index: number) => {
-                const IconComponent =
-                  iconMap[item.title as keyof typeof iconMap] || Zap;
-                return (
-                  <div
-                    key={`${item.title}-${index}`}
-                    className="text-center bg-white/[0.08] backdrop-blur-md border border-white/[0.12] rounded-2xl p-6 hover:bg-white/[0.12] transition-all duration-200"
-                  >
-                    <div className="bg-white/15 p-3 rounded-xl w-fit mx-auto mb-4">
-                      <IconComponent className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-base font-semibold text-white mb-1.5">
-                      {item.title}
-                    </h3>
-                    <p className="text-white/65 text-sm leading-relaxed">{item.desc}</p>
-                  </div>
-                );
-              }
-            )}
+          <div className="flex items-center justify-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span>Meta Official API Partner</span>
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <Headphones className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span>24/7 Dedicated Support</span>
           </div>
         </div>
 
-        <div className="bg-white/[0.08] backdrop-blur-md p-6 md:p-8 rounded-2xl border border-white/[0.12]">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8 text-center">
-            {(t("Landing.ctaSec.stats") as unknown as any[]).map(
-              (stat: any, index: number) => (
-                <div key={`${stat.label}-${index}`}>
-                  <div className="text-3xl md:text-4xl font-bold text-white mb-1 tracking-tight">
-                    {stat.number}
-                  </div>
-                  <div className="text-white/60 text-sm font-medium">{stat.label}</div>
-                </div>
-              )
-            )}
-          </div>
-        </div>
       </div>
     </section>
   );

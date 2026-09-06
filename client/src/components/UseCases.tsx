@@ -1,329 +1,222 @@
-/**
- * ============================================================
- * © 2025 Diploy — a brand of Bisht Technologies Private Limited
- * Original Author: BTPL Engineering Team
- * Website: https://diploy.in
- * Contact: cs@diploy.in
- *
- * Distributed under the Envato / CodeCanyon License Agreement.
- * Licensed to the purchaser for use as defined by the
- * Envato Market (CodeCanyon) Regular or Extended License.
- *
- * You are NOT permitted to redistribute, resell, sublicense,
- * or share this source code, in whole or in part.
- * Respect the author's rights and Envato licensing terms.
- * ============================================================
- */
-
 import React, { useState } from "react";
+import { Link } from "wouter";
 import {
   ShoppingCart,
+  Building2,
+  Stethoscope,
   GraduationCap,
-  Heart,
-  Building,
-  Utensils,
-  Car,
+  Briefcase,
+  Store,
+  CheckCircle2,
   ArrowRight,
   TrendingUp,
-  Users,
-  MessageCircle,
+  Sparkles,
+  ChevronRight,
 } from "lucide-react";
-import { Link } from "wouter";
-import { useTranslation } from "@/lib/i18n";
 
-const UseCases = () => {
-  const [activeUseCase, setActiveUseCase] = useState(0);
-  const { t } = useTranslation();
+interface UseCaseItem {
+  id: string;
+  icon: React.ElementType;
+  title: string;
+  badge: string;
+  headline: string;
+  description: string;
+  growthMetric: string;
+  metricLabel: string;
+  highlights: string[];
+}
 
-  const useCases = [
-    {
-      icon: ShoppingCart,
-      title: t("Landing.useCasesSec.useCases.0.title"),
-      description: t("Landing.useCasesSec.useCases.0.description"),
-      color: "from-purple-500 to-purple-600",
-      bgColor: "bg-purple-50",
-      stats: {
-        increase: "300%",
-        metric: t("Landing.useCasesSec.useCases.0.stats.metric"),
-      },
-      features: [
-        t("Landing.useCasesSec.useCases.0.features.0"),
-        t("Landing.useCasesSec.useCases.0.features.1"),
-        t("Landing.useCasesSec.useCases.0.features.2"),
-        t("Landing.useCasesSec.useCases.0.features.3"),
-      ],
-    },
-    {
-      icon: GraduationCap,
-      title: t("Landing.useCasesSec.useCases.1.title"),
-      description: t("Landing.useCasesSec.useCases.1.description"),
-      color: "from-blue-500 to-blue-600",
-      bgColor: "bg-blue-50",
-      stats: {
-        increase: "85%",
-        metric: t("Landing.useCasesSec.useCases.1.stats.metric"),
-      },
-      features: [
-        t("Landing.useCasesSec.useCases.1.features.0"),
-        t("Landing.useCasesSec.useCases.1.features.1"),
-        t("Landing.useCasesSec.useCases.1.features.2"),
-        t("Landing.useCasesSec.useCases.1.features.3"),
-      ],
-    },
-    {
-      icon: Heart,
-      title: t("Landing.useCasesSec.useCases.2.title"),
-      description: t("Landing.useCasesSec.useCases.2.description"),
-      color: "from-red-500 to-red-600",
-      bgColor: "bg-red-50",
-      stats: {
-        increase: "60%",
-        metric: t("Landing.useCasesSec.useCases.2.stats.metric"),
-      },
-      features: [
-        t("Landing.useCasesSec.useCases.2.features.0"),
-        t("Landing.useCasesSec.useCases.2.features.1"),
-        t("Landing.useCasesSec.useCases.2.features.2"),
-        t("Landing.useCasesSec.useCases.2.features.3"),
-      ],
-    },
-    {
-      icon: Building,
-      title: t("Landing.useCasesSec.useCases.3.title"),
-      description: t("Landing.useCasesSec.useCases.3.description"),
-      color: "from-purple-500 to-purple-600",
-      bgColor: "bg-purple-50",
-      stats: {
-        increase: "45%",
-        metric: t("Landing.useCasesSec.useCases.3.stats.metric"),
-      },
-      features: [
-        t("Landing.useCasesSec.useCases.3.features.0"),
-        t("Landing.useCasesSec.useCases.3.features.1"),
-        t("Landing.useCasesSec.useCases.3.features.2"),
-        t("Landing.useCasesSec.useCases.3.features.3"),
-      ],
-    },
-    {
-      icon: Utensils,
-      title: t("Landing.useCasesSec.useCases.4.title"),
-      description: t("Landing.useCasesSec.useCases.4.description"),
-      color: "from-orange-500 to-orange-600",
-      bgColor: "bg-orange-50",
-      stats: {
-        increase: "120%",
-        metric: t("Landing.useCasesSec.useCases.4.stats.metric"),
-      },
-      features: [
-        t("Landing.useCasesSec.useCases.4.features.0"),
-        t("Landing.useCasesSec.useCases.4.features.1"),
-        t("Landing.useCasesSec.useCases.4.features.2"),
-        t("Landing.useCasesSec.useCases.4.features.3"),
-      ],
-    },
-    {
-      icon: Car,
-      title: t("Landing.useCasesSec.useCases.5.title"),
-      description: t("Landing.useCasesSec.useCases.5.description"),
-      color: "from-indigo-500 to-indigo-600",
-      bgColor: "bg-indigo-50",
-      stats: {
-        increase: "75%",
-        metric: t("Landing.useCasesSec.useCases.5.stats.metric"),
-      },
-      features: [
-        t("Landing.useCasesSec.useCases.5.features.0"),
-        t("Landing.useCasesSec.useCases.5.features.1"),
-        t("Landing.useCasesSec.useCases.5.features.2"),
-        t("Landing.useCasesSec.useCases.5.features.3"),
-      ],
-    },
-  ];
+const USE_CASES: UseCaseItem[] = [
+  {
+    id: "ecom",
+    icon: ShoppingCart,
+    title: "E-Commerce & D2C Brands",
+    badge: "Retail & Direct-to-Consumer",
+    headline: "Automate Catalogs, Checkout & 3.8x More Sales on WhatsApp",
+    description:
+      "Allow customers to discover products, view real-time variants, buy via UPI QR/Card, and receive automated abandoned cart reminders.",
+    growthMetric: "+380%",
+    metricLabel: "Increase in WhatsApp Sales Volume",
+    highlights: [
+      "Native WhatsApp catalogs with direct 'Buy Now' action",
+      "Automated abandoned cart recovery drip campaigns",
+      "Instant PDF order invoices & tracking link dispatch",
+      "AI recommendations tailored to customer preferences",
+    ],
+  },
+  {
+    id: "realestate",
+    icon: Building2,
+    title: "Real Estate & Property",
+    badge: "Property Developers & Agents",
+    headline: "Qualify High-Ticket Buyers & Auto-Schedule Site Visits",
+    description:
+      "Capture leads from Meta ads instantly, qualify buyer budgets with AI questionnaires, and dispatch floor plan brochures via WhatsApp.",
+    growthMetric: "82%",
+    metricLabel: "Faster Lead-to-Visit Conversion",
+    highlights: [
+      "Instant lead capture from Facebook & Instagram Click-to-WhatsApp ads",
+      "Automated brochure PDF & virtual tour video delivery",
+      "AI qualification of buyer budget, locality & timeline",
+      "Automated reminder cadence for scheduled site visits",
+    ],
+  },
+  {
+    id: "healthcare",
+    icon: Stethoscope,
+    title: "Healthcare & Clinics",
+    badge: "Hospitals, Clinics & Wellness",
+    headline: "Automate Appointment Bookings & Prescription Reminders",
+    description:
+      "Enable patients to book doctor consultations, receive digital prescriptions, and get medication reminder cadences automatically.",
+    growthMetric: "65%",
+    metricLabel: "Reduction in Patient No-Shows",
+    highlights: [
+      "24/7 automated doctor slot booking & rescheduling",
+      "Instant WhatsApp confirmation with location map pin",
+      "Automated pre-visit preparation instructions",
+      "Follow-up medication & feedback reminder cadences",
+    ],
+  },
+  {
+    id: "services",
+    icon: Briefcase,
+    title: "B2B, SaaS & Agencies",
+    badge: "Professional Services & Tech",
+    headline: "Accelerate Inbound Sales Cycles with Multi-Agent CRM",
+    description:
+      "Route incoming enterprise leads to the right account executive, track deal stages on Kanban boards, and sync conversation notes with CRM.",
+    growthMetric: "4.2x",
+    metricLabel: "Faster Sales Response SLA",
+    highlights: [
+      "Multi-agent team routing with collision avoidance",
+      "Zapier & Webhook 2-way sync with Salesforce & HubSpot",
+      "Internal team collaboration notes & custom contact tagging",
+      "Automated contract follow-up & renewal alerts",
+    ],
+  },
+  {
+    id: "education",
+    icon: GraduationCap,
+    title: "Education & EdTech",
+    badge: "Academies, Institutes & Online Courses",
+    headline: "Boost Course Admissions with Instant Syllabus & AI Guidance",
+    description:
+      "Counsel prospective students with multilingual voice notes, share course PDFs instantly, and automate admission fee collection.",
+    growthMetric: "74%",
+    metricLabel: "Increase in Lead-to-Enrollment Rate",
+    highlights: [
+      "AI student guidance in Malayalam, Hinglish & English",
+      "Instant syllabus & fee structure PDF dispatch",
+      "Automated webinar reminders & attendance tracking",
+      "Direct fee payment links via Razorpay & UPI QR",
+    ],
+  },
+];
+
+export const UseCases: React.FC = () => {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const activeCase = USE_CASES[activeIdx];
 
   return (
-    <section id="use-cases" className="py-24 px-4 sm:px-6 lg:px-8 bg-gray-50/50">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center bg-indigo-50 text-indigo-700 px-4 py-2 rounded-full text-sm font-medium mb-6 border border-indigo-100">
-            <Building className="w-4 h-4 mr-2" />
-            {t("Landing.useCasesSec.introTagline")}
+    <section id="use-cases" className="py-24 bg-white relative overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* Section Header */}
+        <div className="text-center max-w-3xl mx-auto mb-16">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold uppercase tracking-wider mb-4">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+            Tailored Industry Solutions
           </div>
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            {t("Landing.useCasesSec.headlinePre")}{" "}
-            <span className="block bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-              {t("Landing.useCasesSec.headlineHighlight")}
-            </span>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
+            Designed for the Specific Needs of Your Industry
           </h2>
-          <p className="text-lg text-gray-500 max-w-3xl mx-auto leading-relaxed">
-            {t("Landing.useCasesSec.subHeadline")}
+          <p className="mt-4 text-base sm:text-lg text-slate-600">
+            Discover how companies across diverse sectors scale revenue and delight customers with our WhatsApp platform.
           </p>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-3 mb-12">
-          {useCases.map((useCase, index) => (
-            <button
-              key={index}
-              onClick={() => setActiveUseCase(index)}
-              className={`flex items-center space-x-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
-                activeUseCase === index
-                  ? `bg-gradient-to-r ${useCase.color} text-white shadow-md`
-                  : "bg-white text-gray-600 hover:text-gray-900 hover:shadow-sm border border-gray-200 hover:border-gray-300"
-              }`}
-            >
-              <useCase.icon className="w-4 h-4" />
-              <span>{useCase.title}</span>
-            </button>
-          ))}
+        {/* Industry Pill Tabs (Brevo Style) */}
+        <div className="flex items-center justify-start lg:justify-center gap-2 overflow-x-auto pb-4 mb-12 no-scrollbar">
+          {USE_CASES.map((item, idx) => {
+            const Icon = item.icon;
+            const isActive = activeIdx === idx;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveIdx(idx)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm whitespace-nowrap transition-all duration-200 cursor-pointer ${
+                  isActive
+                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20 font-semibold"
+                    : "bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/80"
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-emerald-600"}`} />
+                <span>{item.title.split("&")[0].trim()}</span>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
-          <div
-            className="p-8 rounded-2xl bg-white border border-gray-100 shadow-sm transition-all duration-500"
-          >
-            <div className="flex items-center space-x-4 mb-6">
-              <div
-                className={`p-3.5 rounded-xl bg-gradient-to-r ${useCases[activeUseCase].color} shadow-sm`}
-              >
-                {React.createElement(useCases[activeUseCase].icon, {
-                  className: "w-7 h-7 text-white",
-                })}
+        {/* Active Industry Showcase Card */}
+        <div className="bg-gradient-to-br from-slate-50 to-emerald-50/30 rounded-3xl p-8 sm:p-12 border border-emerald-100 shadow-sm">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            
+            {/* Left Content */}
+            <div className="lg:col-span-7 space-y-6">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-white border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                <activeCase.icon className="w-3.5 h-3.5 text-emerald-600" />
+                {activeCase.badge}
+              </span>
+
+              <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                {activeCase.headline}
+              </h3>
+
+              <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
+                {activeCase.description}
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                {activeCase.highlights.map((h, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-xs sm:text-sm text-slate-700">{h}</span>
+                  </div>
+                ))}
               </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">
-                  {useCases[activeUseCase].title}
-                </h3>
-                <p className="text-gray-500 text-sm mt-1">
-                  {useCases[activeUseCase].description}
-                </p>
+
+              <div className="pt-4">
+                <Link
+                  href="/signup"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-all"
+                >
+                  <span>Explore {activeCase.title.split("&")[0]} Solution</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
               </div>
             </div>
 
-            <div className="bg-gray-50 p-5 rounded-xl mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-500 text-sm">
-                  Success Metric
-                </span>
-                <div className="flex items-center space-x-2">
-                  <TrendingUp className="w-4 h-4 text-purple-500" />
-                  <span className="text-xl font-bold text-purple-600">
-                    {useCases[activeUseCase].stats.increase}
-                  </span>
-                </div>
+            {/* Right Metric Box */}
+            <div className="lg:col-span-5 bg-white rounded-2xl p-8 border border-emerald-200 shadow-md flex flex-col justify-center items-center text-center">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-4">
+                <TrendingUp className="w-7 h-7 text-emerald-600" />
               </div>
-              <p className="text-gray-700 text-sm font-medium">
-                {useCases[activeUseCase].stats.metric}
+              <div className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">
+                {activeCase.growthMetric}
+              </div>
+              <div className="text-sm font-bold text-emerald-800 mt-2">
+                {activeCase.metricLabel}
+              </div>
+              <p className="text-xs text-slate-500 mt-3 max-w-xs">
+                Verified impact benchmark achieved by our active platform customers in this sector.
               </p>
             </div>
 
-            <div className="space-y-3">
-              <h4 className="font-semibold text-gray-900 text-sm mb-3">
-                {t("Landing.useCasesSec.keyFeatures")}
-              </h4>
-              {useCases[activeUseCase].features.map((feature, index) => (
-                <div key={index} className="flex items-center space-x-3">
-                  <div className="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-                  <span className="text-gray-600 text-sm">{feature}</span>
-                </div>
-              ))}
-            </div>
-
-            <Link
-              href="/case-studies"
-              className="inline-flex w-fit mt-7 bg-gray-900 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-800 transition-all items-center group"
-            >
-              {t("Landing.useCasesSec.cta.viewCaseStudyButton")}
-              <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-            </Link>
-          </div>
-
-          <div className="space-y-5">
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-              <div className="flex items-center space-x-4 mb-5">
-                <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-purple-100 ring-offset-2">
-                  <img
-                    src="https://plus.unsplash.com/premium_photo-1689977968861-9c91dbb16049?q=80&w=870&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-gray-900">
-                    Customer Success Story
-                  </h4>
-                  <p className="text-gray-400 text-xs">
-                    Real results from our platform
-                  </p>
-                </div>
-              </div>
-              <blockquote className="text-gray-600 italic text-sm leading-relaxed mb-5 pl-4 border-l-2 border-purple-200">
-                {String(t("Landing.useCasesSec.cta.customerSuccessQuote"))
-                  .replace(
-                    "{industry}",
-                    useCases[activeUseCase].title.toLowerCase()
-                  )
-                  .replace(
-                    "{increase}",
-                    useCases[activeUseCase].stats.increase
-                  )}
-              </blockquote>
-              <div className="flex items-center space-x-3">
-                <div>
-                  <p className="font-semibold text-gray-900 text-sm">
-                    {t("Landing.useCasesSec.cta.testimonialName")}
-                  </p>
-                  <p className="text-gray-400 text-xs">
-                    {t("Landing.useCasesSec.cta.testimonialPosition")}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-              <div className="flex items-center space-x-3 mb-5">
-                <div className="p-2 bg-indigo-50 rounded-lg">
-                  <MessageCircle className="w-5 h-5 text-indigo-600" />
-                </div>
-                <h4 className="font-semibold text-gray-900">
-                  {t("Landing.useCasesSec.quickStatsTitle")}
-                </h4>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-3 bg-blue-50/50 rounded-xl">
-                  <div className="text-xl font-bold text-blue-600">
-                    {t("Landing.useCasesSec.quickStats.0.value")}
-                  </div>
-                  <div className="text-gray-500 text-xs mt-1">
-                    {t("Landing.useCasesSec.quickStats.0.label")}
-                  </div>
-                </div>
-                <div className="text-center p-3 bg-purple-50/50 rounded-xl">
-                  <div className="text-xl font-bold text-purple-600">
-                    {t("Landing.useCasesSec.quickStats.1.value")}
-                  </div>
-                  <div className="text-gray-500 text-xs mt-1">
-                    {t("Landing.useCasesSec.quickStats.1.label")}
-                  </div>
-                </div>
-                <div className="text-center p-3 bg-violet-50/50 rounded-xl">
-                  <div className="text-xl font-bold text-violet-600">
-                    {t("Landing.useCasesSec.quickStats.2.value")}
-                  </div>
-                  <div className="text-gray-500 text-xs mt-1">
-                    {t("Landing.useCasesSec.quickStats.2.label")}
-                  </div>
-                </div>
-                <div className="text-center p-3 bg-amber-50/50 rounded-xl">
-                  <div className="text-xl font-bold text-amber-600">
-                    {t("Landing.useCasesSec.quickStats.3.value")}
-                  </div>
-                  <div className="text-gray-500 text-xs mt-1">
-                    {t("Landing.useCasesSec.quickStats.3.label")}
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
+
       </div>
     </section>
   );

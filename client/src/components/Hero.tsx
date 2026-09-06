@@ -1,246 +1,448 @@
-/**
- * ============================================================
- * © 2025 Diploy — a brand of Bisht Technologies Private Limited
- * Original Author: BTPL Engineering Team
- * Website: https://diploy.in
- * Contact: cs@diploy.in
- *
- * Distributed under the Envato / CodeCanyon License Agreement.
- * Licensed to the purchaser for use as defined by the
- * Envato Market (CodeCanyon) Regular or Extended License.
- *
- * You are NOT permitted to redistribute, resell, sublicense,
- * or share this source code, in whole or in part.
- * Respect the author's rights and Envato licensing terms.
- * ============================================================
- */
-
-import { useEffect, useState } from "react";
-import { ArrowRight, Play, Users, TrendingUp, Zap } from "lucide-react";
-import LoadingAnimation from "./LoadingAnimation";
-import { useTranslation } from "@/lib/i18n";
+import React, { useState, useEffect } from "react";
 import { Link } from "wouter";
+import {
+  ArrowRight,
+  Sparkles,
+  Bot,
+  ShoppingBag,
+  Zap,
+  ShieldCheck,
+  CheckCircle2,
+  Play,
+  Pause,
+  TrendingUp,
+  CreditCard,
+  ChevronRight,
+  Volume2,
+} from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
-const TYPING_WORDS = [
-  "WhatsApp E-Commerce",
-  "AI Autopilot Chatbots",
-  "Smart Lead Routing",
-  "CRM Sales Pipelines",
-  "Visual Automation Flows",
+const TYPING_HIGHLIGHTS = [
+  "WhatsApp E-Commerce & Checkout",
+  "Multilingual Voice Note AI",
+  "Visual Workflow Automations",
+  "Automated Cadence Follow-ups",
+  "SME Expense & Financial Ledger",
+  "Unified Multi-Agent CRM Inbox",
 ];
 
-const Hero = () => {
-  const [currentStat, setCurrentStat] = useState(0);
-  const [animatedNumbers, setAnimatedNumbers] = useState({
-    users: 0,
-    delivery: 0,
-    engagement: 0,
-  });
+const Hero: React.FC = () => {
   const { t } = useTranslation();
-  const [startTrialLoading, setStartTrialLoading] = useState(false);
-
-  const [wordIndex, setWordIndex] = useState(0);
+  const [wordIdx, setWordIdx] = useState(0);
   const [displayText, setDisplayText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioProgress, setAudioProgress] = useState(35);
+  const [activeTab, setActiveTab] = useState<"chat" | "checkout" | "analytics">("chat");
 
+  // Typewriter effect
   useEffect(() => {
-    const currentWord = TYPING_WORDS[wordIndex];
-    let timeout: NodeJS.Timeout;
+    const current = TYPING_HIGHLIGHTS[wordIdx];
+    let timer: NodeJS.Timeout;
 
-    if (!isDeleting && displayText === currentWord) {
-      timeout = setTimeout(() => setIsDeleting(true), 2000);
+    if (!isDeleting && displayText === current) {
+      timer = setTimeout(() => setIsDeleting(true), 2200);
     } else if (isDeleting && displayText === "") {
       setIsDeleting(false);
-      setWordIndex((prev) => (prev + 1) % TYPING_WORDS.length);
+      setWordIdx((prev) => (prev + 1) % TYPING_HIGHLIGHTS.length);
     } else {
-      const speed = isDeleting ? 40 : 80;
-      timeout = setTimeout(() => {
+      const speed = isDeleting ? 30 : 65;
+      timer = setTimeout(() => {
         setDisplayText(
           isDeleting
-            ? currentWord.substring(0, displayText.length - 1)
-            : currentWord.substring(0, displayText.length + 1)
+            ? current.substring(0, displayText.length - 1)
+            : current.substring(0, displayText.length + 1)
         );
       }, speed);
     }
 
-    return () => clearTimeout(timeout);
-  }, [displayText, isDeleting, wordIndex]);
+    return () => clearTimeout(timer);
+  }, [displayText, isDeleting, wordIdx]);
 
-  const stats = [
-    {
-      icon: Users,
-      value: 50000,
-      label: t("Landing.heroSec.stats.0.label"),
-      suffix: "+",
-      color: "text-blue-600",
-      bg: "bg-blue-50",
-    },
-    {
-      icon: TrendingUp,
-      value: 98,
-      label: t("Landing.heroSec.stats.1.label"),
-      suffix: t("Landing.heroSec.stats.1.suffix"),
-      color: "text-purple-600",
-      bg: "bg-purple-50",
-    },
-    {
-      icon: Zap,
-      value: 5,
-      label: t("Landing.heroSec.stats.2.label"),
-      suffix: t("Landing.heroSec.stats.2.suffix"),
-      color: "text-violet-600",
-      bg: "bg-violet-50",
-    },
-  ];
-
+  // Simulated audio progress
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentStat((prev) => (prev + 1) % stats.length);
-    }, 3000);
+    let interval: NodeJS.Timeout;
+    if (isPlayingAudio) {
+      interval = setInterval(() => {
+        setAudioProgress((prev) => (prev >= 100 ? 0 : prev + 4));
+      }, 150);
+    }
     return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const animateNumbers = () => {
-      const duration = 2000;
-      const steps = 60;
-      const stepDuration = duration / steps;
-
-      let step = 0;
-      const timer = setInterval(() => {
-        step++;
-        const progress = step / steps;
-
-        setAnimatedNumbers({
-          users: Math.floor(50000 * progress),
-          delivery: Math.floor(98 * progress),
-          engagement: Math.floor(5 * progress),
-        });
-
-        if (step >= steps) clearInterval(timer);
-      }, stepDuration);
-    };
-
-    animateNumbers();
-  }, []);
-
-  const handleStartTrial = () => {
-    setStartTrialLoading(true);
-    setTimeout(() => {
-      setStartTrialLoading(false);
-    }, 2000);
-  };
+  }, [isPlayingAudio]);
 
   return (
-    <section className="pt-24 pb-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-50 via-white to-purple-50/30 relative overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-[500px] h-[500px] bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-[pulse_6s_ease-in-out_infinite]"></div>
-        <div className="absolute -bottom-40 -left-40 w-[400px] h-[400px] bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-[pulse_8s_ease-in-out_infinite_2s]"></div>
-        <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 w-[600px] h-[600px] bg-violet-50 rounded-full mix-blend-multiply filter blur-3xl opacity-15 animate-[pulse_10s_ease-in-out_infinite_4s]"></div>
+    <section className="relative pt-28 pb-20 lg:pt-36 lg:pb-28 overflow-hidden bg-gradient-to-b from-emerald-50/40 via-white to-slate-50/50">
+      {/* Background Decorative Gradients */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[1000px] h-[550px] bg-gradient-to-tr from-emerald-200/25 via-teal-100/30 to-emerald-300/15 rounded-full blur-3xl opacity-70 animate-pulse duration-10000" />
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 -left-20 w-80 h-80 bg-teal-300/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-10 right-10 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl" />
+        
+        {/* Subtle grid pattern */}
+        <div className="absolute inset-0 bg-[radial-gradient(#059669_0.75px,transparent_0.75px)] [background-size:24px_24px] opacity-[0.08]" />
       </div>
 
-      <div className="max-w-7xl mx-auto relative">
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center bg-purple-50 text-purple-700 px-4 py-2 rounded-full text-sm font-medium mb-8 border border-purple-200/60 animate-[fadeInDown_0.6s_ease-out]">
-            <Zap className="w-4 h-4 mr-2" />
-            {t("Landing.heroSec.animatedBgGreenText")}
-          </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        
+        {/* Top Brevo-Style Announcement Pill */}
+        <div className="flex justify-center mb-6">
+          <Link
+            href="/#features"
+            className="group inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 border border-emerald-200/80 shadow-xs hover:border-emerald-300 hover:bg-emerald-100/60 transition-all duration-300"
+          >
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+            <span className="text-xs font-semibold text-emerald-800 tracking-wide">
+              NEW: AI Voice Note Replies & Instant WhatsApp Store
+            </span>
+            <span className="inline-flex items-center text-xs font-medium text-emerald-700 group-hover:translate-x-0.5 transition-transform">
+              See what's new <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+            </span>
+          </Link>
+        </div>
 
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-[1.1] tracking-tight animate-[fadeIn_0.7s_ease-out]">
-            {t("Landing.heroSec.headline")}{" "}
-            <span className="block bg-gradient-to-r from-purple-600 to-indigo-500 bg-clip-text text-transparent mt-2 pb-4">
+        {/* Hero Main Copy */}
+        <div className="text-center max-w-4xl mx-auto mb-12 lg:mb-16">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-slate-900 tracking-tight leading-[1.12]">
+            The All-in-One WhatsApp Platform for{" "}
+            <span className="block mt-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 bg-clip-text text-transparent">
               {displayText}
-              <span className="inline-block w-[3px] h-[0.8em] bg-purple-500 ml-1 align-middle animate-[blink_1s_step-end_infinite]"></span>
+              <span className="inline-block w-[3px] h-[0.85em] bg-emerald-500 ml-1.5 align-middle animate-pulse" />
             </span>
           </h1>
-          <p className="text-lg md:text-xl text-gray-500 max-w-3xl mx-auto mb-12 leading-relaxed animate-[fadeIn_0.8s_ease-out]">
-            {t("Landing.heroSec.subHeadline")}
+
+          <p className="mt-6 text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed font-normal">
+            Turn chats into automated revenue. Delight buyers with human-like multilingual AI voice notes, 
+            sell instantly with WhatsApp Native checkout, automate cadences, and track SME expenses—all in one unified workspace.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16 animate-[fadeInUp_0.9s_ease-out]">
+          {/* Dual CTAs (Brevo Style) */}
+          <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/signup"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base shadow-lg shadow-emerald-600/25 hover:shadow-xl hover:shadow-emerald-600/35 hover:-translate-y-0.5 transition-all duration-200"
+            >
+              <span>Start 14-Day Free Trial</span>
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+
             <Link
               href="/contact"
-              className="bg-gradient-to-r from-purple-600 to-indigo-500 text-white px-8 py-3.5 rounded-xl font-semibold hover:from-purple-700 hover:to-indigo-600 transition-all duration-300 shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 flex items-center group min-w-[180px] justify-center"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-semibold text-base border border-slate-200 hover:border-slate-300 shadow-sm hover:shadow transition-all duration-200"
             >
-              {startTrialLoading ? (
-                <LoadingAnimation size="md" color="white" />
-              ) : (
-                <>
-                  {t("Landing.heroSec.startTrialButton")}
-                  <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform duration-200" />
-                </>
-              )}
+              <Sparkles className="w-4 h-4 text-emerald-600" />
+              <span>Book Live Demo</span>
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6 max-w-3xl mx-auto">
-            {stats.map((stat, index) => (
-              <div
-                key={index}
-                className={`bg-white/80 backdrop-blur-sm p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 animate-[fadeInUp_0.6s_ease-out] ${
-                  currentStat === index
-                    ? "ring-1 ring-purple-400/50 shadow-md border-purple-100"
-                    : ""
-                }`}
-                style={{ animationDelay: `${index * 0.1}s`, animationFillMode: "both" }}
-              >
-                <div
-                  className={`${stat.bg} p-3 rounded-xl w-fit mx-auto mb-3`}
-                >
-                  <stat.icon
-                    className={`w-5 h-5 lg:w-6 lg:h-6 ${stat.color}`}
-                  />
-                </div>
-                <h3 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-1 tracking-tight">
-                  {index === 0
-                    ? animatedNumbers.users.toLocaleString()
-                    : index === 1
-                    ? animatedNumbers.delivery
-                    : animatedNumbers.engagement}
-                  {stat.suffix || ""}
-                </h3>
-                <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
-              </div>
-            ))}
+          {/* Trust Value Badges */}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-y-2 gap-x-6 text-xs sm:text-sm font-medium text-slate-600">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>No credit card required</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>5-minute zero-code setup</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Meta Cloud API & QR channel</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>99.9% Uptime SLA</span>
+            </div>
           </div>
         </div>
 
-        <div className="text-center animate-[fadeIn_1s_ease-out]">
-          <p className="text-sm text-gray-400 mb-6 font-medium uppercase tracking-wider">
-            {t("Landing.heroSec.trustedByText")}
+        {/* Hero Interactive App & WhatsApp Showcase (Brevo/SaaS Style) */}
+        <div className="relative max-w-6xl mx-auto">
+          {/* Outer glow frame */}
+          <div className="absolute -inset-1.5 bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-emerald-600/20 rounded-3xl blur-xl opacity-80" />
+
+          {/* Main Dashboard Preview Container */}
+          <div className="relative rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white/95 backdrop-blur-xl shadow-2xl shadow-slate-900/10 overflow-hidden">
+            
+            {/* Top Mockup Header Bar */}
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-slate-100 bg-slate-50/80">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-rose-400" />
+                <div className="w-3 h-3 rounded-full bg-amber-400" />
+                <div className="w-3 h-3 rounded-full bg-emerald-400" />
+                <span className="ml-3 text-xs font-semibold text-slate-400 font-mono hidden sm:inline">
+                  app.whatsway.com / workspace / live-hub
+                </span>
+              </div>
+
+              {/* Mode Switcher Tabs */}
+              <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("chat")}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                    activeTab === "chat"
+                      ? "bg-white text-emerald-700 shadow-xs font-semibold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  💬 AI Voice Chat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("checkout")}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                    activeTab === "checkout"
+                      ? "bg-white text-emerald-700 shadow-xs font-semibold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  🛒 Instant Ecom
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("analytics")}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                    activeTab === "analytics"
+                      ? "bg-white text-emerald-700 shadow-xs font-semibold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  📊 Live Insights
+                </button>
+              </div>
+            </div>
+
+            {/* Mockup Body: Split Layout */}
+            <div className="p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              
+              {/* Left Side: Interactive WhatsApp Interface */}
+              <div className="lg:col-span-6 bg-slate-900 rounded-2xl p-3 sm:p-4 text-slate-100 shadow-xl border border-slate-800">
+                {/* WhatsApp Chat Header */}
+                <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center font-bold text-white text-sm shadow">
+                        W
+                      </div>
+                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-slate-900 rounded-full" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-sm text-white">Zenta Premium Store</span>
+                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      </div>
+                      <span className="text-[11px] text-emerald-400 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                        AI Agent Active (Malayalam, Manglish, English)
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-mono bg-slate-800/80 px-2 py-1 rounded">
+                    Official API
+                  </span>
+                </div>
+
+                {/* WhatsApp Messages Stream */}
+                <div className="space-y-3 font-sans text-xs">
+                  {/* Incoming Customer Message */}
+                  <div className="flex justify-start">
+                    <div className="bg-slate-800 text-slate-200 rounded-2xl rounded-tl-xs px-3.5 py-2.5 max-w-[85%] shadow-sm">
+                      <p className="leading-relaxed">
+                        ഹലോ, Linen Casual Shirt Blue കളറിൽ ഉണ്ടോ? Rate എത്രയാ? UPI വഴി pay ചെയ്യാൻ പറ്റുമോ?
+                      </p>
+                      <span className="text-[10px] text-slate-400 block text-right mt-1">10:42 AM</span>
+                    </div>
+                  </div>
+
+                  {/* AI Autopilot Voice Note Reply */}
+                  <div className="flex justify-end">
+                    <div className="bg-emerald-900/60 border border-emerald-500/30 text-white rounded-2xl rounded-tr-xs p-3 max-w-[90%] shadow-sm">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-semibold text-emerald-300 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-emerald-300" /> AI Voice Note (Malayalam)
+                        </span>
+                        <span className="text-[10px] text-emerald-200">0:14</span>
+                      </div>
+
+                      {/* Interactive Audio Player Pill */}
+                      <div className="flex items-center gap-2.5 bg-emerald-950/70 p-2 rounded-xl border border-emerald-600/30">
+                        <button
+                          type="button"
+                          onClick={() => setIsPlayingAudio(!isPlayingAudio)}
+                          className="w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center transition-all flex-shrink-0"
+                          title={isPlayingAudio ? "Pause Voice Note" : "Play Voice Note"}
+                        >
+                          {isPlayingAudio ? <Pause className="w-4 h-4 fill-slate-950" /> : <Play className="w-4 h-4 fill-slate-950 ml-0.5" />}
+                        </button>
+                        
+                        {/* Audio Waveform Bars */}
+                        <div className="flex-1 flex items-center gap-0.5 h-6">
+                          {[40, 65, 30, 85, 95, 45, 75, 100, 60, 80, 50, 90, 70, 40, 85, 60, 30, 75].map((h, i) => {
+                            const isBarActive = (i / 18) * 100 <= audioProgress;
+                            return (
+                              <div
+                                key={i}
+                                className={`flex-1 rounded-full transition-all duration-150 ${
+                                  isBarActive ? "bg-emerald-400" : "bg-emerald-800/60"
+                                }`}
+                                style={{ height: `${h}%` }}
+                              />
+                            );
+                          })}
+                        </div>
+                        <Volume2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                      </div>
+
+                      <p className="text-[11px] text-emerald-100 mt-2 leading-relaxed">
+                        "തീർച്ചയായും! Blue Linen Shirt സ്റ്റോക്കിൽ ഉണ്ട്. ₹1,499 ആണ് വില. താഴെയുള്ള ബട്ടൺ വഴി UPI / Card ഉപയോഗിച്ച് direct ആയി ഓർഡർ ചെയ്യാം."
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* WhatsApp Interactive Product Card */}
+                  <div className="flex justify-end">
+                    <div className="bg-slate-800 rounded-2xl rounded-tr-xs p-3 max-w-[88%] border border-slate-700/80 shadow-md">
+                      <div className="flex items-center gap-3">
+                        <div className="w-14 h-14 rounded-xl bg-emerald-950/60 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                          <ShoppingBag className="w-7 h-7 text-emerald-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold text-white truncate">
+                            Signature Linen Shirt (Blue)
+                          </div>
+                          <div className="text-emerald-400 font-bold text-sm mt-0.5">
+                            ₹1,499 <span className="text-[10px] text-slate-400 line-through">₹2,499</span>
+                          </div>
+                          <span className="text-[10px] text-emerald-300 font-medium">✓ In Stock (Express Delivery)</span>
+                        </div>
+                      </div>
+
+                      {/* Interactive Buttons */}
+                      <div className="mt-2.5 pt-2 border-t border-slate-700/60 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition-colors"
+                        >
+                          <ShoppingBag className="w-3 h-3" /> Buy Now
+                        </button>
+                        <button
+                          type="button"
+                          className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium text-[11px] transition-colors"
+                        >
+                          🏬 View Catalog
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Side: Real-time Live Automation & KPI Canvas */}
+              <div className="lg:col-span-6 space-y-4">
+                
+                {/* Floating Metric 1: Conversion Rate & Speed */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 shadow-xs flex items-center justify-between">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/20">
+                      <TrendingUp className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        WhatsApp Conversion Velocity
+                      </div>
+                      <div className="text-2xl font-bold text-slate-900">
+                        3.8x <span className="text-xs font-semibold text-emerald-600">+280% vs Email</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                      ⚡ 1.8s AI Latency
+                    </span>
+                  </div>
+                </div>
+
+                {/* Floating Metric 2: Live Checkout Alert */}
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold">
+                        <CreditCard className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-900">
+                          Instant WhatsApp Payment Confirmed
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          Customer: Rahul K. · Razorpay UPI QR · Order #9482
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">
+                      +₹1,499.00
+                    </span>
+                  </div>
+
+                  {/* Flow Progress Step */}
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                    <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      Receipt Sent on WhatsApp
+                    </span>
+                    <span>Tracking URL Dispatched</span>
+                  </div>
+                </div>
+
+                {/* Floating Metric 3: Automated Cadence & Expense Tracking */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Zap className="w-4 h-4 text-emerald-600" />
+                      <span className="text-xs font-bold text-slate-900">Drip Followup Cadence</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-snug">
+                      Auto recovered 42 abandoned carts today with personalized discount coupons.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Bot className="w-4 h-4 text-teal-600" />
+                      <span className="text-xs font-bold text-slate-900">SME Expense Scanner</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-snug">
+                      Snap bill photos on WhatsApp → AI auto logs into category ledger in 2s.
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Global Logo Cloud & Social Proof (Brevo Style) */}
+        <div className="mt-16 sm:mt-20 pt-10 border-t border-slate-200/70 text-center">
+          <p className="text-xs sm:text-sm font-semibold text-slate-500 uppercase tracking-wider mb-7">
+            Trusted by 5,000+ fast-growing brands, D2C merchants, and global enterprises
           </p>
-          <div className="flex flex-wrap justify-center items-center gap-6">
-            {["Shopify", "WooCommerce", "Salesforce", "HubSpot", "Zapier"].map(
-              (brand, index) => (
-                <div
-                  key={index}
-                  className="px-5 py-2.5 rounded-lg text-sm font-medium text-gray-400 bg-gray-50 border border-gray-100 transition-colors duration-200 hover:text-gray-500 hover:border-gray-200"
+
+          <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10 opacity-75 grayscale hover:grayscale-0 transition-all duration-300">
+            {["Shopify", "WooCommerce", "Razorpay", "Stripe", "Zapier", "Meta Cloud API", "HubSpot", "Salesforce"].map(
+              (brand, idx) => (
+                <span
+                  key={idx}
+                  className="px-3.5 py-1.5 rounded-lg bg-white border border-slate-200/80 text-slate-700 font-semibold text-xs sm:text-sm tracking-tight shadow-2xs hover:border-emerald-300 hover:text-emerald-700 hover:shadow-xs transition-all"
                 >
                   {brand}
-                </div>
+                </span>
               )
             )}
           </div>
         </div>
-      </div>
 
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes fadeInDown {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes blink {
-          50% { opacity: 0; }
-        }
-      `}</style>
+      </div>
     </section>
   );
 };

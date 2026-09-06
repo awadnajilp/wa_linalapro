@@ -150,17 +150,17 @@ export const BentoGrid: React.FC = () => {
             </div>
           </div>
 
-          {/* Bento Card 5 (4 cols): Dual Channels (Official Cloud API + QR) */}
+          {/* Bento Card 5 (4 cols): Enterprise Meta Cloud API & Green Badge */}
           <div className="lg:col-span-4 bg-slate-50 rounded-3xl p-7 border border-slate-200 flex flex-col justify-between">
             <div>
               <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-5 font-bold">
-                <QrCode className="w-5 h-5" />
+                <Shield className="w-5 h-5" />
               </div>
               <h3 className="text-xl font-bold text-slate-900">
-                Dual Channel Flexibility
+                Official Meta Cloud API
               </h3>
               <p className="mt-2 text-xs text-slate-600 leading-relaxed">
-                Choose between Meta WhatsApp Cloud API with official green badge verification or instant QR Channel with automated warm-up safeguarding.
+                Enterprise-grade security with official green badge verification, high deliverability throughput, and 99.9% uptime SLA.
               </p>
             </div>
 
@@ -168,8 +168,8 @@ export const BentoGrid: React.FC = () => {
               <span className="flex items-center gap-1.5 text-purple-700">
                 <CheckCircle className="w-4 h-4 text-purple-600" /> Meta Verified
               </span>
-              <span className="flex items-center gap-1.5 text-indigo-700">
-                <CheckCircle className="w-4 h-4 text-indigo-600" /> QR Channel
+              <span className="flex items-center gap-1.5 text-emerald-700">
+                <CheckCircle className="w-4 h-4 text-emerald-600" /> 99.9% Deliverability
               </span>
             </div>
           </div>

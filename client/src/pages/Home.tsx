@@ -7,6 +7,7 @@ import MetricsSection from "@/components/MetricsSection";
 import UseCases from "@/components/UseCases";
 import Testimonials from "@/components/Testimonials";
 import Pricing from "@/components/Pricing";
+import FAQ from "@/components/FAQ";
 import OfficeLocations from "@/components/OfficeLocations";
 import CTA from "@/components/CTA";
 import { useQuery } from "@tanstack/react-query";
@@ -49,10 +50,13 @@ const Home: React.FC = () => {
         <Pricing />
       )}
 
-      {/* 9. Global Office Locations */}
+      {/* 9. FAQ Section */}
+      <FAQ />
+
+      {/* 10. Global Office Locations */}
       <OfficeLocations />
 
-      {/* 10. High-Converting Full-Width Bottom CTA */}
+      {/* 11. High-Converting Full-Width Bottom CTA */}
       <CTA />
     </div>
   );

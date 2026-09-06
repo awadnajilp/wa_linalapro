@@ -1,29 +1,15 @@
-/**
- * ============================================================
- * © 2025 Diploy — a brand of Bisht Technologies Private Limited
- * Original Author: BTPL Engineering Team
- * Website: https://diploy.in
- * Contact: cs@diploy.in
- *
- * Distributed under the Envato / CodeCanyon License Agreement.
- * Licensed to the purchaser for use as defined by the
- * Envato Market (CodeCanyon) Regular or Extended License.
- *
- * You are NOT permitted to redistribute, resell, sublicense,
- * or share this source code, in whole or in part.
- * Respect the author's rights and Envato licensing terms.
- * ============================================================
- */
-
 import React, { useState } from "react";
 import {
   X,
-  MessageCircle,
+  MessageSquare,
   ArrowRight,
   CheckCircle,
   Zap,
   Users,
   TrendingUp,
+  Sparkles,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { AppSettings } from "@/types/types";
@@ -32,19 +18,12 @@ interface SignupPopupProps {
   onClose: () => void;
 }
 
-const SignupPopup: React.FC<SignupPopupProps> = ({ onClose }) => {
+export const SignupPopup: React.FC<SignupPopupProps> = ({ onClose }) => {
+  const [inputMode, setInputMode] = useState<"phone" | "email">("phone");
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email) {
-      setIsSubmitted(true);
-      setTimeout(() => {
-        onClose();
-      }, 2000);
-    }
-  };
 
   const { data: brandSettings } = useQuery<AppSettings>({
     queryKey: ["/api/brand-settings"],
@@ -52,22 +31,56 @@ const SignupPopup: React.FC<SignupPopupProps> = ({ onClose }) => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const appName = brandSettings?.title ?? "";
+  const appName = brandSettings?.title || "Linala";
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phone && !email) return;
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        phone: inputMode === "phone" ? phone : undefined,
+        email: inputMode === "email" ? email : undefined,
+        source: "website_popup",
+      };
+
+      await fetch("/api/public/lead-capture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      setIsSubmitted(true);
+      setTimeout(() => {
+        onClose();
+      }, 3500);
+    } catch (err) {
+      console.error("Lead submission error:", err);
+      setIsSubmitted(true);
+      setTimeout(() => {
+        onClose();
+      }, 3000);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (isSubmitted) {
     return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center animate-in fade-in zoom-in duration-300">
-          <div className="bg-green-100 p-4 rounded-full w-fit mx-auto mb-4">
-            <CheckCircle className="w-8 h-8 text-green-600" />
+      <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-2xl border border-purple-100">
+          <div className="w-16 h-16 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center mx-auto mb-5">
+            <CheckCircle className="w-9 h-9 text-purple-600" />
           </div>
 
-          <h3 className="text-2xl font-bold text-gray-900 mb-2">
+          <h3 className="text-2xl font-bold text-slate-900 mb-2">
             Welcome to {appName}!
           </h3>
-          <p className="text-gray-600">
-            Check your email for next steps to get started with your free
-            account.
+          <p className="text-slate-600 text-sm leading-relaxed">
+            {inputMode === "phone"
+              ? "📱 We just sent an instant welcome message to your WhatsApp with your free trial access and demo."
+              : "✉️ Check your inbox for instructions to activate your free account."}
           </p>
         </div>
       </div>
@@ -75,119 +88,134 @@ const SignupPopup: React.FC<SignupPopupProps> = ({ onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden animate-in fade-in zoom-in duration-300">
-        <div className="relative">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors z-10"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
+      <div className="bg-white rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-100 relative">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors z-10 text-slate-500 hover:text-slate-900"
+          aria-label="Close popup"
+        >
+          <X className="w-4 h-4" />
+        </button>
 
-          <div className="grid grid-cols-1 md:grid-cols-2">
-            {/* Left Side - Benefits */}
-            <div className="bg-gradient-to-br from-green-500 to-green-600 p-8 text-white">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="bg-white/20 p-2 rounded-lg">
-                  <MessageCircle className="w-6 h-6" />
+        <div className="grid grid-cols-1 md:grid-cols-12">
+          {/* Left Side: Brand Value */}
+          <div className="md:col-span-5 bg-gradient-to-br from-purple-700 via-purple-800 to-indigo-900 p-7 text-white flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-6">
+                <div className="bg-white/20 p-2 rounded-xl backdrop-blur-sm">
+                  <MessageSquare className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-xl font-bold">LINALA WA</span>
+                <span className="text-lg font-bold tracking-tight">Linala</span>
               </div>
 
-              <h2 className="text-2xl font-bold mb-4">
-                Start Your WhatsApp Marketing Journey
+              <h2 className="text-xl font-bold leading-snug mb-3">
+                Turn WhatsApp into Your #1 Sales Engine
               </h2>
-              <p className="text-green-100 mb-6">
-                Join thousands of businesses already growing with our platform
+
+              <p className="text-xs text-purple-200 leading-relaxed mb-6">
+                Join 500+ businesses closing more orders with AI voice notes and instant checkout.
               </p>
 
-              <div className="space-y-4">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-white/20 p-1 rounded-full">
-                    <Zap className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm">Setup in under 5 minutes</span>
+              <div className="space-y-3 text-xs text-purple-100">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5 text-purple-300 flex-shrink-0" />
+                  <span>5-minute zero-code launch</span>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <div className="bg-white/20 p-1 rounded-full">
-                    <Users className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm">Free for up to 1,000 contacts</span>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-300 flex-shrink-0" />
+                  <span>Multilingual Voice AI included</span>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <div className="bg-white/20 p-1 rounded-full">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm">300% average ROI increase</span>
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-3.5 h-3.5 text-purple-300 flex-shrink-0" />
+                  <span>3.8x higher conversion velocity</span>
                 </div>
               </div>
             </div>
 
-            {/* Right Side - Form */}
-            <div className="p-8">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                Get Started Free
+            <div className="pt-6 border-t border-purple-600/50 text-[11px] text-purple-300">
+              ✓ No credit card required
+            </div>
+          </div>
+
+          {/* Right Side: Lead Input Form */}
+          <div className="md:col-span-7 p-7 flex flex-col justify-between">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 mb-1">
+                Start Your 14-Day Free Trial
               </h3>
-              <p className="text-gray-600 mb-6">
-                No credit card required. Start sending campaigns in minutes.
+              <p className="text-xs text-slate-500 mb-5">
+                Experience instant WhatsApp store catalogs and AI responses.
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Work Email
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your work email"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
+                {inputMode === "phone" ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5 text-purple-600" /> WhatsApp Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+91 98765 43210"
+                      className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-slate-900"
+                      required
+                      autoFocus
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Include country code (e.g. +91, +971, +44, +92)
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5 text-purple-600" /> Work Email
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@company.com"
+                      className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-slate-900"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                )}
 
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all flex items-center justify-center group"
+                  disabled={isSubmitting}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3.5 rounded-xl font-bold text-sm transition-all shadow-md shadow-purple-600/25 flex items-center justify-center gap-2 group cursor-pointer disabled:opacity-75"
                 >
-                  Create Free Account
-                  <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                  {isSubmitting ? (
+                    <span>Submitting...</span>
+                  ) : (
+                    <>
+                      <span>{inputMode === "phone" ? "Get Started on WhatsApp" : "Create Free Account"}</span>
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
                 </button>
               </form>
 
-              <div className="mt-6 text-center">
-                <p className="text-xs text-gray-500">
-                  By signing up, you agree to our{" "}
-                  <a
-                    href="/terms-of-service"
-                    className="text-green-600 hover:underline"
-                  >
-                    Terms of Service
-                  </a>{" "}
-                  and{" "}
-                  <a
-                    href="/privacy-policy"
-                    className="text-green-600 hover:underline"
-                  >
-                    Privacy Policy
-                  </a>
-                </p>
+              {/* Mode Switch Toggle */}
+              <div className="mt-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => setInputMode(inputMode === "phone" ? "email" : "phone")}
+                  className="text-xs text-purple-600 hover:text-purple-800 font-semibold hover:underline"
+                >
+                  {inputMode === "phone" ? "Or sign up with Work Email instead →" : "Or sign up with WhatsApp Number instead →"}
+                </button>
               </div>
+            </div>
 
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <div className="flex items-center justify-center space-x-4 text-sm text-gray-500">
-                  <div className="flex items-center space-x-1">
-                    <CheckCircle className="w-4 h-4 text-green-500" />
-                    <span>No setup fees</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <CheckCircle className="w-4 h-4 text-green-500" />
-                    <span>Cancel anytime</span>
-                  </div>
-                </div>
-              </div>
+            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+              <span>Instant setup in 5 min</span>
+              <span>Cancel anytime</span>
             </div>
           </div>
         </div>

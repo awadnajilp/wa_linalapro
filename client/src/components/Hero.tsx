@@ -147,7 +147,7 @@ const Hero: React.FC = () => {
             </div>
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-purple-600" />
-              <span>Meta Cloud API & QR channel</span>
+              <span>Official Meta Cloud API</span>
             </div>
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-purple-600" />
@@ -171,7 +171,7 @@ const Hero: React.FC = () => {
                 <div className="w-3 h-3 rounded-full bg-amber-400" />
                 <div className="w-3 h-3 rounded-full bg-emerald-400" />
                 <span className="ml-3 text-xs font-semibold text-slate-400 font-mono hidden sm:inline">
-                  app.whatsway.com / workspace / live-hub
+                  wa.linalapro.com / workspace / live-hub
                 </span>
               </div>
 

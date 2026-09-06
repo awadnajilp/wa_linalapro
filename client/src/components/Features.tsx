@@ -265,7 +265,7 @@ const Features: React.FC = () => {
                   <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
                   <span className="text-[11px] font-mono text-slate-400 ml-2">
-                    module://whatsway/{activeModule.id}
+                    module://linala/{activeModule.id}
                   </span>
                 </div>
                 <span className="text-[10px] font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2.5 py-0.5 rounded-full">

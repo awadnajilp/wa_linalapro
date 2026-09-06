@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ShoppingCart, Package, Settings, ClipboardList, Users, UserCheck, Shuffle, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles, Download, Truck, Calendar as CalendarIcon, Coins, Key, Bot, Volume2, Mic, Activity, ArrowUpRight, Mail, Clock, FileSpreadsheet, Send, ShoppingBag, RotateCcw, Percent, Flame, MessageCircle, AlertCircle, PhoneCall } from "lucide-react";
+import { ShoppingCart, Package, Settings, ClipboardList, Users, UserCheck, Shuffle, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, MessageSquare, Sparkles, Download, Truck, Calendar as CalendarIcon, Coins, Key, Bot, Volume2, Mic, Activity, ArrowUpRight, Mail, Clock, FileSpreadsheet, Send, ShoppingBag, RotateCcw, Percent, Flame, MessageCircle, AlertCircle, PhoneCall, CreditCard } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -184,6 +184,7 @@ export default function EcommerceLedger() {
 
   // Active Tab
   const [activeTab, setActiveTab] = useState("products");
+  const [configSubTab, setConfigSubTab] = useState("general");
 
   // Modals Open state
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -2179,318 +2180,640 @@ export default function EcommerceLedger() {
         {/* 4. CONFIG TAB */}
         <TabsContent value="config">
           <Card>
-            <CardHeader>
-              <CardTitle>Store Configuration</CardTitle>
-              <CardDescription>Setup custom welcome keywords, payment gateways, and checkout form details.</CardDescription>
+            <CardHeader className="pb-4 border-b">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-xl">Store Configuration</CardTitle>
+                  <CardDescription>Setup general settings, checkout flow & payments, abandoned cart, reports, and AI assistant.</CardDescription>
+                </div>
+                <Button
+                  type="submit"
+                  form="store-config-form"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm self-start sm:self-auto"
+                  disabled={saveConfigMutation.isPending}
+                >
+                  {saveConfigMutation.isPending ? "Saving..." : "Save All Settings"}
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={handleConfigSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Store Identity Profile Section */}
-                  <div className="col-span-1 md:col-span-2 space-y-4 border p-4 rounded-lg bg-gray-50/50">
-                    <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
-                      <Settings className="w-4 h-4 text-purple-600" />
-                      Store Identity Profile (Displayed on Invoices & Labels)
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="storeName" className="font-semibold text-gray-700">Store Name</Label>
-                        <Input
-                          id="storeName"
-                          value={storeName}
-                          onChange={(e) => setStoreName(e.target.value)}
-                          placeholder="e.g. SKYSECRETARY CLOUD KSA"
-                          className="h-9 text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="storeWebsite" className="font-semibold text-gray-700">Store Website</Label>
-                        <Input
-                          id="storeWebsite"
-                          value={storeWebsite}
-                          onChange={(e) => setStoreWebsite(e.target.value)}
-                          placeholder="e.g. www.skysecretary.com"
-                          className="h-9 text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="font-semibold text-gray-700">Store Logo URL</Label>
-                        <div className="flex gap-2">
+            <CardContent className="pt-6">
+              <form id="store-config-form" onSubmit={handleConfigSubmit} className="space-y-6">
+                <Tabs value={configSubTab} onValueChange={setConfigSubTab} className="w-full">
+                  <TabsList className="grid grid-cols-2 md:grid-cols-5 h-auto p-1 bg-slate-100/90 rounded-xl mb-6 gap-1">
+                    <TabsTrigger value="general" className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-purple-700 data-[state=active]:shadow-sm rounded-lg">
+                      <Settings className="w-3.5 h-3.5 text-purple-600" />
+                      General Settings
+                    </TabsTrigger>
+                    <TabsTrigger value="checkout" className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm rounded-lg">
+                      <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
+                      Checkout & Payments
+                    </TabsTrigger>
+                    <TabsTrigger value="abandoned_cart" className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-amber-700 data-[state=active]:shadow-sm rounded-lg">
+                      <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                      Abandoned Cart
+                    </TabsTrigger>
+                    <TabsTrigger value="reports" className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm rounded-lg">
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600" />
+                      Reports & Notifications
+                    </TabsTrigger>
+                    <TabsTrigger value="ai_team" className="flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm rounded-lg">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                      AI & Team Routing
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* Sub-Tab 1: General Settings */}
+                  <TabsContent value="general" className="space-y-6 mt-0">
+                    {/* Store Identity Profile Section */}
+                    <div className="space-y-4 border p-4 rounded-lg bg-gray-50/50">
+                      <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
+                        <Settings className="w-4 h-4 text-purple-600" />
+                        Store Identity Profile (Displayed on Invoices & Labels)
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="storeName" className="font-semibold text-gray-700">Store Name</Label>
                           <Input
-                            value={storeLogo}
-                            onChange={(e) => setStoreLogo(e.target.value)}
-                            placeholder="e.g. https://.../logo.png"
-                            className="h-9 text-xs flex-1"
+                            id="storeName"
+                            value={storeName}
+                            onChange={(e) => setStoreName(e.target.value)}
+                            placeholder="e.g. SKYSECRETARY CLOUD KSA"
+                            className="h-9 text-xs"
                           />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-9 text-xs whitespace-nowrap"
-                            onClick={() => {
-                              const inputEl = document.createElement("input");
-                              inputEl.type = "file";
-                              inputEl.accept = "image/*";
-                              inputEl.onchange = async (e: any) => {
-                                const file = e.target.files?.[0];
-                                if (!file) return;
-                                const formData = new FormData();
-                                formData.append("file", file);
-                                try {
-                                  toast({ title: "Uploading...", description: "Uploading logo to storage..." });
-                                  const uploadRes = await fetch("/api/media/upload", {
-                                    method: "POST",
-                                    body: formData,
-                                  });
-                                  if (!uploadRes.ok) throw new Error("Upload failed");
-                                  const data = await uploadRes.json();
-                                  setStoreLogo(data.url);
-                                  toast({ title: "Success", description: "Logo uploaded successfully!", variant: "default" });
-                                } catch (err: any) {
-                                  toast({ title: "Error", description: err.message || "Failed to upload logo", variant: "destructive" });
-                                }
-                              };
-                              inputEl.click();
-                            }}
-                          >
-                            Upload Logo
-                          </Button>
                         </div>
-                      </div>
-                      <div className="col-span-1 md:col-span-3 space-y-1.5">
-                        <Label htmlFor="storeAddress" className="font-semibold text-gray-700">Store Pickup Address (Displayed on Return Shipping Labels)</Label>
-                        <Textarea
-                          id="storeAddress"
-                          value={storeAddress}
-                          onChange={(e) => setStoreAddress(e.target.value)}
-                          placeholder="e.g. Warehouse A1, Industrial Area, Riyadh, Saudi Arabia"
-                          className="min-h-[60px] text-xs"
-                        />
+                        <div className="space-y-1.5">
+                          <Label htmlFor="storeWebsite" className="font-semibold text-gray-700">Store Website</Label>
+                          <Input
+                            id="storeWebsite"
+                            value={storeWebsite}
+                            onChange={(e) => setStoreWebsite(e.target.value)}
+                            placeholder="e.g. www.skysecretary.com"
+                            className="h-9 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="font-semibold text-gray-700">Store Logo URL</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              value={storeLogo}
+                              onChange={(e) => setStoreLogo(e.target.value)}
+                              placeholder="e.g. https://.../logo.png"
+                              className="h-9 text-xs flex-1"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-9 text-xs whitespace-nowrap"
+                              onClick={() => {
+                                const inputEl = document.createElement("input");
+                                inputEl.type = "file";
+                                inputEl.accept = "image/*";
+                                inputEl.onchange = async (e: any) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const formData = new FormData();
+                                  formData.append("file", file);
+                                  try {
+                                    toast({ title: "Uploading...", description: "Uploading logo to storage..." });
+                                    const uploadRes = await fetch("/api/media/upload", {
+                                      method: "POST",
+                                      body: formData,
+                                    });
+                                    if (!uploadRes.ok) throw new Error("Upload failed");
+                                    const data = await uploadRes.json();
+                                    setStoreLogo(data.url);
+                                    toast({ title: "Success", description: "Logo uploaded successfully!", variant: "default" });
+                                  } catch (err: any) {
+                                    toast({ title: "Upload Failed", description: err.message || "Failed to upload logo", variant: "destructive" });
+                                  }
+                                };
+                                inputEl.click();
+                              }}
+                            >
+                              Upload
+                            </Button>
+                          </div>
+                          {storeLogo && (
+                            <div className="mt-2 w-16 h-16 border rounded overflow-hidden">
+                              <img src={getPreviewUrl(storeLogo)} className="w-full h-full object-contain" alt="Store logo" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="col-span-1 md:col-span-3 space-y-1.5">
+                          <Label htmlFor="storeAddress" className="font-semibold text-gray-700">Store Pickup Address (Displayed on Return Shipping Labels)</Label>
+                          <Textarea
+                            id="storeAddress"
+                            value={storeAddress}
+                            onChange={(e) => setStoreAddress(e.target.value)}
+                            placeholder="e.g. Warehouse A1, Industrial Area, Riyadh, Saudi Arabia"
+                            className="min-h-[60px] text-xs"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Delivery Fee Configuration Section */}
-                  <div className="col-span-1 md:col-span-2 space-y-4 border p-4 rounded-lg bg-emerald-50/20 border-emerald-100">
-                    <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
-                      <Truck className="w-4 h-4 text-emerald-600" />
-                      Delivery & Shipping Configuration
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="storeCountry" className="font-semibold text-gray-700">Store Region / Country</Label>
-                        <select
-                          id="storeCountry"
-                          value={storeCountry}
-                          onChange={(e) => {
-                            setStoreCountry(e.target.value);
-                            setStateDeliveryFees({}); // clear overrides on country change
-                          }}
-                          className="w-full border rounded h-9 text-xs p-2 bg-white"
-                        >
-                          {countriesList.map(c => (
-                            <option key={c.code} value={c.code}>{c.name}</option>
-                          ))}
-                        </select>
+                    {/* General Shop Flows & Inbound Flow */}
+                    <div className="space-y-4 border p-4 rounded-lg bg-white">
+                      <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
+                        <ShoppingCart className="w-4 h-4 text-purple-600" />
+                        General Shop Flows & Inbound Triggers
+                      </h3>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col">
+                          <Label className="font-semibold">Store-wise Catalog Flow</Label>
+                          <span className="text-xs text-gray-500">Enable automatic product lists when customer triggers the keyword.</span>
+                        </div>
+                        <Switch checked={storeFlowActive} onCheckedChange={setStoreFlowActive} />
                       </div>
 
-                      <div className="space-y-1.5">
-                        <Label htmlFor="deliveryFeeType" className="font-semibold text-gray-700">Delivery Fee Calculation Type</Label>
-                        <select
-                          id="deliveryFeeType"
-                          value={deliveryFeeType}
-                          onChange={(e) => setDeliveryFeeType(e.target.value)}
-                          className="w-full border rounded h-9 text-xs p-2 bg-white"
-                        >
-                          <option value="flat">Flat Shipping Fee (Default)</option>
-                          <option value="statewise">State-wise Shipping Fee</option>
-                        </select>
+                      {/* Active Product Direct Inbound Flow Option */}
+                      <div className="space-y-1.5 p-3 rounded-lg border bg-purple-50/40 border-purple-100/80">
+                        <div className="space-y-0.5">
+                          <Label className="font-semibold text-gray-800 text-xs flex items-center gap-1.5">
+                            <ShoppingBag className="w-3.5 h-3.5 text-purple-600" />
+                            Active Product for Direct Inbound Flow (New / First Messages)
+                          </Label>
+                          <span className="text-[11px] text-gray-500 block leading-tight">
+                            Select a product to automatically initiate its product details & checkout flow for any new contact's first message without needing a trigger keyword. Select "None" to keep trigger keyword based behavior.
+                          </span>
+                        </div>
+                        <Select value={activeProductId || "none"} onValueChange={(val) => setActiveProductId(val === "none" ? "" : val)}>
+                          <SelectTrigger className="h-9 text-xs bg-white mt-1">
+                            <SelectValue placeholder="None (Trigger Keyword Based)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None (Trigger Keyword Based)</SelectItem>
+                            {(productsData?.products || []).map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.name} — {(p as any).currency || storeCurrency} {p.price} {p.triggerKeyword ? `(Trigger: "${p.triggerKeyword}")` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
 
-                      {deliveryFeeType === "flat" ? (
-                        <div className="space-y-1.5">
-                          <Label htmlFor="flatDeliveryFee" className="font-semibold text-gray-700">Flat Delivery Fee ({storeCurrency})</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="storeKeyword">Store Trigger Keyword</Label>
                           <Input
-                            id="flatDeliveryFee"
-                            type="number"
-                            step="0.01"
-                            value={flatDeliveryFee}
-                            onChange={(e) => setFlatDeliveryFee(e.target.value)}
-                            placeholder="0"
-                            className="h-9 text-xs"
+                            id="storeKeyword"
+                            value={storeKeyword}
+                            onChange={(e) => setStoreKeyword(e.target.value)}
+                            placeholder="e.g. store, shop, catalogue"
                           />
                         </div>
-                      ) : (
+                        <div className="space-y-1">
+                          <Label htmlFor="storeCurrency">Store Base Currency</Label>
+                          <select
+                            id="storeCurrency"
+                            value={storeCurrency}
+                            onChange={(e) => setStoreCurrency(e.target.value)}
+                            className="w-full border rounded p-2 text-sm bg-white"
+                          >
+                            <option value="INR">INR (₹)</option>
+                            <option value="USD">USD ($)</option>
+                            <option value="EUR">EUR (€)</option>
+                            <option value="GBP">GBP (£)</option>
+                            <option value="AED">AED (AED)</option>
+                            <option value="SAR">SAR (SAR)</option>
+                            <option value="AUD">AUD (A$)</option>
+                            <option value="CAD">CAD (C$)</option>
+                            <option value="JPY">JPY (¥)</option>
+                            <option value="SGD">SGD (S$)</option>
+                            <option value="QAR">QAR (QAR)</option>
+                            <option value="OMR">OMR (OMR)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 pt-2 border-t">
+                        <Label htmlFor="welcome">Welcome Text Message</Label>
+                        <Textarea
+                          id="welcome"
+                          value={welcomeMsg}
+                          onChange={(e) => setWelcomeMsg(e.target.value)}
+                          placeholder="Welcome message..."
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="headerType">Header Media Type</Label>
+                          <select
+                            id="headerType"
+                            value={welcomeHeaderType}
+                            onChange={(e) => setWelcomeHeaderType(e.target.value)}
+                            className="w-full border rounded p-2 text-sm bg-white"
+                          >
+                            <option value="none">No Header</option>
+                            <option value="image">Image Header</option>
+                            <option value="video">Video Header</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="headerUrl">Header Media URL</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="headerUrl"
+                              value={welcomeHeaderUrl}
+                              onChange={(e) => setWelcomeHeaderUrl(e.target.value)}
+                              placeholder="e.g. https://img.com/header.jpg"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                setGalleryTarget("welcome_header");
+                                setIsGalleryOpen(true);
+                              }}
+                            >
+                              Gallery
+                            </Button>
+                          </div>
+                          {welcomeHeaderUrl && welcomeHeaderType === "image" && (
+                            <div className="mt-2 w-20 h-20 border rounded overflow-hidden">
+                              <img src={getPreviewUrl(welcomeHeaderUrl)} className="w-full h-full object-cover" alt="header preview" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Welcome Message Sequence */}
+                    <div className="space-y-4 border p-4 rounded-lg bg-gray-50/50">
+                      <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4 text-purple-600" />
+                        Welcome Messages Sequence (Multiple Messages)
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        Define a sequence of messages sent one-by-one to shoppers when they trigger the catalog or individual products. Order them by Sequence Weight.
+                      </p>
+
+                      <div className="space-y-3">
+                        {welcomeMessages.map((msg, idx) => (
+                          <div key={msg.id || idx} className="border p-3 rounded-md bg-white space-y-3 relative shadow-sm">
+                            <div className="flex justify-between items-center border-b pb-1.5">
+                              <span className="text-xs font-bold text-purple-700">Message #{idx + 1}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-500 hover:text-red-700 p-1 h-6"
+                                onClick={() => {
+                                  setWelcomeMessages(welcomeMessages.filter((_, i) => i !== idx));
+                                }}
+                              >
+                                Remove
+                              </Button>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Media Type</Label>
+                                <select
+                                  value={msg.mediaType || "none"}
+                                  onChange={(e) => {
+                                    const updated = [...welcomeMessages];
+                                    updated[idx].mediaType = e.target.value as any;
+                                    setWelcomeMessages(updated);
+                                  }}
+                                  className="w-full border rounded p-1.5 text-xs bg-white"
+                                >
+                                  <option value="none">No Media (Text Only)</option>
+                                  <option value="image">Image</option>
+                                  <option value="video">Video</option>
+                                  <option value="audio">Audio</option>
+                                </select>
+                              </div>
+
+                              <div className="space-y-1 md:col-span-2">
+                                <Label className="text-xs">Media URL (Supports Gallery)</Label>
+                                <div className="flex gap-2">
+                                  <Input
+                                    value={msg.mediaUrl || ""}
+                                    onChange={(e) => {
+                                      const updated = [...welcomeMessages];
+                                      updated[idx].mediaUrl = e.target.value;
+                                      setWelcomeMessages(updated);
+                                    }}
+                                    placeholder="e.g. https://domain.com/image.png"
+                                    className="h-8 text-xs"
+                                    disabled={msg.mediaType === "none"}
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-xs"
+                                    disabled={msg.mediaType === "none"}
+                                    onClick={() => {
+                                      setGalleryTarget(`welcome_seq_${idx}`);
+                                      setIsGalleryOpen(true);
+                                    }}
+                                  >
+                                    Gallery
+                                  </Button>
+                                </div>
+                                {msg.mediaType === "image" && msg.mediaUrl && (
+                                  <div className="mt-2 w-14 h-14 border rounded overflow-hidden">
+                                    <img src={getPreviewUrl(msg.mediaUrl)} className="w-full h-full object-cover" alt="preview" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                              <div className="space-y-1 md:col-span-3">
+                                <Label className="text-xs font-semibold">Message Text Body</Label>
+                                <Textarea
+                                  value={msg.text || ""}
+                                  onChange={(e) => {
+                                    const updated = [...welcomeMessages];
+                                    updated[idx].text = e.target.value;
+                                    setWelcomeMessages(updated);
+                                  }}
+                                  placeholder="Enter message text..."
+                                  className="text-xs min-h-[50px]"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Sequence Weight</Label>
+                                <Input
+                                  type="number"
+                                  value={msg.sortOrder}
+                                  onChange={(e) => {
+                                    const updated = [...welcomeMessages];
+                                    updated[idx].sortOrder = parseInt(e.target.value) || 0;
+                                    setWelcomeMessages(updated);
+                                  }}
+                                  className="h-8 text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full border-dashed border-purple-300 text-purple-700 hover:bg-purple-50 text-xs"
+                          onClick={() => {
+                            setWelcomeMessages([
+                              ...welcomeMessages,
+                              {
+                                id: Math.random().toString(36).substring(7),
+                                text: "",
+                                mediaType: "none",
+                                mediaUrl: "",
+                                sortOrder: welcomeMessages.length + 1
+                              }
+                            ]);
+                          }}
+                        >
+                          + Add Welcome Message
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 border-t pt-4">
+                      <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={saveConfigMutation.isPending}>
+                        {saveConfigMutation.isPending ? "Saving..." : "Save General Settings"}
+                      </Button>
+                    </div>
+                  </TabsContent>
+
+                  {/* Sub-Tab 2: Checkout & Payments */}
+                  <TabsContent value="checkout" className="space-y-6 mt-0">
+                    {/* Checkout Questions Flow */}
+                    <div className="space-y-4 border p-4 rounded-lg bg-white">
+                      <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
+                        <ClipboardList className="w-4 h-4 text-emerald-600" />
+                        Checkout Questions Flow
+                      </h3>
+
+                      <div className="flex items-center justify-between p-3 bg-emerald-50/40 border border-emerald-100 rounded-lg">
+                        <div className="space-y-0.5">
+                          <Label className="font-semibold text-gray-800 flex items-center gap-1.5 text-xs">
+                            <Package className="w-4 h-4 text-emerald-600" />
+                            Ask Quantity Question during Checkout
+                          </Label>
+                          <span className="text-[11px] text-gray-500 block leading-tight">
+                            When disabled, checkout skips asking "How many Qty?" (defaults to 1) and proceeds directly to customer details and payment.
+                          </span>
+                        </div>
+                        <Switch checked={askQuantity} onCheckedChange={setAskQuantity} />
+                      </div>
+
+                      <div className="space-y-3">
+                        <Label className="font-semibold text-gray-700 block">Checkout Fields (Q&A List)</Label>
+                        {checkoutFields.map((field, index) => (
+                          <div key={index} className="flex flex-col sm:flex-row gap-2 border p-3 rounded-md bg-gray-50/50 relative">
+                            <div className="flex-grow space-y-1">
+                              <Label className="text-[10px] text-gray-500 font-bold uppercase">Question Prompt Text</Label>
+                              <Input
+                                value={field.text}
+                                onChange={(e) => {
+                                  const copy = [...checkoutFields];
+                                  copy[index].text = e.target.value;
+                                  setCheckoutFields(copy);
+                                }}
+                                placeholder="Please enter your full name:"
+                                className="text-xs bg-white"
+                              />
+                            </div>
+                            <div className="w-full sm:w-1/3 space-y-1">
+                              <Label className="text-[10px] text-gray-500 font-bold uppercase">Variable Key Name</Label>
+                              <Input
+                                value={field.variable}
+                                onChange={(e) => {
+                                  const copy = [...checkoutFields];
+                                  copy[index].variable = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "");
+                                  setCheckoutFields(copy);
+                                }}
+                                placeholder="name"
+                                className="text-xs bg-white"
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 self-end"
+                              onClick={() => {
+                                setCheckoutFields(checkoutFields.filter((_, i) => i !== index));
+                              }}
+                            >
+                              <Trash className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-indigo-600 hover:text-indigo-700 border-indigo-200 hover:bg-indigo-50/50 flex items-center justify-center gap-1 mt-2 text-xs"
+                          onClick={() => {
+                            setCheckoutFields([...checkoutFields, { text: "", variable: "" }]);
+                          }}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Add New Question
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Delivery Fee Configuration Section */}
+                    <div className="space-y-4 border p-4 rounded-lg bg-emerald-50/20 border-emerald-100">
+                      <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
+                        <Truck className="w-4 h-4 text-emerald-600" />
+                        Delivery & Shipping Configuration
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-1.5">
-                          <Label htmlFor="defaultDeliveryFee" className="font-semibold text-gray-700">Default State Delivery Fee ({storeCurrency})</Label>
-                          <Input
-                            id="defaultDeliveryFee"
-                            type="number"
-                            step="0.01"
-                            value={defaultDeliveryFee}
-                            onChange={(e) => setDefaultDeliveryFee(e.target.value)}
-                            placeholder="0"
-                            className="h-9 text-xs"
-                          />
+                          <Label htmlFor="storeCountry" className="font-semibold text-gray-700">Store Region / Country</Label>
+                          <select
+                            id="storeCountry"
+                            value={storeCountry}
+                            onChange={(e) => {
+                              setStoreCountry(e.target.value);
+                              setStateDeliveryFees({}); // clear overrides on country change
+                            }}
+                            className="w-full border rounded h-9 text-xs p-2 bg-white"
+                          >
+                            {countriesList.map(c => (
+                              <option key={c.code} value={c.code}>{c.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor="deliveryFeeType" className="font-semibold text-gray-700">Delivery Fee Calculation Type</Label>
+                          <select
+                            id="deliveryFeeType"
+                            value={deliveryFeeType}
+                            onChange={(e) => setDeliveryFeeType(e.target.value)}
+                            className="w-full border rounded h-9 text-xs p-2 bg-white"
+                          >
+                            <option value="flat">Flat Shipping Fee (Default)</option>
+                            <option value="statewise">State-wise Shipping Fee</option>
+                          </select>
+                        </div>
+
+                        {deliveryFeeType === "flat" ? (
+                          <div className="space-y-1.5">
+                            <Label htmlFor="flatDeliveryFee" className="font-semibold text-gray-700">Flat Delivery Fee ({storeCurrency})</Label>
+                            <Input
+                              id="flatDeliveryFee"
+                              type="number"
+                              step="0.01"
+                              value={flatDeliveryFee}
+                              onChange={(e) => setFlatDeliveryFee(e.target.value)}
+                              placeholder="0"
+                              className="h-9 text-xs"
+                            />
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <Label htmlFor="defaultDeliveryFee" className="font-semibold text-gray-700">Default State Delivery Fee ({storeCurrency})</Label>
+                            <Input
+                              id="defaultDeliveryFee"
+                              type="number"
+                              step="0.01"
+                              value={defaultDeliveryFee}
+                              onChange={(e) => setDefaultDeliveryFee(e.target.value)}
+                              placeholder="0"
+                              className="h-9 text-xs"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {deliveryFeeType === "statewise" && (
+                        <div className="mt-4 pt-4 border-t border-emerald-100/50 space-y-4">
+                          <h4 className="font-semibold text-sm text-slate-700">State-specific Delivery Fee Overrides</h4>
+                          <div className="flex flex-wrap items-end gap-3 bg-white p-3 rounded border border-emerald-100">
+                            <div className="space-y-1.5 w-[200px]">
+                              <Label htmlFor="overrideState" className="text-xs text-gray-600">Select State</Label>
+                              <select
+                                id="overrideState"
+                                value={selectedStateOverride}
+                                onChange={(e) => setSelectedStateOverride(e.target.value)}
+                                className="w-full border rounded h-8 text-xs p-1 bg-white"
+                              >
+                                <option value="">-- Choose State --</option>
+                                {(countryStates[storeCountry] || []).map(st => (
+                                  <option key={st} value={st} disabled={!!stateDeliveryFees[st]}>{st}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-1.5 w-[150px]">
+                              <Label htmlFor="overrideFee" className="text-xs text-gray-600">Delivery Fee ({storeCurrency})</Label>
+                              <Input
+                                id="overrideFee"
+                                type="number"
+                                step="0.01"
+                                value={overrideFeeInput}
+                                onChange={(e) => setOverrideFeeInput(e.target.value)}
+                                placeholder="Fee"
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                              onClick={handleAddStateOverride}
+                            >
+                              Add Override
+                            </Button>
+                          </div>
+
+                          {Object.keys(stateDeliveryFees).length > 0 ? (
+                            <div className="border rounded-md overflow-hidden bg-white max-w-lg">
+                              <Table className="text-xs">
+                                <TableHeader>
+                                  <TableRow className="bg-slate-50">
+                                    <TableHead className="py-2 h-8">State</TableHead>
+                                    <TableHead className="py-2 h-8">Fee ({storeCurrency})</TableHead>
+                                    <TableHead className="py-2 h-8 text-right">Actions</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {Object.entries(stateDeliveryFees).map(([state, fee]) => (
+                                    <TableRow key={state} className="hover:bg-slate-50/50">
+                                      <TableCell className="py-1.5 font-medium">{state}</TableCell>
+                                      <TableCell className="py-1.5">{fee}</TableCell>
+                                      <TableCell className="py-1.5 text-right">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                          onClick={() => handleRemoveStateOverride(state)}
+                                        >
+                                          <Trash className="w-3.5 h-3.5" />
+                                        </Button>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-400 italic">No specific state delivery fees configured yet. Default state fee will apply to all regions.</p>
+                          )}
                         </div>
                       )}
                     </div>
 
-                    {deliveryFeeType === "statewise" && (
-                      <div className="mt-4 pt-4 border-t border-emerald-100/50 space-y-4">
-                        <h4 className="font-semibold text-sm text-slate-700">State-specific Delivery Fee Overrides</h4>
-                        <div className="flex flex-wrap items-end gap-3 bg-white p-3 rounded border border-emerald-100">
-                          <div className="space-y-1.5 w-[200px]">
-                            <Label htmlFor="overrideState" className="text-xs text-gray-600">Select State</Label>
-                            <select
-                              id="overrideState"
-                              value={selectedStateOverride}
-                              onChange={(e) => setSelectedStateOverride(e.target.value)}
-                              className="w-full border rounded h-8 text-xs p-1 bg-white"
-                            >
-                              <option value="">-- Choose State --</option>
-                              {(countryStates[storeCountry] || []).map(st => (
-                                <option key={st} value={st} disabled={!!stateDeliveryFees[st]}>{st}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="space-y-1.5 w-[150px]">
-                            <Label htmlFor="overrideFee" className="text-xs text-gray-600">Delivery Fee ({storeCurrency})</Label>
-                            <Input
-                              id="overrideFee"
-                              type="number"
-                              step="0.01"
-                              value={overrideFeeInput}
-                              onChange={(e) => setOverrideFeeInput(e.target.value)}
-                              placeholder="Fee"
-                              className="h-8 text-xs"
-                            />
-                          </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                            onClick={handleAddStateOverride}
-                          >
-                            Add Override
-                          </Button>
-                        </div>
-
-                        {Object.keys(stateDeliveryFees).length > 0 ? (
-                          <div className="border rounded-md overflow-hidden bg-white max-w-lg">
-                            <Table className="text-xs">
-                              <TableHeader>
-                                <TableRow className="bg-slate-50">
-                                  <TableHead className="py-2 h-8">State</TableHead>
-                                  <TableHead className="py-2 h-8">Fee ({storeCurrency})</TableHead>
-                                  <TableHead className="py-2 h-8 text-right">Actions</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {Object.entries(stateDeliveryFees).map(([state, fee]) => (
-                                  <TableRow key={state} className="hover:bg-slate-50/50">
-                                    <TableCell className="py-1.5 font-medium">{state}</TableCell>
-                                    <TableCell className="py-1.5">{fee}</TableCell>
-                                    <TableCell className="py-1.5 text-right">
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                        onClick={() => handleRemoveStateOverride(state)}
-                                      >
-                                        <Trash className="w-3.5 h-3.5" />
-                                      </Button>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-gray-400 italic">No specific state delivery fees configured yet. Default state fee will apply to all regions.</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* General Config */}
-                  <div className="space-y-4 border p-4 rounded-lg">
-                    <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
-                      <ShoppingCart className="w-4 h-4 text-emerald-600" />
-                      General Shop Flows
-                    </h3>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <Label className="font-semibold">Store-wise Catalog Flow</Label>
-                        <span className="text-xs text-gray-500">Enable automatic product lists when customer triggers the keyword.</span>
-                      </div>
-                      <Switch checked={storeFlowActive} onCheckedChange={setStoreFlowActive} />
-                    </div>
-
-                    {/* Active Product Direct Inbound Flow Option */}
-                    <div className="space-y-1.5 p-3 rounded-lg border bg-emerald-50/40 border-emerald-100/80">
-                      <div className="space-y-0.5">
-                        <Label className="font-semibold text-gray-800 text-xs flex items-center gap-1.5">
-                          <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
-                          Active Product for Direct Inbound Flow (New / First Messages)
-                        </Label>
-                        <span className="text-[11px] text-gray-500 block leading-tight">
-                          Select a product to automatically initiate its product details & checkout flow for any new contact's first message without needing a trigger keyword. Select "None" to keep trigger keyword based behavior.
-                        </span>
-                      </div>
-                      <Select value={activeProductId || "none"} onValueChange={(val) => setActiveProductId(val === "none" ? "" : val)}>
-                        <SelectTrigger className="h-9 text-xs bg-white mt-1">
-                          <SelectValue placeholder="None (Trigger Keyword Based)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None (Trigger Keyword Based)</SelectItem>
-                          {(productsData?.products || []).map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name} — {(p as any).currency || storeCurrency} {p.price} {p.triggerKeyword ? `(Trigger: "${p.triggerKeyword}")` : ""}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label htmlFor="storeKeyword">Store Trigger Keyword</Label>
-                        <Input
-                          id="storeKeyword"
-                          value={storeKeyword}
-                          onChange={(e) => setStoreKeyword(e.target.value)}
-                          placeholder="e.g. store, shop, catalogue"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="storeCurrency">Store Base Currency</Label>
-                        <select
-                          id="storeCurrency"
-                          value={storeCurrency}
-                          onChange={(e) => setStoreCurrency(e.target.value)}
-                          className="w-full border rounded p-2 text-sm bg-white"
-                        >
-                          <option value="INR">INR (₹)</option>
-                          <option value="USD">USD ($)</option>
-                          <option value="EUR">EUR (€)</option>
-                          <option value="GBP">GBP (£)</option>
-                          <option value="AED">AED (AED)</option>
-                          <option value="SAR">SAR (SAR)</option>
-                          <option value="AUD">AUD (A$)</option>
-                          <option value="CAD">CAD (C$)</option>
-                          <option value="JPY">JPY (¥)</option>
-                          <option value="SGD">SGD (S$)</option>
-                          <option value="QAR">QAR (QAR)</option>
-                          <option value="OMR">OMR (OMR)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-emerald-100/50 pt-4 mt-4 space-y-3">
-                      <h4 className="font-semibold text-sm text-slate-700">💳 Custom Payment Option Labels</h4>
+                    {/* Custom Payment Option Labels */}
+                    <div className="border p-4 rounded-lg bg-white space-y-3">
+                      <h4 className="font-semibold text-sm text-slate-700 border-b pb-2 flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-emerald-600" />
+                        Custom Payment Option Labels
+                      </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label htmlFor="labelCod">Cash on Delivery (COD) Label</Label>
@@ -2535,1147 +2858,12 @@ export default function EcommerceLedger() {
                       </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <Label htmlFor="welcome">Welcome Text Message</Label>
-                      <Textarea
-                        id="welcome"
-                        value={welcomeMsg}
-                        onChange={(e) => setWelcomeMsg(e.target.value)}
-                        placeholder="Welcome message..."
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label htmlFor="headerType">Header Media Type</Label>
-                        <select
-                          id="headerType"
-                          value={welcomeHeaderType}
-                          onChange={(e) => setWelcomeHeaderType(e.target.value)}
-                          className="w-full border rounded p-2 text-sm bg-white"
-                        >
-                          <option value="none">No Header</option>
-                          <option value="image">Image Header</option>
-                          <option value="video">Video Header</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="headerUrl">Header Media URL</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            id="headerUrl"
-                            value={welcomeHeaderUrl}
-                            onChange={(e) => setWelcomeHeaderUrl(e.target.value)}
-                            placeholder="e.g. https://img.com/header.jpg"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                              setGalleryTarget("welcome_header");
-                              setIsGalleryOpen(true);
-                            }}
-                          >
-                            </Button>
-                        </div>
-                        {welcomeHeaderUrl && welcomeHeaderType === "image" && (
-                          <div className="mt-2 w-20 h-20 border rounded overflow-hidden">
-                            <img src={getPreviewUrl(welcomeHeaderUrl)} className="w-full h-full object-cover" alt="header preview" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Welcome Message Sequence */}
-                  <div className="space-y-4 border p-4 rounded-lg bg-emerald-50/20">
-                    <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
-                      <MessageSquare className="w-4 h-4 text-emerald-600" />
-                      Welcome Messages Sequence (Multiple Messages)
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      Define a sequence of messages sent one-by-one to shoppers when they trigger the catalog or individual products. Order them by Sequence Weight.
-                    </p>
-
-                    <div className="space-y-3">
-                      {welcomeMessages.map((msg, idx) => (
-                        <div key={msg.id || idx} className="border p-3 rounded-md bg-white space-y-3 relative shadow-sm">
-                          <div className="flex justify-between items-center border-b pb-1.5">
-                            <span className="text-xs font-bold text-emerald-700">Message #{idx + 1}</span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-500 hover:text-red-700 p-1 h-6"
-                              onClick={() => {
-                                setWelcomeMessages(welcomeMessages.filter((_, i) => i !== idx));
-                              }}
-                            >
-                              Remove
-                            </Button>
-                          </div>
-                          
-                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <div className="space-y-1">
-                              <Label className="text-xs">Media Type</Label>
-                              <select
-                                value={msg.mediaType || "none"}
-                                onChange={(e) => {
-                                  const updated = [...welcomeMessages];
-                                  updated[idx].mediaType = e.target.value as any;
-                                  setWelcomeMessages(updated);
-                                }}
-                                className="w-full border rounded p-1.5 text-xs bg-white"
-                              >
-                                <option value="none">No Media (Text Only)</option>
-                                <option value="image">Image</option>
-                                <option value="video">Video</option>
-                                <option value="audio">Audio</option>
-                              </select>
-                            </div>
-
-                            <div className="space-y-1 md:col-span-2">
-                              <Label className="text-xs">Media URL (Supports Gallery)</Label>
-                              <div className="flex gap-2">
-                                <Input
-                                  value={msg.mediaUrl || ""}
-                                  onChange={(e) => {
-                                    const updated = [...welcomeMessages];
-                                    updated[idx].mediaUrl = e.target.value;
-                                    setWelcomeMessages(updated);
-                                  }}
-                                  placeholder="e.g. https://domain.com/image.png"
-                                  className="h-8 text-xs"
-                                  disabled={msg.mediaType === "none"}
-                                />
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 text-xs"
-                                  disabled={msg.mediaType === "none"}
-                                  onClick={() => {
-                                    setGalleryTarget(`welcome_seq_${idx}`);
-                                    setIsGalleryOpen(true);
-                                  }}
-                                >
-                                  Gallery
-                                </Button>
-                              </div>
-                              {msg.mediaType === "image" && msg.mediaUrl && (
-                                <div className="mt-2 w-14 h-14 border rounded overflow-hidden">
-                                  <img src={getPreviewUrl(msg.mediaUrl)} className="w-full h-full object-cover" alt="preview" />
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                            <div className="space-y-1 md:col-span-3">
-                              <Label className="text-xs font-semibold">Message Text Body</Label>
-                              <Textarea
-                                value={msg.text || ""}
-                                onChange={(e) => {
-                                  const updated = [...welcomeMessages];
-                                  updated[idx].text = e.target.value;
-                                  setWelcomeMessages(updated);
-                                }}
-                                placeholder="Enter message text..."
-                                className="text-xs min-h-[50px]"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Sequence Weight</Label>
-                              <Input
-                                type="number"
-                                value={msg.sortOrder}
-                                onChange={(e) => {
-                                  const updated = [...welcomeMessages];
-                                  updated[idx].sortOrder = parseInt(e.target.value) || 0;
-                                  setWelcomeMessages(updated);
-                                }}
-                                className="h-8 text-xs"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full border-dashed border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs"
-                        onClick={() => {
-                          setWelcomeMessages([
-                            ...welcomeMessages,
-                            {
-                              id: Math.random().toString(36).substring(7),
-                              text: "",
-                              mediaType: "none",
-                              mediaUrl: "",
-                              sortOrder: welcomeMessages.length + 1
-                            }
-                          ]);
-                        }}
-                      >
-                        + Add Welcome Message
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* AI Chatbot Configuration */}
-                  <div className="space-y-4 border p-4 rounded-lg bg-purple-50/20">
-                    <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-purple-600" />
-                      Product AI Assistant Settings
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      Train an AI assistant to chat with shoppers regarding product details, price, descriptions, and answer FAQs using your sites' training database.
-                    </p>
-
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <Label className="font-semibold text-gray-700">Enable Product Q&A AI Chatbot</Label>
-                          <span className="text-[11px] text-gray-500 block leading-tight">
-                            Allow AI chatbot to discuss products with customers when triggered.
-                          </span>
-                        </div>
-                        <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
-                      </div>
-
-                      {aiEnabled && (
-                        <>
-                          {/* API Key Provider Switcher */}
-                          <div className="bg-white p-4 rounded-xl border border-purple-200/80 shadow-sm space-y-3">
-                            <div className="flex items-center justify-between">
-                              <div className="space-y-0.5">
-                                <Label className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                                  <Key className="w-4 h-4 text-purple-600" />
-                                  API Key & Billing Mode
-                                </Label>
-                                <span className="text-xs text-gray-500 block">
-                                  Choose whether to use your own API keys or use Platform keys with pay-as-you-go wallet billing.
-                                </span>
-                              </div>
-                              <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
-                                apiKeySource === "admin_key" 
-                                  ? "bg-purple-100 text-purple-800 border-purple-300" 
-                                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              }`}>
-                                {apiKeySource === "admin_key" ? "Platform Admin Keys" : "Own API Keys (Free)"}
-                              </span>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                              <div
-                                onClick={() => setApiKeySource("own_key")}
-                                className={`cursor-pointer rounded-lg p-3 border transition-all ${
-                                  apiKeySource === "own_key"
-                                    ? "border-purple-600 bg-purple-50/60 ring-2 ring-purple-600/20 shadow-sm"
-                                    : "border-gray-200 hover:border-gray-300 bg-white"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="radio"
-                                    name="apiKeySource"
-                                    checked={apiKeySource === "own_key"}
-                                    onChange={() => setApiKeySource("own_key")}
-                                    className="text-purple-600 focus:ring-purple-500"
-                                  />
-                                  <span className="font-semibold text-xs text-gray-900">Use My Own API Keys</span>
-                                </div>
-                                <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
-                                  Uses OpenAI, Sarvam & Groq keys configured in your AI Settings. <strong>Zero wallet charges</strong>.
-                                </p>
-                              </div>
-
-                              <div
-                                onClick={() => setApiKeySource("admin_key")}
-                                className={`cursor-pointer rounded-lg p-3 border transition-all ${
-                                  apiKeySource === "admin_key"
-                                    ? "border-purple-600 bg-purple-50/60 ring-2 ring-purple-600/20 shadow-sm"
-                                    : "border-gray-200 hover:border-gray-300 bg-white"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="radio"
-                                    name="apiKeySource"
-                                    checked={apiKeySource === "admin_key"}
-                                    onChange={() => setApiKeySource("admin_key")}
-                                    className="text-purple-600 focus:ring-purple-500"
-                                  />
-                                  <span className="font-semibold text-xs text-gray-900">Use Platform Admin Keys</span>
-                                </div>
-                                <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
-                                  Zero API key setup needed. Pay-as-you-go based on AI token and voice usage directly from your wallet balance.
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-purple-100">
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                              <Label className="font-semibold text-gray-700 flex items-center gap-1.5">
-                                <Bot className="w-4 h-4 text-purple-600" />
-                                AI Store Takeover (All Inbox Messages)
-                              </Label>
-                              <span className="text-[11px] text-gray-500 block leading-tight">
-                                Automatically handle every incoming customer message and voice note with AI — not just after clicking trigger words or buttons. The AI agent will have full awareness of all products, prices, descriptions, and store information.
-                              </span>
-                            </div>
-                            <Switch checked={aiTakeoverEnabled} onCheckedChange={setAiTakeoverEnabled} />
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                              <Label className="font-semibold text-gray-700">Offer "Talk to Agent" buttons / choices</Label>
-                              <span className="text-[11px] text-gray-500 block leading-tight">
-                                Show a button / menu prompt next to products so users can opt to chat.
-                              </span>
-                            </div>
-                            <Switch checked={aiAskButtonEnabled} onCheckedChange={setAiAskButtonEnabled} />
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                              <Label className="font-semibold text-gray-700 flex items-center gap-1.5">
-                                <Mic className="w-4 h-4 text-purple-600" />
-                                Respond with Audio / Voice Notes
-                              </Label>
-                              <span className="text-[11px] text-gray-500 block leading-tight">
-                                Reply to incoming customer voice notes with synthesized speech (or in native text if turned off).
-                              </span>
-                            </div>
-                            <Switch checked={aiVoiceEnabled} onCheckedChange={setAiVoiceEnabled} />
-                          </div>
-
-                          {aiVoiceEnabled && (
-                            <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 border p-3 rounded-lg bg-purple-50/50 mt-1">
-                              <div className="space-y-1.5">
-                                <Label className="font-semibold text-gray-700 text-xs">Active Voice Profile</Label>
-                                <Select value={configVoiceProfileId || "default"} onValueChange={(val) => setConfigVoiceProfileId(val === "default" ? "" : val)}>
-                                  <SelectTrigger className="h-9 text-xs bg-white">
-                                    <SelectValue placeholder="Select Voice Profile (Sarvam, OpenAI, Groq...)" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="default">Default / First Available</SelectItem>
-                                    {voiceProfiles.map((p: any) => (
-                                      <SelectItem key={p.id} value={p.id}>
-                                        {p.name} ({p.provider.toUpperCase()} - {p.voiceId} - {p.languageCode})
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <span className="text-[10px] text-gray-500 block leading-tight">
-                                  Select the AI Voice Profile (Sarvam Rahul, OpenAI Alloy, etc.) for this store.
-                                </span>
-                              </div>
-
-                              <div className="space-y-1.5">
-                                <Label className="font-semibold text-gray-700 text-xs">Voice Language Mode</Label>
-                                <Select value={configAiVoiceLanguageMode} onValueChange={setConfigAiVoiceLanguageMode}>
-                                  <SelectTrigger className="h-9 text-xs bg-white">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="profile">Use Voice Profile Language (e.g. Malayalam)</SelectItem>
-                                    <SelectItem value="auto">Auto-Detect Customer Language (Multi-lingual)</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <span className="text-[10px] text-gray-500 block leading-tight">
-                                  Whether AI responds in profile language or dynamically matches customer language.
-                                </span>
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="space-y-1.5">
-                            <Label htmlFor="aiTimeout" className="font-semibold text-gray-700">AI Session Timeout (Minutes)</Label>
-                            <Input
-                              id="aiTimeout"
-                              type="number"
-                              value={aiTimeoutMinutes}
-                              onChange={(e) => setAiTimeoutMinutes(parseInt(e.target.value) || 30)}
-                              placeholder="30"
-                              min={1}
-                              className="w-full h-9 text-xs"
-                            />
-                            <span className="text-[10px] text-gray-400 block leading-tight">
-                              Automatically close AI chat and revert back to store catalog after inactivity.
-                            </span>
-                          </div>
-
-                          <div className="col-span-1 md:col-span-2 space-y-1.5 pt-2 border-t border-purple-50">
-                            <Label htmlFor="aiSystemPrompt" className="font-semibold text-gray-700">Custom AI System Prompt</Label>
-                            <Textarea
-                              id="aiSystemPrompt"
-                              value={aiSystemPrompt}
-                              onChange={(e) => setAiSystemPrompt(e.target.value)}
-                              placeholder={`You are a helpful customer sales AI assistant for this store.
-You are chatting with a customer regarding this product:
-- Name: {product_name}
-- Price: {product_price}
-- Description: {product_description}`}
-                              className="w-full min-h-[120px] text-xs font-mono"
-                            />
-                            <span className="text-[10px] text-gray-400 block leading-tight">
-                              Configure custom rules/directives for the AI. Use placeholders like <strong>{"{product_name}"}</strong>, <strong>{"{product_price}"}</strong>, and <strong>{"{product_description}"}</strong> to inject product variables dynamically.
-                            </span>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                    </div>
-                  </div>
-
-                  {/* Team Auto-Assignment Settings */}
-                  <div className="border p-4 rounded-lg space-y-4 bg-white shadow-xs">
-                    <div className="flex items-center justify-between border-b pb-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                          <Users className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-gray-800 text-sm">Team Auto-Assignment & Conversation Routing</h3>
-                          <p className="text-xs text-gray-500">
-                            Automatically assign incoming store shoppers and conversations to team members so chats appear directly under their inbox login.
-                          </p>
-                        </div>
-                      </div>
-                      <Switch checked={autoAssignEnabled} onCheckedChange={setAutoAssignEnabled} />
-                    </div>
-
-                    {autoAssignEnabled && (
-                      <div className="space-y-4 pt-1 animate-in fade-in-50 duration-200">
-                        {/* Mode Selector */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div
-                            onClick={() => setAutoAssignMode("permanent")}
-                            className={`cursor-pointer rounded-lg p-3.5 border transition-all ${
-                              autoAssignMode === "permanent"
-                                ? "border-blue-600 bg-blue-50/50 ring-2 ring-blue-600/20 shadow-sm"
-                                : "border-gray-200 hover:border-gray-300 bg-white"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="radio"
-                                name="autoAssignMode"
-                                checked={autoAssignMode === "permanent"}
-                                onChange={() => setAutoAssignMode("permanent")}
-                                className="text-blue-600 focus:ring-blue-500"
-                              />
-                              <span className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
-                                <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                                Permanent Team Member
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
-                              Assign all incoming store chats strictly to one dedicated team member.
-                            </p>
-                          </div>
-
-                          <div
-                            onClick={() => setAutoAssignMode("round_robin")}
-                            className={`cursor-pointer rounded-lg p-3.5 border transition-all ${
-                              autoAssignMode === "round_robin"
-                                ? "border-blue-600 bg-blue-50/50 ring-2 ring-blue-600/20 shadow-sm"
-                                : "border-gray-200 hover:border-gray-300 bg-white"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="radio"
-                                name="autoAssignMode"
-                                checked={autoAssignMode === "round_robin"}
-                                onChange={() => setAutoAssignMode("round_robin")}
-                                className="text-blue-600 focus:ring-blue-500"
-                              />
-                              <span className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
-                                <Shuffle className="w-3.5 h-3.5 text-blue-600" />
-                                Round Robin (Multi-Agent Distribution)
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
-                              Evenly distribute incoming chats among available team members based on least recent activity.
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Mode Specific Settings */}
-                        {autoAssignMode === "permanent" && (
-                          <div className="p-3.5 rounded-lg border border-blue-100 bg-blue-50/30 space-y-2">
-                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
-                              <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                              Select Permanent Assignee
-                            </Label>
-                            {(() => {
-                              const validMembers = Array.isArray(teamMembers) ? teamMembers.filter((m: any) => m && m.id) : [];
-                              return (
-                                <Select 
-                                  value={autoAssignUserId ? String(autoAssignUserId) : undefined} 
-                                  onValueChange={(val) => setAutoAssignUserId(val || "")}
-                                >
-                                  <SelectTrigger className="h-9 text-xs bg-white">
-                                    <SelectValue placeholder="Select team member to assign all chats..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {validMembers.length === 0 ? (
-                                      <SelectItem value="__none__" disabled>No team members available. Create members under Team settings.</SelectItem>
-                                    ) : (
-                                      validMembers.map((m: any) => (
-                                        <SelectItem key={String(m.id)} value={String(m.id)}>
-                                          {m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.username || m.email || String(m.id)} ({m.email || m.username || "Member"})
-                                        </SelectItem>
-                                      ))
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              );
-                            })()}
-                            <span className="text-[10px] text-gray-500 block">
-                              All customer interactions in the store flow will be assigned to this user immediately.
-                            </span>
-                          </div>
-                        )}
-
-                        {autoAssignMode === "round_robin" && (
-                          <div className="p-3.5 rounded-lg border border-blue-100 bg-blue-50/30 space-y-3">
-                            <div>
-                              <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
-                                <Shuffle className="w-3.5 h-3.5 text-blue-600" />
-                                Round Robin Pool & Exclusions
-                              </Label>
-                              <p className="text-[11px] text-gray-500 mt-0.5">
-                                Select any team members to <strong>exclude</strong> from the round-robin distribution pool (e.g. managers or offline members):
-                              </p>
-                            </div>
-
-                            {(() => {
-                              const validMembers = Array.isArray(teamMembers) ? teamMembers.filter((m: any) => m && m.id) : [];
-                              if (validMembers.length === 0) {
-                                return (
-                                  <div className="text-xs text-gray-400 italic bg-white p-3 rounded border text-center">
-                                    No team members found. Round robin will fallback to account owner.
-                                  </div>
-                                );
-                              }
-
-                              const currentExcluded = Array.isArray(autoAssignExcludedUserIds) ? autoAssignExcludedUserIds.map(String) : [];
-
-                              return (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
-                                  {validMembers.map((m: any) => {
-                                    const memberId = String(m.id);
-                                    const isExcluded = currentExcluded.includes(memberId);
-                                    const displayName = m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.username || m.email || `Member ${memberId}`;
-                                    const displayEmail = m.email || m.username || "";
-
-                                    return (
-                                      <button
-                                        key={memberId}
-                                        type="button"
-                                        onClick={() => {
-                                          if (isExcluded) {
-                                            setAutoAssignExcludedUserIds(currentExcluded.filter((id) => String(id) !== memberId));
-                                          } else {
-                                            setAutoAssignExcludedUserIds([...currentExcluded, memberId]);
-                                          }
-                                        }}
-                                        className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs text-left cursor-pointer select-none transition-all ${
-                                          isExcluded
-                                            ? "bg-red-50 border-red-200 text-red-700 ring-1 ring-red-300 shadow-xs"
-                                            : "bg-white border-gray-200 hover:border-gray-300 text-gray-700 hover:bg-gray-50/50"
-                                        }`}
-                                      >
-                                        <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] font-bold shrink-0 ${
-                                          isExcluded ? "bg-red-600 border-red-600 text-white" : "border-gray-300 bg-white text-transparent"
-                                        }`}>
-                                          ✓
-                                        </div>
-                                        <div className="flex-1 min-w-0 truncate">
-                                          <div className="font-semibold truncate text-gray-900">{displayName}</div>
-                                          {displayEmail && <div className="text-[10px] text-gray-400 truncate font-mono">{displayEmail}</div>}
-                                        </div>
-                                        {isExcluded ? (
-                                          <span className="text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-700 px-1.5 py-0.5 rounded shrink-0">
-                                            Excluded
-                                          </span>
-                                        ) : (
-                                          <span className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
-                                            Active
-                                          </span>
-                                        )}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Daily Orders Summary Email Report Card */}
-                  <div className="space-y-4 border p-4 rounded-lg bg-white shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
-                          <Mail className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                            Daily Orders Summary Email Report
-                            <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                              Excel Attachment (.xlsx)
-                            </span>
-                          </h3>
-                          <p className="text-xs text-gray-500">
-                            Automatically email a daily summary of all orders with an attached Excel spreadsheet (.xlsx) to configured recipient emails at a scheduled time.
-                          </p>
-                        </div>
-                      </div>
-                      <Switch checked={dailyReportEnabled} onCheckedChange={setDailyReportEnabled} />
-                    </div>
-
-                    {dailyReportEnabled && (
-                      <div className="space-y-4 pt-2 border-t border-gray-100 animate-in fade-in-50 duration-200">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {/* Scheduled Send Time */}
-                          <div className="space-y-2 p-3.5 rounded-lg border border-gray-100 bg-gray-50/50">
-                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-emerald-600" />
-                              Scheduled Daily Report Time (24h)
-                            </Label>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                type="time"
-                                value={dailyReportTime}
-                                onChange={(e) => setDailyReportTime(e.target.value)}
-                                className="text-xs bg-white w-36 font-mono"
-                              />
-                              <span className="text-[11px] text-gray-400">
-                                (Daily trigger time)
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-gray-500">
-                              Orders will be automatically compiled and emailed every day at this exact time.
-                            </p>
-                          </div>
-
-                          {/* Test Send Trigger */}
-                          <div className="space-y-2 p-3.5 rounded-lg border border-emerald-100 bg-emerald-50/30 flex flex-col justify-between">
-                            <div>
-                              <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
-                                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                                On-Demand / Test Report
-                              </Label>
-                              <p className="text-[11px] text-gray-500 mt-1">
-                                Send today's orders list and Excel spreadsheet immediately to verify email setup.
-                              </p>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={handleSendTestReportNow}
-                              disabled={isSendingTestReport || dailyReportEmails.length === 0}
-                              className="w-full text-xs font-semibold text-emerald-700 border-emerald-300 hover:bg-emerald-100/60 flex items-center justify-center gap-1.5 mt-2 bg-white shadow-sm"
-                            >
-                              {isSendingTestReport ? (
-                                <>
-                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                  Compiling & Sending Email...
-                                </>
-                              ) : (
-                                <>
-                                  <Send className="w-3.5 h-3.5 text-emerald-600" />
-                                  Send Test Report Now
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Recipient Emails Management */}
-                        <div className="space-y-2">
-                          <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
-                            <Mail className="w-3.5 h-3.5 text-emerald-600" />
-                            Recipient Email Addresses (Multiple Allowed)
-                          </Label>
-                          <div className="flex gap-2">
-                            <Input
-                              type="email"
-                              value={dailyReportEmailInput}
-                              onChange={(e) => setDailyReportEmailInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  const trimmed = dailyReportEmailInput.trim().toLowerCase();
-                                  if (trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-                                    if (!dailyReportEmails.includes(trimmed)) {
-                                      setDailyReportEmails([...dailyReportEmails, trimmed]);
-                                      setDailyReportEmailInput("");
-                                    } else {
-                                      toast({ title: "Email already added", description: "This email address is already in the recipient list." });
-                                    }
-                                  } else if (trimmed) {
-                                    toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
-                                  }
-                                }
-                              }}
-                              placeholder="e.g. storemanager@domain.com or orders@company.com"
-                              className="text-xs bg-white flex-1"
-                            />
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => {
-                                const trimmed = dailyReportEmailInput.trim().toLowerCase();
-                                if (trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-                                  if (!dailyReportEmails.includes(trimmed)) {
-                                    setDailyReportEmails([...dailyReportEmails, trimmed]);
-                                    setDailyReportEmailInput("");
-                                  } else {
-                                    toast({ title: "Email already added", description: "This email address is already in the recipient list." });
-                                  }
-                                } else if (trimmed) {
-                                  toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
-                                }
-                              }}
-                              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                            >
-                              <Plus className="w-3.5 h-3.5 mr-1" />
-                              Add Email
-                            </Button>
-                          </div>
-
-                          {/* Recipients list chips */}
-                          <div className="pt-1">
-                            {dailyReportEmails.length === 0 ? (
-                              <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 p-2 rounded-md">
-                                ⚠️ No recipient email addresses added. Please enter email addresses above to receive scheduled daily orders reports.
-                              </p>
-                            ) : (
-                              <div className="flex flex-wrap gap-2 pt-1">
-                                {dailyReportEmails.map((email, idx) => (
-                                  <div
-                                    key={idx}
-                                    className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-800 text-xs px-2.5 py-1 rounded-full transition-colors"
-                                  >
-                                    <Mail className="w-3 h-3 text-emerald-600" />
-                                    <span className="font-mono text-[11px]">{email}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => setDailyReportEmails(dailyReportEmails.filter((_, i) => i !== idx))}
-                                      className="text-gray-400 hover:text-red-600 ml-1 rounded-full p-0.5"
-                                    >
-                                      <Trash className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Daily Orders Summary WhatsApp Forwarding Card */}
-                  <div className="space-y-4 border p-4 rounded-lg bg-white shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-green-50 text-green-600 border border-green-100">
-                          <MessageSquare className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                            {t("ecommerce.dailyReportWa.title")}
-                            <span className="text-[10px] font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
-                              WhatsApp
-                            </span>
-                          </h3>
-                          <p className="text-xs text-gray-500">
-                            {t("ecommerce.dailyReportWa.subtitle")}
-                          </p>
-                        </div>
-                      </div>
-                      <Switch checked={dailyReportWaEnabled} onCheckedChange={setDailyReportWaEnabled} />
-                    </div>
-
-                    {dailyReportWaEnabled && (
-                      <div className="space-y-4 pt-2 border-t border-gray-100 animate-in fade-in-50 duration-200">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {/* Channel Selector */}
-                          <div className="space-y-2 p-3.5 rounded-lg border border-gray-100 bg-gray-50/50">
-                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
-                              <PhoneCall className="w-3.5 h-3.5 text-green-600" />
-                              {t("ecommerce.dailyReportWa.selectChannel")}
-                            </Label>
-                            <Select
-                              value={dailyReportWaChannelId || channelId || ""}
-                              onValueChange={setDailyReportWaChannelId}
-                            >
-                              <SelectTrigger className="text-xs bg-white">
-                                <SelectValue placeholder={t("ecommerce.dailyReportWa.selectChannelPlaceholder")} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {allChannels.map((c: any) => (
-                                  <SelectItem key={c.id} value={c.id} className="text-xs">
-                                    {c.name || c.phoneNumber || c.id} ({c.connectionMethod === "qr_code" ? "QR Channel" : "Cloud API"})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <p className="text-[11px] text-gray-500">
-                              {t("ecommerce.dailyReportWa.selectChannelHelp")}
-                            </p>
-                          </div>
-
-                          {/* Test Send Trigger */}
-                          <div className="space-y-2 p-3.5 rounded-lg border border-green-100 bg-green-50/30 flex flex-col justify-between">
-                            <div>
-                              <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
-                                <Send className="w-3.5 h-3.5 text-green-600" />
-                                {t("ecommerce.dailyReportWa.sendTestWa")}
-                              </Label>
-                              <p className="text-[11px] text-gray-500 mt-1">
-                                Send today's orders summary directly to configured WhatsApp numbers now for verification.
-                              </p>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={handleSendTestWaReportNow}
-                              disabled={isSendingTestWaReport || dailyReportWaNumbers.length === 0}
-                              className="w-full text-xs font-semibold text-green-700 border-green-300 hover:bg-green-100/60 flex items-center justify-center gap-1.5 mt-2 bg-white shadow-sm"
-                            >
-                              {isSendingTestWaReport ? (
-                                <>
-                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                  {t("ecommerce.dailyReportWa.sendingTestWa")}
-                                </>
-                              ) : (
-                                <>
-                                  <Send className="w-3.5 h-3.5 text-green-600" />
-                                  {t("ecommerce.dailyReportWa.sendTestWa")}
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Recipient WhatsApp Phone Numbers */}
-                        <div className="space-y-2">
-                          <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
-                            <PhoneCall className="w-3.5 h-3.5 text-green-600" />
-                            {t("ecommerce.dailyReportWa.recipientNumbers")}
-                          </Label>
-                          <div className="flex gap-2">
-                            <Input
-                              type="tel"
-                              value={dailyReportWaNumberInput}
-                              onChange={(e) => setDailyReportWaNumberInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  const trimmed = dailyReportWaNumberInput.trim().replace(/[^0-9+]/g, "");
-                                  if (trimmed && trimmed.length >= 7) {
-                                    if (!dailyReportWaNumbers.includes(trimmed)) {
-                                      setDailyReportWaNumbers([...dailyReportWaNumbers, trimmed]);
-                                      setDailyReportWaNumberInput("");
-                                    } else {
-                                      toast({ title: "Number already added", description: "This phone number is already in the recipient list." });
-                                    }
-                                  } else if (trimmed) {
-                                    toast({ title: "Invalid Phone Number", description: "Please enter a valid phone number with country code.", variant: "destructive" });
-                                  }
-                                }
-                              }}
-                              placeholder={t("ecommerce.dailyReportWa.recipientPlaceholder")}
-                              className="text-xs bg-white flex-1"
-                            />
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => {
-                                const trimmed = dailyReportWaNumberInput.trim().replace(/[^0-9+]/g, "");
-                                if (trimmed && trimmed.length >= 7) {
-                                  if (!dailyReportWaNumbers.includes(trimmed)) {
-                                    setDailyReportWaNumbers([...dailyReportWaNumbers, trimmed]);
-                                    setDailyReportWaNumberInput("");
-                                  } else {
-                                    toast({ title: "Number already added", description: "This phone number is already in the recipient list." });
-                                  }
-                                } else if (trimmed) {
-                                  toast({ title: "Invalid Phone Number", description: "Please enter a valid phone number with country code.", variant: "destructive" });
-                                }
-                              }}
-                              className="text-xs bg-green-600 hover:bg-green-700 text-white"
-                            >
-                              <Plus className="w-3.5 h-3.5 mr-1" />
-                              {t("ecommerce.dailyReportWa.addNumber")}
-                            </Button>
-                          </div>
-
-                          {/* Numbers Chips */}
-                          <div className="pt-1">
-                            {dailyReportWaNumbers.length === 0 ? (
-                              <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 p-2 rounded-md">
-                                ⚠️ {t("ecommerce.dailyReportWa.noNumbers")}
-                              </p>
-                            ) : (
-                              <div className="flex flex-wrap gap-2 pt-1">
-                                {dailyReportWaNumbers.map((phone, idx) => (
-                                  <div
-                                    key={idx}
-                                    className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-800 text-xs px-2.5 py-1 rounded-full transition-colors"
-                                  >
-                                    <PhoneCall className="w-3 h-3 text-green-600" />
-                                    <span className="font-mono text-[11px]">{phone}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => setDailyReportWaNumbers(dailyReportWaNumbers.filter((_, i) => i !== idx))}
-                                      className="text-gray-400 hover:text-red-600 ml-1 rounded-full p-0.5"
-                                    >
-                                      <Trash className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Abandoned Cart Recovery Automation Card */}
-                  <div className="space-y-4 border p-4 rounded-lg bg-white shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-amber-50 text-amber-600 border border-amber-100">
-                          <RotateCcw className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
-                            {t("ecommerce.abandonedCartSettings.title")}
-                            <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-                              24h Window
-                            </span>
-                          </h3>
-                          <p className="text-xs text-gray-500">
-                            {t("ecommerce.abandonedCartSettings.subtitle")}
-                          </p>
-                        </div>
-                      </div>
-                      <Switch checked={abandonedCartRecoveryEnabled} onCheckedChange={setAbandonedCartRecoveryEnabled} />
-                    </div>
-
-                    {abandonedCartRecoveryEnabled && (
-                      <div className="space-y-4 pt-2 border-t border-gray-100 animate-in fade-in-50 duration-200">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {/* Follow-up 1 Delay */}
-                          <div className="space-y-1.5 p-3 rounded-lg border border-gray-100 bg-gray-50/50">
-                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-amber-600" />
-                              {t("ecommerce.abandonedCartSettings.delay1")}
-                            </Label>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                type="number"
-                                min={5}
-                                max={1440}
-                                value={abandonedCartDelay1Minutes}
-                                onChange={(e) => setAbandonedCartDelay1Minutes(parseInt(e.target.value) || 60)}
-                                className="text-xs bg-white w-28"
-                              />
-                              <span className="text-xs text-gray-500">minutes</span>
-                            </div>
-                            <p className="text-[11px] text-gray-400">
-                              {t("ecommerce.abandonedCartSettings.delay1Help")}
-                            </p>
-                          </div>
-
-                          {/* Follow-up 2 Delay */}
-                          <div className="space-y-1.5 p-3 rounded-lg border border-gray-100 bg-gray-50/50">
-                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
-                              <Flame className="w-3.5 h-3.5 text-orange-600" />
-                              {t("ecommerce.abandonedCartSettings.delay2")}
-                            </Label>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                type="number"
-                                min={1}
-                                max={23}
-                                value={abandonedCartDelay2Hours}
-                                onChange={(e) => setAbandonedCartDelay2Hours(parseInt(e.target.value) || 18)}
-                                className="text-xs bg-white w-28"
-                              />
-                              <span className="text-xs text-gray-500">hours</span>
-                            </div>
-                            <p className="text-[11px] text-gray-400">
-                              {t("ecommerce.abandonedCartSettings.delay2Help")}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Optional Incentive Discount Code & % */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
-                              <Percent className="w-3.5 h-3.5 text-amber-600" />
-                              {t("ecommerce.abandonedCartSettings.discountCode")}
-                            </Label>
-                            <Input
-                              value={abandonedCartDiscountCode}
-                              onChange={(e) => setAbandonedCartDiscountCode(e.target.value.toUpperCase())}
-                              placeholder="e.g. SAVE10 or COMEBACK"
-                              className="text-xs bg-white uppercase font-mono"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
-                              <Percent className="w-3.5 h-3.5 text-amber-600" />
-                              {t("ecommerce.abandonedCartSettings.discountPercent")}
-                            </Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={100}
-                              value={abandonedCartDiscountPercent}
-                              onChange={(e) => setAbandonedCartDiscountPercent(e.target.value)}
-                              placeholder="10"
-                              className="text-xs bg-white"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Message Templates */}
-                        <div className="space-y-3">
-                          <div className="space-y-1.5">
-                            <Label className="font-semibold text-gray-700 text-xs">
-                              {t("ecommerce.abandonedCartSettings.message1Template")}
-                            </Label>
-                            <Textarea
-                              rows={3}
-                              value={abandonedCartMessage1}
-                              onChange={(e) => setAbandonedCartMessage1(e.target.value)}
-                              placeholder="👋 Hi {name}! We noticed you left *{product_name}* in your cart. Would you like to complete your order now?"
-                              className="text-xs bg-white font-sans"
-                            />
-                            <p className="text-[10px] text-gray-400">
-                              Available placeholders: <code className="text-gray-600">{"{name}"}</code>, <code className="text-gray-600">{"{product_name}"}</code>, <code className="text-gray-600">{"{price}"}</code>, <code className="text-gray-600">{"{quantity}"}</code>
-                            </p>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label className="font-semibold text-gray-700 text-xs">
-                              {t("ecommerce.abandonedCartSettings.message2Template")}
-                            </Label>
-                            <Textarea
-                              rows={3}
-                              value={abandonedCartMessage2}
-                              onChange={(e) => setAbandonedCartMessage2(e.target.value)}
-                              placeholder="⏰ *Last chance!* Your cart containing *{product_name}* is about to expire.{discount_info} Click Complete Order below to grab it before stock runs out!"
-                              className="text-xs bg-white font-sans"
-                            />
-                            <p className="text-[10px] text-gray-400">
-                              Available placeholders: <code className="text-gray-600">{"{name}"}</code>, <code className="text-gray-600">{"{product_name}"}</code>, <code className="text-gray-600">{"{discount_info}"}</code>
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Checkout & UPI Configuration */}
-                  <div className="space-y-4 border p-4 rounded-lg">
-                    <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
-                      <ClipboardList className="w-4 h-4 text-emerald-600" />
-                      Checkout Questions Flow
-                    </h3>
-
-                    <div className="flex items-center justify-between p-3 bg-emerald-50/40 border border-emerald-100 rounded-lg">
-                      <div className="space-y-0.5">
-                        <Label className="font-semibold text-gray-800 flex items-center gap-1.5 text-xs">
-                          <Package className="w-4 h-4 text-emerald-600" />
-                          Ask Quantity Question during Checkout
-                        </Label>
-                        <span className="text-[11px] text-gray-500 block leading-tight">
-                          When disabled, checkout skips asking "How many Qty?" (defaults to 1) and proceeds directly to customer details and payment.
-                        </span>
-                      </div>
-                      <Switch checked={askQuantity} onCheckedChange={setAskQuantity} />
-                    </div>
-
-                    <div className="space-y-3">
-                      <Label className="font-semibold text-gray-700 block">Checkout Fields (Q&A List)</Label>
-                      {checkoutFields.map((field, index) => (
-                        <div key={index} className="flex flex-col sm:flex-row gap-2 border p-3 rounded-md bg-gray-50/50 relative">
-                          <div className="flex-grow space-y-1">
-                            <Label className="text-[10px] text-gray-500 font-bold uppercase">Question Prompt Text</Label>
-                            <Input
-                              value={field.text}
-                              onChange={(e) => {
-                                const copy = [...checkoutFields];
-                                copy[index].text = e.target.value;
-                                setCheckoutFields(copy);
-                              }}
-                              placeholder="Please enter your full name:"
-                              className="text-xs bg-white"
-                            />
-                          </div>
-                          <div className="w-full sm:w-1/3 space-y-1">
-                            <Label className="text-[10px] text-gray-500 font-bold uppercase">Variable Key Name</Label>
-                            <Input
-                              value={field.variable}
-                              onChange={(e) => {
-                                const copy = [...checkoutFields];
-                                copy[index].variable = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "");
-                                setCheckoutFields(copy);
-                              }}
-                              placeholder="name"
-                              className="text-xs bg-white"
-                            />
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50 self-end"
-                            onClick={() => {
-                              setCheckoutFields(checkoutFields.filter((_, i) => i !== index));
-                            }}
-                          >
-                            <Trash className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full text-indigo-600 hover:text-indigo-700 border-indigo-200 hover:bg-indigo-50/50 flex items-center justify-center gap-1 mt-2 text-xs"
-                        onClick={() => {
-                          setCheckoutFields([...checkoutFields, { text: "", variable: "" }]);
-                        }}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Add New Question
-                      </Button>
-                    </div>
-
-                    <div className="space-y-4 pt-2 border-t">
-                      <Label className="font-bold text-gray-800">UPI Payment Configurations</Label>
+                    {/* UPI Payment Configurations */}
+                    <div className="space-y-4 border p-4 rounded-lg bg-white">
+                      <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
+                        <Coins className="w-4 h-4 text-emerald-600" />
+                        UPI Payment Configurations
+                      </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label htmlFor="upiId">Merchant UPI ID (for Direct Pay redirection)</Label>
@@ -3700,7 +2888,7 @@ You are chatting with a customer regarding this product:
                         </div>
                       </div>
 
-                      <div className="space-y-1 pt-2">
+                      <div className="space-y-1 pt-2 border-t">
                         <Label htmlFor="qr">UPI Payment Scan QR Code Image URL</Label>
                         <div className="flex gap-2">
                           <Input
@@ -3730,78 +2918,978 @@ You are chatting with a customer regarding this product:
                         </span>
                       </div>
                     </div>
-                  </div>
-                </div>
 
-                {/* Gateways Config */}
-                <div className="border p-4 rounded-lg space-y-4">
-                  <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    Online Gateways Integration
-                  </h3>
+                    {/* Online Gateways Integration */}
+                    <div className="border p-4 rounded-lg space-y-4 bg-white">
+                      <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                        Online Gateways Integration
+                      </h3>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Instamojo */}
-                    <div className="space-y-3 p-3 bg-gray-50 rounded-lg border">
-                      <h4 className="font-bold text-emerald-800 text-sm">Instamojo Configuration</h4>
-                      <div className="space-y-1">
-                        <Label htmlFor="instaKey">Instamojo API Key</Label>
-                        <Input
-                          id="instaKey"
-                          type="password"
-                          value={instaKey}
-                          onChange={(e) => setInstaKey(e.target.value)}
-                          placeholder="API Key"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="instaToken">Instamojo Auth Token</Label>
-                        <Input
-                          id="instaToken"
-                          type="password"
-                          value={instaToken}
-                          onChange={(e) => setInstaToken(e.target.value)}
-                          placeholder="Auth Token"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between pt-2">
-                        <Label className="text-sm font-semibold">Sandbox / Test Mode</Label>
-                        <Switch checked={instaSandbox} onCheckedChange={setInstaSandbox} />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Instamojo */}
+                        <div className="space-y-3 p-3 bg-gray-50 rounded-lg border">
+                          <h4 className="font-bold text-emerald-800 text-sm">Instamojo Configuration</h4>
+                          <div className="space-y-1">
+                            <Label htmlFor="instaKey">Instamojo API Key</Label>
+                            <Input
+                              id="instaKey"
+                              type="password"
+                              value={instaKey}
+                              onChange={(e) => setInstaKey(e.target.value)}
+                              placeholder="API Key"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="instaToken">Instamojo Auth Token</Label>
+                            <Input
+                              id="instaToken"
+                              type="password"
+                              value={instaToken}
+                              onChange={(e) => setInstaToken(e.target.value)}
+                              placeholder="Auth Token"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between pt-2">
+                            <Label className="text-sm font-semibold">Sandbox / Test Mode</Label>
+                            <Switch checked={instaSandbox} onCheckedChange={setInstaSandbox} />
+                          </div>
+                        </div>
+
+                        {/* Razorpay */}
+                        <div className="space-y-3 p-3 bg-gray-50 rounded-lg border">
+                          <h4 className="font-bold text-emerald-800 text-sm">Razorpay Configuration</h4>
+                          <div className="space-y-1">
+                            <Label htmlFor="rzpKey">Razorpay Key ID</Label>
+                            <Input
+                              id="rzpKey"
+                              type="password"
+                              value={rzpKeyId}
+                              onChange={(e) => setRzpKeyId(e.target.value)}
+                              placeholder="Key ID"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="rzpSecret">Razorpay Key Secret</Label>
+                            <Input
+                              id="rzpSecret"
+                              type="password"
+                              value={rzpKeySecret}
+                              onChange={(e) => setRzpKeySecret(e.target.value)}
+                              placeholder="Key Secret"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Razorpay */}
-                    <div className="space-y-3 p-3 bg-gray-50 rounded-lg border">
-                      <h4 className="font-bold text-emerald-800 text-sm">Razorpay Configuration</h4>
-                      <div className="space-y-1">
-                        <Label htmlFor="rzpKey">Razorpay Key ID</Label>
-                        <Input
-                          id="rzpKey"
-                          type="password"
-                          value={rzpKeyId}
-                          onChange={(e) => setRzpKeyId(e.target.value)}
-                          placeholder="Key ID"
-                        />
+                    <div className="flex justify-end gap-3 border-t pt-4">
+                      <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={saveConfigMutation.isPending}>
+                        {saveConfigMutation.isPending ? "Saving..." : "Save Checkout & Payments"}
+                      </Button>
+                    </div>
+                  </TabsContent>
+
+                  {/* Sub-Tab 3: Abandoned Cart */}
+                  <TabsContent value="abandoned_cart" className="space-y-6 mt-0">
+                    <div className="space-y-4 border p-4 rounded-lg bg-white shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-amber-50 text-amber-600 border border-amber-100">
+                            <RotateCcw className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                              {t("ecommerce.abandonedCartSettings.title")}
+                              <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                                24h Window
+                              </span>
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                              {t("ecommerce.abandonedCartSettings.subtitle")}
+                            </p>
+                          </div>
+                        </div>
+                        <Switch checked={abandonedCartRecoveryEnabled} onCheckedChange={setAbandonedCartRecoveryEnabled} />
                       </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="rzpSecret">Razorpay Key Secret</Label>
-                        <Input
-                          id="rzpSecret"
-                          type="password"
-                          value={rzpKeySecret}
-                          onChange={(e) => setRzpKeySecret(e.target.value)}
-                          placeholder="Key Secret"
-                        />
+
+                      {abandonedCartRecoveryEnabled && (
+                        <div className="space-y-4 pt-2 border-t border-gray-100 animate-in fade-in-50 duration-200">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Follow-up 1 Delay */}
+                            <div className="space-y-1.5 p-3 rounded-lg border border-gray-100 bg-gray-50/50">
+                              <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                {t("ecommerce.abandonedCartSettings.delay1")}
+                              </Label>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="number"
+                                  min={5}
+                                  max={1440}
+                                  value={abandonedCartDelay1Minutes}
+                                  onChange={(e) => setAbandonedCartDelay1Minutes(parseInt(e.target.value) || 60)}
+                                  className="text-xs bg-white w-28"
+                                />
+                                <span className="text-xs text-gray-500">minutes</span>
+                              </div>
+                              <p className="text-[11px] text-gray-400">
+                                {t("ecommerce.abandonedCartSettings.delay1Help")}
+                              </p>
+                            </div>
+
+                            {/* Follow-up 2 Delay */}
+                            <div className="space-y-1.5 p-3 rounded-lg border border-gray-100 bg-gray-50/50">
+                              <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                                <Flame className="w-3.5 h-3.5 text-orange-600" />
+                                {t("ecommerce.abandonedCartSettings.delay2")}
+                              </Label>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  max={23}
+                                  value={abandonedCartDelay2Hours}
+                                  onChange={(e) => setAbandonedCartDelay2Hours(parseInt(e.target.value) || 18)}
+                                  className="text-xs bg-white w-28"
+                                />
+                                <span className="text-xs text-gray-500">hours</span>
+                              </div>
+                              <p className="text-[11px] text-gray-400">
+                                {t("ecommerce.abandonedCartSettings.delay2Help")}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Optional Incentive Discount Code & % */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                                <Percent className="w-3.5 h-3.5 text-amber-600" />
+                                {t("ecommerce.abandonedCartSettings.discountCode")}
+                              </Label>
+                              <Input
+                                value={abandonedCartDiscountCode}
+                                onChange={(e) => setAbandonedCartDiscountCode(e.target.value.toUpperCase())}
+                                placeholder="e.g. SAVE10 or COMEBACK"
+                                className="text-xs bg-white uppercase font-mono"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                                <Percent className="w-3.5 h-3.5 text-amber-600" />
+                                {t("ecommerce.abandonedCartSettings.discountPercent")}
+                              </Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={100}
+                                value={abandonedCartDiscountPercent}
+                                onChange={(e) => setAbandonedCartDiscountPercent(e.target.value)}
+                                placeholder="10"
+                                className="text-xs bg-white"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Message Templates */}
+                          <div className="space-y-3">
+                            <div className="space-y-1.5">
+                              <Label className="font-semibold text-gray-700 text-xs">
+                                {t("ecommerce.abandonedCartSettings.message1Template")}
+                              </Label>
+                              <Textarea
+                                rows={3}
+                                value={abandonedCartMessage1}
+                                onChange={(e) => setAbandonedCartMessage1(e.target.value)}
+                                placeholder="👋 Hi {name}! We noticed you left *{product_name}* in your cart. Would you like to complete your order now?"
+                                className="text-xs bg-white font-sans"
+                              />
+                              <p className="text-[10px] text-gray-400">
+                                Available placeholders: <code className="text-gray-600">{"{name}"}</code>, <code className="text-gray-600">{"{product_name}"}</code>, <code className="text-gray-600">{"{price}"}</code>, <code className="text-gray-600">{"{quantity}"}</code>
+                              </p>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label className="font-semibold text-gray-700 text-xs">
+                                {t("ecommerce.abandonedCartSettings.message2Template")}
+                              </Label>
+                              <Textarea
+                                rows={3}
+                                value={abandonedCartMessage2}
+                                onChange={(e) => setAbandonedCartMessage2(e.target.value)}
+                                placeholder="⏰ *Last chance!* Your cart containing *{product_name}* is about to expire.{discount_info} Click Complete Order below to grab it before stock runs out!"
+                                className="text-xs bg-white font-sans"
+                              />
+                              <p className="text-[10px] text-gray-400">
+                                Available placeholders: <code className="text-gray-600">{"{name}"}</code>, <code className="text-gray-600">{"{product_name}"}</code>, <code className="text-gray-600">{"{discount_info}"}</code>
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex justify-end gap-3 border-t pt-4">
+                      <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={saveConfigMutation.isPending}>
+                        {saveConfigMutation.isPending ? "Saving..." : "Save Abandoned Cart Settings"}
+                      </Button>
+                    </div>
+                  </TabsContent>
+
+                  {/* Sub-Tab 4: Reports & Notifications */}
+                  <TabsContent value="reports" className="space-y-6 mt-0">
+                    {/* Daily Orders Summary Email Report Card */}
+                    <div className="space-y-4 border p-4 rounded-lg bg-white shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
+                            <Mail className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                              Daily Orders Summary Email Report
+                              <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                                Excel Attachment (.xlsx)
+                              </span>
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                              Automatically email a daily summary of all orders with an attached Excel spreadsheet (.xlsx) to configured recipient emails at a scheduled time.
+                            </p>
+                          </div>
+                        </div>
+                        <Switch checked={dailyReportEnabled} onCheckedChange={setDailyReportEnabled} />
+                      </div>
+
+                      {dailyReportEnabled && (
+                        <div className="space-y-4 pt-2 border-t border-gray-100 animate-in fade-in-50 duration-200">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Scheduled Send Time */}
+                            <div className="space-y-2 p-3.5 rounded-lg border border-gray-100 bg-gray-50/50">
+                              <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                                Scheduled Daily Report Time (24h)
+                              </Label>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="time"
+                                  value={dailyReportTime}
+                                  onChange={(e) => setDailyReportTime(e.target.value)}
+                                  className="text-xs bg-white w-36 font-mono"
+                                />
+                                <span className="text-[11px] text-gray-400">
+                                  (Daily trigger time)
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-gray-500">
+                                Orders will be automatically compiled and emailed every day at this exact time.
+                              </p>
+                            </div>
+
+                            {/* Test Send Trigger */}
+                            <div className="space-y-2 p-3.5 rounded-lg border border-emerald-100 bg-emerald-50/30 flex flex-col justify-between">
+                              <div>
+                                <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                                  On-Demand / Test Report
+                                </Label>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                  Send today's orders list and Excel spreadsheet immediately to verify email setup.
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={handleSendTestReportNow}
+                                disabled={isSendingTestReport || dailyReportEmails.length === 0}
+                                className="w-full text-xs font-semibold text-emerald-700 border-emerald-300 hover:bg-emerald-100/60 flex items-center justify-center gap-1.5 mt-2 bg-white shadow-sm"
+                              >
+                                {isSendingTestReport ? (
+                                  <>
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    Compiling & Sending Email...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="w-3.5 h-3.5 text-emerald-600" />
+                                    Send Test Report Now
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Recipient Emails Management */}
+                          <div className="space-y-2">
+                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                              <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                              Recipient Email Addresses (Multiple Allowed)
+                            </Label>
+                            <div className="flex gap-2">
+                              <Input
+                                type="email"
+                                value={dailyReportEmailInput}
+                                onChange={(e) => setDailyReportEmailInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    const trimmed = dailyReportEmailInput.trim().toLowerCase();
+                                    if (trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+                                      if (!dailyReportEmails.includes(trimmed)) {
+                                        setDailyReportEmails([...dailyReportEmails, trimmed]);
+                                        setDailyReportEmailInput("");
+                                      } else {
+                                        toast({ title: "Email already added", description: "This email address is already in the recipient list." });
+                                      }
+                                    } else if (trimmed) {
+                                      toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+                                    }
+                                  }
+                                }}
+                                placeholder="e.g. storemanager@domain.com or orders@company.com"
+                                className="text-xs bg-white flex-1"
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => {
+                                  const trimmed = dailyReportEmailInput.trim().toLowerCase();
+                                  if (trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+                                    if (!dailyReportEmails.includes(trimmed)) {
+                                      setDailyReportEmails([...dailyReportEmails, trimmed]);
+                                      setDailyReportEmailInput("");
+                                    } else {
+                                      toast({ title: "Email already added", description: "This email address is already in the recipient list." });
+                                    }
+                                  } else if (trimmed) {
+                                    toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+                                  }
+                                }}
+                                className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                              >
+                                <Plus className="w-3.5 h-3.5 mr-1" />
+                                Add Email
+                              </Button>
+                            </div>
+
+                            {/* Recipients list chips */}
+                            <div className="pt-1">
+                              {dailyReportEmails.length === 0 ? (
+                                <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 p-2 rounded-md">
+                                  ⚠️ No recipient email addresses added. Please enter email addresses above to receive scheduled daily orders reports.
+                                </p>
+                              ) : (
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                  {dailyReportEmails.map((email, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-800 text-xs px-2.5 py-1 rounded-full transition-colors"
+                                    >
+                                      <Mail className="w-3 h-3 text-emerald-600" />
+                                      <span className="font-mono text-[11px]">{email}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setDailyReportEmails(dailyReportEmails.filter((_, i) => i !== idx))}
+                                        className="text-gray-400 hover:text-red-600 ml-1 rounded-full p-0.5"
+                                      >
+                                        <Trash className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Daily Orders Summary WhatsApp Forwarding Card */}
+                    <div className="space-y-4 border p-4 rounded-lg bg-white shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-green-50 text-green-600 border border-green-100">
+                            <MessageSquare className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                              {t("ecommerce.dailyReportWa.title")}
+                              <span className="text-[10px] font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
+                                WhatsApp
+                              </span>
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                              {t("ecommerce.dailyReportWa.subtitle")}
+                            </p>
+                          </div>
+                        </div>
+                        <Switch checked={dailyReportWaEnabled} onCheckedChange={setDailyReportWaEnabled} />
+                      </div>
+
+                      {dailyReportWaEnabled && (
+                        <div className="space-y-4 pt-2 border-t border-gray-100 animate-in fade-in-50 duration-200">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Channel Selector */}
+                            <div className="space-y-2 p-3.5 rounded-lg border border-gray-100 bg-gray-50/50">
+                              <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                                <PhoneCall className="w-3.5 h-3.5 text-green-600" />
+                                {t("ecommerce.dailyReportWa.selectChannel")}
+                              </Label>
+                              <Select
+                                value={dailyReportWaChannelId || channelId || ""}
+                                onValueChange={setDailyReportWaChannelId}
+                              >
+                                <SelectTrigger className="text-xs bg-white">
+                                  <SelectValue placeholder={t("ecommerce.dailyReportWa.selectChannelPlaceholder")} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {allChannels.map((c: any) => (
+                                    <SelectItem key={c.id} value={c.id} className="text-xs">
+                                      {c.name || c.phoneNumber || c.id} ({c.connectionMethod === "qr_code" ? "QR Channel" : "Cloud API"})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <p className="text-[11px] text-gray-500">
+                                {t("ecommerce.dailyReportWa.selectChannelHelp")}
+                              </p>
+                            </div>
+
+                            {/* Test Send Trigger */}
+                            <div className="space-y-2 p-3.5 rounded-lg border border-green-100 bg-green-50/30 flex flex-col justify-between">
+                              <div>
+                                <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                                  <Send className="w-3.5 h-3.5 text-green-600" />
+                                  {t("ecommerce.dailyReportWa.sendTestWa")}
+                                </Label>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                  Send today's orders summary directly to configured WhatsApp numbers now for verification.
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={handleSendTestWaReportNow}
+                                disabled={isSendingTestWaReport || dailyReportWaNumbers.length === 0}
+                                className="w-full text-xs font-semibold text-green-700 border-green-300 hover:bg-green-100/60 flex items-center justify-center gap-1.5 mt-2 bg-white shadow-sm"
+                              >
+                                {isSendingTestWaReport ? (
+                                  <>
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    {t("ecommerce.dailyReportWa.sendingTestWa")}
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="w-3.5 h-3.5 text-green-600" />
+                                    {t("ecommerce.dailyReportWa.sendTestWa")}
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Recipient WhatsApp Phone Numbers */}
+                          <div className="space-y-2">
+                            <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                              <PhoneCall className="w-3.5 h-3.5 text-green-600" />
+                              {t("ecommerce.dailyReportWa.recipientNumbers")}
+                            </Label>
+                            <div className="flex gap-2">
+                              <Input
+                                type="tel"
+                                value={dailyReportWaNumberInput}
+                                onChange={(e) => setDailyReportWaNumberInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    const trimmed = dailyReportWaNumberInput.trim().replace(/[^0-9+]/g, "");
+                                    if (trimmed && trimmed.length >= 7) {
+                                      if (!dailyReportWaNumbers.includes(trimmed)) {
+                                        setDailyReportWaNumbers([...dailyReportWaNumbers, trimmed]);
+                                        setDailyReportWaNumberInput("");
+                                      } else {
+                                        toast({ title: "Number already added", description: "This phone number is already in the recipient list." });
+                                      }
+                                    } else if (trimmed) {
+                                      toast({ title: "Invalid Phone Number", description: "Please enter a valid phone number with country code.", variant: "destructive" });
+                                    }
+                                  }
+                                }}
+                                placeholder={t("ecommerce.dailyReportWa.recipientPlaceholder")}
+                                className="text-xs bg-white flex-1"
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => {
+                                  const trimmed = dailyReportWaNumberInput.trim().replace(/[^0-9+]/g, "");
+                                  if (trimmed && trimmed.length >= 7) {
+                                    if (!dailyReportWaNumbers.includes(trimmed)) {
+                                      setDailyReportWaNumbers([...dailyReportWaNumbers, trimmed]);
+                                      setDailyReportWaNumberInput("");
+                                    } else {
+                                      toast({ title: "Number already added", description: "This phone number is already in the recipient list." });
+                                    }
+                                  } else if (trimmed) {
+                                    toast({ title: "Invalid Phone Number", description: "Please enter a valid phone number with country code.", variant: "destructive" });
+                                  }
+                                }}
+                                className="text-xs bg-green-600 hover:bg-green-700 text-white"
+                              >
+                                <Plus className="w-3.5 h-3.5 mr-1" />
+                                {t("ecommerce.dailyReportWa.addNumber")}
+                              </Button>
+                            </div>
+
+                            {/* Numbers Chips */}
+                            <div className="pt-1">
+                              {dailyReportWaNumbers.length === 0 ? (
+                                <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 p-2 rounded-md">
+                                  ⚠️ {t("ecommerce.dailyReportWa.noNumbers")}
+                                </p>
+                              ) : (
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                  {dailyReportWaNumbers.map((phone, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-800 text-xs px-2.5 py-1 rounded-full transition-colors"
+                                    >
+                                      <PhoneCall className="w-3 h-3 text-green-600" />
+                                      <span className="font-mono text-[11px]">{phone}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setDailyReportWaNumbers(dailyReportWaNumbers.filter((_, i) => i !== idx))}
+                                        className="text-gray-400 hover:text-red-600 ml-1 rounded-full p-0.5"
+                                      >
+                                        <Trash className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex justify-end gap-3 border-t pt-4">
+                      <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={saveConfigMutation.isPending}>
+                        {saveConfigMutation.isPending ? "Saving..." : "Save Reports Settings"}
+                      </Button>
+                    </div>
+                  </TabsContent>
+
+                  {/* Sub-Tab 5: AI & Team Routing */}
+                  <TabsContent value="ai_team" className="space-y-6 mt-0">
+                    {/* AI Chatbot Configuration */}
+                    <div className="space-y-4 border p-4 rounded-lg bg-purple-50/20">
+                      <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-purple-600" />
+                        Product AI Assistant Settings
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        Train an AI assistant to chat with shoppers regarding product details, price, descriptions, and answer FAQs using your sites' training database.
+                      </p>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="font-semibold text-gray-700">Enable Product Q&A AI Chatbot</Label>
+                            <span className="text-[11px] text-gray-500 block leading-tight">
+                              Allow AI chatbot to discuss products with customers when triggered.
+                            </span>
+                          </div>
+                          <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
+                        </div>
+
+                        {aiEnabled && (
+                          <>
+                            {/* API Key Provider Switcher */}
+                            <div className="bg-white p-4 rounded-xl border border-purple-200/80 shadow-sm space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                  <Label className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                                    <Key className="w-4 h-4 text-purple-600" />
+                                    API Key & Billing Mode
+                                  </Label>
+                                  <span className="text-xs text-gray-500 block">
+                                    Choose whether to use your own API keys or use Platform keys with pay-as-you-go wallet billing.
+                                  </span>
+                                </div>
+                                <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                                  apiKeySource === "admin_key" 
+                                    ? "bg-purple-100 text-purple-800 border-purple-300" 
+                                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                }`}>
+                                  {apiKeySource === "admin_key" ? "Platform Admin Keys" : "Own API Keys (Free)"}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                <div
+                                  onClick={() => setApiKeySource("own_key")}
+                                  className={`cursor-pointer rounded-lg p-3 border transition-all ${
+                                    apiKeySource === "own_key"
+                                      ? "border-purple-600 bg-purple-50/60 ring-2 ring-purple-600/20 shadow-sm"
+                                      : "border-gray-200 hover:border-gray-300 bg-white"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="radio"
+                                      name="apiKeySource"
+                                      checked={apiKeySource === "own_key"}
+                                      onChange={() => setApiKeySource("own_key")}
+                                      className="text-purple-600 focus:ring-purple-500"
+                                    />
+                                    <span className="font-semibold text-xs text-gray-900">Use My Own API Keys</span>
+                                  </div>
+                                  <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
+                                    Uses OpenAI, Sarvam & Groq keys configured in your AI Settings. <strong>Zero wallet charges</strong>.
+                                  </p>
+                                </div>
+
+                                <div
+                                  onClick={() => setApiKeySource("admin_key")}
+                                  className={`cursor-pointer rounded-lg p-3 border transition-all ${
+                                    apiKeySource === "admin_key"
+                                      ? "border-purple-600 bg-purple-50/60 ring-2 ring-purple-600/20 shadow-sm"
+                                      : "border-gray-200 hover:border-gray-300 bg-white"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="radio"
+                                      name="apiKeySource"
+                                      checked={apiKeySource === "admin_key"}
+                                      onChange={() => setApiKeySource("admin_key")}
+                                      className="text-purple-600 focus:ring-purple-500"
+                                    />
+                                    <span className="font-semibold text-xs text-gray-900">Use Platform Admin Keys</span>
+                                  </div>
+                                  <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
+                                    Zero API key setup needed. Pay-as-you-go based on AI token and voice usage directly from your wallet balance.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-purple-100">
+                            <div className="flex items-center justify-between">
+                              <div className="space-y-0.5">
+                                <Label className="font-semibold text-gray-700 flex items-center gap-1.5">
+                                  <Bot className="w-4 h-4 text-purple-600" />
+                                  AI Store Takeover (All Inbox Messages)
+                                </Label>
+                                <span className="text-[11px] text-gray-500 block leading-tight">
+                                  Automatically handle every incoming customer message and voice note with AI — not just after clicking trigger words or buttons. The AI agent will have full awareness of all products, prices, descriptions, and store information.
+                                </span>
+                              </div>
+                              <Switch checked={aiTakeoverEnabled} onCheckedChange={setAiTakeoverEnabled} />
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="space-y-0.5">
+                                <Label className="font-semibold text-gray-700">Offer "Talk to Agent" buttons / choices</Label>
+                                <span className="text-[11px] text-gray-500 block leading-tight">
+                                  Show a button / menu prompt next to products so users can opt to chat.
+                                </span>
+                              </div>
+                              <Switch checked={aiAskButtonEnabled} onCheckedChange={setAiAskButtonEnabled} />
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="space-y-0.5">
+                                <Label className="font-semibold text-gray-700 flex items-center gap-1.5">
+                                  <Mic className="w-4 h-4 text-purple-600" />
+                                  Respond with Audio / Voice Notes
+                                </Label>
+                                <span className="text-[11px] text-gray-500 block leading-tight">
+                                  Reply to incoming customer voice notes with synthesized speech (or in native text if turned off).
+                                </span>
+                              </div>
+                              <Switch checked={aiVoiceEnabled} onCheckedChange={setAiVoiceEnabled} />
+                            </div>
+
+                            {aiVoiceEnabled && (
+                              <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 border p-3 rounded-lg bg-purple-50/50 mt-1">
+                                <div className="space-y-1.5">
+                                  <Label className="font-semibold text-gray-700 text-xs">Active Voice Profile</Label>
+                                  <Select value={configVoiceProfileId || "default"} onValueChange={(val) => setConfigVoiceProfileId(val === "default" ? "" : val)}>
+                                    <SelectTrigger className="h-9 text-xs bg-white">
+                                      <SelectValue placeholder="Select Voice Profile (Sarvam, OpenAI, Groq...)" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="default">Default / First Available</SelectItem>
+                                      {voiceProfiles.map((p: any) => (
+                                        <SelectItem key={p.id} value={p.id}>
+                                          {p.name} ({p.provider.toUpperCase()} - {p.voiceId} - {p.languageCode})
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <span className="text-[10px] text-gray-500 block leading-tight">
+                                    Select the AI Voice Profile (Sarvam Rahul, OpenAI Alloy, etc.) for this store.
+                                  </span>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <Label className="font-semibold text-gray-700 text-xs">Voice Language Mode</Label>
+                                  <Select value={configAiVoiceLanguageMode} onValueChange={setConfigAiVoiceLanguageMode}>
+                                    <SelectTrigger className="h-9 text-xs bg-white">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="profile">Use Voice Profile Language (e.g. Malayalam)</SelectItem>
+                                      <SelectItem value="auto">Auto-Detect Customer Language (Multi-lingual)</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <span className="text-[10px] text-gray-500 block leading-tight">
+                                    Whether AI responds in profile language or dynamically matches customer language.
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="space-y-1.5">
+                              <Label htmlFor="aiTimeout" className="font-semibold text-gray-700">AI Session Timeout (Minutes)</Label>
+                              <Input
+                                id="aiTimeout"
+                                type="number"
+                                value={aiTimeoutMinutes}
+                                onChange={(e) => setAiTimeoutMinutes(parseInt(e.target.value) || 30)}
+                                placeholder="30"
+                                min={1}
+                                className="w-full h-9 text-xs"
+                              />
+                              <span className="text-[10px] text-gray-400 block leading-tight">
+                                Automatically close AI chat and revert back to store catalog after inactivity.
+                              </span>
+                            </div>
+
+                            <div className="col-span-1 md:col-span-2 space-y-1.5 pt-2 border-t border-purple-50">
+                              <Label htmlFor="aiSystemPrompt" className="font-semibold text-gray-700">Custom AI System Prompt</Label>
+                              <Textarea
+                                id="aiSystemPrompt"
+                                value={aiSystemPrompt}
+                                onChange={(e) => setAiSystemPrompt(e.target.value)}
+                                placeholder={`You are a helpful customer sales AI assistant for this store.
+You are chatting with a customer regarding this product:
+- Name: {product_name}
+- Price: {product_price}
+- Description: {product_description}`}
+                                className="w-full min-h-[120px] text-xs font-mono"
+                              />
+                              <span className="text-[10px] text-gray-400 block leading-tight">
+                                Configure custom rules/directives for the AI. Use placeholders like <strong>{"{product_name}"}</strong>, <strong>{"{product_price}"}</strong>, and <strong>{"{product_description}"}</strong> to inject product variables dynamically.
+                              </span>
+                            </div>
+                          </div>
+                        </>
+                      )}
                       </div>
                     </div>
-                  </div>
-                </div>
 
-                <div className="flex justify-end gap-3 border-t pt-4">
-                  <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={saveConfigMutation.isPending}>
-                    {saveConfigMutation.isPending ? "Saving..." : "Save Settings"}
-                  </Button>
-                </div>
+                    {/* Team Auto-Assignment Settings */}
+                    <div className="border p-4 rounded-lg space-y-4 bg-white shadow-xs">
+                      <div className="flex items-center justify-between border-b pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-gray-800 text-sm">Team Auto-Assignment & Conversation Routing</h3>
+                            <p className="text-xs text-gray-500">
+                              Automatically assign incoming store shoppers and conversations to team members so chats appear directly under their inbox login.
+                            </p>
+                          </div>
+                        </div>
+                        <Switch checked={autoAssignEnabled} onCheckedChange={setAutoAssignEnabled} />
+                      </div>
+
+                      {autoAssignEnabled && (
+                        <div className="space-y-4 pt-1 animate-in fade-in-50 duration-200">
+                          {/* Mode Selector */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div
+                              onClick={() => setAutoAssignMode("permanent")}
+                              className={`cursor-pointer rounded-lg p-3.5 border transition-all ${
+                                autoAssignMode === "permanent"
+                                  ? "border-blue-600 bg-blue-50/50 ring-2 ring-blue-600/20 shadow-sm"
+                                  : "border-gray-200 hover:border-gray-300 bg-white"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="radio"
+                                  name="autoAssignMode"
+                                  checked={autoAssignMode === "permanent"}
+                                  onChange={() => setAutoAssignMode("permanent")}
+                                  className="text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
+                                  <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                                  Permanent Team Member
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
+                                Assign all incoming store chats strictly to one dedicated team member.
+                              </p>
+                            </div>
+
+                            <div
+                              onClick={() => setAutoAssignMode("round_robin")}
+                              className={`cursor-pointer rounded-lg p-3.5 border transition-all ${
+                                autoAssignMode === "round_robin"
+                                  ? "border-blue-600 bg-blue-50/50 ring-2 ring-blue-600/20 shadow-sm"
+                                  : "border-gray-200 hover:border-gray-300 bg-white"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="radio"
+                                  name="autoAssignMode"
+                                  checked={autoAssignMode === "round_robin"}
+                                  onChange={() => setAutoAssignMode("round_robin")}
+                                  className="text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
+                                  <Shuffle className="w-3.5 h-3.5 text-blue-600" />
+                                  Round Robin (Multi-Agent Distribution)
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
+                                Evenly distribute incoming chats among available team members based on least recent activity.
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Mode Specific Settings */}
+                          {autoAssignMode === "permanent" && (
+                            <div className="p-3.5 rounded-lg border border-blue-100 bg-blue-50/30 space-y-2">
+                              <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                                <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                                Select Permanent Assignee
+                              </Label>
+                              {(() => {
+                                const validMembers = Array.isArray(teamMembers) ? teamMembers.filter((m: any) => m && m.id) : [];
+                                return (
+                                  <Select 
+                                    value={autoAssignUserId ? String(autoAssignUserId) : undefined} 
+                                    onValueChange={(val) => setAutoAssignUserId(val || "")}
+                                  >
+                                    <SelectTrigger className="h-9 text-xs bg-white">
+                                      <SelectValue placeholder="Select team member to assign all chats..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {validMembers.length === 0 ? (
+                                        <SelectItem value="__none__" disabled>No team members available. Create members under Team settings.</SelectItem>
+                                      ) : (
+                                        validMembers.map((m: any) => (
+                                          <SelectItem key={String(m.id)} value={String(m.id)}>
+                                            {m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.username || m.email || String(m.id)} ({m.email || m.username || "Member"})
+                                          </SelectItem>
+                                        ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                );
+                              })()}
+                              <span className="text-[10px] text-gray-500 block">
+                                All customer interactions in the store flow will be assigned to this user immediately.
+                              </span>
+                            </div>
+                          )}
+
+                          {autoAssignMode === "round_robin" && (
+                            <div className="p-3.5 rounded-lg border border-blue-100 bg-blue-50/30 space-y-3">
+                              <div>
+                                <Label className="font-semibold text-gray-700 text-xs flex items-center gap-1.5">
+                                  <Shuffle className="w-3.5 h-3.5 text-blue-600" />
+                                  Round Robin Pool & Exclusions
+                                </Label>
+                                <p className="text-[11px] text-gray-500 mt-0.5">
+                                  Select any team members to <strong>exclude</strong> from the round-robin distribution pool (e.g. managers or offline members):
+                                </p>
+                              </div>
+
+                              {(() => {
+                                const validMembers = Array.isArray(teamMembers) ? teamMembers.filter((m: any) => m && m.id) : [];
+                                if (validMembers.length === 0) {
+                                  return (
+                                    <div className="text-xs text-gray-400 italic bg-white p-3 rounded border text-center">
+                                      No team members found. Round robin will fallback to account owner.
+                                    </div>
+                                  );
+                                }
+
+                                const currentExcluded = Array.isArray(autoAssignExcludedUserIds) ? autoAssignExcludedUserIds.map(String) : [];
+
+                                return (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
+                                    {validMembers.map((m: any) => {
+                                      const memberId = String(m.id);
+                                      const isExcluded = currentExcluded.includes(memberId);
+                                      const displayName = m.firstName ? `${m.firstName} ${m.lastName || ""}`.trim() : m.username || m.email || `Member ${memberId}`;
+                                      const displayEmail = m.email || m.username || "";
+
+                                      return (
+                                        <button
+                                          key={memberId}
+                                          type="button"
+                                          onClick={() => {
+                                            if (isExcluded) {
+                                              setAutoAssignExcludedUserIds(currentExcluded.filter((id) => String(id) !== memberId));
+                                            } else {
+                                              setAutoAssignExcludedUserIds([...currentExcluded, memberId]);
+                                            }
+                                          }}
+                                          className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs text-left cursor-pointer select-none transition-all ${
+                                            isExcluded
+                                              ? "bg-red-50 border-red-200 text-red-700 ring-1 ring-red-300 shadow-xs"
+                                              : "bg-white border-gray-200 hover:border-gray-300 text-gray-700 hover:bg-gray-50/50"
+                                          }`}
+                                        >
+                                          <div className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] font-bold shrink-0 ${
+                                            isExcluded ? "bg-red-600 border-red-600 text-white" : "border-gray-300 bg-white text-transparent"
+                                          }`}>
+                                            ✓
+                                          </div>
+                                          <div className="flex-1 min-w-0 truncate">
+                                            <div className="font-semibold truncate text-gray-900">{displayName}</div>
+                                            {displayEmail && <div className="text-[10px] text-gray-400 truncate font-mono">{displayEmail}</div>}
+                                          </div>
+                                          {isExcluded ? (
+                                            <span className="text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-700 px-1.5 py-0.5 rounded shrink-0">
+                                              Excluded
+                                            </span>
+                                          ) : (
+                                            <span className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
+                                              Active
+                                            </span>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex justify-end gap-3 border-t pt-4">
+                      <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={saveConfigMutation.isPending}>
+                        {saveConfigMutation.isPending ? "Saving..." : "Save AI & Team Routing"}
+                      </Button>
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </form>
             </CardContent>
           </Card>

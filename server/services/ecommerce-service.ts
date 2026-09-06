@@ -741,6 +741,11 @@ export class EcommerceService {
           await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
           await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, "❌ *Order cancelled.* Reply *store* anytime to browse our products again!");
           return true;
+        } else if (buttonReplyId === "store_catalog" || buttonReplyId === "view_store" || buttonReplyId === "open_store") {
+          await this.autoAssignConversation(config, channelRow, conversationId);
+          await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+          await this.sendCatalogOrWelcome(channelRow, config, conversationId, contactPhone);
+          return true;
         }
       }
 
@@ -1637,15 +1642,17 @@ ${otherProductsSummary ? `• Other Products in Store:\n${otherProductsSummary}`
 
         const languageDirective = `
 CRITICAL LANGUAGE MATCHING RULE:
-1. Detect and reply in the EXACT language, script, and style used by the customer:
-   - If the customer messages in MANGLISH (Malayalam spoken words written using English/Latin alphabet, e.g. "ithinte price ethra aanu?", "order cheyyan enthu cheyyanam?", "delivery undo?", "details parayamo?"):
-     You MUST reply in fluent, natural MANGLISH (Malayalam words in English letters) or Malayalam script. NEVER reply in plain English to a Manglish message!
-   - If the customer messages in Malayalam script (മലയാളം): reply in Malayalam text (മലയാളം).
-   - If the customer messages in Hinglish (Hindi written in English alphabet): reply in Hinglish.
-   - If the customer messages in Hindi script: reply in Hindi script.
+1. UNDERSTAND MANGLISH & MALAYALAM:
+   - When the customer messages in MANGLISH (Malayalam words written in English/Latin alphabet, e.g. "ithinte price ethra aanu?", "order cheyyan enthu cheyyanam?", "delivery undo?", "details parayamo?"):
+     Understand it as MALAYALAM language.
+   - For WhatsApp text responses, you MUST formulate your response in natural, fluent **MALAYALAM SCRIPT (മലയാളം)** (e.g. "ഈ പ്രോഡക്റ്റിന്റെ വില ₹... ആണ്. ഓർഡർ ചെയ്യാൻ താഴെയുള്ള 'Buy Now' ബട്ടൺ ക്ലിക്ക് ചെയ്യുക.").
+   - NEVER reply in English when the customer asks in Manglish or Malayalam, unless they explicitly asked in English!
+2. OTHER LANGUAGES:
+   - If the customer messages in Malayalam (script or Manglish): reply in MALAYALAM SCRIPT (മലയാളം).
+   - If the customer messages in Hinglish or Hindi: reply in Hindi.
    - If the customer messages in Arabic: reply in Arabic.
    - If the customer messages in English: reply in English.
-2. Keep responses natural, warm, and concise for WhatsApp (under 100 words).`;
+3. Keep responses natural, warm, and concise for WhatsApp (under 100 words).`;
 
         const defaultSystemPrompt = `You are a knowledgeable, friendly customer sales AI assistant for this store.
 You are chatting with a customer regarding this product:
@@ -1658,7 +1665,7 @@ ${storeInfoSection}
 
 ${languageDirective}
 
-CRITICAL DIRECTIVE: Use the complete product specifications, description, store delivery details, and accepted payment methods above to accurately answer any customer inquiries. Keep responses concise, natural, and conversational for WhatsApp (under 120 words). Always encourage the customer to purchase when their doubts are answered, and remind them they can type 'checkout' or '1' at any time to order!`;
+CRITICAL DIRECTIVE: Use the complete product specifications, description, store delivery details, and accepted payment methods above to accurately answer any customer inquiries. Keep responses concise, natural, and conversational for WhatsApp (under 120 words). Always encourage the customer to purchase when their doubts are answered, and remind them they can click 'Buy Now' or type 'checkout' at any time to order!`;
 
         const rawPrompt = config.aiSystemPrompt ? `${config.aiSystemPrompt}\n\n${storeInfoSection}\n\n${languageDirective}` : defaultSystemPrompt;
 
@@ -1691,15 +1698,17 @@ ${catalogList || "No products currently listed in the store."}
 
         const languageDirective = `
 CRITICAL LANGUAGE MATCHING RULE:
-1. Detect and reply in the EXACT language, script, and style used by the customer:
-   - If the customer messages in MANGLISH (Malayalam spoken words written using English/Latin alphabet, e.g. "ithinte price ethra aanu?", "order cheyyan enthu cheyyanam?", "delivery undo?", "details parayamo?"):
-     You MUST reply in fluent, natural MANGLISH (Malayalam words in English letters) or Malayalam script. NEVER reply in plain English to a Manglish message!
-   - If the customer messages in Malayalam script (മലയാളം): reply in Malayalam text (മലയാളം).
-   - If the customer messages in Hinglish (Hindi written in English alphabet): reply in Hinglish.
-   - If the customer messages in Hindi script: reply in Hindi script.
+1. UNDERSTAND MANGLISH & MALAYALAM:
+   - When the customer messages in MANGLISH (Malayalam words written in English/Latin alphabet, e.g. "ithinte price ethra aanu?", "order cheyyan enthu cheyyanam?", "delivery undo?", "details parayamo?"):
+     Understand it as MALAYALAM language.
+   - For WhatsApp text responses, you MUST formulate your response in natural, fluent **MALAYALAM SCRIPT (മലയാളം)** (e.g. "ഈ പ്രോഡക്റ്റിന്റെ വില ₹... ആണ്. ഓർഡർ ചെയ്യാൻ താഴെയുള്ള 'Buy Now' ബട്ടൺ ക്ലിക്ക് ചെയ്യുക.").
+   - NEVER reply in English when the customer asks in Manglish or Malayalam, unless they explicitly asked in English!
+2. OTHER LANGUAGES:
+   - If the customer messages in Malayalam (script or Manglish): reply in MALAYALAM SCRIPT (മലയാളം).
+   - If the customer messages in Hinglish or Hindi: reply in Hindi.
    - If the customer messages in Arabic: reply in Arabic.
    - If the customer messages in English: reply in English.
-2. Keep responses natural, warm, and concise for WhatsApp (under 100 words).`;
+3. Keep responses natural, warm, and concise for WhatsApp (under 100 words).`;
 
         const defaultStoreSystemPrompt = `You are the knowledgeable, friendly, and expert customer sales AI assistant for "${config.storeName || "our official store"}".
 You have full access and complete awareness of all products listed in our store catalog and store policies.
@@ -1910,13 +1919,13 @@ CRITICAL DIRECTIVES:
             messages.push({
               role: "system",
               content: `CRITICAL LANGUAGE DIRECTIVE FOR TEXT RESPONSE:
-- Always match the EXACT language and script of the customer:
-  * If the customer messages in MANGLISH (Malayalam words written in English letters, e.g. "ithinte price ethra aanu?", "delivery undo?", "order cheyyan enthu cheyyanam?"): You MUST reply in natural, fluent MANGLISH (or Malayalam script). NEVER reply in plain English to a Manglish message!
-  * If the customer messages in Malayalam script (മലയാളം): reply in Malayalam script (മലയാളം).
-  * If the customer messages in Hinglish: reply in Hinglish.
-  * If the customer messages in Hindi script: reply in Hindi script.
-  * If the customer messages in Arabic: reply in Arabic.
-  * If the customer messages in English: reply in English.`
+- Always understand Manglish (Malayalam written in English/Latin letters) as Malayalam language.
+- Formulate your WhatsApp text answer in natural, fluent **MALAYALAM SCRIPT (മലയാളം)**.
+- NEVER reply in English to a customer asking in Manglish or Malayalam, unless they explicitly asked in English!
+- If the customer messages in Malayalam (script or Manglish): reply in MALAYALAM SCRIPT (മലയാളം).
+- If the customer messages in Hinglish or Hindi: reply in Hindi script.
+- If the customer messages in Arabic: reply in Arabic.
+- If the customer messages in English: reply in English.`
             });
           }
         }
@@ -2067,7 +2076,50 @@ CRITICAL DIRECTIVES:
           console.log(`🤖 [Ecommerce AI] Sending voice note reply: ${voiceMediaUrl}`);
           await this.sendAndSaveVoiceNote(channelRow, conversationId, to, voiceMediaUrl, aiResponse);
         } else {
-          await this.sendAndSaveTextMessage(channelRow, conversationId, to, aiResponse);
+          // If Cloud API channel, attach interactive 'Buy Now' button to start product checkout flow
+          const isCloudApi = !channelRow.channelType || channelRow.channelType === "cloud_api" || channelRow.channelType === "official";
+          let sentInteractive = false;
+          if (isCloudApi) {
+            let targetProduct = null;
+            if (session?.productId) {
+              targetProduct = allStoreProducts.find(p => p.id === session.productId);
+            }
+            if (!targetProduct && config.activeProductId) {
+              targetProduct = allStoreProducts.find(p => p.id === config.activeProductId);
+            }
+            if (!targetProduct && allStoreProducts.length > 0) {
+              const lowerContext = (aiResponse + " " + input).toLowerCase();
+              targetProduct = allStoreProducts.find(p => lowerContext.includes(p.name.toLowerCase())) || allStoreProducts[0];
+            }
+
+            if (targetProduct) {
+              try {
+                const buttons = [
+                  { id: `buy_${targetProduct.id}`, title: "🛒 Buy Now" }
+                ];
+                if (allStoreProducts.length > 1) {
+                  buttons.push({ id: `store_catalog`, title: "🏬 View Catalog" });
+                } else {
+                  buttons.push({ id: `info_${targetProduct.id}`, title: "ℹ️ Product Info" });
+                }
+                await this.sendCloudApiButtonMessage(
+                  channelRow,
+                  conversationId,
+                  to,
+                  aiResponse,
+                  null,
+                  buttons
+                );
+                sentInteractive = true;
+              } catch (btnErr: any) {
+                console.warn("[Ecommerce AI] Failed to send Cloud API button reply, falling back to text:", btnErr?.message);
+              }
+            }
+          }
+
+          if (!sentInteractive) {
+            await this.sendAndSaveTextMessage(channelRow, conversationId, to, aiResponse);
+          }
         }
       } catch (err: any) {
         console.error("[AI Chat Session Error]", err.message);

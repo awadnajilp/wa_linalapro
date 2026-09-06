@@ -2446,7 +2446,7 @@ export default function EcommerceLedger() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">None (Trigger Keyword Based)</SelectItem>
-                          {products.map((p) => (
+                          {(productsData?.products || []).map((p) => (
                             <SelectItem key={p.id} value={p.id}>
                               {p.name} — {(p as any).currency || storeCurrency} {p.price} {p.triggerKeyword ? `(Trigger: "${p.triggerKeyword}")` : ""}
                             </SelectItem>

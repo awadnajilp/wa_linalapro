@@ -27,7 +27,8 @@ import {
   Filter,
   Clock,
   MessageSquare,
-  Search
+  Search,
+  Zap
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -1244,8 +1245,8 @@ export default function CRM() {
                 className="w-72 bg-slate-100 rounded-xl border border-slate-200 flex flex-col max-h-full shrink-0 shadow-sm"
               >
                 {/* Stage Header */}
-                <div className="p-3.5 flex items-center justify-between border-b border-slate-200 bg-white rounded-t-xl">
-                  <div className="space-y-0.5">
+                <div className="p-3.5 flex flex-col gap-1.5 border-b border-slate-200 bg-white rounded-t-xl">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span 
                         className="w-2.5 h-2.5 rounded-full shrink-0" 
@@ -1253,19 +1254,32 @@ export default function CRM() {
                       />
                       <h3 className="font-semibold text-slate-800 text-sm">{stage.name}</h3>
                     </div>
+
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => openAddDeal(stage.id)}
+                      className="w-7 h-7 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-1">
                     <p className="text-[10px] text-slate-400 font-medium">
                       ${stageTotalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })} • {stageDeals.length} deals
                     </p>
-                  </div>
 
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => openAddDeal(stage.id)}
-                    className="w-7 h-7 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
+                    {cadences.some((c: any) => c.triggerStageId === stage.id && c.isActive) && (
+                      <span 
+                        title={`Automated Cadence Active: ${cadences.find((c: any) => c.triggerStageId === stage.id && c.isActive)?.name || ""}`}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[9px] font-bold tracking-tight shrink-0 shadow-xs"
+                      >
+                        <Zap className="w-2.5 h-2.5 text-purple-600 fill-purple-600" />
+                        <span>Cadence</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Cards List */}

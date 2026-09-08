@@ -15,7 +15,8 @@ import { useQuery } from "@tanstack/react-query";
 import { AppSettings } from "@/types/types";
 
 const Footer: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
+  const isAr = language === "ar";
 
   const { data: brandSettings } = useQuery<AppSettings>({
     queryKey: ["/api/brand-settings"],
@@ -25,53 +26,53 @@ const Footer: React.FC = () => {
 
   const links = {
     product: [
-      { name: "Platform Features", href: "/features" },
-      { name: "Industry Use Cases", href: "/use-cases" },
-      { name: "Pricing & Plans", href: "/pricing" },
-      { name: "Multilingual Voice AI", href: "/features" },
-      { name: "Visual Flow Builder", href: "/features" },
-      { name: "Team Inbox & CRM", href: "/features" },
+      { name: "Platform Features", nameAr: "مزايا المنصة والذكاء الاصطناعي", href: "/features" },
+      { name: "Industry Use Cases", nameAr: "حلول ونماذج القطاعات", href: "/use-cases" },
+      { name: "Pricing & Plans", nameAr: "الباقات والأسعار (ر.س)", href: "/pricing" },
+      { name: "Multilingual Voice AI", nameAr: "المساعد الصوتي الذكي", href: "/features" },
+      { name: "Visual Flow Builder", nameAr: "منشئ مسارات العمل المرئي", href: "/features" },
+      { name: "Team Inbox & CRM", nameAr: "صندوق الوارد الجماعي و CRM", href: "/features" },
     ],
     company: [
-      { name: "About Us", href: "/about" },
-      { name: "Integrations & RMS", href: "/integrations" },
-      { name: "Careers", href: "/careers" },
-      { name: "Contact Us", href: "/contact" },
+      { name: "About Us", nameAr: "من نحن وقصتنا", href: "/about" },
+      { name: "Integrations & RMS", nameAr: "التكاملات ونظام Orderown", href: "/integrations" },
+      { name: "Careers", nameAr: "الوظائف والفرص", href: "/careers" },
+      { name: "Contact Us", nameAr: "تواصل معنا ومكاتبنا", href: "/contact" },
     ],
     resources: [
-      { name: "Case Studies & ROI", href: "/case-studies" },
-      { name: "Meta Cloud API Guide", href: "/whatsapp-guide" },
-      { name: "Best Practices", href: "/best-practices" },
+      { name: "Case Studies & ROI", nameAr: "دراسات النجاح وقصص العملاء", href: "/case-studies" },
+      { name: "Meta Cloud API Guide", nameAr: "دليل ربط واتساب السحابي", href: "/whatsapp-guide" },
+      { name: "Best Practices", nameAr: "أفضل ممارسات النمو", href: "/best-practices" },
     ],
     legal: [
-      { name: "Privacy Policy", href: "/privacy-policy" },
-      { name: "Terms of Service", href: "/terms" },
-      { name: "Cookie Policy", href: "/cookie-policy" },
+      { name: "Privacy Policy", nameAr: "سياسة الخصوصية", href: "/privacy-policy" },
+      { name: "Terms of Service", nameAr: "شروط الخدمة", href: "/terms" },
+      { name: "Cookie Policy", nameAr: "سياسة ملفات تعريف الارتباط", href: "/cookie-policy" },
     ],
   };
 
-  const renderLink = (link: { name: string; href: string }, index: number) => (
+  const renderLink = (link: { name: string; nameAr: string; href: string }, index: number) => (
     <li key={index}>
       {link.href.startsWith("/") ? (
         <Link
           to={link.href}
           className="text-slate-400 hover:text-purple-400 text-xs sm:text-sm transition-all duration-200 hover:translate-x-0.5 inline-block"
         >
-          {link.name}
+          {isAr ? link.nameAr : link.name}
         </Link>
       ) : (
         <a
           href={link.href}
           className="text-slate-400 hover:text-purple-400 text-xs sm:text-sm transition-all duration-200 hover:translate-x-0.5 inline-block"
         >
-          {link.name}
+          {isAr ? link.nameAr : link.name}
         </a>
       )}
     </li>
   );
 
   return (
-    <footer className="bg-slate-950 text-white relative border-t border-slate-900">
+    <footer className={`bg-slate-950 text-white relative border-t border-slate-900 ${isAr ? "font-arabic" : ""}`} dir={isAr ? "rtl" : "ltr"}>
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-500/40 to-transparent" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-12">
@@ -79,7 +80,7 @@ const Footer: React.FC = () => {
           
           {/* Brand Col */}
           <div className="lg:col-span-4 space-y-5">
-            <Link href="/" className="flex items-center space-x-2.5">
+            <Link href="/" className="flex items-center gap-2.5">
               {brandSettings?.logo2 && brandSettings.logo2 !== "/uploads/null" ? (
                 <img
                   src={brandSettings.logo2}
@@ -102,10 +103,12 @@ const Footer: React.FC = () => {
             </Link>
 
             <p className="text-slate-400 text-xs sm:text-sm leading-relaxed max-w-sm">
-              The next-generation WhatsApp AI, Automation, and Instant Commerce platform. Empowering ambitious businesses worldwide to turn conversations into revenue.
+              {isAr
+                ? "منصة الجيل القادم لأتمتة واتساب والذكاء الاصطناعي الصوتي والتجارة التفاعلية. تمكين الشركات الرائدة عالميًا وفي المملكة من تحويل المحادثات إلى إيرادات مستدامة."
+                : "The next-generation WhatsApp AI, Automation, and Instant Commerce platform. Empowering ambitious businesses worldwide to turn conversations into revenue."}
             </p>
 
-            <div className="flex space-x-2.5 pt-2">
+            <div className="flex gap-2.5 pt-2">
               <a
                 href="https://x.com"
                 className="bg-slate-900 p-2.5 rounded-xl hover:bg-purple-950 border border-slate-800 hover:border-purple-500/40 transition-all text-slate-400 hover:text-purple-400"
@@ -133,7 +136,7 @@ const Footer: React.FC = () => {
           {/* Product Links */}
           <div className="lg:col-span-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-4">
-              Platform & Features
+              {isAr ? "المنصة والحلول" : "Platform & Features"}
             </h3>
             <ul className="space-y-2.5">
               {links.product.map((link, index) => renderLink(link, index))}
@@ -143,7 +146,7 @@ const Footer: React.FC = () => {
           {/* Company Links */}
           <div className="lg:col-span-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-4">
-              Company
+              {isAr ? "الشركة" : "Company"}
             </h3>
             <ul className="space-y-2.5">
               {links.company.map((link, index) => renderLink(link, index))}
@@ -153,7 +156,7 @@ const Footer: React.FC = () => {
           {/* Resources & Legal */}
           <div className="lg:col-span-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-4">
-              Resources & Legal
+              {isAr ? "المصادر والشروط القانونية" : "Resources & Legal"}
             </h3>
             <ul className="space-y-2.5">
               {links.resources.map((link, index) => renderLink(link, index))}
@@ -169,17 +172,19 @@ const Footer: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
             <p className="text-slate-500 text-xs">
-              © {new Date().getFullYear()} {brandSettings?.title || "Linala"}. All rights reserved. Built for high-growth commerce.
+              {isAr
+                ? `© ${new Date().getFullYear()} ${brandSettings?.title || "لينالا"}. جميع الحقوق محفوظة. صُمم لدعم الشركات الأكثر نمواً.`
+                : `© ${new Date().getFullYear()} ${brandSettings?.title || "Linala"}. All rights reserved. Built for high-growth commerce.`}
             </p>
-            <div className="flex items-center space-x-5 text-xs text-slate-500">
+            <div className="flex items-center gap-5 text-xs text-slate-500">
               <Link to="/terms" className="hover:text-slate-300 transition-colors">
-                Terms of Service
+                {isAr ? "شروط الخدمة" : "Terms of Service"}
               </Link>
               <Link to="/privacy-policy" className="hover:text-slate-300 transition-colors">
-                Privacy Policy
+                {isAr ? "سياسة الخصوصية" : "Privacy Policy"}
               </Link>
               <Link to="/cookie-policy" className="hover:text-slate-300 transition-colors">
-                Cookie Policy
+                {isAr ? "سياسة ملفات الكوكيز" : "Cookie Policy"}
               </Link>
             </div>
           </div>

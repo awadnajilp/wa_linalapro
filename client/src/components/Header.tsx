@@ -120,41 +120,56 @@ const Header: React.FC = () => {
     setMobileExpanded(null);
   }, [location]);
 
+  const { language } = useTranslation();
+  const isAr = language === "ar";
+
   // Menu Items
   const featuresItems = [
     {
-      title: "Voice AI Autopilot",
-      desc: "Sub-600ms latency voice calling in 40+ languages for 24/7 triage.",
+      title: isAr ? "الطيار الآلي للصوت بالذكاء الاصطناعي" : "Voice AI Autopilot",
+      desc: isAr
+        ? "مكالمات صوتية فائقة السرعة بأكثر من 40 لغة للرد الآلي على مدار الساعة."
+        : "Sub-600ms latency voice calling in 40+ languages for 24/7 triage.",
       icon: Radio,
       path: "/features",
     },
     {
-      title: "Omnichannel CRM",
-      desc: "Kanban deal pipeline with automated stage cadences.",
+      title: isAr ? "إدارة علاقات العملاء (CRM)" : "Omnichannel CRM",
+      desc: isAr
+        ? "مسار صفقات كانبان مع حملات تواصل مؤتمتة لكل مرحلة بيعية."
+        : "Kanban deal pipeline with automated stage cadences.",
       icon: Workflow,
       path: "/features",
     },
     {
-      title: "Flow Builder & Bots",
-      desc: "No-code visual canvas with API webhooks & condition branches.",
+      title: isAr ? "منشئ التدفقات والشات بوت" : "Flow Builder & Bots",
+      desc: isAr
+        ? "لوحة مرئية بدون كود مع ربط الويب هوك والتفرعات الشرطية."
+        : "No-code visual canvas with API webhooks & condition branches.",
       icon: Zap,
       path: "/features",
     },
     {
-      title: "Meta Official Cloud API",
-      desc: "Meta Approved Solution Provider gateway with verified templates & high throughput.",
+      title: isAr ? "واجهة Meta السحابية الرسمية" : "Meta Official Cloud API",
+      desc: isAr
+        ? "بوابة مزود حلول معتمد من Meta مع قوالب موثقة وسرعة إرسال فائقة."
+        : "Meta Approved Solution Provider gateway with verified templates & high throughput.",
       icon: ShieldCheck,
       path: "/features",
     },
     {
-      title: "Shared Team Inbox",
-      desc: "Multi-agent chat hub with collision detection & canned replies.",
+      title: isAr ? "صندوق الوارد المشترك للفريق" : "Shared Team Inbox",
+      desc: isAr
+        ? "مركز محادثات متعدد الموظفين لمنع التضارب والردود الجاهزة السريعة."
+        : "Multi-agent chat hub with collision detection & canned replies.",
       icon: MessageSquare,
       path: "/features",
     },
     {
-      title: "Analytics & Attribution",
-      desc: "Real-time delivery rates, CTRs, and campaign revenue ROI.",
+      title: isAr ? "التحليلات وعائد الاستثمار" : "Analytics & Attribution",
+      desc: isAr
+        ? "معدلات تسليم وقراءة حية ونسب النقر وعائد مبيعات الحملات."
+        : "Real-time delivery rates, CTRs, and campaign revenue ROI.",
       icon: BarChart3,
       path: "/features",
     },
@@ -162,38 +177,50 @@ const Header: React.FC = () => {
 
   const solutionsItems = [
     {
-      title: "E-Commerce & Retail",
-      desc: "WhatsApp catalogs, 1-click checkout & cart recovery drips.",
+      title: isAr ? "التجارة الإلكترونية والتجزئة" : "E-Commerce & Retail",
+      desc: isAr
+        ? "كتالوجات واتساب، دفع بضغطة واحدة، واسترداد السلات المتروكة."
+        : "WhatsApp catalogs, 1-click checkout & cart recovery drips.",
       icon: ShoppingCart,
       path: "/use-cases",
     },
     {
-      title: "Real Estate & Developers",
-      desc: "Capture ad leads, qualify budgets & book site visits automatically.",
+      title: isAr ? "العقارات والمطورين" : "Real Estate & Developers",
+      desc: isAr
+        ? "استقطاب عملاء الإعلانات وتأهيل الميزانيات وحجز المعاينات آلياً."
+        : "Capture ad leads, qualify budgets & book site visits automatically.",
       icon: Building2,
       path: "/use-cases",
     },
     {
-      title: "Healthcare & Clinics",
-      desc: "Doctor appointments, digital lab reports & patient follow-ups.",
+      title: isAr ? "الرعاية الصحية والعيادات" : "Healthcare & Clinics",
+      desc: isAr
+        ? "مواعيد الأطباء، إرسال تقارير المختبر، ومتابعة المرضى."
+        : "Doctor appointments, digital lab reports & patient follow-ups.",
       icon: ShieldCheck,
       path: "/use-cases",
     },
     {
-      title: "B2B, SaaS & Agencies",
-      desc: "Accelerate pipeline velocity with multi-agent inbox & cadences.",
+      title: isAr ? "الشركات وخدمات B2B" : "B2B, SaaS & Agencies",
+      desc: isAr
+        ? "تسريع إغلاق الصفقات بصندوق وارد متعدد الموظفين والأتمتة."
+        : "Accelerate pipeline velocity with multi-agent inbox & cadences.",
       icon: Briefcase,
       path: "/use-cases",
     },
     {
-      title: "Education & EdTech",
-      desc: "Admissions counseling, syllabus PDFs & fee reminder alerts.",
+      title: isAr ? "التعليم والتدريب الأكاديمي" : "Education & EdTech",
+      desc: isAr
+        ? "استشارات القبول، إرسال البروشورات وتذكيرات الرسوم."
+        : "Admissions counseling, syllabus PDFs & fee reminder alerts.",
       icon: GraduationCap,
       path: "/use-cases",
     },
     {
-      title: "Travel & Hospitality",
-      desc: "24/7 AI concierge, WhatsApp booking vouchers & itineraries.",
+      title: isAr ? "السياحة والضيافة" : "Travel & Hospitality",
+      desc: isAr
+        ? "كونسيرج ذكي 24/7، قسائم الحجز، وتفاصيل الرحلات على واتساب."
+        : "24/7 AI concierge, WhatsApp booking vouchers & itineraries.",
       icon: Plane,
       path: "/use-cases",
     },
@@ -201,20 +228,26 @@ const Header: React.FC = () => {
 
   const guidesItems = [
     {
-      title: "Meta Cloud API Guide",
-      desc: "Step-by-step Meta Business Verification & Green Tick playbook.",
+      title: isAr ? "دليل Meta Cloud API" : "Meta Cloud API Guide",
+      desc: isAr
+        ? "خطوات توثيق النشاط التجاري والحصول على العلامة الخضراء."
+        : "Step-by-step Meta Business Verification & Green Tick playbook.",
       icon: BookOpen,
       path: "/whatsapp-guide",
     },
     {
-      title: "Best Practices & Compliance",
-      desc: "Opt-in rules, quality rating protection & anti-spam guidelines.",
+      title: isAr ? "أفضل الممارسات والامتثال" : "Best Practices & Compliance",
+      desc: isAr
+        ? "قواعد الموافقة وحماية تقييم الجودة وإرشادات منع الحظر."
+        : "Opt-in rules, quality rating protection & anti-spam guidelines.",
       icon: ShieldCheck,
       path: "/best-practices",
     },
     {
-      title: "Case Studies & Benchmarks",
-      desc: "Enterprise ROI stories and growth benchmarks.",
+      title: isAr ? "قصص النجاح والمقارنات" : "Case Studies & Benchmarks",
+      desc: isAr
+        ? "عائد استثمار حقيقي ونموذج نجاح كبرى الشركات."
+        : "Enterprise ROI stories and growth benchmarks.",
       icon: TrendingUp,
       path: "/case-studies",
     },
@@ -222,20 +255,26 @@ const Header: React.FC = () => {
 
   const companyItems = [
     {
-      title: "About Us",
-      desc: "Our story, 4+ global hubs, leadership & enterprise infrastructure.",
+      title: isAr ? "من نحن" : "About Us",
+      desc: isAr
+        ? "قصتنا، مراكزنا الـ 4 حول العالم، والقيادة والبنية التحتية."
+        : "Our story, 4+ global hubs, leadership & enterprise infrastructure.",
       icon: Users,
       path: "/about",
     },
     {
-      title: "Integrations",
-      desc: "Connect Orderown RMS, Zapier, Shopify, CRMs & AI models.",
+      title: isAr ? "التكامل والربط" : "Integrations",
+      desc: isAr
+        ? "ربط نظام أوردر أون Orderown للمطاعم، زابيير، وشوبيفاي."
+        : "Connect Orderown RMS, Zapier, Shopify, CRMs & AI models.",
       icon: Layers,
       path: "/integrations",
     },
     {
-      title: "Careers",
-      desc: "Join our global team across sales, engineering & marketing.",
+      title: isAr ? "الوظائف" : "Careers",
+      desc: isAr
+        ? "انضم إلى فريقنا العالمي في المبيعات والهندسة والتسويق."
+        : "Join our global team across sales, engineering & marketing.",
       icon: Briefcase,
       path: "/careers",
     },
@@ -284,7 +323,7 @@ const Header: React.FC = () => {
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
                   }`}
                 >
-                  <span>Features</span>
+                  <span>{isAr ? "الميزات" : "Features"}</span>
                   <ChevronDown
                     className={`w-3.5 h-3.5 transition-transform duration-150 ${
                       activeMega === "features" ? "rotate-180 text-purple-600" : "text-slate-400"
@@ -325,13 +364,13 @@ const Header: React.FC = () => {
                         })}
                       </div>
                       <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs px-2">
-                        <span className="text-slate-500 font-medium">Explore all platform capabilities</span>
+                        <span className="text-slate-500 font-medium">{isAr ? "استكشف كافة إمكانيات المنصة" : "Explore all platform capabilities"}</span>
                         <Link
                           href="/features"
                           onClick={() => setActiveMega(null)}
                           className="font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1"
                         >
-                          <span>Full Feature Tour &rarr;</span>
+                          <span>{isAr ? "جولة الميزات الكاملة ←" : "Full Feature Tour →"}</span>
                         </Link>
                       </div>
                     </div>
@@ -353,7 +392,7 @@ const Header: React.FC = () => {
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
                   }`}
                 >
-                  <span>Solutions</span>
+                  <span>{isAr ? "الحلول" : "Solutions"}</span>
                   <ChevronDown
                     className={`w-3.5 h-3.5 transition-transform duration-150 ${
                       activeMega === "solutions" ? "rotate-180 text-purple-600" : "text-slate-400"
@@ -394,13 +433,13 @@ const Header: React.FC = () => {
                         })}
                       </div>
                       <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs px-2">
-                        <span className="text-slate-500 font-medium">Ready-to-deploy industry blueprints</span>
+                        <span className="text-slate-500 font-medium">{isAr ? "نماذج قطاعية جاهزة للإطلاق" : "Ready-to-deploy industry blueprints"}</span>
                         <Link
                           href="/use-cases"
                           onClick={() => setActiveMega(null)}
                           className="font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1"
                         >
-                          <span>All Use Cases &rarr;</span>
+                          <span>{isAr ? "جميع الحلول ←" : "All Use Cases →"}</span>
                         </Link>
                       </div>
                     </div>
@@ -422,7 +461,7 @@ const Header: React.FC = () => {
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
                   }`}
                 >
-                  <span>Guides</span>
+                  <span>{isAr ? "الأدلة" : "Guides"}</span>
                   <ChevronDown
                     className={`w-3.5 h-3.5 transition-transform duration-150 ${
                       activeMega === "guides" ? "rotate-180 text-purple-600" : "text-slate-400"
@@ -480,7 +519,7 @@ const Header: React.FC = () => {
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
                   }`}
                 >
-                  <span>Company</span>
+                  <span>{isAr ? "الشركة" : "Company"}</span>
                   <ChevronDown
                     className={`w-3.5 h-3.5 transition-transform duration-150 ${
                       activeMega === "company" ? "rotate-180 text-purple-600" : "text-slate-400"
@@ -529,7 +568,7 @@ const Header: React.FC = () => {
                 href="/pricing"
                 className="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-colors"
               >
-                Pricing
+                {isAr ? "الأسعار" : "Pricing"}
               </Link>
 
               {/* Contact */}
@@ -537,7 +576,7 @@ const Header: React.FC = () => {
                 href="/contact"
                 className="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-colors"
               >
-                Contact
+                {isAr ? "تواصل معنا" : "Contact"}
               </Link>
             </nav>
 
@@ -553,12 +592,12 @@ const Header: React.FC = () => {
                     href="/login"
                     className="text-xs sm:text-sm font-semibold text-slate-700 hover:text-purple-600 px-3 py-2 rounded-xl hover:bg-slate-100/70 transition-colors"
                   >
-                    Log In
+                    {isAr ? "تسجيل الدخول" : "Log In"}
                   </Link>
                   <Link href="/signup">
                     <Button className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold rounded-xl px-4 py-2 h-9 shadow-xs text-xs sm:text-sm flex items-center gap-1.5 transition-all">
-                      <span>Start Free</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <span>{isAr ? "ابدأ مجاناً" : "Start Free"}</span>
+                      <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
                     </Button>
                   </Link>
                 </>
@@ -568,7 +607,7 @@ const Header: React.FC = () => {
                     href="/dashboard"
                     className="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-2 rounded-xl hover:bg-purple-100 transition-colors"
                   >
-                    Dashboard
+                    {isAr ? "لوحة التحكم" : "Dashboard"}
                   </Link>
 
                   <div className="relative" ref={dropdownRef}>
@@ -659,9 +698,9 @@ const Header: React.FC = () => {
             <div className="pt-2">
               <button
                 onClick={() => setMobileExpanded(mobileExpanded === "features" ? null : "features")}
-                className="flex items-center justify-between w-full py-2.5 font-bold text-slate-900 text-sm text-left"
+                className="flex items-center justify-between w-full py-2.5 font-bold text-slate-900 text-sm text-left rtl:text-right"
               >
-                <span>Features</span>
+                <span>{isAr ? "الميزات" : "Features"}</span>
                 <ChevronDown
                   className={`w-4 h-4 text-slate-400 transition-transform ${
                     mobileExpanded === "features" ? "rotate-180 text-purple-600" : ""
@@ -669,7 +708,7 @@ const Header: React.FC = () => {
                 />
               </button>
               {mobileExpanded === "features" && (
-                <div className="mt-1 mb-2 space-y-1 pl-2 animate-in fade-in duration-150">
+                <div className="mt-1 mb-2 space-y-1 pl-2 rtl:pl-0 rtl:pr-2 animate-in fade-in duration-150">
                   {featuresItems.map((item, idx) => {
                     const Icon = item.icon;
                     return (
@@ -692,9 +731,9 @@ const Header: React.FC = () => {
             <div className="pt-2">
               <button
                 onClick={() => setMobileExpanded(mobileExpanded === "solutions" ? null : "solutions")}
-                className="flex items-center justify-between w-full py-2.5 font-bold text-slate-900 text-sm text-left"
+                className="flex items-center justify-between w-full py-2.5 font-bold text-slate-900 text-sm text-left rtl:text-right"
               >
-                <span>Solutions</span>
+                <span>{isAr ? "الحلول" : "Solutions"}</span>
                 <ChevronDown
                   className={`w-4 h-4 text-slate-400 transition-transform ${
                     mobileExpanded === "solutions" ? "rotate-180 text-purple-600" : ""
@@ -702,7 +741,7 @@ const Header: React.FC = () => {
                 />
               </button>
               {mobileExpanded === "solutions" && (
-                <div className="mt-1 mb-2 space-y-1 pl-2 animate-in fade-in duration-150">
+                <div className="mt-1 mb-2 space-y-1 pl-2 rtl:pl-0 rtl:pr-2 animate-in fade-in duration-150">
                   {solutionsItems.map((item, idx) => {
                     const Icon = item.icon;
                     return (
@@ -725,9 +764,9 @@ const Header: React.FC = () => {
             <div className="pt-2">
               <button
                 onClick={() => setMobileExpanded(mobileExpanded === "guides" ? null : "guides")}
-                className="flex items-center justify-between w-full py-2.5 font-bold text-slate-900 text-sm text-left"
+                className="flex items-center justify-between w-full py-2.5 font-bold text-slate-900 text-sm text-left rtl:text-right"
               >
-                <span>Guides</span>
+                <span>{isAr ? "الأدلة" : "Guides"}</span>
                 <ChevronDown
                   className={`w-4 h-4 text-slate-400 transition-transform ${
                     mobileExpanded === "guides" ? "rotate-180 text-purple-600" : ""
@@ -735,7 +774,7 @@ const Header: React.FC = () => {
                 />
               </button>
               {mobileExpanded === "guides" && (
-                <div className="mt-1 mb-2 space-y-1 pl-2 animate-in fade-in duration-150">
+                <div className="mt-1 mb-2 space-y-1 pl-2 rtl:pl-0 rtl:pr-2 animate-in fade-in duration-150">
                   {guidesItems.map((item, idx) => {
                     const Icon = item.icon;
                     return (
@@ -758,9 +797,9 @@ const Header: React.FC = () => {
             <div className="pt-2">
               <button
                 onClick={() => setMobileExpanded(mobileExpanded === "company" ? null : "company")}
-                className="flex items-center justify-between w-full py-2.5 font-bold text-slate-900 text-sm text-left"
+                className="flex items-center justify-between w-full py-2.5 font-bold text-slate-900 text-sm text-left rtl:text-right"
               >
-                <span>Company</span>
+                <span>{isAr ? "الشركة" : "Company"}</span>
                 <ChevronDown
                   className={`w-4 h-4 text-slate-400 transition-transform ${
                     mobileExpanded === "company" ? "rotate-180 text-purple-600" : ""
@@ -768,7 +807,7 @@ const Header: React.FC = () => {
                 />
               </button>
               {mobileExpanded === "company" && (
-                <div className="mt-1 mb-2 space-y-1 pl-2 animate-in fade-in duration-150">
+                <div className="mt-1 mb-2 space-y-1 pl-2 rtl:pl-0 rtl:pr-2 animate-in fade-in duration-150">
                   {companyItems.map((item, idx) => {
                     const Icon = item.icon;
                     return (
@@ -794,7 +833,7 @@ const Header: React.FC = () => {
                 onClick={() => setIsMenuOpen(false)}
                 className="block font-bold text-slate-900 text-sm py-2"
               >
-                Pricing
+                {isAr ? "الأسعار" : "Pricing"}
               </Link>
             </div>
 
@@ -805,7 +844,7 @@ const Header: React.FC = () => {
                 onClick={() => setIsMenuOpen(false)}
                 className="block font-bold text-slate-900 text-sm py-2"
               >
-                Contact
+                {isAr ? "تواصل معنا" : "Contact"}
               </Link>
             </div>
           </div>
@@ -823,14 +862,14 @@ const Header: React.FC = () => {
                   onClick={() => setIsMenuOpen(false)}
                   className="flex items-center justify-center py-3 rounded-xl border border-slate-200 bg-white text-slate-800 font-bold text-xs shadow-2xs"
                 >
-                  Log In
+                  {isAr ? "تسجيل الدخول" : "Log In"}
                 </Link>
                 <Link
                   href="/signup"
                   onClick={() => setIsMenuOpen(false)}
                   className="flex items-center justify-center py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-xs shadow-md shadow-purple-500/20"
                 >
-                  Start Free &rarr;
+                  {isAr ? "ابدأ مجاناً ←" : "Start Free →"}
                 </Link>
               </div>
             ) : (
@@ -839,7 +878,7 @@ const Header: React.FC = () => {
                 onClick={() => setIsMenuOpen(false)}
                 className="block w-full text-center py-3 rounded-xl bg-purple-600 text-white font-bold text-xs shadow-md shadow-purple-500/20"
               >
-                Open Workspace Dashboard
+                {isAr ? "الانتقال للوحة التحكم" : "Go to Dashboard"}
               </Link>
             )}
           </div>

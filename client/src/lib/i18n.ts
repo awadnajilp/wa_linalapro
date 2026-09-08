@@ -35,25 +35,13 @@ export interface LanguageConfig {
 }
 
 const staticLanguages: Record<string, LanguageConfig> = {
-  en: { name: "English", nativeName: "En", direction: "ltr", flag: "🇬🇧" },
-  es: { name: "Spanish", nativeName: "Es", direction: "ltr", flag: "🇪🇸" },
-  fr: { name: "French", nativeName: "Fr", direction: "ltr", flag: "🇫🇷" },
-  de: { name: "German", nativeName: "De", direction: "ltr", flag: "🇩🇪" },
-  pt: { name: "Portuguese", nativeName: "Pt", direction: "ltr", flag: "🇧🇷" },
-  ar: { name: "Arabic", nativeName: "Ar", direction: "rtl", flag: "🇸🇦" },
-  hi: { name: "Hindi", nativeName: "Hi", direction: "ltr", flag: "🇮🇳" },
-  zh: { name: "Chinese", nativeName: "Zh", direction: "ltr", flag: "🇨🇳" },
+  en: { name: "English", nativeName: "English", direction: "ltr", flag: "🇬🇧" },
+  ar: { name: "العربية (السعودية)", nativeName: "العربية", direction: "rtl", flag: "🇸🇦" },
 };
 
 const staticTranslations: Record<string, any> = {
   en: enTranslations,
-  es: esTranslations,
-  fr: frTranslations,
-  de: deTranslations,
-  pt: ptTranslations,
   ar: arTranslations,
-  hi: hiTranslations,
-  zh: zhTranslations,
 };
 
 interface I18nState {
@@ -82,14 +70,20 @@ export const useI18n = create<I18nState>()(
           if (!response.ok) throw new Error("Failed to fetch languages");
           const data = await response.json();
 
-          const dynamicLanguages: Record<string, LanguageConfig> = {};
+          const dynamicLanguages: Record<string, LanguageConfig> = {
+            en: { name: "English", nativeName: "English", direction: "ltr", flag: "🇬🇧" },
+            ar: { name: "العربية (السعودية)", nativeName: "العربية", direction: "rtl", flag: "🇸🇦" },
+          };
+
           for (const lang of data) {
-            dynamicLanguages[lang.code] = {
-              name: lang.name,
-              nativeName: lang.nativeName || lang.name.substring(0, 2),
-              direction: lang.direction || "ltr",
-              flag: lang.icon || "",
-            };
+            if (lang.code === "en" || lang.code === "ar") {
+              dynamicLanguages[lang.code] = {
+                name: lang.code === "ar" ? "العربية (السعودية)" : lang.name,
+                nativeName: lang.code === "ar" ? "العربية" : (lang.nativeName || "English"),
+                direction: lang.direction || (lang.code === "ar" ? "rtl" : "ltr"),
+                flag: lang.code === "ar" ? "🇸🇦" : (lang.icon || "🇬🇧"),
+              };
+            }
           }
 
           set({ languages: dynamicLanguages, isLoadingLanguages: false });

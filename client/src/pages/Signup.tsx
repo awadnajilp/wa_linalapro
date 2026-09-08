@@ -152,9 +152,9 @@ const Signup: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen flex bg-slate-950 font-sans text-slate-100 selection:bg-purple-600 selection:text-white">
-      {/* LEFT PANE: 2026 Brand Showcase & Value Props */}
-      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 xl:p-16 overflow-hidden border-r border-slate-800/80 bg-gradient-to-br from-slate-950 via-purple-950/30 to-slate-900">
+    <div className="min-h-screen flex font-sans selection:bg-purple-600 selection:text-white">
+      {/* LEFT PANE: 2026 Brand Showcase & Value Props (Dark) */}
+      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 xl:p-16 overflow-hidden border-r border-slate-800/80 bg-slate-950 text-slate-100">
         {/* Background Ambient Glows */}
         <div className="absolute -top-32 -left-32 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
@@ -238,10 +238,8 @@ const Signup: React.FC = () => {
         </div>
       </div>
 
-      {/* RIGHT PANE: Modern Signup Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-10 lg:p-12 relative bg-slate-900/50">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl pointer-events-none lg:hidden" />
-
+      {/* RIGHT PANE: Clean Crisp Light Form (Two-Tone) */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-10 lg:p-12 relative bg-slate-50/80">
         <div className="w-full max-w-md relative z-10">
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center mb-8">
@@ -250,14 +248,14 @@ const Signup: React.FC = () => {
                 <img
                   src={brandSettings?.logo}
                   alt="Logo"
-                  className="h-10 object-contain brightness-0 invert"
+                  className="h-10 object-contain"
                 />
               ) : (
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white shadow-lg">
+                  <div className="w-10 h-10 rounded-2xl bg-purple-600 flex items-center justify-center text-white shadow-lg">
                     <MessageSquare className="w-5 h-5" />
                   </div>
-                  <span className="text-xl font-bold text-white tracking-tight">LINALA</span>
+                  <span className="text-xl font-bold text-slate-900 tracking-tight">LINALA</span>
                 </div>
               )}
             </Link>
@@ -265,20 +263,20 @@ const Signup: React.FC = () => {
 
           {/* Header */}
           <div className="mb-6 text-center lg:text-left">
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
               Create Your Free Account
             </h2>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="mt-2 text-sm text-slate-500">
               Get started with full platform access in under 2 minutes.
             </p>
           </div>
 
           {/* Form Card */}
-          <Card className="bg-slate-900/90 border border-slate-800 shadow-2xl rounded-3xl backdrop-blur-xl overflow-hidden">
+          <Card className="bg-white border border-slate-200/90 shadow-xl shadow-slate-200/50 rounded-3xl overflow-hidden">
             <CardContent className="p-6 sm:p-8">
               {errors.general && (
-                <div className="mb-5 bg-rose-950/60 border border-rose-800/80 text-rose-200 rounded-2xl p-3.5 text-xs font-medium flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                <div className="mb-5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-3.5 text-xs font-semibold flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
                   {errors.general}
                 </div>
               )}
@@ -287,135 +285,135 @@ const Signup: React.FC = () => {
                 {/* First & Last Name Grid */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-300">First Name</label>
+                    <label className="text-xs font-bold text-slate-700">First Name</label>
                     <div className="relative group">
-                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-600" />
                       <input
                         type="text"
                         name="firstName"
                         value={formData.firstName}
                         onChange={handleChange}
                         placeholder="John"
-                        className="w-full pl-10 pr-3 h-10 bg-slate-950/80 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                        className="w-full pl-10 pr-3 h-10 bg-slate-50/70 border border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 focus:bg-white transition-all"
                         required
                       />
                     </div>
                     {errors.firstName && (
-                      <p className="text-[11px] text-rose-400">{errors.firstName}</p>
+                      <p className="text-[11px] text-rose-500">{errors.firstName}</p>
                     )}
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-300">Last Name</label>
+                    <label className="text-xs font-bold text-slate-700">Last Name</label>
                     <div className="relative group">
-                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-600" />
                       <input
                         type="text"
                         name="lastName"
                         value={formData.lastName}
                         onChange={handleChange}
                         placeholder="Doe"
-                        className="w-full pl-10 pr-3 h-10 bg-slate-950/80 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                        className="w-full pl-10 pr-3 h-10 bg-slate-50/70 border border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 focus:bg-white transition-all"
                         required
                       />
                     </div>
                     {errors.lastName && (
-                      <p className="text-[11px] text-rose-400">{errors.lastName}</p>
+                      <p className="text-[11px] text-rose-500">{errors.lastName}</p>
                     )}
                   </div>
                 </div>
 
                 {/* Username */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Username</label>
+                  <label className="text-xs font-bold text-slate-700">Username</label>
                   <div className="relative group">
-                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-600" />
                     <input
                       type="text"
                       name="username"
                       value={formData.username}
                       onChange={handleChange}
                       placeholder="johndoe"
-                      className="w-full pl-10 pr-3 h-10 bg-slate-950/80 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                      className="w-full pl-10 pr-3 h-10 bg-slate-50/70 border border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 focus:bg-white transition-all"
                       required
                     />
                   </div>
                   {errors.username && (
-                    <p className="text-[11px] text-rose-400">{errors.username}</p>
+                    <p className="text-[11px] text-rose-500">{errors.username}</p>
                   )}
                 </div>
 
                 {/* Email */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Work Email</label>
+                  <label className="text-xs font-bold text-slate-700">Work Email</label>
                   <div className="relative group">
-                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-600" />
                     <input
                       type="email"
                       name="email"
                       value={formData.email}
                       onChange={handleChange}
                       placeholder="john@company.com"
-                      className="w-full pl-10 pr-3 h-10 bg-slate-950/80 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                      className="w-full pl-10 pr-3 h-10 bg-slate-50/70 border border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 focus:bg-white transition-all"
                       required
                     />
                   </div>
                   {errors.email && (
-                    <p className="text-[11px] text-rose-400">{errors.email}</p>
+                    <p className="text-[11px] text-rose-500">{errors.email}</p>
                   )}
                 </div>
 
                 {/* Passwords */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-300">Password</label>
+                    <label className="text-xs font-bold text-slate-700">Password</label>
                     <div className="relative group">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-600" />
                       <input
                         type={showPassword ? "text" : "password"}
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
                         placeholder="Min. 8 chars"
-                        className="w-full pl-10 pr-9 h-10 bg-slate-950/80 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                        className="w-full pl-10 pr-9 h-10 bg-slate-50/70 border border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 focus:bg-white transition-all"
                         required
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       >
                         {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                     {errors.password && (
-                      <p className="text-[11px] text-rose-400">{errors.password}</p>
+                      <p className="text-[11px] text-rose-500">{errors.password}</p>
                     )}
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-300">Confirm Password</label>
+                    <label className="text-xs font-bold text-slate-700">Confirm Password</label>
                     <div className="relative group">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-600" />
                       <input
                         type={showConfirmPassword ? "text" : "password"}
                         name="confirmPassword"
                         value={formData.confirmPassword}
                         onChange={handleChange}
                         placeholder="Re-enter password"
-                        className="w-full pl-10 pr-9 h-10 bg-slate-950/80 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                        className="w-full pl-10 pr-9 h-10 bg-slate-50/70 border border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 focus:bg-white transition-all"
                         required
                       />
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       >
                         {showConfirmPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                     {errors.confirmPassword && (
-                      <p className="text-[11px] text-rose-400">{errors.confirmPassword}</p>
+                      <p className="text-[11px] text-rose-500">{errors.confirmPassword}</p>
                     )}
                   </div>
                 </div>
@@ -428,21 +426,21 @@ const Signup: React.FC = () => {
                       name="agreeToTerms"
                       checked={formData.agreeToTerms}
                       onChange={handleChange}
-                      className="w-4 h-4 mt-0.5 rounded border-slate-700 bg-slate-950 text-purple-600 focus:ring-purple-500"
+                      className="w-4 h-4 mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
                     />
-                    <span className="text-xs text-slate-400 leading-relaxed">
+                    <span className="text-xs text-slate-600 leading-relaxed">
                       I agree to the{" "}
-                      <Link href="/terms" className="text-purple-400 hover:text-purple-300 font-medium">
+                      <Link href="/terms" className="text-purple-600 hover:text-purple-700 font-semibold">
                         Terms of Service
                       </Link>{" "}
                       and{" "}
-                      <Link href="/privacy-policy" className="text-purple-400 hover:text-purple-300 font-medium">
+                      <Link href="/privacy-policy" className="text-purple-600 hover:text-purple-700 font-semibold">
                         Privacy Policy
                       </Link>
                     </span>
                   </label>
                   {errors.agreeToTerms && (
-                    <p className="text-[11px] text-rose-400 mt-1">{errors.agreeToTerms}</p>
+                    <p className="text-[11px] text-rose-500 mt-1">{errors.agreeToTerms}</p>
                   )}
                 </div>
 
@@ -450,7 +448,7 @@ const Signup: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-purple-600/25 transition-all mt-2 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-purple-600/25 transition-all mt-2 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isLoading ? (
                     <>
@@ -467,11 +465,11 @@ const Signup: React.FC = () => {
               </form>
 
               {/* Login Link */}
-              <div className="mt-6 text-center text-xs text-slate-400">
+              <div className="mt-6 text-center text-xs text-slate-500">
                 Already have a workspace?{" "}
                 <Link
                   href="/login"
-                  className="font-semibold text-purple-400 hover:text-purple-300 transition-colors"
+                  className="font-bold text-purple-600 hover:text-purple-700 transition-colors"
                 >
                   Sign in
                 </Link>

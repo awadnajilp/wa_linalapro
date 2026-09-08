@@ -139,9 +139,9 @@ export default function LoginPage() {
   ];
 
   return (
-    <div className="min-h-screen flex bg-slate-950 font-sans text-slate-100 selection:bg-purple-600 selection:text-white">
-      {/* LEFT PANE: 2026 Interactive Hero & Brand Showcase */}
-      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 xl:p-16 overflow-hidden border-r border-slate-800/80 bg-gradient-to-br from-slate-950 via-purple-950/30 to-slate-900">
+    <div className="min-h-screen flex font-sans selection:bg-purple-600 selection:text-white">
+      {/* LEFT PANE: Dark Brand Showcase & Telemetry */}
+      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 xl:p-16 overflow-hidden border-r border-slate-800/80 bg-slate-950 text-slate-100">
         {/* Background Ambient Glow Circles */}
         <div className="absolute -top-32 -left-32 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
@@ -232,11 +232,8 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* RIGHT PANE: Modern Auth Form Container */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-10 lg:p-12 relative bg-slate-900/50">
-        {/* Subtle mobile ambient glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl pointer-events-none lg:hidden" />
-
+      {/* RIGHT PANE: Clean Crisp Light Form Container (Two-Tone) */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-10 lg:p-12 relative bg-slate-50/80">
         <div className="w-full max-w-md relative z-10">
           {/* Mobile Brand Logo */}
           <div className="lg:hidden flex items-center justify-center mb-8">
@@ -245,14 +242,14 @@ export default function LoginPage() {
                 <img
                   src={brandSettings?.logo}
                   alt="Logo"
-                  className="h-10 object-contain brightness-0 invert"
+                  className="h-10 object-contain"
                 />
               ) : (
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white shadow-lg">
+                  <div className="w-10 h-10 rounded-2xl bg-purple-600 flex items-center justify-center text-white shadow-lg">
                     <MessageSquare className="w-5 h-5" />
                   </div>
-                  <span className="text-xl font-bold text-white tracking-tight">LINALA</span>
+                  <span className="text-xl font-bold text-slate-900 tracking-tight">LINALA</span>
                 </div>
               )}
             </Link>
@@ -260,27 +257,27 @@ export default function LoginPage() {
 
           {/* Form Header */}
           <div className="mb-6 text-center lg:text-left">
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              {step === "login" && "Sign In to Linala"}
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+              {step === "login" && "Welcome Back"}
               {step === "forgot" && "Reset Your Password"}
               {step === "verify" && "Verify Security Code"}
               {step === "reset" && "Create New Password"}
             </h2>
-            <p className="mt-2 text-sm text-slate-400">
-              {step === "login" && "Enter your workspace credentials to access your dashboard"}
+            <p className="mt-2 text-sm text-slate-500">
+              {step === "login" && "Enter your credentials to access your WhatsApp growth dashboard"}
               {step === "forgot" && "Enter your account email to receive an instant reset code"}
               {step === "verify" && "Enter the 6-digit verification code sent to your email"}
               {step === "reset" && "Choose a strong password with at least 8 characters"}
             </p>
           </div>
 
-          {/* Modern Card Frame */}
-          <Card className="bg-slate-900/90 border border-slate-800 shadow-2xl rounded-3xl backdrop-blur-xl overflow-hidden">
+          {/* Clean Light Card */}
+          <Card className="bg-white border border-slate-200/90 shadow-xl shadow-slate-200/50 rounded-3xl overflow-hidden">
             <CardContent className="p-6 sm:p-8">
               {error && (
-                <Alert className="mb-5 bg-rose-950/60 border border-rose-800/80 text-rose-200 rounded-2xl p-3.5">
-                  <AlertDescription className="text-xs font-medium flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                <Alert className="mb-5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-3.5">
+                  <AlertDescription className="text-xs font-semibold flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
                     {error}
                   </AlertDescription>
                 </Alert>
@@ -295,21 +292,21 @@ export default function LoginPage() {
                       name="username"
                       render={({ field }) => (
                         <FormItem className="space-y-1.5">
-                          <FormLabel className="text-xs font-semibold text-slate-300">
+                          <FormLabel className="text-xs font-bold text-slate-700">
                             Username or Email
                           </FormLabel>
                           <FormControl>
                             <div className="relative group">
-                              <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
+                              <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-600" />
                               <Input
                                 placeholder="Enter your username"
                                 {...field}
                                 disabled={loginMutation.isPending}
-                                className="pl-10 h-11 bg-slate-950/80 border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus-visible:ring-purple-500 focus-visible:border-purple-500 transition-all"
+                                className="pl-10 h-11 bg-slate-50/70 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-purple-500/20 focus-visible:border-purple-600 focus-visible:bg-white transition-all"
                               />
                             </div>
                           </FormControl>
-                          <FormMessage className="text-xs text-rose-400" />
+                          <FormMessage className="text-xs text-rose-500" />
                         </FormItem>
                       )}
                     />
@@ -321,7 +318,7 @@ export default function LoginPage() {
                       render={({ field }) => (
                         <FormItem className="space-y-1.5">
                           <div className="flex items-center justify-between">
-                            <FormLabel className="text-xs font-semibold text-slate-300">
+                            <FormLabel className="text-xs font-bold text-slate-700">
                               Password
                             </FormLabel>
                             <button
@@ -330,25 +327,25 @@ export default function LoginPage() {
                                 setError(null);
                                 setStep("forgot");
                               }}
-                              className="text-xs text-purple-400 hover:text-purple-300 font-medium transition-colors"
+                              className="text-xs text-purple-600 hover:text-purple-700 font-semibold transition-colors"
                             >
                               Forgot password?
                             </button>
                           </div>
                           <FormControl>
                             <div className="relative group">
-                              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
+                              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-600" />
                               <Input
                                 type={showPassword ? "text" : "password"}
                                 placeholder="••••••••"
                                 {...field}
                                 disabled={loginMutation.isPending}
-                                className="pl-10 pr-10 h-11 bg-slate-950/80 border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus-visible:ring-purple-500 focus-visible:border-purple-500 transition-all"
+                                className="pl-10 pr-10 h-11 bg-slate-50/70 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-purple-500/20 focus-visible:border-purple-600 focus-visible:bg-white transition-all"
                               />
                               <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                               >
                                 {showPassword ? (
                                   <EyeOff className="h-4 w-4" />
@@ -358,7 +355,7 @@ export default function LoginPage() {
                               </button>
                             </div>
                           </FormControl>
-                          <FormMessage className="text-xs text-rose-400" />
+                          <FormMessage className="text-xs text-rose-500" />
                         </FormItem>
                       )}
                     />
@@ -367,7 +364,7 @@ export default function LoginPage() {
                     <Button
                       type="submit"
                       disabled={loginMutation.isPending}
-                      className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-purple-600/25 transition-all mt-2 cursor-pointer flex items-center justify-center gap-2"
+                      className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-purple-600/25 transition-all mt-2 cursor-pointer flex items-center justify-center gap-2"
                     >
                       {loginMutation.isPending ? (
                         <>
@@ -424,11 +421,11 @@ export default function LoginPage() {
 
           {/* Bottom Signup Link */}
           {step === "login" && (
-            <div className="mt-6 text-center text-xs text-slate-400">
+            <div className="mt-6 text-center text-xs text-slate-500">
               Don't have a Linala workspace yet?{" "}
               <Link
                 href="/signup"
-                className="font-semibold text-purple-400 hover:text-purple-300 transition-colors"
+                className="font-bold text-purple-600 hover:text-purple-700 transition-colors"
               >
                 Create Account (14-Day Free Trial)
               </Link>

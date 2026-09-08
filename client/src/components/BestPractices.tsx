@@ -1,302 +1,256 @@
-/**
- * ============================================================
- * © 2025 Diploy — a brand of Bisht Technologies Private Limited
- * Original Author: BTPL Engineering Team
- * Website: https://diploy.in
- * Contact: cs@diploy.in
- *
- * Distributed under the Envato / CodeCanyon License Agreement.
- * Licensed to the purchaser for use as defined by the
- * Envato Market (CodeCanyon) Regular or Extended License.
- *
- * You are NOT permitted to redistribute, resell, sublicense,
- * or share this source code, in whole or in part.
- * Respect the author's rights and Envato licensing terms.
- * ============================================================
- */
-
 import React, { useState } from "react";
-import { useTranslation } from "@/lib/i18n";
+import { Link } from "wouter";
 import {
-  CheckCircle,
-  TrendingUp,
+  ShieldCheck,
+  Zap,
   Users,
   MessageCircle,
   Clock,
-  Shield,
-  Target,
-  Zap,
+  TrendingUp,
   AlertTriangle,
-  Star,
+  CheckCircle2,
+  Sparkles,
+  ArrowRight,
+  Lock,
+  ThumbsUp,
+  FileCheck,
 } from "lucide-react";
-import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { AppSettings } from "@/types/types";
+import { Button } from "@/components/ui/button";
 
-type CategoryId =
-  | "messaging"
-  | "automation"
-  | "engagement"
-  | "compliance"
-  | "timing"
-  | "optimization";
-
-interface Category {
-  id: CategoryId;
+interface PracticeCategory {
+  id: string;
   name: string;
-}
-
-interface PracticeItem {
+  icon: React.ElementType;
   title: string;
   description: string;
-  tips: string[];
-  impact: string;
+  items: {
+    title: string;
+    description: string;
+    tips: string[];
+    impact: string;
+  }[];
 }
 
-type PracticesMap = Record<CategoryId, PracticeItem[]>;
+const BEST_PRACTICES_DATA: PracticeCategory[] = [
+  {
+    id: "compliance",
+    name: "Opt-In & Meta Compliance",
+    icon: ShieldCheck,
+    title: "User Consent & Meta Policy Guidelines",
+    description: "Ensure 100% compliance with Meta WhatsApp Business Policies and global privacy regulations (GDPR / DPDP).",
+    items: [
+      {
+        title: "Explicit Opt-In Collection",
+        description: "Always obtain clear, unambiguous affirmative consent from customers before sending business-initiated marketing messages.",
+        tips: [
+          "Use clear checkboxes during checkout, lead forms, or interactive website widgets",
+          "Clearly state the types of messages (e.g. order alerts, promotions)",
+          "Never purchase third-party phone lists — this triggers immediate quality blocks",
+        ],
+        impact: "Zero Spam Reports & Protected Phone Tier",
+      },
+      {
+        title: "Simple 1-Tap Opt-Out Mechanism",
+        description: "Provide an easy way for customers to unsubscribe at any point with instant acknowledgment.",
+        tips: [
+          "Include a 'STOP' or 'Unsubscribe' quick reply button in promotional templates",
+          "Linala automatically flags and suppresses opted-out contacts instantly",
+        ],
+        impact: "Reduces user blocks by 85%",
+      },
+    ],
+  },
+  {
+    id: "quality-rating",
+    name: "Quality Rating & Tier Protection",
+    icon: TrendingUp,
+    title: "Maintaining a 'High' WhatsApp Quality Score",
+    description: "Meta measures recipient feedback over a 7-day rolling window to assign Green, Yellow, or Red status.",
+    items: [
+      {
+        title: "Pacing & Audience Segmentation",
+        description: "Avoid blasting entire subscriber lists in a single second. Segment by user interest, recency, and purchase history.",
+        tips: [
+          "Use dynamic tags to filter hyper-relevant cohorts",
+          "Utilize Linala's automated rate-limiting to stagger broadcasts safely",
+        ],
+        impact: "+45% Higher Read & Engagement Rates",
+      },
+      {
+        title: "Handling Status Drop (Yellow/Red Alert)",
+        description: "If your quality rating drops to Yellow or Red, Meta enters a warning phase before downgrading your tier.",
+        tips: [
+          "Immediately pause all promotional broadcasts for 48 hours",
+          "Send only high-value transactional messages (OTPs, order tracking) to rebuild score",
+        ],
+        impact: "Restores Green tier within 3-5 days",
+      },
+    ],
+  },
+  {
+    id: "engagement",
+    name: "Copywriting & High-Converting Formats",
+    icon: MessageCircle,
+    title: "Crafting WhatsApp Messages People Love Reading",
+    description: "WhatsApp is a personal channel. Messages should feel conversational, concise, and immediately valuable.",
+    items: [
+      {
+        title: "Concise Text with Rich Media Headers",
+        description: "Keep message body under 300 characters. Pair with eye-catching product images, video demos, or PDF invoices.",
+        tips: [
+          "Use personalized variables (e.g. 'Hey {{1}}, your order #{{2}} is ready!')",
+          "Add interactive buttons (Quick Replies / URL CTA) instead of raw text links",
+        ],
+        impact: "3.2x Higher CTR compared to plain text",
+      },
+      {
+        title: "Optimal Sending Timing by Region",
+        description: "Deliver messages when customers are active in their local timezone. Avoid late night or early morning pings.",
+        tips: [
+          "Optimal B2C retail hours: 11:00 AM – 2:00 PM & 6:00 PM – 8:30 PM",
+          "Optimal B2B sales hours: Tuesday to Thursday, 10:00 AM – 4:00 PM",
+        ],
+        impact: "+28% Response Rate",
+      },
+    ],
+  },
+  {
+    id: "automation",
+    name: "Voice AI & Instant Response SLAs",
+    icon: Zap,
+    title: "Sub-Second Response Velocity with AI",
+    description: "Customers expect immediate answers on messaging apps. Slow replies directly hurt conversion rates.",
+    items: [
+      {
+        title: "0-Second Autonomous First Response",
+        description: "Deploy Linala Voice AI and Chatbot flows to greet prospects instantly and qualify intent.",
+        tips: [
+          "Acknowledge every incoming message within 5 seconds",
+          "Seamlessly escalate complex queries to live team members during business hours",
+        ],
+        impact: "4x Faster Lead Qualification",
+      },
+    ],
+  },
+];
 
-interface QuickTip {
-  title: string;
-  tip: string;
-}
+export const BestPractices: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<string>("compliance");
 
-const BestPractices = () => {
-  const { t } = useTranslation();
-  const [activeCategory, setActiveCategory] = useState<CategoryId>("messaging");
-
-  const categories = (t("bestPractices.categories", {
-    returnObjects: true,
-  }) || []) as Category[];
-
-  const practices = (t("bestPractices.practices", {
-    returnObjects: true,
-  }) || {}) as PracticesMap;
-
-  const quickTips = (t("bestPractices.quickTips.tips", {
-    returnObjects: true,
-  }) || []) as QuickTip[];
-
-  const sectionIcons: Record<
-    CategoryId,
-    React.ComponentType<{ className?: string }>
-  > = {
-    messaging: MessageCircle,
-    automation: Zap,
-    engagement: Users,
-    compliance: Shield,
-    timing: Clock,
-    optimization: TrendingUp,
-  };
-
-  const quickTipIcons: React.ComponentType<{ className?: string }>[] = [
-    Target,
-    Clock,
-    Users,
-    Shield,
-    MessageCircle,
-    TrendingUp,
-  ];
-
-  const { data: brandSettings } = useQuery<AppSettings>({
-    queryKey: ["/api/brand-settings"],
-    queryFn: () => fetch("/api/brand-settings").then((res) => res.json()),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const appName = brandSettings?.title ?? "";
-
-  const currentPractices = practices[activeCategory] || [];
+  const current =
+    BEST_PRACTICES_DATA.find((cat) => cat.id === activeTab) ||
+    BEST_PRACTICES_DATA[0];
 
   return (
-    <div className="pt-16">
-      {/* Hero Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-green-50 via-white to-blue-50">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="bg-green-100 p-4 rounded-full w-fit mx-auto mb-6">
-            <Star className="w-8 h-8 text-green-600" />
+    <div className="min-h-screen bg-white">
+      {/* Hero Header */}
+      <section className="relative pt-32 pb-20 bg-gradient-to-b from-slate-50 via-purple-50/20 to-white overflow-hidden border-b border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-100 text-purple-800 text-xs font-semibold mb-6 border border-purple-200 shadow-2xs">
+            <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+            Meta Compliance & Enterprise Best Practices
           </div>
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-            {t("bestPractices.hero.title")}
-            <span className="block bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-              {t("bestPractices.hero.titleHighlight")}
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight max-w-4xl mx-auto leading-tight">
+            WhatsApp Marketing &{" "}
+            <span className="bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 bg-clip-text text-transparent">
+              Compliance Best Practices
             </span>
           </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            {t("bestPractices.hero.subtitle")}
+          <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
+            Protect your sender reputation, maximize message deliverability, and maintain a 5-star Meta Quality Rating with our official blueprint.
           </p>
         </div>
       </section>
 
-      {/* Categories */}
-      <section className="py-12 px-4 sm:px-6 lg:px-8 bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-wrap justify-center gap-4">
-            {categories.map((category) => {
-              const Icon = sectionIcons[category.id] || MessageCircle;
-              return (
-                <button
-                  key={category.id}
-                  onClick={() => setActiveCategory(category.id)}
-                  className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all ${
-                    activeCategory === category.id
-                      ? "bg-green-500 text-white shadow-lg transform scale-105"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{category.name}</span>
-                </button>
-              );
-            })}
+      {/* Main Content Grid */}
+      <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Navigation */}
+          <div className="lg:col-span-4 space-y-2">
+            <div className="sticky top-28 bg-slate-50 rounded-2xl p-4 border border-slate-200/80 shadow-2xs space-y-1.5">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-3 py-2">
+                Core Domains
+              </h3>
+              {BEST_PRACTICES_DATA.map((cat) => {
+                const Icon = cat.icon;
+                const isSelected = cat.id === activeTab;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveTab(cat.id)}
+                    className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left text-xs sm:text-sm font-semibold transition-all duration-150 ${
+                      isSelected
+                        ? "bg-purple-600 text-white shadow-md shadow-purple-500/20"
+                        : "text-slate-600 hover:bg-white hover:text-slate-900"
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 ${isSelected ? "text-white" : "text-slate-400"}`} />
+                    <span className="truncate">{cat.name}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      </section>
 
-      {/* Best Practices Content */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="space-y-8">
-            {currentPractices.map((practice, index) => (
-              <div
-                key={index}
-                className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all"
-              >
-                <div className="flex items-start justify-between mb-6">
-                  <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-gray-900 mb-3">
-                      {practice.title}
-                    </h3>
-                    <p className="text-gray-600 text-lg">
-                      {practice.description}
-                    </p>
-                  </div>
-                  <div className="bg-green-100 px-4 py-2 rounded-full ml-6">
-                    <span className="text-green-800 font-semibold text-sm">
-                      {practice.impact}
-                    </span>
-                  </div>
-                </div>
+          {/* Details */}
+          <div className="lg:col-span-8 space-y-8">
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-10 shadow-xl shadow-slate-900/5 space-y-8">
+              <div>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                  {current.title}
+                </h2>
+                <p className="mt-3 text-sm sm:text-base text-slate-600 leading-relaxed">
+                  {current.description}
+                </p>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-3">
-                      {t("bestPractices.implementationTips")}
-                    </h4>
-                    <ul className="space-y-2">
-                      {practice.tips.map((tip, tipIndex) => (
-                        <li
-                          key={tipIndex}
-                          className="flex items-start space-x-3"
-                        >
-                          <CheckCircle className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span className="text-gray-700">{tip}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-blue-50 to-purple-50 p-6 rounded-xl">
-                    <div className="flex items-center space-x-3 mb-4">
-                      <TrendingUp className="w-6 h-6 text-blue-600" />
-                      <h4 className="font-semibold text-gray-900">
-                        {t("bestPractices.expectedImpact")}
-                      </h4>
-                    </div>
-                    <p className="text-gray-700 mb-4">
-                      {t("bestPractices.expectedImpactDesc")}
-                    </p>
-                    <div className="bg-white p-3 rounded-lg">
-                      <span className="text-blue-600 font-bold text-lg">
-                        {practice.impact}
+              <div className="space-y-6">
+                {current.items.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="p-6 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                        {item.title}
+                      </h3>
+                      <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                        Impact: {item.impact}
                       </span>
                     </div>
+
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                      {item.description}
+                    </p>
+
+                    <div className="space-y-2 pt-2">
+                      {item.tips.map((t, tIdx) => (
+                        <div key={tIdx} className="flex items-start gap-2.5">
+                          <CheckCircle2 className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
+                          <span className="text-xs text-slate-700 font-medium leading-relaxed">
+                            {t}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* Quick Tips */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              {t("bestPractices.quickTips.heading")}
-            </h2>
-            <p className="text-xl text-gray-600">
-              {t("bestPractices.quickTips.subtitle")}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {quickTips.map((tip, index) => {
-              const Icon = quickTipIcons[index] || Target;
-              return (
-                <div
-                  key={index}
-                  className="bg-gray-50 p-6 rounded-xl hover:bg-gray-100 transition-colors"
-                >
-                  <div className="bg-green-100 p-3 rounded-lg w-fit mb-4">
-                    <Icon className="w-6 h-6 text-green-600" />
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">
-                    {tip.title}
-                  </h3>
-                  <p className="text-gray-600">{tip.tip}</p>
+              <div className="pt-6 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">Start Messaging with 100% Policy Confidence</h4>
+                  <p className="text-xs text-slate-500">Linala automatically enforces Meta compliance guardrails.</p>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Warning Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-red-50">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white p-8 rounded-2xl shadow-lg border-l-4 border-red-500">
-            <div className="flex items-start space-x-4">
-              <AlertTriangle className="w-8 h-8 text-red-500 mt-1" />
-              <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">
-                  {t("bestPractices.warning.heading")}
-                </h3>
-                <p className="text-gray-700 mb-4">
-                  {t("bestPractices.warning.description")}
-                </p>
-                <ul className="space-y-2 text-gray-600">
-                  {(
-                    t("bestPractices.warning.points", {
-                      returnObjects: true,
-                    }) as string[]
-                  ).map((point, index) => (
-                    <li key={index}>• {point}</li>
-                  ))}
-                </ul>
+                <Link href="/signup">
+                  <Button className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold">
+                    Launch Compliant Campaigns
+                    <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                  </Button>
+                </Link>
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-green-600 to-blue-600">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            {t("bestPractices.cta.heading")}
-          </h2>
-          <p className="text-xl text-white/90 mb-8">
-            {t("bestPractices.cta.subtitle", {
-              appName,
-            })}
-          </p>
-          <Link
-            href="/contact"
-            className="bg-white text-green-600 px-8 py-4 rounded-xl font-bold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-xl"
-          >
-            {t("bestPractices.cta.button")}
-          </Link>
         </div>
       </section>
     </div>

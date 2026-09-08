@@ -111,6 +111,8 @@ import SupportTicketsLedger from "./pages/SupportTicketsLedger";
 import EcommerceLedger from "./pages/EcommerceLedger";
 import RemindersLedger from "./pages/RemindersLedger";
 import WhatsAppFlows from "./pages/WhatsAppFlows";
+import FeaturesPage from "./pages/FeaturesPage";
+import UseCasesPage from "./pages/UseCasesPage";
 
 // Define route permissions mapping
 const ROUTE_PERMISSIONS: Record<string, string> = {
@@ -611,6 +613,27 @@ function Router() {
           <>
             <Header />
             <Careers />
+            <Footer />
+          </>
+        </Route>
+        <Route path="/features">
+          <>
+            <Header />
+            <FeaturesPage />
+            <Footer />
+          </>
+        </Route>
+        <Route path="/use-cases">
+          <>
+            <Header />
+            <UseCasesPage />
+            <Footer />
+          </>
+        </Route>
+        <Route path="/api-docs">
+          <>
+            <Header />
+            <ApiDocs />
             <Footer />
           </>
         </Route>

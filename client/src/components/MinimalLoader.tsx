@@ -28,7 +28,7 @@ interface MinimalLoaderProps {
 const MinimalLoader: React.FC<MinimalLoaderProps> = ({
   onComplete,
   duration = 2000,
-  color = "green",
+  color = "purple",
   variant = "spinner",
 }) => {
   useEffect(() => {
@@ -42,6 +42,11 @@ const MinimalLoader: React.FC<MinimalLoaderProps> = ({
   }, [onComplete, duration]);
 
   const colorClasses = {
+    purple: {
+      primary: "border-purple-600",
+      secondary: "bg-purple-600",
+      gradient: "from-purple-500 to-indigo-600",
+    },
     green: {
       primary: "border-green-600",
       secondary: "bg-green-600",
@@ -60,7 +65,7 @@ const MinimalLoader: React.FC<MinimalLoaderProps> = ({
   };
 
   const colors =
-    colorClasses[color as keyof typeof colorClasses] || colorClasses.green;
+    colorClasses[color as keyof typeof colorClasses] || colorClasses.purple;
 
   // Variant 1: Enhanced Spinner with Gradient
   if (variant === "spinner") {

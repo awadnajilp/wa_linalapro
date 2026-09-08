@@ -105,49 +105,49 @@ export default function Header({
   // UI unchanged --------------------------------------
   return (
     <>
-      <header className="bg-white shadow-sm border-b border-gray-100  px-4 sm:px-6 py-4">
-        <div className="flex items-center justify-between flex-wrap">
+      <header className="bg-white/95 backdrop-blur-md shadow-2xs border-b border-slate-200/80 px-4 sm:px-6 py-3.5 sticky top-0 z-30 transition-all">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-3">
             <button
               onClick={toggle}
-              className="lg:hidden   p-2 bg-white rounded-lg shadow-md hover:bg-gray-50"
+              className="lg:hidden p-2 bg-white rounded-xl border border-slate-200 shadow-2xs hover:bg-slate-50 text-slate-600 transition-colors"
             >
               <Menu className="w-4 h-4" />
             </button>
             <div>
-              <h1 className="  text-base sm:text-lg lg:text-2xl font-bold text-gray-900">
+              <h1 className="text-base sm:text-lg lg:text-xl font-bold text-slate-900 tracking-tight">
                 {title}
               </h1>
               {subtitle && (
-                <p className="text-sm text-gray-600 hidden lg:block  ">
+                <p className="text-xs text-slate-500 hidden lg:block font-normal">
                   {subtitle}
                 </p>
               )}
             </div>
           </div>
 
-          <div className="flex items-center space-x-2 sm:space-x-4 ">
-            <div className=" w-fit  ">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <div className="w-fit">
               {action && (
                 <Button
                   onClick={action.onClick}
-                  className="bg-green-600 text-white px-2 py-1 "
+                  className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium shadow-sm shadow-purple-500/20 rounded-xl px-3 py-1.5 h-9 text-xs sm:text-sm flex items-center gap-1.5 transition-all"
                 >
-                  <Plus className=" w-2 h-2 sm:w-4 sm:h-4 " />{" "}
-                  <span className="hidden lg:block  ">{action.label}</span>
+                  <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />{" "}
+                  <span className="hidden sm:inline">{action.label}</span>
                 </Button>
               )}
             </div>
             {user?.originalSuperadmin && (
               <Button
                 onClick={handleBackToAdmin}
-                className="bg-rose-600 hover:bg-rose-700 text-white font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-sm border border-rose-700 h-9"
+                className="bg-rose-600 hover:bg-rose-700 text-white font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-xl shadow-xs border border-rose-700 h-9 text-xs"
               >
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Back to Admin</span>
               </Button>
             )}
-            <div className=" w-fit hidden sm:block ">
+            <div className="w-fit hidden sm:block">
               <LanguageSelector />
             </div>
 
@@ -155,17 +155,17 @@ export default function Header({
               <>
                 <button
                   onClick={() => setLocation("/settings?tab=support")}
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="p-2 rounded-xl text-slate-500 hover:text-purple-700 hover:bg-purple-50/60 border border-transparent hover:border-purple-100 transition-all"
                   title="Support"
                 >
-                  <Headphones className="w-5 h-5 text-gray-600" />
+                  <Headphones className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setLocation("/settings?tab=message_logs")}
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="p-2 rounded-xl text-slate-500 hover:text-purple-700 hover:bg-purple-50/60 border border-transparent hover:border-purple-100 transition-all"
                   title="Message Logs"
                 >
-                  <ScrollText className="w-5 h-5 text-gray-600" />
+                  <ScrollText className="w-4 h-4" />
                 </button>
                 <NotificationBell />
               </>
@@ -173,7 +173,7 @@ export default function Header({
 
             <div className="relative" ref={dropdownRef}>
               <button
-                className="w-10 h-10 rounded-full overflow-hidden border-2"
+                className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-purple-100 hover:ring-purple-300 transition-all shadow-2xs"
                 onClick={() => setDropdownOpen((x) => !x)}
               >
                 <img
@@ -181,43 +181,45 @@ export default function Header({
                     userPhotoUrl ||
                     `https://ui-avatars.com/api/?name=${encodeURIComponent(
                       username
-                    )}`
+                    )}&background=7c3aed&color=fff`
                   }
                   className="w-full h-full object-cover"
                 />
               </button>
 
               {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg z-50">
-                  <div className="px-4 py-2 border-b text-gray-800 font-semibold">
+                <div className="absolute right-0 mt-2 w-52 bg-white border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-900/10 py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="px-4 py-2 border-b border-slate-100 text-slate-800 font-semibold text-xs">
                     {username}
                   </div>
 
                   <button
-                    className="flex items-center w-full px-4 py-2 hover:bg-gray-100"
+                    className="flex items-center w-full px-4 py-2 text-xs font-medium text-slate-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
                     onClick={() => {
                       setLocation("/settings");
                       setDropdownOpen(false);
                     }}
                   >
-                    <Settings className="w-4 h-4 mr-2" /> Settings
+                    <Settings className="w-3.5 h-3.5 mr-2.5 text-slate-400" /> Settings
                   </button>
 
                   <button
-                    className="flex items-center w-full px-4 py-2 hover:bg-gray-100"
+                    className="flex items-center w-full px-4 py-2 text-xs font-medium text-slate-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
                     onClick={() => {
                       setLocation("/account");
                       setDropdownOpen(false);
                     }}
                   >
-                    <User className="w-4 h-4 mr-2" /> Account
+                    <User className="w-3.5 h-3.5 mr-2.5 text-slate-400" /> Account
                   </button>
 
+                  <div className="my-1 border-t border-slate-100" />
+
                   <button
-                    className="flex items-center w-full px-4 py-2 hover:bg-gray-100"
+                    className="flex items-center w-full px-4 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors"
                     onClick={logout}
                   >
-                    <LogOut className="w-4 h-4 mr-2" /> Logout
+                    <LogOut className="w-3.5 h-3.5 mr-2.5" /> Logout
                   </button>
                 </div>
               )}

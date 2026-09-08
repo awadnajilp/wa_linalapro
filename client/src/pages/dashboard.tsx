@@ -269,22 +269,22 @@ export default function Dashboard() {
         {user?.role !== "superadmin" && stats && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="hover-lift fade-in">
-                <CardContent className="pt-6 pb-4 px-6">
+              <Card className="rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md transition-all duration-200 bg-white overflow-hidden">
+                <CardContent className="pt-6 pb-5 px-6">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="rounded-lg p-2.5 bg-green-50 text-green-600">
+                    <div className="rounded-xl p-2.5 bg-emerald-50 text-emerald-600">
                       <Send className="w-5 h-5" />
                     </div>
-                    <h3 className="text-sm font-medium text-gray-600">Delivery Rate</h3>
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Delivery Rate</h3>
                   </div>
-                  <div className="text-3xl font-bold text-gray-900 mb-2">
+                  <div className="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
                     {stats.totalMessages > 0
                       ? Math.min(((stats.messagesDelivered || 0) / stats.totalMessages) * 100, 100).toFixed(1)
                       : "0.0"}%
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                     <div
-                      className="bg-green-500 h-2 rounded-full transition-all duration-500"
+                      className="bg-gradient-to-r from-emerald-500 to-teal-500 h-2 rounded-full transition-all duration-500"
                       style={{
                         width: `${stats.totalMessages > 0
                           ? Math.min(((stats.messagesDelivered || 0) / stats.totalMessages) * 100, 100)
@@ -292,28 +292,28 @@ export default function Dashboard() {
                       }}
                     />
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
+                  <p className="text-xs text-slate-400 mt-2 font-medium">
                     {stats.messagesDelivered ?? 0} of {stats.totalMessages ?? 0} messages
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="hover-lift fade-in">
-                <CardContent className="pt-6 pb-4 px-6">
+              <Card className="rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md transition-all duration-200 bg-white overflow-hidden">
+                <CardContent className="pt-6 pb-5 px-6">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="rounded-lg p-2.5 bg-violet-50 text-violet-600">
+                    <div className="rounded-xl p-2.5 bg-purple-50 text-purple-600">
                       <Eye className="w-5 h-5" />
                     </div>
-                    <h3 className="text-sm font-medium text-gray-600">Read Rate</h3>
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Read Rate</h3>
                   </div>
-                  <div className="text-3xl font-bold text-gray-900 mb-2">
+                  <div className="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
                     {stats.totalMessages > 0
                       ? Math.min(((stats.messagesRead || 0) / stats.totalMessages) * 100, 100).toFixed(1)
                       : "0.0"}%
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                     <div
-                      className="bg-violet-500 h-2 rounded-full transition-all duration-500"
+                      className="bg-gradient-to-r from-purple-500 via-indigo-500 to-pink-500 h-2 rounded-full transition-all duration-500"
                       style={{
                         width: `${stats.totalMessages > 0
                           ? Math.min(((stats.messagesRead || 0) / stats.totalMessages) * 100, 100)
@@ -321,37 +321,37 @@ export default function Dashboard() {
                       }}
                     />
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
+                  <p className="text-xs text-slate-400 mt-2 font-medium">
                     {stats.messagesRead ?? 0} of {stats.totalMessages ?? 0} messages
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="hover-lift fade-in">
-                <CardContent className="pt-6 pb-4 px-6">
+              <Card className="rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md transition-all duration-200 bg-white overflow-hidden">
+                <CardContent className="pt-6 pb-5 px-6">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="rounded-lg p-2.5 bg-amber-50 text-amber-600">
+                    <div className="rounded-xl p-2.5 bg-amber-50 text-amber-600">
                       <TrendingUp className="w-5 h-5" />
                     </div>
-                    <h3 className="text-sm font-medium text-gray-600">Monthly Growth</h3>
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Monthly Growth</h3>
                   </div>
                   {(() => {
                     const growth = getMonthlyGrowth(stats);
                     return (
                       <>
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="text-3xl font-bold text-gray-900">
+                          <span className="text-3xl font-extrabold text-slate-900 tracking-tight">
                             {growth.growth}%
                           </span>
                           {!growth.isFlat && (
                             growth.isPositive ? (
-                              <ArrowUpRight className="w-6 h-6 text-green-500" />
+                              <ArrowUpRight className="w-6 h-6 text-emerald-500" />
                             ) : (
-                              <ArrowDownRight className="w-6 h-6 text-red-500" />
+                              <ArrowDownRight className="w-6 h-6 text-rose-500" />
                             )
                           )}
                         </div>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-slate-400 font-medium">
                           {stats.thisMonthMessages ?? 0} this month vs {stats.lastMonthMessages ?? 0} last month
                         </p>
                       </>
@@ -362,10 +362,10 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="hover-lift fade-in">
+              <Card className="rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md transition-all duration-200 bg-white">
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Target className="w-5 h-5 text-blue-600" />
+                  <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                    <Target className="w-4 h-4 text-purple-600" />
                     Contact Growth
                   </CardTitle>
                 </CardHeader>
@@ -373,25 +373,25 @@ export default function Dashboard() {
                   {(() => {
                     const comparison = getWeekComparison(stats);
                     return (
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between pt-2">
                         <div>
-                          <p className="text-sm text-gray-500 mb-1">This week</p>
-                          <p className="text-2xl font-bold text-gray-900">{stats.weekContacts ?? 0}</p>
+                          <p className="text-xs text-slate-400 font-medium mb-1">This week</p>
+                          <p className="text-2xl font-bold text-slate-900">{stats.weekContacts ?? 0}</p>
                         </div>
                         <div className="text-center">
-                          <div className={`flex items-center gap-1 text-lg font-semibold ${comparison.isUp ? "text-green-600" : "text-red-600"}`}>
+                          <div className={`flex items-center gap-1 text-base font-bold ${comparison.isUp ? "text-emerald-600" : "text-rose-600"}`}>
                             {comparison.isUp ? (
-                              <ArrowUpRight className="w-5 h-5" />
+                              <ArrowUpRight className="w-4 h-4" />
                             ) : (
-                              <ArrowDownRight className="w-5 h-5" />
+                              <ArrowDownRight className="w-4 h-4" />
                             )}
                             {comparison.percentage}%
                           </div>
-                          <p className="text-xs text-gray-500">vs last week</p>
+                          <p className="text-[11px] text-slate-400">vs last week</p>
                         </div>
                         <div>
-                          <p className="text-sm text-gray-500 mb-1">Last week</p>
-                          <p className="text-2xl font-bold text-gray-400">{stats.lastWeekContacts ?? 0}</p>
+                          <p className="text-xs text-slate-400 font-medium mb-1">Last week</p>
+                          <p className="text-2xl font-bold text-slate-400">{stats.lastWeekContacts ?? 0}</p>
                         </div>
                       </div>
                     );
@@ -399,29 +399,29 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
 
-              <Card className="hover-lift fade-in">
+              <Card className="rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md transition-all duration-200 bg-white">
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <LayoutGrid className="w-5 h-5 text-pink-600" />
+                  <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                    <LayoutGrid className="w-4 h-4 text-indigo-600" />
                     Campaign Overview
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center justify-around">
+                  <div className="flex items-center justify-around pt-2">
                     <div className="text-center">
-                      <div className="w-12 h-12 rounded-full bg-pink-50 flex items-center justify-center mx-auto mb-2">
-                        <Megaphone className="w-6 h-6 text-pink-600" />
+                      <div className="w-10 h-10 rounded-xl bg-pink-50 flex items-center justify-center mx-auto mb-1.5 shadow-2xs">
+                        <Megaphone className="w-5 h-5 text-pink-600" />
                       </div>
-                      <p className="text-2xl font-bold text-gray-900">{stats.totalCampaigns ?? 0}</p>
-                      <p className="text-sm text-gray-500">Campaigns</p>
+                      <p className="text-xl font-bold text-slate-900">{stats.totalCampaigns ?? 0}</p>
+                      <p className="text-xs text-slate-400 font-medium">Campaigns</p>
                     </div>
-                    <div className="h-12 w-px bg-gray-200" />
+                    <div className="h-10 w-px bg-slate-100" />
                     <div className="text-center">
-                      <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center mx-auto mb-2">
-                        <FileText className="w-6 h-6 text-purple-600" />
+                      <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center mx-auto mb-1.5 shadow-2xs">
+                        <FileText className="w-5 h-5 text-purple-600" />
                       </div>
-                      <p className="text-2xl font-bold text-gray-900">{stats.totalTemplates ?? 0}</p>
-                      <p className="text-sm text-gray-500">Templates</p>
+                      <p className="text-xl font-bold text-slate-900">{stats.totalTemplates ?? 0}</p>
+                      <p className="text-xs text-slate-400 font-medium">Templates</p>
                     </div>
                   </div>
                 </CardContent>
@@ -437,16 +437,15 @@ export default function Dashboard() {
           }`}
         >
           {/* Message Analytics Chart */}
-          <Card className="lg:col-span-2 min-w-0 overflow-hidden hover-lift fade-in">
+          <Card className="lg:col-span-2 min-w-0 overflow-hidden rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md transition-all duration-200 bg-white">
             <CardHeader>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                <CardTitle>{t("dashboard.messageAnalytics")}</CardTitle>
-                <div className="flex flex-wrap sm:flex-nowrap space-x-0 sm:space-x-2 gap-2 mt-2 sm:mt-0">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <CardTitle className="text-base font-semibold text-slate-900">{t("dashboard.messageAnalytics")}</CardTitle>
+                <div className="flex flex-wrap sm:flex-nowrap space-x-0 sm:space-x-1.5 gap-1.5">
                   {[
                     { value: 1, label: t("dashboard.today") },
                     { value: 7, label: t("dashboard.7Days") },
                     { value: 30, label: t("dashboard.30Days") },
-                    // { value: 90, label: "3 Months" },
                   ].map((range) => (
                     <Button
                       key={range.value}
@@ -456,7 +455,9 @@ export default function Dashboard() {
                       size="sm"
                       onClick={() => setTimeRange(range.value)}
                       className={
-                        timeRange === range.value ? "bg-green-600" : ""
+                        timeRange === range.value
+                          ? "bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-xs text-xs h-8 px-3"
+                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 rounded-xl text-xs h-8 px-3"
                       }
                     >
                       {range.label}

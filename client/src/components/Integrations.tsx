@@ -1,596 +1,392 @@
-/**
- * ============================================================
- * © 2025 Diploy — a brand of Bisht Technologies Private Limited
- * Original Author: BTPL Engineering Team
- * Website: https://diploy.in
- * Contact: cs@diploy.in
- *
- * Distributed under the Envato / CodeCanyon License Agreement.
- * Licensed to the purchaser for use as defined by the
- * Envato Market (CodeCanyon) Regular or Extended License.
- *
- * You are NOT permitted to redistribute, resell, sublicense,
- * or share this source code, in whole or in part.
- * Respect the author's rights and Envato licensing terms.
- * ============================================================
- */
-
 import React, { useState } from "react";
+import { Link } from "wouter";
 import {
   Zap,
-  ArrowRight,
-  CheckCircle,
-  Code,
-  Globe,
-  Workflow,
+  Layers,
+  Utensils,
+  CreditCard,
+  Bot,
   Database,
   ShoppingCart,
-  Mail,
-  Calendar,
-  Users,
-  MessageSquare,
+  ArrowRight,
+  Sparkles,
+  CheckCircle2,
+  ExternalLink,
+  Search,
+  Workflow,
+  Radio,
+  Building2,
+  Globe,
+  Lock,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { AppSettings } from "@/types/types";
+import { Button } from "@/components/ui/button";
 
-const Integrations = () => {
-  const [activeCategory, setActiveCategory] = useState("automation");
+interface IntegrationItem {
+  name: string;
+  category: "restaurant" | "ai" | "automation" | "ecommerce" | "payment" | "crm";
+  badge: string;
+  badgeColor?: string;
+  description: string;
+  features: string[];
+  externalUrl?: string;
+  highlight?: boolean;
+}
 
-  const categories = [
-    { id: "automation", name: "Automation", icon: Zap },
-    { id: "ecommerce", name: "E-commerce", icon: ShoppingCart },
-    { id: "crm", name: "CRM & Sales", icon: Users },
-    { id: "marketing", name: "Marketing", icon: Mail },
-    { id: "productivity", name: "Productivity", icon: Calendar },
-  ];
+const ALL_INTEGRATIONS: IntegrationItem[] = [
+  // Restaurant RMS (Orderown)
+  {
+    name: "Orderown Restaurant RMS",
+    category: "restaurant",
+    badge: "Featured Partner",
+    badgeColor: "bg-orange-100 text-orange-800 border-orange-200",
+    description:
+      "Full two-way synchronization with Orderown (orderown.com) — the premier Restaurant Management System. Automate WhatsApp food orders, live Table QR billing, Kitchen Display System (KDS) sync, and delivery dispatch notifications.",
+    features: [
+      "1-Click WhatsApp digital menu & instant ordering",
+      "Automated WhatsApp order confirmation with live KOT kitchen status",
+      "Real-time delivery driver dispatch & live map tracking updates",
+      "Automated post-dine review collection & loyalty point rewards",
+    ],
+    externalUrl: "https://orderown.com",
+    highlight: true,
+  },
 
-  const { data: brandSettings } = useQuery<AppSettings>({
-    queryKey: ["/api/brand-settings"],
-    queryFn: () => fetch("/api/brand-settings").then((res) => res.json()),
-    staleTime: 5 * 60 * 1000,
+  // AI & Speech Intelligence
+  {
+    name: "OpenAI GPT-4o & ChatGPT",
+    category: "ai",
+    badge: "AI Engine",
+    badgeColor: "bg-purple-100 text-purple-800 border-purple-200",
+    description:
+      "Power conversational bots with advanced contextual understanding, document retrieval, and intelligent objection handling.",
+    features: [
+      "Custom system prompts & knowledge base injection",
+      "Function calling & live database querying",
+      "Multi-turn conversational memory in WhatsApp",
+    ],
+  },
+  {
+    name: "ElevenLabs Voice AI",
+    category: "ai",
+    badge: "Speech Model",
+    badgeColor: "bg-purple-100 text-purple-800 border-purple-200",
+    description:
+      "Ultra-realistic multilingual voice synthesis with natural human cadence, emotion, and low latency for outbound and inbound calls.",
+    features: [
+      "Sub-500ms voice generation",
+      "Custom voice cloning & studio-grade audio quality",
+      "40+ global language accents and nuances",
+    ],
+  },
+  {
+    name: "Deepgram Realtime Speech",
+    category: "ai",
+    badge: "Voice-to-Text",
+    badgeColor: "bg-purple-100 text-purple-800 border-purple-200",
+    description:
+      "Ultra-fast live speech-to-text transcription for real-time audio phone conversations and customer voice note processing.",
+    features: [
+      "Instant word-by-word streaming transcription",
+      "Accented speech & background noise suppression",
+      "Automated punctuation & entity extraction",
+    ],
+  },
+  {
+    name: "Google Gemini 2.0 & Anthropic Claude",
+    category: "ai",
+    badge: "Multimodal AI",
+    badgeColor: "bg-purple-100 text-purple-800 border-purple-200",
+    description:
+      "Process customer product photos, PDF invoices, and complex multimodal inquiries directly inside WhatsApp chat.",
+    features: [
+      "Vision analysis for prescription & receipt reading",
+      "High token context window for large documentation",
+      "Multilingual translation across global dialects",
+    ],
+  },
+
+  // Zapier & Automation
+  {
+    name: "Zapier (5,000+ Apps)",
+    category: "automation",
+    badge: "No-Code Ecosystem",
+    badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
+    description:
+      "Connect Linala with over 5,000+ web applications without writing code. Trigger automated WhatsApp notifications on any event.",
+    features: [
+      "Trigger WhatsApp broadcast on new Google Sheets row or Typeform submit",
+      "Sync incoming WhatsApp contacts to Google Contacts, Slack, or Mailchimp",
+      "Multi-step automated Zaps with conditional branching filters",
+    ],
+    highlight: true,
+  },
+  {
+    name: "Make.com (Integromat)",
+    category: "automation",
+    badge: "Visual Scenarios",
+    badgeColor: "bg-indigo-100 text-indigo-800 border-indigo-200",
+    description:
+      "Build complex enterprise data routing scenarios and multi-app syncs with visual drag-and-drop nodes.",
+    features: [
+      "Visual scenario builder with data transformation routers",
+      "Real-time webhook triggers with instant execution",
+      "Error-handling paths and automated fallback actions",
+    ],
+  },
+  {
+    name: "Custom Webhooks & REST API",
+    category: "automation",
+    badge: "Developer First",
+    badgeColor: "bg-slate-100 text-slate-800 border-slate-200",
+    description:
+      "Bi-directional webhooks to receive inbound messages, delivery receipts, button clicks, and trigger programmatic messages from any backend.",
+    features: [
+      "Signed SHA-256 HMAC payload verification",
+      "Immediate event dispatch for message status updates",
+      "Swagger & Postman collections ready for quick testing",
+    ],
+  },
+
+  // E-Commerce
+  {
+    name: "Shopify & Shopify Plus",
+    category: "ecommerce",
+    badge: "Native E-Com",
+    badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    description:
+      "Automate order confirmation alerts, dispatch tracking numbers, recover abandoned checkouts, and sync WhatsApp catalog inventory.",
+    features: [
+      "Automatic abandoned cart recovery drip sequence",
+      "Order created, fulfilled, and out-for-delivery alerts",
+      "COD verification button to reduce return-to-origin (RTO)",
+    ],
+    highlight: true,
+  },
+  {
+    name: "WooCommerce & WordPress",
+    category: "ecommerce",
+    badge: "Open Source",
+    badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    description:
+      "Plug-and-play integration for WooCommerce stores to send instant WhatsApp PDF invoices, delivery status, and promotional broadcasts.",
+    features: [
+      "Instant checkout notifications with PDF receipt attachments",
+      "Customizable order status trigger webhooks",
+      "1-Click chat-to-order button for WooCommerce product pages",
+    ],
+  },
+
+  // Payment Gateways
+  {
+    name: "Stripe Payments",
+    category: "payment",
+    badge: "Global Payments",
+    badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
+    description:
+      "Generate dynamic Stripe checkout links inside WhatsApp chat and automatically dispatch receipts upon successful payment.",
+    features: [
+      "Global card, Apple Pay, Google Pay support",
+      "Automated subscription invoice alerts & dunning reminders",
+      "Instant webhook payment confirmation to unlock digital access",
+    ],
+  },
+  {
+    name: "Razorpay & UPI QR",
+    category: "payment",
+    badge: "India & GCC",
+    badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
+    description:
+      "Accept payments natively via dynamic UPI QR codes and Razorpay payment links generated automatically in chat.",
+    features: [
+      "Instant UPI QR generation with auto-reconciliation",
+      "Automated COD payment collection via WhatsApp link",
+      "Instant payment receipts with GST breakdown",
+    ],
+  },
+
+  // CRMs
+  {
+    name: "HubSpot CRM",
+    category: "crm",
+    badge: "CRM Sync",
+    badgeColor: "bg-rose-100 text-rose-800 border-rose-200",
+    description:
+      "Log all WhatsApp conversations directly inside HubSpot contact timelines. Trigger WhatsApp workflows from HubSpot deal stages.",
+    features: [
+      "2-Way contact property sync and conversation logging",
+      "Send WhatsApp templates directly from HubSpot contact records",
+      "HubSpot workflow action to trigger automated WhatsApp broadcasts",
+    ],
+  },
+  {
+    name: "Salesforce & Zoho CRM",
+    category: "crm",
+    badge: "Enterprise CRM",
+    badgeColor: "bg-rose-100 text-rose-800 border-rose-200",
+    description:
+      "Bi-directional synchronization with enterprise CRM records, lead scoring, and automated sales rep assignment.",
+    features: [
+      "Sync WhatsApp leads into Salesforce Leads and Contacts",
+      "Automate task creation for sales reps on inbound customer replies",
+      "Custom field mapping and pipeline stage progression",
+    ],
+  },
+];
+
+export const Integrations: React.FC = () => {
+  const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  const filteredIntegrations = ALL_INTEGRATIONS.filter((item) => {
+    const matchesCategory =
+      activeCategory === "all" || item.category === activeCategory;
+    const matchesSearch =
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
   });
 
-  const appName = brandSettings?.title ?? "";
-
-  const integrations = {
-    automation: [
-      {
-        name: "Make.com (Integromat)",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description:
-          "Connect LINALA WA with 1000+ apps using visual automation workflows",
-        features: [
-          "Visual workflow builder",
-          "Real-time triggers",
-          "Data transformation",
-          "Error handling",
-        ],
-        category: "No-code Automation",
-        popular: true,
-      },
-      {
-        name: "Zapier",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "Automate workflows between LINALA WA and 5000+ applications",
-        features: [
-          "Multi-step workflows",
-          "Conditional logic",
-          "Filters & formatters",
-          "Team collaboration",
-        ],
-        category: "Workflow Automation",
-      },
-      {
-        name: "Microsoft Power Automate",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description:
-          "Enterprise automation with Microsoft ecosystem integration",
-        features: [
-          "Office 365 integration",
-          "AI Builder",
-          "Approval workflows",
-          "Desktop automation",
-        ],
-        category: "Enterprise Automation",
-      },
-      {
-        name: "n8n",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description:
-          "Open-source workflow automation with self-hosting options",
-        features: [
-          "Self-hosted option",
-          "Custom nodes",
-          "Version control",
-          "Advanced scheduling",
-        ],
-        category: "Open Source",
-      },
-    ],
-    ecommerce: [
-      {
-        name: "Shopify",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description:
-          "Sync orders, customers, and inventory with your Shopify store",
-        features: [
-          "Order notifications",
-          "Abandoned cart recovery",
-          "Customer sync",
-          "Inventory updates",
-        ],
-        category: "E-commerce Platform",
-        popular: true,
-      },
-      {
-        name: "WooCommerce",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "WordPress e-commerce integration for order management",
-        features: [
-          "WordPress integration",
-          "Order tracking",
-          "Customer notifications",
-          "Product updates",
-        ],
-        category: "WordPress E-commerce",
-      },
-      {
-        name: "BigCommerce",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "Enterprise e-commerce platform integration",
-        features: [
-          "Multi-channel selling",
-          "Advanced analytics",
-          "API-first approach",
-          "Scalable infrastructure",
-        ],
-        category: "Enterprise E-commerce",
-      },
-      {
-        name: "Magento",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description:
-          "Flexible e-commerce solution with extensive customization",
-        features: [
-          "Multi-store management",
-          "B2B features",
-          "Advanced SEO",
-          "Custom development",
-        ],
-        category: "Flexible E-commerce",
-      },
-    ],
-    crm: [
-      {
-        name: "Salesforce",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "World's #1 CRM with deep WhatsApp integration",
-        features: [
-          "Lead management",
-          "Opportunity tracking",
-          "Custom fields",
-          "Advanced reporting",
-        ],
-        category: "Enterprise CRM",
-        popular: true,
-      },
-      {
-        name: "HubSpot",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "All-in-one marketing, sales, and service platform",
-        features: [
-          "Contact management",
-          "Deal pipeline",
-          "Marketing automation",
-          "Service tickets",
-        ],
-        category: "All-in-one CRM",
-      },
-      {
-        name: "Pipedrive",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "Sales-focused CRM designed for closing deals",
-        features: [
-          "Visual pipeline",
-          "Activity reminders",
-          "Email integration",
-          "Mobile app",
-        ],
-        category: "Sales CRM",
-      },
-      {
-        name: "Airtable",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "Flexible database with CRM capabilities",
-        features: [
-          "Custom databases",
-          "Collaboration tools",
-          "Automation",
-          "API access",
-        ],
-        category: "Database CRM",
-      },
-    ],
-    marketing: [
-      {
-        name: "Mailchimp",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "Email marketing platform with audience sync",
-        features: [
-          "Audience segmentation",
-          "Email campaigns",
-          "Marketing automation",
-          "Analytics",
-        ],
-        category: "Email Marketing",
-        popular: true,
-      },
-      {
-        name: "ConvertKit",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "Creator-focused email marketing with automation",
-        features: [
-          "Visual automations",
-          "Tagging system",
-          "Landing pages",
-          "Commerce integration",
-        ],
-        category: "Creator Marketing",
-      },
-      {
-        name: "ActiveCampaign",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "Customer experience automation platform",
-        features: [
-          "Behavioral triggers",
-          "Predictive sending",
-          "Site tracking",
-          "CRM integration",
-        ],
-        category: "Marketing Automation",
-      },
-      {
-        name: "Klaviyo",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "E-commerce focused email and SMS marketing",
-        features: [
-          "E-commerce integration",
-          "Predictive analytics",
-          "Segmentation",
-          "A/B testing",
-        ],
-        category: "E-commerce Marketing",
-      },
-    ],
-    productivity: [
-      {
-        name: "Google Workspace",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "Integrate with Gmail, Sheets, Calendar, and Drive",
-        features: [
-          "Gmail integration",
-          "Google Sheets sync",
-          "Calendar events",
-          "Drive storage",
-        ],
-        category: "Productivity Suite",
-        popular: true,
-      },
-      {
-        name: "Microsoft 365",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "Office suite integration with Teams and Outlook",
-        features: [
-          "Outlook sync",
-          "Teams notifications",
-          "Excel integration",
-          "OneDrive storage",
-        ],
-        category: "Office Suite",
-      },
-      {
-        name: "Slack",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "Team communication with WhatsApp notifications",
-        features: [
-          "Channel notifications",
-          "Direct messages",
-          "File sharing",
-          "App integrations",
-        ],
-        category: "Team Communication",
-      },
-      {
-        name: "Notion",
-        logo: "https://images.pexels.com/photos/267350/pexels-photo-267350.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&fit=crop",
-        description: "All-in-one workspace for notes, docs, and databases",
-        features: [
-          "Database sync",
-          "Page updates",
-          "Task management",
-          "Team collaboration",
-        ],
-        category: "Workspace",
-      },
-    ],
-  };
-
-  const apiFeatures = [
-    {
-      icon: Code,
-      title: "RESTful API",
-      description:
-        "Clean, well-documented REST API with comprehensive endpoints",
-    },
-    {
-      icon: Zap,
-      title: "Real-time Webhooks",
-      description:
-        "Instant notifications for message events and status updates",
-    },
-    {
-      icon: Database,
-      title: "Bulk Operations",
-      description:
-        "Handle large-scale operations efficiently with batch processing",
-    },
-    {
-      icon: Globe,
-      title: "Global Infrastructure",
-      description: "Low-latency API access from anywhere in the world",
-    },
-  ];
-
   return (
-    <div className="pt-16">
-      {/* Hero Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-green-50 via-white to-blue-50">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="bg-green-100 p-4 rounded-full w-fit mx-auto mb-6">
-            <Workflow className="w-8 h-8 text-green-600" />
+    <div className="min-h-screen bg-white">
+      {/* Hero Header */}
+      <section className="relative pt-32 pb-20 bg-gradient-to-b from-slate-50 via-purple-50/20 to-white overflow-hidden border-b border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-100 text-purple-800 text-xs font-semibold mb-6 border border-purple-200 shadow-2xs">
+            <Layers className="w-3.5 h-3.5 text-purple-600" />
+            Ecosystem & Integrations
           </div>
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-            Connect Everything with
-            <span className="block bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-              Our API & Integrations
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight max-w-4xl mx-auto leading-tight">
+            Connect Linala with Your{" "}
+            <span className="bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 bg-clip-text text-transparent">
+              Entire Software Stack
             </span>
           </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            Seamlessly integrate LINALA WA with your existing tools and workflows.
-            Connect with 1000+ applications or build custom integrations with
-            our powerful API.
+          <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
+            From Orderown Restaurant RMS and 5,000+ Zapier apps to AI models, Shopify, Stripe, and enterprise CRMs — automate your customer workflows seamlessly.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="bg-green-500 text-white px-8 py-4 rounded-xl font-bold hover:bg-green-600 transition-all transform hover:scale-105 shadow-xl">
-              Explore API
-            </button>
-            <button className="border-2 border-green-500 text-green-600 px-8 py-4 rounded-xl font-bold hover:bg-green-50 transition-all">
-              View Integrations
-            </button>
+          {/* Search Bar */}
+          <div className="mt-8 max-w-md mx-auto relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search integrations (e.g. Orderown, Zapier, Shopify, OpenAI)..."
+              className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-white shadow-sm"
+            />
           </div>
         </div>
       </section>
 
-      {/* API Features */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Powerful API Features
-            </h2>
-            <p className="text-xl text-gray-600">
-              Everything you need to build amazing integrations
-            </p>
-          </div>
+      {/* Categories & Integration Cards */}
+      <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Filter Pills */}
+        <div className="flex flex-wrap items-center justify-center gap-2 mb-12">
+          {[
+            { id: "all", label: "All Integrations" },
+            { id: "restaurant", label: "Restaurant RMS (Orderown)" },
+            { id: "automation", label: "Zapier & Automation" },
+            { id: "ai", label: "AI & Speech Models" },
+            { id: "ecommerce", label: "E-Commerce" },
+            { id: "payment", label: "Payment Gateways" },
+            { id: "crm", label: "CRMs & Databases" },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
+                activeCategory === cat.id
+                  ? "bg-purple-600 text-white shadow-md shadow-purple-500/20"
+                  : "bg-slate-100/80 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900"
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {apiFeatures.map((feature, index) => (
-              <div key={index} className="text-center">
-                <div className="bg-green-100 p-4 rounded-xl w-fit mx-auto mb-4">
-                  <feature.icon className="w-8 h-8 text-green-600" />
+        {/* Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredIntegrations.map((item, idx) => (
+            <div
+              key={idx}
+              className={`bg-white rounded-3xl border p-6 sm:p-7 flex flex-col justify-between transition-all duration-300 ${
+                item.highlight
+                  ? "border-purple-300 shadow-lg shadow-purple-500/5 ring-1 ring-purple-100"
+                  : "border-slate-200/80 shadow-xs hover:shadow-xl hover:border-purple-200"
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-slate-900">{item.name}</h3>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                      item.badgeColor || "bg-purple-50 text-purple-700 border-purple-200"
+                    }`}
+                  >
+                    {item.badge}
+                  </span>
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">
-                  {feature.title}
-                </h3>
-                <p className="text-gray-600">{feature.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* Integration Categories */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Popular Integrations
-            </h2>
-            <p className="text-xl text-gray-600">
-              Connect with your favorite tools and platforms
-            </p>
-          </div>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-5">
+                  {item.description}
+                </p>
 
-          {/* Category Tabs */}
-          <div className="flex flex-wrap justify-center gap-4 mb-12">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setActiveCategory(category.id)}
-                className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all ${
-                  activeCategory === category.id
-                    ? "bg-green-500 text-white shadow-lg transform scale-105"
-                    : "bg-white text-gray-700 hover:bg-gray-100 shadow-md"
-                }`}
-              >
-                <category.icon className="w-5 h-5" />
-                <span>{category.name}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Integration Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {integrations[activeCategory as keyof typeof integrations].map(
-              (integration, index) => (
-                <div
-                  key={index}
-                  className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all hover:-translate-y-1"
-                >
-                  <div className="flex items-center space-x-4 mb-4">
-                    <img
-                      src={integration.logo}
-                      alt={integration.name}
-                      className="w-12 h-12 rounded-lg object-cover"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2">
-                        <h3 className="font-bold text-gray-900">
-                          {integration.name}
-                        </h3>
-                        {integration.popular && (
-                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
-                            Popular
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-sm text-green-600 font-medium">
-                        {integration.category}
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  {item.features.map((feat, fIdx) => (
+                    <div key={fIdx} className="flex items-start gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-purple-600 flex-shrink-0 mt-0.5" />
+                      <span className="text-xs text-slate-700 font-medium leading-tight">
+                        {feat}
                       </span>
                     </div>
-                  </div>
-
-                  <p className="text-gray-600 mb-4 text-sm">
-                    {integration.description}
-                  </p>
-
-                  <div className="space-y-2 mb-4">
-                    {integration.features
-                      .slice(0, 3)
-                      .map((feature, featureIndex) => (
-                        <div
-                          key={featureIndex}
-                          className="flex items-center space-x-2"
-                        >
-                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                          <span className="text-sm text-gray-600">
-                            {feature}
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-
-                  <button className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium">
-                    Connect Now
-                  </button>
+                  ))}
                 </div>
-              )
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Make.com Spotlight */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <div className="bg-purple-100 p-3 rounded-lg w-fit mb-6">
-                <Zap className="w-8 h-8 text-purple-600" />
-              </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-6">
-                Supercharge with Make.com
-              </h2>
-              <p className="text-gray-600 mb-6">
-                Create powerful automation workflows without coding. Connect
-                {appName} with 1000+ apps using Make.com's visual workflow
-                builder and transform your business processes.
-              </p>
-
-              <div className="space-y-4 mb-8">
-                {[
-                  "Visual drag-and-drop workflow builder",
-                  "Real-time data synchronization",
-                  "Advanced conditional logic",
-                  "Error handling and monitoring",
-                  "Pre-built templates for common workflows",
-                ].map((feature, index) => (
-                  <div key={index} className="flex items-center space-x-3">
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <span className="text-gray-700">{feature}</span>
-                  </div>
-                ))}
               </div>
 
-              <button className="bg-purple-500 text-white px-8 py-4 rounded-xl font-bold hover:bg-purple-600 transition-all flex items-center group">
-                Start with Make.com
-                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-              </button>
-            </div>
-
-            <div className="bg-gradient-to-br from-purple-50 to-blue-50 p-8 rounded-2xl">
-              <h3 className="text-xl font-bold text-gray-900 mb-6">
-                Popular Workflow Examples
-              </h3>
-              <div className="space-y-4">
-                {[
-                  {
-                    trigger: "New Shopify Order",
-                    action: "Send WhatsApp Confirmation",
-                    icon: ShoppingCart,
-                  },
-                  {
-                    trigger: "Form Submission",
-                    action: "Add to WhatsApp Campaign",
-                    icon: MessageSquare,
-                  },
-                  {
-                    trigger: "Calendar Event",
-                    action: "Send Appointment Reminder",
-                    icon: Calendar,
-                  },
-                ].map((workflow, index) => (
-                  <div
-                    key={index}
-                    className="bg-white p-4 rounded-lg shadow-sm"
+              <div className="pt-5 mt-5 border-t border-slate-100 flex items-center justify-between">
+                {item.externalUrl ? (
+                  <a
+                    href={item.externalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center text-xs font-bold text-orange-600 hover:text-orange-700 group"
                   >
-                    <div className="flex items-center space-x-3">
-                      <workflow.icon className="w-5 h-5 text-purple-600" />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-900">
-                          {workflow.trigger}
-                        </div>
-                        <div className="text-xs text-gray-600">
-                          → {workflow.action}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    <span>Visit {item.name}</span>
+                    <ExternalLink className="w-3.5 h-3.5 ml-1 group-hover:translate-x-0.5" />
+                  </a>
+                ) : (
+                  <Link
+                    href="/signup"
+                    className="inline-flex items-center text-xs font-bold text-purple-600 hover:text-purple-700 group"
+                  >
+                    <span>Connect in 1-Click</span>
+                    <ArrowRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-0.5" />
+                  </Link>
+                )}
               </div>
             </div>
-          </div>
+          ))}
         </div>
       </section>
 
-      {/* Custom Integration CTA */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-green-600 to-blue-600">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Need a Custom Integration?
+      {/* Enterprise CTA */}
+      <section className="py-20 bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900 text-white text-center">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+            Need a Custom API or Enterprise CRM Connector?
           </h2>
-          <p className="text-xl text-white/90 mb-8">
-            Our API makes it easy to build custom integrations. Get started with
-            our comprehensive documentation.
+          <p className="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto leading-relaxed">
+            Our integration engineering team can build dedicated webhooks and custom pipelines for your enterprise infrastructure.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="bg-white text-green-600 px-8 py-4 rounded-xl font-bold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-xl">
-              View API Documentation
-            </button>
-            <button className="border-2 border-white text-white px-8 py-4 rounded-xl font-bold hover:bg-white hover:text-green-600 transition-all">
-              Contact Integration Team
-            </button>
+          <div className="pt-2 flex flex-wrap items-center justify-center gap-4">
+            <Link href="/contact">
+              <Button className="bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl px-8 py-3.5 h-12 shadow-lg shadow-purple-500/20 text-xs sm:text-sm">
+                Request Custom Integration
+                <ArrowRight className="w-4 h-4 ml-1.5" />
+              </Button>
+            </Link>
           </div>
         </div>
       </section>

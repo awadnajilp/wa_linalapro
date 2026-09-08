@@ -142,7 +142,7 @@ const Header: React.FC = () => {
     },
     {
       title: "Meta Official Cloud API",
-      desc: "Direct BSP gateway with verified templates & high throughput.",
+      desc: "Meta Approved Solution Provider gateway with verified templates & high throughput.",
       icon: ShieldCheck,
       path: "/features",
     },
@@ -224,12 +224,6 @@ const Header: React.FC = () => {
       icon: TrendingUp,
       path: "/case-studies",
     },
-    {
-      title: "Interactive Live Demo",
-      desc: "Test Voice AI and WhatsApp CRM in a live browser sandbox.",
-      icon: Sparkles,
-      path: "/demo",
-    },
   ];
 
   const companyItems = [
@@ -241,21 +235,15 @@ const Header: React.FC = () => {
     },
     {
       title: "Integrations",
-      desc: "Connect Shopify, WooCommerce, HubSpot, Salesforce & Zapier.",
+      desc: "Connect Orderown RMS, Zapier, Shopify, CRMs & AI models.",
       icon: Layers,
       path: "/integrations",
     },
     {
       title: "Careers",
-      desc: "Join our remote global engineering and product team.",
+      desc: "Join our global team across sales, engineering & marketing.",
       icon: Briefcase,
       path: "/careers",
-    },
-    {
-      title: "Press Kit",
-      desc: "Official brand guidelines, logos & media announcements.",
-      icon: FileText,
-      path: "/press-kit",
     },
     {
       title: "Contact Sales",

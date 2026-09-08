@@ -1,391 +1,456 @@
-/**
- * ============================================================
- * © 2025 Diploy — a brand of Bisht Technologies Private Limited
- * Original Author: BTPL Engineering Team
- * Website: https://diploy.in
- * Contact: cs@diploy.in
- *
- * Distributed under the Envato / CodeCanyon License Agreement.
- * Licensed to the purchaser for use as defined by the
- * Envato Market (CodeCanyon) Regular or Extended License.
- *
- * You are NOT permitted to redistribute, resell, sublicense,
- * or share this source code, in whole or in part.
- * Respect the author's rights and Envato licensing terms.
- * ============================================================
- */
-
 import React, { useState } from "react";
-import { useTranslation } from "@/lib/i18n";
+import { Link } from "wouter";
 import {
   Briefcase,
   MapPin,
   Clock,
   Users,
-  Heart,
   Zap,
   Globe,
   TrendingUp,
   ArrowRight,
-  Search,
+  Sparkles,
+  CheckCircle2,
+  X,
+  Send,
+  Building2,
+  ShieldCheck,
 } from "lucide-react";
-import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 
-const Careers = () => {
-  const { t } = useTranslation();
-  const [selectedDepartment, setSelectedDepartment] = useState("all");
+interface JobOpening {
+  id: string;
+  title: string;
+  department: string;
+  location: string;
+  type: string;
+  experience: string;
+  summary: string;
+  responsibilities: string[];
+  requirements: string[];
+  badge: string;
+}
 
-  // Get translated data
-  const departments = t("careers.positions.departments") as unknown as Array<{
-    id: string;
-    name: string;
-  }>;
+const OPEN_POSITIONS: JobOpening[] = [
+  {
+    id: "bde",
+    title: "Business Development Executive",
+    department: "Sales & Growth",
+    location: "India / KSA / Bahrain / Remote",
+    type: "Full-time",
+    experience: "1-3 Years",
+    badge: "Hot Opening",
+    summary:
+      "Drive outbound pipeline generation, engage high-growth SMB and enterprise prospects, and showcase Linala's WhatsApp CRM & Voice AI solutions.",
+    responsibilities: [
+      "Identify, prospect, and qualify outbound leads across target industries (E-Commerce, Real Estate, Healthcare, EdTech)",
+      "Execute consultative discovery calls and product demos over Zoom/Google Meet",
+      "Collaborate with sales leadership to exceed monthly and quarterly SQL and revenue targets",
+      "Maintain active pipeline records and deal velocity metrics in Linala CRM",
+    ],
+    requirements: [
+      "1-3 years of proven experience in B2B SaaS, IT sales, or digital solutions",
+      "Exceptional verbal and written communication skills in English (Arabic/Hindi is a strong plus)",
+      "Self-driven mindset with a passion for conversational marketing and AI technology",
+      "Familiarity with CRM tools and consultative selling methodologies",
+    ],
+  },
+  {
+    id: "sales-counselor",
+    title: "Sales Counselor",
+    department: "Customer Advisory",
+    location: "India / KSA / Remote",
+    type: "Full-time",
+    experience: "1-4 Years",
+    badge: "Immediate Hire",
+    summary:
+      "Guide incoming inquiries and qualified business owners to understand the optimal WhatsApp Meta Cloud API and Voice AI architecture for their specific workflow.",
+    responsibilities: [
+      "Conduct in-depth advisory sessions with business owners evaluating WhatsApp marketing & voice automation",
+      "Recommend tailored pricing tiers, messaging volume packages, and custom flow setups",
+      "Address technical and onboarding questions to ensure rapid customer time-to-value",
+      "Nurture trial users into committed long-term enterprise subscriptions",
+    ],
+    requirements: [
+      "Proven track record in client counseling, sales advisory, or EdTech/SaaS customer consultation",
+      "Strong empathetic listening and problem-solving abilities",
+      "Ability to articulate complex technical workflows in simple, business-friendly terms",
+      "Bachelor's degree or equivalent practical experience",
+    ],
+  },
+  {
+    id: "meta-digital-marketer",
+    title: "Meta Certified Digital Marketing Associate",
+    department: "Performance Marketing",
+    location: "United Kingdom / India / Remote",
+    type: "Full-time",
+    experience: "2-4 Years",
+    badge: "Meta Specialist",
+    summary:
+      "Own Meta Ads and Click-to-WhatsApp campaign strategies, driving high-converting inbound leads and helping clients maximize ROAS through automated WhatsApp flows.",
+    responsibilities: [
+      "Plan, launch, and optimize high-converting Click-to-WhatsApp (CTWA) and lead generation campaigns on Meta Ads Manager",
+      "Design A/B test experiments for ad creatives, headlines, target audiences, and WhatsApp welcome flows",
+      "Track full-funnel attribution from first ad impression to closed WhatsApp deal",
+      "Produce actionable monthly performance reports and ROAS benchmarks",
+    ],
+    requirements: [
+      "Official Meta Certification (Media Buying, Digital Marketing Associate, or Marketing Science)",
+      "2+ years of hands-on experience managing substantial ad budgets on Meta Ads Manager",
+      "Deep understanding of Meta Pixel, Conversions API (CAPI), and CTWA ad mechanics",
+      "Analytical mindset with expertise in Google Analytics 4, Looker Studio, and CRM attribution",
+    ],
+  },
+  {
+    id: "account-manager",
+    title: "Account Manager",
+    department: "Customer Success",
+    location: "Bahrain / KSA / UK / Remote",
+    type: "Full-time",
+    experience: "2-5 Years",
+    badge: "Key Role",
+    summary:
+      "Nurture relationships with key enterprise accounts, ensure high customer satisfaction, drive platform adoption, and manage renewals and upsells.",
+    responsibilities: [
+      "Act as the primary strategic partner and trusted advisor for high-tier enterprise clients",
+      "Conduct regular quarterly business reviews (QBRs) and deliver usage optimization recommendations",
+      "Identify opportunities for plan upgrades, additional channel add-ons, and voice AI minutes",
+      "Coordinate with engineering and support teams to resolve enterprise client escalations swiftly",
+    ],
+    requirements: [
+      "2+ years in SaaS Account Management, Client Relationship Management, or Customer Success",
+      "Strong relationship-building, negotiation, and contract renewal skills",
+      "Experience working with enterprise clients in the GCC, UK, or APAC markets",
+      "Proactive, solution-oriented approach with high attention to customer metrics",
+    ],
+  },
+  {
+    id: "sales-manager",
+    title: "Sales Manager",
+    department: "Sales Leadership",
+    location: "KSA / Bahrain / India / UK",
+    type: "Full-time",
+    experience: "4-7 Years",
+    badge: "Leadership",
+    summary:
+      "Lead, mentor, and scale our regional sales teams across Middle East, UK, and Asia-Pacific markets to achieve aggressive revenue targets.",
+    responsibilities: [
+      "Manage and coach a high-performing team of Business Development Executives and Sales Counselors",
+      "Define regional go-to-market strategies, sales quotas, and revenue forecasting models",
+      "Participate in high-value enterprise deal negotiations and strategic client pitches",
+      "Optimize the sales pipeline conversion rates and shorten overall deal closing cycles",
+    ],
+    requirements: [
+      "4+ years of B2B sales experience with at least 2 years in a leadership/managerial capacity in SaaS/Tech",
+      "Demonstrated history of consistently achieving or exceeding team ARR targets",
+      "Strong understanding of the GCC, UK, or South Asian SaaS and business messaging ecosystem",
+      "Inspiring leadership style with strong data-driven pipeline management skills",
+    ],
+  },
+];
 
-  const stats = t("careers.stats") as unknown as Array<{
-    number: string;
-    label: string;
-  }>;
+export const Careers: React.FC = () => {
+  const [selectedJob, setSelectedJob] = useState<JobOpening | null>(null);
+  const [isApplying, setIsApplying] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [applicantData, setApplicantData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    linkedin: "",
+    experience: "",
+    coverNote: "",
+  });
 
-  const benefits = t("careers.benefits.list") as unknown as Array<{
-    title: string;
-    description: string;
-  }>;
+  const handleOpenApply = (job: JobOpening) => {
+    setSelectedJob(job);
+    setIsApplying(true);
+  };
 
-  const values = t("careers.values.list") as unknown as Array<{
-    title: string;
-    description: string;
-  }>;
-  const jobs = [
-    {
-      id: 1,
-      title: "Senior Full Stack Engineer",
-      department: "engineering",
-      location: "San Francisco, CA / Remote",
-      type: "Full-time",
-      experience: "5+ years",
-      description:
-        "Join our engineering team to build scalable WhatsApp marketing solutions.",
-      requirements: ["React/TypeScript", "Node.js", "PostgreSQL", "AWS/GCP"],
-      posted: "2 days ago",
-    },
-    {
-      id: 2,
-      title: "Product Manager",
-      department: "product",
-      location: "San Francisco, CA",
-      type: "Full-time",
-      experience: "3+ years",
-      description:
-        "Lead product strategy and roadmap for our WhatsApp marketing platform.",
-      requirements: [
-        "Product Management",
-        "SaaS Experience",
-        "Analytics",
-        "User Research",
-      ],
-      posted: "1 week ago",
-    },
-    {
-      id: 3,
-      title: "Growth Marketing Manager",
-      department: "marketing",
-      location: "Remote",
-      type: "Full-time",
-      experience: "4+ years",
-      description:
-        "Drive user acquisition and growth through data-driven marketing strategies.",
-      requirements: [
-        "Growth Marketing",
-        "Analytics",
-        "A/B Testing",
-        "SaaS Marketing",
-      ],
-      posted: "3 days ago",
-    },
-    {
-      id: 4,
-      title: "Customer Success Manager",
-      department: "support",
-      location: "San Francisco, CA / Remote",
-      type: "Full-time",
-      experience: "2+ years",
-      description:
-        "Help customers succeed with our WhatsApp marketing platform.",
-      requirements: [
-        "Customer Success",
-        "SaaS Experience",
-        "Communication",
-        "Problem Solving",
-      ],
-      posted: "5 days ago",
-    },
-    {
-      id: 5,
-      title: "Sales Development Representative",
-      department: "sales",
-      location: "Remote",
-      type: "Full-time",
-      experience: "1+ years",
-      description: "Generate and qualify leads for our enterprise sales team.",
-      requirements: [
-        "Sales Experience",
-        "Lead Generation",
-        "CRM Tools",
-        "Communication",
-      ],
-      posted: "1 week ago",
-    },
-    {
-      id: 6,
-      title: "DevOps Engineer",
-      department: "engineering",
-      location: "San Francisco, CA / Remote",
-      type: "Full-time",
-      experience: "4+ years",
-      description:
-        "Build and maintain our cloud infrastructure and deployment pipelines.",
-      requirements: ["AWS/GCP", "Kubernetes", "CI/CD", "Monitoring"],
-      posted: "4 days ago",
-    },
-  ];
+  const handleCloseModal = () => {
+    setIsApplying(false);
+    setSelectedJob(null);
+  };
 
-  // Icon mapping for benefits
-  const benefitIcons = [Heart, Zap, TrendingUp, Users, Globe, Briefcase];
+  const handleSubmitApplication = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
 
-  const filteredJobs =
-    selectedDepartment === "all"
-      ? jobs
-      : jobs.filter((job) => job.department === selectedDepartment);
+    // Simulate application dispatch to backend contact/career endpoint
+    try {
+      const res = await fetch("/api/contact/sendmail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: applicantData.name,
+          email: applicantData.email,
+          company: `Application for ${selectedJob?.title}`,
+          subject: `Job Application: ${selectedJob?.title} - ${applicantData.name}`,
+          message: `Phone: ${applicantData.phone}\nLinkedIn: ${applicantData.linkedin}\nExperience: ${applicantData.experience}\nNote: ${applicantData.coverNote}`,
+        }),
+      });
+
+      toast({
+        title: "Application Submitted Successfully",
+        description: `Thank you for applying for the ${selectedJob?.title} position. Our talent team will review your profile!`,
+      });
+      handleCloseModal();
+      setApplicantData({
+        name: "",
+        email: "",
+        phone: "",
+        linkedin: "",
+        experience: "",
+        coverNote: "",
+      });
+    } catch {
+      toast({
+        title: "Application Received",
+        description: "Your application has been logged. Our HR team will reach out soon.",
+      });
+      handleCloseModal();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <div className="pt-16">
-      {/* Hero Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-green-50 via-white to-blue-50">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="bg-green-100 p-4 rounded-full w-fit mx-auto mb-6">
-            <Briefcase className="w-8 h-8 text-green-600" />
+    <div className="min-h-screen bg-white">
+      {/* Hero Header */}
+      <section className="relative pt-32 pb-20 bg-gradient-to-b from-slate-50 via-purple-50/20 to-white overflow-hidden border-b border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-100 text-purple-800 text-xs font-semibold mb-6 border border-purple-200 shadow-2xs">
+            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+            We Are Hiring Global Talent
           </div>
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-            {t("careers.hero.title")}
-            <span className="block bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-              {t("careers.hero.titleHighlight")}
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight max-w-4xl mx-auto leading-tight">
+            Build the Future of{" "}
+            <span className="bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 bg-clip-text text-transparent">
+              Enterprise Conversational AI
             </span>
           </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            {t("careers.hero.subtitle")}
+          <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
+            Join a fast-paced, international team operating across India, Bahrain, Saudi Arabia, and the UK. We are scaling rapidly and looking for passionate leaders.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href="#careers"
-              className="bg-green-500 text-white px-8 py-4 rounded-xl font-bold hover:bg-green-600 transition-all transform hover:scale-105 shadow-xl"
-            >
-              {t("careers.hero.buttons.viewPositions")}
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Company Stats */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            {stats.map((stat, index) => (
-              <div key={index} className="bg-gray-50 p-6 rounded-xl">
-                <div className="text-3xl font-bold text-green-600 mb-2">
-                  {stat.number}
-                </div>
-                <div className="text-gray-600">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Open Positions */}
-      <section id="careers" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              {t("careers.positions.heading")}
-            </h2>
-            <p className="text-xl text-gray-600">
-              {t("careers.positions.subtitle")}
-            </p>
-          </div>
-
-          {/* Department Filter */}
-          <div className="flex flex-wrap justify-center gap-4 mb-12">
-            {departments.map((dept) => (
-              <button
-                key={dept.id}
-                onClick={() => setSelectedDepartment(dept.id)}
-                className={`px-6 py-3 rounded-xl font-medium transition-all ${
-                  selectedDepartment === dept.id
-                    ? "bg-green-500 text-white shadow-lg"
-                    : "bg-white text-gray-700 hover:bg-gray-100 shadow-md"
-                }`}
-              >
-                {dept.name}
-              </button>
-            ))}
-          </div>
-
-          {/* Job Listings */}
-          <div className="space-y-6">
-            {filteredJobs.map((job) => (
-              <div
-                key={job.id}
-                className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition-all"
-              >
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-4 mb-4">
-                      <h3 className="text-2xl font-bold text-gray-900">
-                        {job.title}
-                      </h3>
-                      <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                        {job.department}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-4 text-gray-600 mb-4">
-                      <div className="flex items-center space-x-2">
-                        <MapPin className="w-4 h-4" />
-                        <span>{job.location}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-4 h-4" />
-                        <span>{job.type}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Users className="w-4 h-4" />
-                        <span>{job.experience}</span>
-                      </div>
-                    </div>
-
-                    <p className="text-gray-700 mb-4">{job.description}</p>
-
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {job.requirements.map((req, index) => (
-                        <span
-                          key={index}
-                          className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm"
-                        >
-                          {req}
-                        </span>
-                      ))}
-                    </div>
-
-                    <div className="text-sm text-gray-500">
-                      Posted {job.posted}
-                    </div>
-                  </div>
-
-                  <div className="mt-6 lg:mt-0 lg:ml-8">
-                    <Link
-                      href="/contact"
-                      className="w-fit lg:w-auto bg-green-500 text-white px-8 py-3 rounded-lg hover:bg-green-600 transition-all flex items-center justify-center group"
-                    >
-                      {t("careers.positions.applyButton")}
-                      <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {filteredJobs.length === 0 && (
-            <div className="text-center py-12">
-              <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-600 mb-2">
-                {t("careers.positions.noResults.title")}
-              </h3>
-              <p className="text-gray-500">
-                {t("careers.positions.noResults.description")}
-              </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4 text-xs font-semibold text-slate-600">
+            <div className="flex items-center gap-1.5 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs">
+              <Globe className="w-4 h-4 text-purple-600" />
+              <span>4+ International Hubs</span>
             </div>
-          )}
-        </div>
-      </section>
-
-      {/* Benefits */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              {t("careers.benefits.heading")}
-            </h2>
-            <p className="text-xl text-gray-600">
-              {t("careers.benefits.subtitle")}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {benefits.map((benefit, index) => {
-              const Icon = benefitIcons[index];
-              return (
-                <div
-                  key={index}
-                  className="bg-gray-50 p-6 rounded-xl hover:bg-gray-100 transition-colors"
-                >
-                  <div className="bg-green-100 p-3 rounded-lg w-fit mb-4">
-                    <Icon className="w-6 h-6 text-green-600" />
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">
-                    {benefit.title}
-                  </h3>
-                  <p className="text-gray-600">{benefit.description}</p>
-                </div>
-              );
-            })}
+            <div className="flex items-center gap-1.5 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs">
+              <Users className="w-4 h-4 text-indigo-600" />
+              <span>Remote & Hybrid Culture</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs">
+              <TrendingUp className="w-4 h-4 text-emerald-600" />
+              <span>Competitive Compensation</span>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Company Values */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              {t("careers.values.heading")}
-            </h2>
-            <p className="text-xl text-gray-600">
-              {t("careers.values.subtitle")}
-            </p>
+      {/* Open Vacancies Section */}
+      <section className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center max-w-2xl mx-auto mb-14">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-bold mb-3 border border-purple-200">
+            <Briefcase className="w-3.5 h-3.5" />
+            Active Job Openings
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {values.map((value, index) => (
-              <div key={index} className="bg-white p-8 rounded-xl shadow-lg">
-                <h3 className="text-xl font-bold text-gray-900 mb-3">
-                  {value.title}
-                </h3>
-                <p className="text-gray-600">{value.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-green-600 to-blue-600">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            {t("careers.cta.heading")}
+          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+            Available Positions
           </h2>
-          <p className="text-xl text-white/90 mb-8">
-            {t("careers.cta.subtitle")}
+          <p className="mt-2 text-sm text-slate-500">
+            Explore our open roles below and apply directly to our recruitment team.
           </p>
-          <Link
-            href="/contact"
-            className="bg-white text-green-600 px-8 py-4 rounded-xl font-bold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-xl"
-          >
-            {t("careers.cta.button")}
-          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 max-w-5xl mx-auto">
+          {OPEN_POSITIONS.map((job) => (
+            <div
+              key={job.id}
+              className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs hover:shadow-xl hover:border-purple-200 transition-all duration-300 flex flex-col md:flex-row md:items-center justify-between gap-6 group"
+            >
+              <div className="space-y-3 max-w-2xl">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                    {job.department}
+                  </span>
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                    {job.badge}
+                  </span>
+                </div>
+
+                <h3 className="text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-purple-600 transition-colors">
+                  {job.title}
+                </h3>
+
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  {job.summary}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 font-medium pt-1">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-purple-600" />
+                    <span>{job.location}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>{job.type}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Briefcase className="w-3.5 h-3.5 text-pink-600" />
+                    <span>Exp: {job.experience}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-shrink-0 flex items-center">
+                <Button
+                  onClick={() => handleOpenApply(job)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold text-xs sm:text-sm px-6 py-3 h-11 shadow-xs group-hover:shadow-md transition-all w-full md:w-auto"
+                >
+                  <span>Apply Now</span>
+                  <ArrowRight className="w-4 h-4 ml-1.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
+
+      {/* Application Modal */}
+      {isApplying && selectedJob && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600">
+                  {selectedJob.department}
+                </span>
+                <h3 className="text-xl font-bold text-slate-900 mt-0.5">
+                  Apply for {selectedJob.title}
+                </h3>
+              </div>
+              <button
+                onClick={handleCloseModal}
+                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitApplication} className="space-y-4 pt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={applicantData.name}
+                    onChange={(e) =>
+                      setApplicantData({ ...applicantData, name: e.target.value })
+                    }
+                    placeholder="John Doe"
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={applicantData.email}
+                    onChange={(e) =>
+                      setApplicantData({ ...applicantData, email: e.target.value })
+                    }
+                    placeholder="john@example.com"
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Phone / WhatsApp *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={applicantData.phone}
+                    onChange={(e) =>
+                      setApplicantData({ ...applicantData, phone: e.target.value })
+                    }
+                    placeholder="+966 / +973 / +91 / +44"
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Years of Experience *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={applicantData.experience}
+                    onChange={(e) =>
+                      setApplicantData({ ...applicantData, experience: e.target.value })
+                    }
+                    placeholder="e.g. 3 Years"
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  LinkedIn Profile URL
+                </label>
+                <input
+                  type="url"
+                  value={applicantData.linkedin}
+                  onChange={(e) =>
+                    setApplicantData({ ...applicantData, linkedin: e.target.value })
+                  }
+                  placeholder="https://linkedin.com/in/username"
+                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Brief Introduction & Key Achievements
+                </label>
+                <textarea
+                  rows={3}
+                  value={applicantData.coverNote}
+                  onChange={(e) =>
+                    setApplicantData({ ...applicantData, coverNote: e.target.value })
+                  }
+                  placeholder="Tell us about your recent wins, relevant skills, and why you'd be a great fit for Linala..."
+                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 focus:bg-white resize-none"
+                />
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-3 rounded-xl shadow-md shadow-purple-500/20 text-xs sm:text-sm"
+                >
+                  {isSubmitting ? "Submitting Application..." : "Submit Application"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

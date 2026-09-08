@@ -69,7 +69,7 @@ export const FeaturesPage: React.FC = () => {
     {
       icon: ShieldCheck,
       title: "Official Meta Cloud API Gateway",
-      badge: "Enterprise BSP",
+      badge: "Meta Approved Partner",
       badgeColor: "bg-blue-100 text-blue-700 border-blue-200",
       description:
         "Direct connection to Meta's Cloud API infrastructure. Enjoy highest throughput messaging tiers, green tick verification support, and official compliance protection.",
@@ -136,9 +136,9 @@ export const FeaturesPage: React.FC = () => {
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
-            <Link href="/demo">
+            <Link href="/contact">
               <Button variant="outline" className="border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl px-6 py-3 h-12">
-                Watch 3-Minute Product Tour
+                Request Solution Demo
               </Button>
             </Link>
           </div>
@@ -215,7 +215,7 @@ export const FeaturesPage: React.FC = () => {
             {[
               {
                 icon: ShieldCheck,
-                title: "Meta BSP Verified",
+                title: "Meta Approved Solution Provider",
                 desc: "100% compliant with Meta Business Policies & zero ban risks.",
               },
               {

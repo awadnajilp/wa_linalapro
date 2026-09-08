@@ -387,7 +387,7 @@ export const WhatsAppGuide: React.FC = () => {
               <div className="pt-6 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h4 className="text-sm font-bold text-slate-900">Need 1-on-1 Onboarding Assistance?</h4>
-                  <p className="text-xs text-slate-500">Our Meta Certified BSP engineers will help verify your account.</p>
+                  <p className="text-xs text-slate-500">Our Meta Certified Solution Engineers will help verify your account.</p>
                 </div>
                 <Link href="/contact">
                   <Button className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold">

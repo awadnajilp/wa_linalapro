@@ -80,7 +80,6 @@ import UserSupportTicketsNew from "./pages/user-support-tickets";
 import BillingSubscriptionPage from "./components/billing-subscription-page";
 import GroupsUI from "./pages/group-list";
 import AllSubscriptionsPage from "./pages/masterSubscriptions";
-import DemoPage from "./pages/DemoPage";
 import MinimalLoader from "./components/MinimalLoader";
 import { TermsPage } from "./pages/TermsPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
@@ -89,7 +88,6 @@ import VerifyEmail from "./pages/verify-email";
 import AboutUs from "./pages/AboutUs";
 import { ScrollToTop } from "./components/ScrollToTop";
 import Integrations from "./components/Integrations";
-import PressKit from "./components/PressKit";
 import CaseStudies from "./components/CaseStudies";
 import WhatsAppGuide from "./components/WhatsAppGuide";
 import BestPractices from "./components/BestPractices";
@@ -518,11 +516,6 @@ function Router() {
       <SignupPopupHandler />
       <WhatsAppWidget />
       <Switch>
-        <Route path="/demo">
-          <>
-            <DemoPage />
-          </>
-        </Route>
         <Route path="/login" component={LoginPage} />
         <Route path="/verify-email">
           <>
@@ -564,13 +557,6 @@ function Router() {
           <>
             <Header />
             <Integrations />
-            <Footer />
-          </>
-        </Route>
-        <Route path="/press-kit">
-          <>
-            <Header />
-            <PressKit />
             <Footer />
           </>
         </Route>

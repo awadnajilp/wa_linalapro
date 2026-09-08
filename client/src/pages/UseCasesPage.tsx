@@ -220,9 +220,9 @@ export const UseCasesPage: React.FC = () => {
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
-            <Link href="/demo">
+            <Link href="/contact">
               <Button variant="outline" className="border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl px-6 py-3 h-12">
-                Explore Interactive Demo
+                Talk to Solution Experts
               </Button>
             </Link>
           </div>

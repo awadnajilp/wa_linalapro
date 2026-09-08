@@ -25,13 +25,9 @@ import {
   Building2,
   ShoppingCart,
   Plane,
-  BadgeCheck,
-  ExternalLink,
   Code,
-  Globe,
   Headphones,
   BarChart3,
-  CheckCircle2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { LanguageSelector } from "./language-selector";
@@ -39,12 +35,12 @@ import { AppSettings } from "@/types/types";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 
-const Header = () => {
+const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [activeMega, setActiveMega] = useState<string | null>(null);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navContainerRef = useRef<HTMLDivElement>(null);
@@ -91,174 +87,146 @@ const Header = () => {
     setMobileExpanded(null);
   }, [location]);
 
-  // Mega Menu Data Structures
+  // Active & linked menu data
   const featuresItems = [
     {
-      title: "Real-Time Voice AI Autopilot",
-      desc: "Sub-600ms latency voice calling in 40+ languages for 24/7 inbound & outbound phone triage.",
+      title: "Voice AI Autopilot",
+      desc: "Sub-600ms latency calling in 40+ languages for 24/7 phone triage.",
       icon: Radio,
       path: "/features",
-      badge: "Flagship",
     },
     {
-      title: "Omnichannel CRM & Kanban",
-      desc: "Automated stage cadences, deal velocity tracking, and round-robin sales distribution.",
+      title: "Omnichannel CRM",
+      desc: "Kanban deal pipeline with automated stage cadences.",
       icon: Workflow,
       path: "/features",
-      badge: "Core",
     },
     {
-      title: "Visual Flow Builder & Bots",
-      desc: "No-code drag-and-drop conversational canvas with condition branches and API webhooks.",
+      title: "Flow Builder & Bots",
+      desc: "No-code visual canvas with API webhooks & conditional logic.",
       icon: Zap,
       path: "/features",
     },
     {
       title: "Meta Official Cloud API",
-      desc: "Direct BSP connection with verified templates, Tier 1 to Unlimited scale, and zero ban risks.",
+      desc: "Direct BSP connection with verified templates & high throughput.",
       icon: ShieldCheck,
       path: "/features",
-      badge: "Verified",
     },
     {
-      title: "Multi-Agent Shared Inbox",
-      desc: "Unified support chat hub with collision detection, private staff notes, and canned replies.",
+      title: "Shared Team Inbox",
+      desc: "Multi-agent chat hub with collision detection & canned replies.",
       icon: MessageSquare,
       path: "/features",
     },
     {
-      title: "Attribution & Revenue Analytics",
-      desc: "Real-time delivery rates, read rates, CTRs, and closed-won campaign revenue ROI.",
+      title: "Analytics & Attribution",
+      desc: "Real-time delivery rates, CTRs, and campaign revenue ROI.",
       icon: BarChart3,
       path: "/features",
     },
   ];
 
-  const useCasesIndustries = [
+  const solutionsItems = [
     {
-      title: "E-Commerce & D2C",
-      desc: "Automate WhatsApp catalogs, 1-click checkout, and abandoned cart recovery drips.",
+      title: "E-Commerce & Retail",
+      desc: "Automate WhatsApp catalogs, 1-click checkout & cart recovery.",
       icon: ShoppingCart,
       path: "/use-cases",
     },
     {
       title: "Real Estate & Developers",
-      desc: "Capture Click-to-WhatsApp ad leads, qualify buyer budgets, and automate site visits.",
+      desc: "Capture ad leads, qualify budgets & book site visits automatically.",
       icon: Building2,
       path: "/use-cases",
     },
     {
       title: "Healthcare & Clinics",
-      desc: "Automate 24/7 doctor slot booking, digital lab reports, and reduce no-shows.",
+      desc: "Automate doctor bookings, digital lab reports & patient alerts.",
       icon: ShieldCheck,
       path: "/use-cases",
     },
     {
       title: "B2B, SaaS & Agencies",
-      desc: "Accelerate pipeline velocity with multi-agent inbox and automated follow-up cadences.",
+      desc: "Accelerate deal velocity with multi-agent inbox & follow-up drips.",
       icon: Briefcase,
       path: "/use-cases",
     },
     {
       title: "Education & EdTech",
-      desc: "Qualify prospective student inquiries, share syllabus PDFs, and collect tuition fees.",
+      desc: "Student admissions counseling, syllabus PDFs & fee alerts.",
       icon: GraduationCap,
       path: "/use-cases",
     },
     {
       title: "Travel & Hospitality",
-      desc: "24/7 multilingual AI concierge, WhatsApp booking vouchers, and itinerary dispatch.",
+      desc: "24/7 multilingual AI concierge, booking vouchers & itineraries.",
       icon: Plane,
       path: "/use-cases",
     },
   ];
 
-  const useCasesDepartments = [
+  const guidesItems = [
     {
-      title: "Sales & Revenue",
-      desc: "Accelerate deal closures with instant automated outreach.",
-      icon: TrendingUp,
-      path: "/use-cases",
-    },
-    {
-      title: "Customer Support",
-      desc: "Resolve 70%+ of queries autonomously with Voice & Chat AI.",
-      icon: Headphones,
-      path: "/use-cases",
-    },
-    {
-      title: "Marketing & Growth",
-      desc: "Achieve 98% open rates with hyper-targeted broadcasts.",
-      icon: Zap,
-      path: "/use-cases",
-    },
-  ];
-
-  const resourcesItems = [
-    {
-      title: "WhatsApp Meta Cloud API Guide",
-      desc: "Complete blueprint for Meta Business Verification, WABA setup & Official Green Tick approval.",
+      title: "Meta Cloud API Guide",
+      desc: "Step-by-step Meta Business Verification & Green Tick playbook.",
       icon: BookOpen,
       path: "/whatsapp-guide",
-      badge: "Official",
     },
     {
       title: "Best Practices & Compliance",
-      desc: "Opt-in policies, maintaining Green Quality Rating, rate-limiting, and avoiding spam blocks.",
+      desc: "Opt-in rules, quality rating protection & anti-spam guidelines.",
       icon: ShieldCheck,
       path: "/best-practices",
     },
     {
       title: "Developer API Reference",
-      desc: "REST APIs, webhooks, payload schemas, and SDKs to integrate Linala into your tech stack.",
+      desc: "REST APIs, webhooks, payload schemas & SDK docs.",
       icon: Code,
       path: "/api-docs",
-      badge: "REST",
     },
     {
-      title: "Case Studies & Success Stories",
-      desc: "Real benchmark metrics and revenue growth stories from high-growth enterprise brands.",
+      title: "Case Studies & Benchmarks",
+      desc: "Enterprise ROI stories and growth benchmarks.",
       icon: TrendingUp,
       path: "/case-studies",
     },
     {
       title: "Interactive Live Demo",
-      desc: "Experience Linala's Voice AI and WhatsApp CRM live in an interactive sandbox.",
+      desc: "Test Voice AI and WhatsApp CRM in a live sandbox.",
       icon: Sparkles,
       path: "/demo",
-      badge: "Interactive",
     },
   ];
 
   const companyItems = [
     {
-      title: "About Linala",
-      desc: "Our mission, leadership, enterprise infrastructure, and global presence.",
+      title: "About Us",
+      desc: "Our mission, leadership, enterprise infrastructure & vision.",
       icon: Users,
       path: "/about",
     },
     {
-      title: "Integrations Ecosystem",
-      desc: "Native plugins for Shopify, WooCommerce, HubSpot, Salesforce, Zoho, and Zapier.",
+      title: "Integrations",
+      desc: "Shopify, WooCommerce, HubSpot, Salesforce & Zapier.",
       icon: Layers,
       path: "/integrations",
     },
     {
-      title: "Careers & Culture",
-      desc: "Join our global remote team building the next generation of conversational AI.",
+      title: "Careers",
+      desc: "Join our remote product & engineering team.",
       icon: Briefcase,
       path: "/careers",
-      badge: "We're Hiring",
     },
     {
-      title: "Press Kit & Media Assets",
-      desc: "Official brand guidelines, logos, media kits, and press announcements.",
+      title: "Press Kit",
+      desc: "Official brand guidelines, logos & media kits.",
       icon: FileText,
       path: "/press-kit",
     },
     {
-      title: "Contact Sales & Support",
-      desc: "Connect with our solution architects for custom enterprise onboarding and SLAs.",
+      title: "Contact Sales",
+      desc: "Dedicated enterprise onboarding and solution architecture.",
       icon: Mail,
       path: "/contact",
     },
@@ -268,35 +236,32 @@ const Header = () => {
     <>
       <header
         ref={navContainerRef}
-        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
+        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-200 ${
           isScrolled
-            ? "bg-white/95 backdrop-blur-md shadow-xs border-b border-slate-200/80 py-2.5"
+            ? "bg-white/95 backdrop-blur-md shadow-2xs border-b border-slate-200/80 py-2.5"
             : "bg-white/90 backdrop-blur-md border-b border-slate-100 py-3.5"
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
-            {/* Logo */}
-            <Link href="/" className="flex items-center gap-2.5 group">
+            {/* Logo Area (No extra text label) */}
+            <Link href="/" className="flex items-center group flex-shrink-0">
               {brandSettings?.logo ? (
                 <img
                   src={brandSettings?.logo}
                   alt="Logo"
-                  className="h-9 sm:h-10 object-contain transition-transform group-hover:scale-105"
+                  className="h-8 sm:h-9 object-contain transition-transform group-hover:scale-105"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-pink-500 flex items-center justify-center text-white shadow-md shadow-purple-500/20 group-hover:scale-105 transition-transform">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-xs">
                   <MessageSquare className="w-5 h-5" />
                 </div>
               )}
-              <span className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
-                {brandSettings?.title || "Linala"}
-              </span>
             </Link>
 
-            {/* Desktop Navigation Links */}
+            {/* Desktop Navigation Links (Clean & Shortened) */}
             <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
-              {/* Features Dropdown */}
+              {/* Features */}
               <div
                 className="relative"
                 onMouseEnter={() => setActiveMega("features")}
@@ -304,24 +269,23 @@ const Header = () => {
               >
                 <button
                   onClick={() => setActiveMega(activeMega === "features" ? null : "features")}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
+                  className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
                     activeMega === "features"
                       ? "text-purple-600 bg-purple-50"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
                   }`}
                 >
-                  <span>Platform & Features</span>
+                  <span>Features</span>
                   <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    className={`w-3.5 h-3.5 transition-transform duration-150 ${
                       activeMega === "features" ? "rotate-180 text-purple-600" : "text-slate-400"
                     }`}
                   />
                 </button>
 
-                {/* Features Mega Menu */}
                 {activeMega === "features" && (
-                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[720px] bg-white rounded-3xl border border-slate-200/80 shadow-2xl shadow-slate-900/10 p-6 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="grid grid-cols-2 gap-4">
+                  <div className="absolute left-0 top-full mt-1.5 w-[560px] bg-white rounded-2xl border border-slate-200/90 shadow-xl shadow-slate-900/10 p-4 z-50 animate-in fade-in duration-150">
+                    <div className="grid grid-cols-2 gap-2">
                       {featuresItems.map((item, idx) => {
                         const Icon = item.icon;
                         return (
@@ -329,23 +293,16 @@ const Header = () => {
                             key={idx}
                             href={item.path}
                             onClick={() => setActiveMega(null)}
-                            className="flex items-start gap-3.5 p-3 rounded-2xl hover:bg-purple-50/60 transition-all duration-150 group"
+                            className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-purple-50/70 transition-colors group"
                           >
-                            <div className="w-10 h-10 rounded-xl bg-purple-100/80 text-purple-700 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-colors shadow-2xs">
-                              <Icon className="w-5 h-5" />
+                            <div className="w-8 h-8 rounded-lg bg-purple-100/80 text-purple-700 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                              <Icon className="w-4 h-4" />
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-purple-700 transition-colors">
-                                  {item.title}
-                                </h4>
-                                {item.badge && (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                                    {item.badge}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-relaxed font-normal">
+                            <div className="min-w-0">
+                              <h4 className="text-xs font-bold text-slate-900 group-hover:text-purple-700">
+                                {item.title}
+                              </h4>
+                              <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
                                 {item.desc}
                               </p>
                             </div>
@@ -353,205 +310,138 @@ const Header = () => {
                         );
                       })}
                     </div>
-
-                    <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between bg-slate-50 rounded-2xl p-4">
-                      <div className="flex items-center gap-2.5">
-                        <Sparkles className="w-4 h-4 text-purple-600" />
-                        <span className="text-xs font-semibold text-slate-800">
-                          Looking for complete technical specifications?
-                        </span>
-                      </div>
+                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs px-2">
+                      <span className="text-slate-500 font-medium">Explore all 2026 platform modules</span>
                       <Link
                         href="/features"
                         onClick={() => setActiveMega(null)}
-                        className="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1 group"
+                        className="font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1"
                       >
-                        <span>View All Features</span>
-                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                        <span>Full Feature Tour &rarr;</span>
                       </Link>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Use Cases Dropdown */}
+              {/* Solutions */}
               <div
                 className="relative"
-                onMouseEnter={() => setActiveMega("use-cases")}
+                onMouseEnter={() => setActiveMega("solutions")}
                 onMouseLeave={() => setActiveMega(null)}
               >
                 <button
-                  onClick={() => setActiveMega(activeMega === "use-cases" ? null : "use-cases")}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
-                    activeMega === "use-cases"
+                  onClick={() => setActiveMega(activeMega === "solutions" ? null : "solutions")}
+                  className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
+                    activeMega === "solutions"
                       ? "text-purple-600 bg-purple-50"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
                   }`}
                 >
-                  <span>Use Cases & Solutions</span>
+                  <span>Solutions</span>
                   <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                      activeMega === "use-cases" ? "rotate-180 text-purple-600" : "text-slate-400"
+                    className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                      activeMega === "solutions" ? "rotate-180 text-purple-600" : "text-slate-400"
                     }`}
                   />
                 </button>
 
-                {/* Use Cases Mega Menu */}
-                {activeMega === "use-cases" && (
-                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[780px] bg-white rounded-3xl border border-slate-200/80 shadow-2xl shadow-slate-900/10 p-6 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="grid grid-cols-12 gap-6">
-                      {/* Industries column */}
-                      <div className="col-span-8">
-                        <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-2">
-                          By Industry
-                        </h4>
-                        <div className="grid grid-cols-2 gap-3">
-                          {useCasesIndustries.map((ind, idx) => {
-                            const Icon = ind.icon;
-                            return (
-                              <Link
-                                key={idx}
-                                href={ind.path}
-                                onClick={() => setActiveMega(null)}
-                                className="flex items-start gap-3 p-2.5 rounded-2xl hover:bg-purple-50/60 transition-all duration-150 group"
-                              >
-                                <div className="w-8 h-8 rounded-xl bg-purple-100/70 text-purple-700 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                                  <Icon className="w-4 h-4" />
-                                </div>
-                                <div>
-                                  <h5 className="text-xs font-bold text-slate-900 group-hover:text-purple-700 transition-colors">
-                                    {ind.title}
-                                  </h5>
-                                  <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-snug">
-                                    {ind.desc}
-                                  </p>
-                                </div>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Department column */}
-                      <div className="col-span-4 bg-slate-50/80 rounded-2xl p-4 border border-slate-100 flex flex-col justify-between">
-                        <div>
-                          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">
-                            By Department
-                          </h4>
-                          <div className="space-y-3">
-                            {useCasesDepartments.map((dep, idx) => {
-                              const Icon = dep.icon;
-                              return (
-                                <Link
-                                  key={idx}
-                                  href={dep.path}
-                                  onClick={() => setActiveMega(null)}
-                                  className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-white transition-all group"
-                                >
-                                  <Icon className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                                  <span className="text-xs font-bold text-slate-800 group-hover:text-purple-700">
-                                    {dep.title}
-                                  </span>
-                                </Link>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="pt-4 border-t border-slate-200/80">
-                          <Link
-                            href="/use-cases"
-                            onClick={() => setActiveMega(null)}
-                            className="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1 group"
-                          >
-                            <span>Explore All Blueprints</span>
-                            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Resources & Guides Dropdown */}
-              <div
-                className="relative"
-                onMouseEnter={() => setActiveMega("resources")}
-                onMouseLeave={() => setActiveMega(null)}
-              >
-                <button
-                  onClick={() => setActiveMega(activeMega === "resources" ? null : "resources")}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
-                    activeMega === "resources"
-                      ? "text-purple-600 bg-purple-50"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
-                  }`}
-                >
-                  <span>Resources & Guides</span>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                      activeMega === "resources" ? "rotate-180 text-purple-600" : "text-slate-400"
-                    }`}
-                  />
-                </button>
-
-                {/* Resources Mega Menu */}
-                {activeMega === "resources" && (
-                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[640px] bg-white rounded-3xl border border-slate-200/80 shadow-2xl shadow-slate-900/10 p-6 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="grid grid-cols-2 gap-4">
-                      {resourcesItems.map((res, idx) => {
-                        const Icon = res.icon;
+                {activeMega === "solutions" && (
+                  <div className="absolute left-0 top-full mt-1.5 w-[560px] bg-white rounded-2xl border border-slate-200/90 shadow-xl shadow-slate-900/10 p-4 z-50 animate-in fade-in duration-150">
+                    <div className="grid grid-cols-2 gap-2">
+                      {solutionsItems.map((item, idx) => {
+                        const Icon = item.icon;
                         return (
                           <Link
                             key={idx}
-                            href={res.path}
+                            href={item.path}
                             onClick={() => setActiveMega(null)}
-                            className="flex items-start gap-3.5 p-3 rounded-2xl hover:bg-purple-50/60 transition-all duration-150 group"
+                            className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-purple-50/70 transition-colors group"
                           >
-                            <div className="w-9 h-9 rounded-xl bg-purple-100/80 text-purple-700 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-colors shadow-2xs">
+                            <div className="w-8 h-8 rounded-lg bg-purple-100/80 text-purple-700 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-colors">
                               <Icon className="w-4 h-4" />
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-purple-700 transition-colors">
-                                  {res.title}
-                                </h4>
-                                {res.badge && (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                                    {res.badge}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-relaxed font-normal">
-                                {res.desc}
+                            <div className="min-w-0">
+                              <h4 className="text-xs font-bold text-slate-900 group-hover:text-purple-700">
+                                {item.title}
+                              </h4>
+                              <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                                {item.desc}
                               </p>
                             </div>
                           </Link>
                         );
                       })}
                     </div>
-
-                    <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between bg-purple-50/60 rounded-2xl p-4">
-                      <div className="flex items-center gap-2">
-                        <BadgeCheck className="w-4 h-4 text-purple-600" />
-                        <span className="text-xs font-semibold text-purple-900">
-                          Need WhatsApp Green Tick Verification Assistance?
-                        </span>
-                      </div>
+                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs px-2">
+                      <span className="text-slate-500 font-medium">Ready-to-deploy industry blueprints</span>
                       <Link
-                        href="/whatsapp-guide"
+                        href="/use-cases"
                         onClick={() => setActiveMega(null)}
-                        className="text-xs font-bold text-purple-700 hover:text-purple-900 flex items-center gap-1"
+                        className="font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1"
                       >
-                        <span>Read Meta Guide &rarr;</span>
+                        <span>All Use Cases &rarr;</span>
                       </Link>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Company Dropdown */}
+              {/* Guides */}
+              <div
+                className="relative"
+                onMouseEnter={() => setActiveMega("guides")}
+                onMouseLeave={() => setActiveMega(null)}
+              >
+                <button
+                  onClick={() => setActiveMega(activeMega === "guides" ? null : "guides")}
+                  className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
+                    activeMega === "guides"
+                      ? "text-purple-600 bg-purple-50"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
+                  }`}
+                >
+                  <span>Guides</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                      activeMega === "guides" ? "rotate-180 text-purple-600" : "text-slate-400"
+                    }`}
+                  />
+                </button>
+
+                {activeMega === "guides" && (
+                  <div className="absolute left-0 top-full mt-1.5 w-[520px] bg-white rounded-2xl border border-slate-200/90 shadow-xl shadow-slate-900/10 p-4 z-50 animate-in fade-in duration-150">
+                    <div className="space-y-1.5">
+                      {guidesItems.map((item, idx) => {
+                        const Icon = item.icon;
+                        return (
+                          <Link
+                            key={idx}
+                            href={item.path}
+                            onClick={() => setActiveMega(null)}
+                            className="flex items-center gap-3 p-2 rounded-xl hover:bg-purple-50/70 transition-colors group"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-purple-100/80 text-purple-700 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                              <Icon className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xs font-bold text-slate-900 group-hover:text-purple-700">
+                                {item.title}
+                              </h4>
+                              <p className="text-[11px] text-slate-500 line-clamp-1">
+                                {item.desc}
+                              </p>
+                            </div>
+                            <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-purple-600 transition-colors" />
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Company */}
               <div
                 className="relative"
                 onMouseEnter={() => setActiveMega("company")}
@@ -559,7 +449,7 @@ const Header = () => {
               >
                 <button
                   onClick={() => setActiveMega(activeMega === "company" ? null : "company")}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
+                  className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 ${
                     activeMega === "company"
                       ? "text-purple-600 bg-purple-50"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
@@ -567,43 +457,36 @@ const Header = () => {
                 >
                   <span>Company</span>
                   <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    className={`w-3.5 h-3.5 transition-transform duration-150 ${
                       activeMega === "company" ? "rotate-180 text-purple-600" : "text-slate-400"
                     }`}
                   />
                 </button>
 
-                {/* Company Mega Menu */}
                 {activeMega === "company" && (
-                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[580px] bg-white rounded-3xl border border-slate-200/80 shadow-2xl shadow-slate-900/10 p-6 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="grid grid-cols-2 gap-4">
-                      {companyItems.map((comp, idx) => {
-                        const Icon = comp.icon;
+                  <div className="absolute left-0 top-full mt-1.5 w-[500px] bg-white rounded-2xl border border-slate-200/90 shadow-xl shadow-slate-900/10 p-4 z-50 animate-in fade-in duration-150">
+                    <div className="space-y-1.5">
+                      {companyItems.map((item, idx) => {
+                        const Icon = item.icon;
                         return (
                           <Link
                             key={idx}
-                            href={comp.path}
+                            href={item.path}
                             onClick={() => setActiveMega(null)}
-                            className="flex items-start gap-3.5 p-3 rounded-2xl hover:bg-purple-50/60 transition-all duration-150 group"
+                            className="flex items-center gap-3 p-2 rounded-xl hover:bg-purple-50/70 transition-colors group"
                           >
-                            <div className="w-9 h-9 rounded-xl bg-purple-100/80 text-purple-700 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-colors shadow-2xs">
+                            <div className="w-8 h-8 rounded-lg bg-purple-100/80 text-purple-700 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-colors">
                               <Icon className="w-4 h-4" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-purple-700 transition-colors">
-                                  {comp.title}
-                                </h4>
-                                {comp.badge && (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                                    {comp.badge}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-relaxed font-normal">
-                                {comp.desc}
+                              <h4 className="text-xs font-bold text-slate-900 group-hover:text-purple-700">
+                                {item.title}
+                              </h4>
+                              <p className="text-[11px] text-slate-500 line-clamp-1">
+                                {item.desc}
                               </p>
                             </div>
+                            <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-purple-600 transition-colors" />
                           </Link>
                         );
                       })}
@@ -612,7 +495,7 @@ const Header = () => {
                 )}
               </div>
 
-              {/* Pricing Direct Link */}
+              {/* Pricing */}
               <Link
                 href="/#pricing"
                 className="px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-colors"
@@ -621,8 +504,8 @@ const Header = () => {
               </Link>
             </nav>
 
-            {/* Right Action Buttons */}
-            <div className="hidden lg:flex items-center gap-3">
+            {/* Right CTAs */}
+            <div className="hidden lg:flex items-center gap-2 xl:gap-3">
               <div className="w-fit">
                 <LanguageSelector />
               </div>
@@ -631,29 +514,29 @@ const Header = () => {
                 <>
                   <Link
                     href="/login"
-                    className="text-xs sm:text-sm font-bold text-slate-700 hover:text-purple-600 px-3.5 py-2 rounded-xl hover:bg-slate-100/70 transition-colors"
+                    className="text-xs sm:text-sm font-semibold text-slate-700 hover:text-purple-600 px-3 py-2 rounded-xl hover:bg-slate-100/70 transition-colors"
                   >
                     Log In
                   </Link>
                   <Link href="/signup">
-                    <Button className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl px-4 py-2 h-10 shadow-md shadow-purple-500/20 text-xs sm:text-sm flex items-center gap-1.5 transition-all">
-                      <span>Start Free Trial</span>
+                    <Button className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold rounded-xl px-4 py-2 h-9 shadow-xs text-xs sm:text-sm flex items-center gap-1.5 transition-all">
+                      <span>Start Free</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </Button>
                   </Link>
                 </>
               ) : (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <Link
                     href="/dashboard"
-                    className="text-xs sm:text-sm font-bold text-purple-700 bg-purple-50 px-3.5 py-2 rounded-xl hover:bg-purple-100 transition-colors"
+                    className="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-2 rounded-xl hover:bg-purple-100 transition-colors"
                   >
-                    Go to Workspace
+                    Dashboard
                   </Link>
 
                   <div className="relative" ref={dropdownRef}>
                     <button
-                      className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-purple-100 hover:ring-purple-300 transition-all shadow-2xs"
+                      className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-purple-100 hover:ring-purple-300 transition-all shadow-2xs"
                       onClick={() => setDropdownOpen(!dropdownOpen)}
                     >
                       <img
@@ -666,25 +549,25 @@ const Header = () => {
                     </button>
 
                     {dropdownOpen && (
-                      <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-900/10 py-1.5 z-50">
-                        <div className="px-4 py-2 border-b border-slate-100 text-xs font-bold text-slate-800">
+                      <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200/80 rounded-2xl shadow-xl py-1.5 z-50">
+                        <div className="px-3 py-1.5 border-b border-slate-100 text-xs font-bold text-slate-800 truncate">
                           {username}
                         </div>
                         <Link
                           href="/settings"
-                          className="flex items-center px-4 py-2 text-xs text-slate-700 hover:bg-purple-50 hover:text-purple-700"
+                          className="flex items-center px-3 py-1.5 text-xs text-slate-700 hover:bg-purple-50 hover:text-purple-700"
                         >
                           <Settings className="w-3.5 h-3.5 mr-2 text-slate-400" /> Settings
                         </Link>
                         <Link
                           href="/account"
-                          className="flex items-center px-4 py-2 text-xs text-slate-700 hover:bg-purple-50 hover:text-purple-700"
+                          className="flex items-center px-3 py-1.5 text-xs text-slate-700 hover:bg-purple-50 hover:text-purple-700"
                         >
                           <User className="w-3.5 h-3.5 mr-2 text-slate-400" /> Account
                         </Link>
                         <button
                           onClick={logout}
-                          className="flex items-center w-full px-4 py-2 text-xs text-rose-600 hover:bg-rose-50"
+                          className="flex items-center w-full px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
                         >
                           <LogOut className="w-3.5 h-3.5 mr-2" /> Logout
                         </button>
@@ -695,29 +578,29 @@ const Header = () => {
               )}
             </div>
 
-            {/* Mobile Menu Toggle Button */}
+            {/* Mobile Toggle */}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition-colors"
-              aria-label="Toggle Navigation Menu"
+              aria-label="Toggle Menu"
             >
-              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
       </header>
 
-      {/* Mobile Accordion Drawer */}
+      {/* Mobile Accordion Menu */}
       {isMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-30 bg-black/40 backdrop-blur-xs pt-16">
-          <div className="bg-white h-full overflow-y-auto px-5 py-6 space-y-4 shadow-2xl border-t border-slate-100">
-            {/* Features Mobile Accordion */}
-            <div className="border-b border-slate-100 pb-3">
+        <div className="lg:hidden fixed inset-0 z-30 bg-black/30 backdrop-blur-xs pt-16">
+          <div className="bg-white h-full overflow-y-auto px-5 py-5 space-y-3 shadow-xl border-t border-slate-100">
+            {/* Features Accordion */}
+            <div className="border-b border-slate-100 pb-2">
               <button
                 onClick={() => setMobileExpanded(mobileExpanded === "features" ? null : "features")}
                 className="flex items-center justify-between w-full text-left py-2 font-bold text-slate-900 text-sm"
               >
-                <span>Platform & Features</span>
+                <span>Features</span>
                 <ChevronDown
                   className={`w-4 h-4 text-slate-400 transition-transform ${
                     mobileExpanded === "features" ? "rotate-180" : ""
@@ -725,13 +608,13 @@ const Header = () => {
                 />
               </button>
               {mobileExpanded === "features" && (
-                <div className="mt-2 space-y-2 pl-2">
+                <div className="mt-1 space-y-1.5 pl-2">
                   {featuresItems.map((item, idx) => (
                     <Link
                       key={idx}
                       href={item.path}
                       onClick={() => setIsMenuOpen(false)}
-                      className="block py-1.5 text-xs text-slate-600 font-medium hover:text-purple-600"
+                      className="block py-1 text-xs text-slate-600 font-medium hover:text-purple-600"
                     >
                       {item.title}
                     </Link>
@@ -740,27 +623,27 @@ const Header = () => {
               )}
             </div>
 
-            {/* Use Cases Mobile Accordion */}
-            <div className="border-b border-slate-100 pb-3">
+            {/* Solutions Accordion */}
+            <div className="border-b border-slate-100 pb-2">
               <button
-                onClick={() => setMobileExpanded(mobileExpanded === "use-cases" ? null : "use-cases")}
+                onClick={() => setMobileExpanded(mobileExpanded === "solutions" ? null : "solutions")}
                 className="flex items-center justify-between w-full text-left py-2 font-bold text-slate-900 text-sm"
               >
-                <span>Use Cases & Solutions</span>
+                <span>Solutions</span>
                 <ChevronDown
                   className={`w-4 h-4 text-slate-400 transition-transform ${
-                    mobileExpanded === "use-cases" ? "rotate-180" : ""
+                    mobileExpanded === "solutions" ? "rotate-180" : ""
                   }`}
                 />
               </button>
-              {mobileExpanded === "use-cases" && (
-                <div className="mt-2 space-y-2 pl-2">
-                  {useCasesIndustries.map((item, idx) => (
+              {mobileExpanded === "solutions" && (
+                <div className="mt-1 space-y-1.5 pl-2">
+                  {solutionsItems.map((item, idx) => (
                     <Link
                       key={idx}
                       href={item.path}
                       onClick={() => setIsMenuOpen(false)}
-                      className="block py-1.5 text-xs text-slate-600 font-medium hover:text-purple-600"
+                      className="block py-1 text-xs text-slate-600 font-medium hover:text-purple-600"
                     >
                       {item.title}
                     </Link>
@@ -769,27 +652,27 @@ const Header = () => {
               )}
             </div>
 
-            {/* Resources Mobile Accordion */}
-            <div className="border-b border-slate-100 pb-3">
+            {/* Guides Accordion */}
+            <div className="border-b border-slate-100 pb-2">
               <button
-                onClick={() => setMobileExpanded(mobileExpanded === "resources" ? null : "resources")}
+                onClick={() => setMobileExpanded(mobileExpanded === "guides" ? null : "guides")}
                 className="flex items-center justify-between w-full text-left py-2 font-bold text-slate-900 text-sm"
               >
-                <span>Resources & Guides</span>
+                <span>Guides</span>
                 <ChevronDown
                   className={`w-4 h-4 text-slate-400 transition-transform ${
-                    mobileExpanded === "resources" ? "rotate-180" : ""
+                    mobileExpanded === "guides" ? "rotate-180" : ""
                   }`}
                 />
               </button>
-              {mobileExpanded === "resources" && (
-                <div className="mt-2 space-y-2 pl-2">
-                  {resourcesItems.map((item, idx) => (
+              {mobileExpanded === "guides" && (
+                <div className="mt-1 space-y-1.5 pl-2">
+                  {guidesItems.map((item, idx) => (
                     <Link
                       key={idx}
                       href={item.path}
                       onClick={() => setIsMenuOpen(false)}
-                      className="block py-1.5 text-xs text-slate-600 font-medium hover:text-purple-600"
+                      className="block py-1 text-xs text-slate-600 font-medium hover:text-purple-600"
                     >
                       {item.title}
                     </Link>
@@ -798,8 +681,8 @@ const Header = () => {
               )}
             </div>
 
-            {/* Company Mobile Accordion */}
-            <div className="border-b border-slate-100 pb-3">
+            {/* Company Accordion */}
+            <div className="border-b border-slate-100 pb-2">
               <button
                 onClick={() => setMobileExpanded(mobileExpanded === "company" ? null : "company")}
                 className="flex items-center justify-between w-full text-left py-2 font-bold text-slate-900 text-sm"
@@ -812,13 +695,13 @@ const Header = () => {
                 />
               </button>
               {mobileExpanded === "company" && (
-                <div className="mt-2 space-y-2 pl-2">
+                <div className="mt-1 space-y-1.5 pl-2">
                   {companyItems.map((item, idx) => (
                     <Link
                       key={idx}
                       href={item.path}
                       onClick={() => setIsMenuOpen(false)}
-                      className="block py-1.5 text-xs text-slate-600 font-medium hover:text-purple-600"
+                      className="block py-1 text-xs text-slate-600 font-medium hover:text-purple-600"
                     >
                       {item.title}
                     </Link>
@@ -827,20 +710,20 @@ const Header = () => {
               )}
             </div>
 
-            {/* Pricing Direct */}
+            {/* Pricing */}
             <div className="py-1">
               <Link
                 href="/#pricing"
                 onClick={() => setIsMenuOpen(false)}
-                className="block font-bold text-slate-900 text-sm py-1"
+                className="block font-bold text-slate-900 text-sm"
               >
                 Pricing
               </Link>
             </div>
 
-            {/* Mobile Actions */}
-            <div className="pt-4 space-y-3">
-              <div className="w-full pb-2">
+            {/* Mobile CTAs */}
+            <div className="pt-3 space-y-2">
+              <div className="w-full pb-1">
                 <LanguageSelector />
               </div>
 
@@ -849,25 +732,25 @@ const Header = () => {
                   <Link
                     href="/login"
                     onClick={() => setIsMenuOpen(false)}
-                    className="block w-full text-center py-3 rounded-xl border border-slate-200 text-slate-800 font-bold text-sm"
+                    className="block w-full text-center py-2.5 rounded-xl border border-slate-200 text-slate-800 font-bold text-xs"
                   >
                     Log In
                   </Link>
                   <Link
                     href="/signup"
                     onClick={() => setIsMenuOpen(false)}
-                    className="block w-full text-center py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-sm shadow-md shadow-purple-500/20"
+                    className="block w-full text-center py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-xs shadow-xs"
                   >
-                    Start Free Trial &rarr;
+                    Start Free &rarr;
                   </Link>
                 </>
               ) : (
                 <Link
                   href="/dashboard"
                   onClick={() => setIsMenuOpen(false)}
-                  className="block w-full text-center py-3 rounded-xl bg-purple-600 text-white font-bold text-sm shadow-md shadow-purple-500/20"
+                  className="block w-full text-center py-2.5 rounded-xl bg-purple-600 text-white font-bold text-xs shadow-xs"
                 >
-                  Open Dashboard Workspace
+                  Dashboard
                 </Link>
               )}
             </div>

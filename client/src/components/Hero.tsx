@@ -374,12 +374,12 @@ const Hero: React.FC = () => {
                           Instant WhatsApp Payment Confirmed
                         </div>
                         <div className="text-xs text-slate-500">
-                          Customer: Rahul K. · Razorpay UPI QR · Order #9482
+                          Customer: Alex M. · Instant 1-Click Pay · Order #9482
                         </div>
                       </div>
                     </div>
                     <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded-md">
-                      +₹1,499.00
+                      +$49.00
                     </span>
                   </div>
 

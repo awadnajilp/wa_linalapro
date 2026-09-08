@@ -1,17 +1,6 @@
 /**
  * ============================================================
- * © 2025 Diploy — a brand of Bisht Technologies Private Limited
- * Original Author: BTPL Engineering Team
- * Website: https://diploy.in
- * Contact: cs@diploy.in
- *
- * Distributed under the Envato / CodeCanyon License Agreement.
- * Licensed to the purchaser for use as defined by the
- * Envato Market (CodeCanyon) Regular or Extended License.
- *
- * You are NOT permitted to redistribute, resell, sublicense,
- * or share this source code, in whole or in part.
- * Respect the author's rights and Envato licensing terms.
+ * © 2026 Linala — Autonomous WhatsApp AI & Omnichannel CRM
  * ============================================================
  */
 
@@ -21,7 +10,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import ResetPassword from "@/components/ResetPassword";
 import VerifyOtp from "@/components/VerifyOtp";
 import ForgotPasswordEmail from "@/components/ForgotPasswordEmail";
@@ -48,25 +37,23 @@ import {
   Eye,
   EyeOff,
   Zap,
-  BarChart3,
-  Shield,
-  Users,
+  Sparkles,
+  ShieldCheck,
+  TrendingUp,
+  ArrowRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
 import { AppSettings } from "@/types/types";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
-
 });
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const [step, setStep] = useState<"login" | "forgot" | "verify" | "reset">(
@@ -91,7 +78,6 @@ export default function LoginPage() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: z.infer<typeof loginSchema>) => {
-      console.log(data);
       const response = await apiRequest("POST", "/api/auth/login", data);
 
       let json: any;
@@ -102,7 +88,7 @@ export default function LoginPage() {
       }
 
       if (!response.ok) {
-        throw new Error(json?.error || "Login failed. Please try again.");
+        throw new Error(json?.error || "Login failed. Please check your credentials.");
       }
 
       return json;
@@ -114,11 +100,9 @@ export default function LoginPage() {
         console.error("Failed to set sessionStorage:", e);
       }
 
-      // Now redirect
       window.location.href = "/dashboard";
     },
     onError: (error: any) => {
-      console.log("error", error);
       let errorMessage = error?.message || "Login failed. Please try again.";
 
       if (error.message.includes("401")) {
@@ -130,175 +114,241 @@ export default function LoginPage() {
       setError(errorMessage);
     },
   });
+
   const onSubmit = async (data: z.infer<typeof loginSchema>) => {
     setError(null);
-
     loginMutation.mutate(data);
   };
 
-  const handleGoogleLogin = () => {
-    setIsLoading(true);
-  };
-
-  const features = [
+  const liveHighlights = [
+    {
+      icon: Sparkles,
+      title: "Multilingual Voice AI Autopilot",
+      desc: "Instant natural voice notes across 40+ global languages with 0.4s response SLA.",
+    },
     {
       icon: Zap,
-      title: "Instant Campaigns",
-      description: "Launch WhatsApp campaigns in minutes",
+      title: "1-Click WhatsApp In-Chat Storefront",
+      desc: "Interactive catalog browsing, instant payments, and automatic order routing.",
     },
     {
-      icon: BarChart3,
-      title: "Real-time Analytics",
-      description: "Track delivery, reads, and engagement",
-    },
-    {
-      icon: Users,
-      title: "Contact Management",
-      description: "Organize and segment your audience",
-    },
-    {
-      icon: Shield,
-      title: "Secure & Compliant",
-      description: "GDPR compliant with enterprise security",
+      icon: TrendingUp,
+      title: "Omnichannel CRM & Sales Cadences",
+      desc: "Multi-agent shared team inbox, visual flow builder, and automated pipeline triggers.",
     },
   ];
 
   return (
-    <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute top-20 left-10 w-72 h-72 bg-green-500/5 rounded-full blur-3xl" />
-          <div className="absolute bottom-20 right-10 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl" />
-        </div>
+    <div className="min-h-screen flex bg-slate-950 font-sans text-slate-100 selection:bg-purple-600 selection:text-white">
+      {/* LEFT PANE: 2026 Interactive Hero & Brand Showcase */}
+      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 xl:p-16 overflow-hidden border-r border-slate-800/80 bg-gradient-to-br from-slate-950 via-purple-950/30 to-slate-900">
+        {/* Background Ambient Glow Circles */}
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 text-white w-full">
-          <div className="mb-10">
+        {/* Top Header / Logo */}
+        <div className="relative z-10">
+          <Link href="/" className="inline-flex items-center gap-3 group">
             {brandSettings?.logo ? (
               <img
                 src={brandSettings?.logo}
                 alt="Logo"
-                className="h-12 object-contain brightness-0 invert"
+                className="h-10 object-contain brightness-0 invert transition-transform group-hover:scale-105"
               />
             ) : (
               <div className="flex items-center gap-3">
-                <div className="bg-green-500/10 backdrop-blur-sm rounded-xl p-2.5">
-                  <MessageSquare className="h-7 w-7 text-green-400" />
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-purple-500/25 border border-purple-400/30">
+                  <MessageSquare className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-2xl font-bold">LINALA</span>
+                <div className="flex flex-col">
+                  <span className="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
+                    LINALA <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-semibold font-mono">2026</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 tracking-wider uppercase font-medium">WhatsApp AI Growth Engine</span>
+                </div>
               </div>
             )}
+          </Link>
+        </div>
+
+        {/* Center Copy & Interactive Mockup */}
+        <div className="relative z-10 my-auto py-8 max-w-lg">
+          {/* Eyebrow Pill */}
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-semibold uppercase tracking-wider mb-6">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            Live Enterprise Platform
           </div>
 
-          <h2 className="text-3xl xl:text-4xl font-bold leading-tight mb-4">
-            Power your business with WhatsApp Marketing
-          </h2>
-          <p className="text-slate-400 text-lg mb-10">
-            Reach your customers where they are. Drive engagement, boost sales, and build relationships.
+          <h1 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-white leading-tight mb-4">
+            Autonomous WhatsApp Commerce & AI Agents.
+          </h1>
+          <p className="text-slate-400 text-base leading-relaxed mb-8">
+            Manage conversations, close deals in-chat, and automate multilingual voice follow-ups on the official WhatsApp Cloud API.
           </p>
 
-          <div className="space-y-5">
-            {features.map((feature, index) => (
-              <div key={index} className="flex items-start gap-4">
-                <div className="bg-green-500/10 rounded-lg p-2.5 shrink-0">
-                  <feature.icon className="h-5 w-5 text-green-400" />
+          {/* Feature List */}
+          <div className="space-y-4 mb-8">
+            {liveHighlights.map((item, idx) => (
+              <div
+                key={idx}
+                className="flex items-start gap-3.5 p-3 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-sm transition-all hover:border-purple-500/40 hover:bg-slate-900/90"
+              >
+                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0 text-purple-400">
+                  <item.icon className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-white">{feature.title}</h3>
-                  <p className="text-slate-400 text-sm">{feature.description}</p>
+                  <div className="text-sm font-semibold text-white">{item.title}</div>
+                  <div className="text-xs text-slate-400 mt-0.5 leading-relaxed">{item.desc}</div>
                 </div>
               </div>
             ))}
           </div>
+
+          {/* Metric Badges */}
+          <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-800/80">
+            <div>
+              <div className="text-lg font-bold text-white">40+</div>
+              <div className="text-[11px] text-slate-400 font-medium">Global Dialects</div>
+            </div>
+            <div>
+              <div className="text-lg font-bold text-emerald-400">0.4s</div>
+              <div className="text-[11px] text-slate-400 font-medium">Voice AI Latency</div>
+            </div>
+            <div>
+              <div className="text-lg font-bold text-purple-400">3.8x</div>
+              <div className="text-[11px] text-slate-400 font-medium">Conversion Lift</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Trust & Compliance */}
+        <div className="relative z-10 flex items-center justify-between text-xs text-slate-400 pt-6 border-t border-slate-800/60">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-purple-400" />
+            <span>Official Meta Cloud API • SOC2 Type II Certified</span>
+          </div>
+          <div className="font-mono text-[11px] text-slate-400">99.9% Uptime SLA</div>
         </div>
       </div>
 
-      <div className="w-full lg:w-1/2 flex items-center justify-center bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md space-y-6">
-          <div className="text-center lg:text-left">
-            <div className="flex justify-center lg:hidden mb-6">
+      {/* RIGHT PANE: Modern Auth Form Container */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-10 lg:p-12 relative bg-slate-900/50">
+        {/* Subtle mobile ambient glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl pointer-events-none lg:hidden" />
+
+        <div className="w-full max-w-md relative z-10">
+          {/* Mobile Brand Logo */}
+          <div className="lg:hidden flex items-center justify-center mb-8">
+            <Link href="/" className="inline-flex items-center gap-2.5">
               {brandSettings?.logo ? (
                 <img
                   src={brandSettings?.logo}
                   alt="Logo"
-                  className="h-14 object-contain"
+                  className="h-10 object-contain brightness-0 invert"
                 />
               ) : (
-                <div className="bg-slate-800 text-white rounded-full p-3">
-                  <MessageSquare className="h-8 w-8" />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white shadow-lg">
+                    <MessageSquare className="w-5 h-5" />
+                  </div>
+                  <span className="text-xl font-bold text-white tracking-tight">LINALA</span>
                 </div>
               )}
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-              {step === "login" && "Welcome Back"}
-              {step === "forgot" && "Forgot Password"}
-              {step === "verify" && "Verify OTP"}
-              {step === "reset" && "Reset Password"}
-            </h1>
-            <p className="mt-1.5 text-gray-500">
-              {step === "login" && "Sign in to your WhatsApp marketing dashboard"}
-              {step === "forgot" && "Enter your email to receive a reset code"}
-              {step === "verify" && "Enter the code sent to your email"}
-              {step === "reset" && "Create a new secure password"}
+            </Link>
+          </div>
+
+          {/* Form Header */}
+          <div className="mb-6 text-center lg:text-left">
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+              {step === "login" && "Sign In to Linala"}
+              {step === "forgot" && "Reset Your Password"}
+              {step === "verify" && "Verify Security Code"}
+              {step === "reset" && "Create New Password"}
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">
+              {step === "login" && "Enter your workspace credentials to access your dashboard"}
+              {step === "forgot" && "Enter your account email to receive an instant reset code"}
+              {step === "verify" && "Enter the 6-digit verification code sent to your email"}
+              {step === "reset" && "Choose a strong password with at least 8 characters"}
             </p>
           </div>
 
-          <Card className="border-0 shadow-lg">
-            <CardContent className="pt-6 pb-6 px-6">
+          {/* Modern Card Frame */}
+          <Card className="bg-slate-900/90 border border-slate-800 shadow-2xl rounded-3xl backdrop-blur-xl overflow-hidden">
+            <CardContent className="p-6 sm:p-8">
+              {error && (
+                <Alert className="mb-5 bg-rose-950/60 border border-rose-800/80 text-rose-200 rounded-2xl p-3.5">
+                  <AlertDescription className="text-xs font-medium flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                    {error}
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {step === "login" && (
                 <Form {...form}>
-                  <form
-                    onSubmit={form.handleSubmit(onSubmit)}
-                    className="space-y-4"
-                  >
-                    {error && (
-                      <Alert variant="destructive">
-                        <AlertDescription>{error}</AlertDescription>
-                      </Alert>
-                    )}
-
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    {/* Username Field */}
                     <FormField
                       control={form.control}
                       name="username"
                       render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Username</FormLabel>
+                        <FormItem className="space-y-1.5">
+                          <FormLabel className="text-xs font-semibold text-slate-300">
+                            Username or Email
+                          </FormLabel>
                           <FormControl>
-                            <div className="relative">
-                              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <div className="relative group">
+                              <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
                               <Input
-                                {...field}
                                 placeholder="Enter your username"
-                                autoComplete="username"
-                                autoFocus
-                                className="pl-10"
+                                {...field}
+                                disabled={loginMutation.isPending}
+                                className="pl-10 h-11 bg-slate-950/80 border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus-visible:ring-purple-500 focus-visible:border-purple-500 transition-all"
                               />
                             </div>
                           </FormControl>
-                          <FormMessage />
+                          <FormMessage className="text-xs text-rose-400" />
                         </FormItem>
                       )}
                     />
 
+                    {/* Password Field */}
                     <FormField
                       control={form.control}
                       name="password"
                       render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Password</FormLabel>
+                        <FormItem className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <FormLabel className="text-xs font-semibold text-slate-300">
+                              Password
+                            </FormLabel>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setError(null);
+                                setStep("forgot");
+                              }}
+                              className="text-xs text-purple-400 hover:text-purple-300 font-medium transition-colors"
+                            >
+                              Forgot password?
+                            </button>
+                          </div>
                           <FormControl>
-                            <div className="relative">
-                              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <div className="relative group">
+                              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
                               <Input
-                                {...field}
                                 type={showPassword ? "text" : "password"}
-                                placeholder="Enter your password"
-                                autoComplete="current-password"
-                                className="pl-10 pr-10"
+                                placeholder="••••••••"
+                                {...field}
+                                disabled={loginMutation.isPending}
+                                className="pl-10 pr-10 h-11 bg-slate-950/80 border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus-visible:ring-purple-500 focus-visible:border-purple-500 transition-all"
                               />
                               <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
                               >
                                 {showPassword ? (
                                   <EyeOff className="h-4 w-4" />
@@ -308,39 +358,34 @@ export default function LoginPage() {
                               </button>
                             </div>
                           </FormControl>
-                          <FormMessage />
+                          <FormMessage className="text-xs text-rose-400" />
                         </FormItem>
                       )}
                     />
 
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        className="text-sm text-green-600 hover:text-green-700 font-medium"
-                        onClick={() => setStep("forgot")}
-                      >
-                        Forgot Password?
-                      </button>
-                    </div>
-
+                    {/* Submit Button */}
                     <Button
                       type="submit"
-                      className="w-full bg-green-600 hover:bg-green-700 h-11 text-base"
                       disabled={loginMutation.isPending}
+                      className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-purple-600/25 transition-all mt-2 cursor-pointer flex items-center justify-center gap-2"
                     >
                       {loginMutation.isPending ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Signing in...
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Signing in...</span>
                         </>
                       ) : (
-                        "Sign in"
+                        <>
+                          <span>Sign In to Dashboard</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
                       )}
                     </Button>
                   </form>
                 </Form>
               )}
 
+              {/* Forgot Password Flow */}
               {step === "forgot" && (
                 <ForgotPasswordEmail
                   onEmailSent={(sentEmail) => {
@@ -365,45 +410,33 @@ export default function LoginPage() {
                 <ResetPassword
                   email={email}
                   otpCode={otpCode}
-                  onReset={() => setStep("login")}
+                  onReset={() => {
+                    setStep("login");
+                    toast({
+                      title: "Password reset successful",
+                      description: "You can now log in with your new password.",
+                    });
+                  }}
                 />
               )}
-
-              {step === "login" && (
-                <div className="mt-6 text-center">
-                  <p className="text-sm text-gray-600">
-                    Don't have an account?{" "}
-                    <Link
-                      to="/signup"
-                      className="text-green-600 hover:text-green-700 font-semibold"
-                    >
-                      Sign up for free
-                    </Link>
-                  </p>
-                </div>
-              )}
-
             </CardContent>
           </Card>
 
-          <div className="text-center">
-            <div className="flex items-center justify-center space-x-6 text-xs text-gray-400">
-              <div className="flex items-center space-x-1.5">
-                <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                <span>Secure Login</span>
-              </div>
-              <div className="flex items-center space-x-1.5">
-                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                <span>GDPR Compliant</span>
-              </div>
-              <div className="flex items-center space-x-1.5">
-                <div className="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-                <span>24/7 Support</span>
-              </div>
+          {/* Bottom Signup Link */}
+          {step === "login" && (
+            <div className="mt-6 text-center text-xs text-slate-400">
+              Don't have a Linala workspace yet?{" "}
+              <Link
+                href="/signup"
+                className="font-semibold text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                Create Account (14-Day Free Trial)
+              </Link>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
+

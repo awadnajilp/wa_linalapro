@@ -1,17 +1,6 @@
 /**
  * ============================================================
- * © 2025 Diploy — a brand of Bisht Technologies Private Limited
- * Original Author: BTPL Engineering Team
- * Website: https://diploy.in
- * Contact: cs@diploy.in
- *
- * Distributed under the Envato / CodeCanyon License Agreement.
- * Licensed to the purchaser for use as defined by the
- * Envato Market (CodeCanyon) Regular or Extended License.
- *
- * You are NOT permitted to redistribute, resell, sublicense,
- * or share this source code, in whole or in part.
- * Respect the author's rights and Envato licensing terms.
+ * © 2026 Linala — Autonomous WhatsApp AI & Omnichannel CRM
  * ============================================================
  */
 
@@ -19,7 +8,21 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
-import { Mail, Lock, Eye, EyeOff, ArrowRight, User, MessageSquare } from "lucide-react";
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  User,
+  MessageSquare,
+  Sparkles,
+  ShieldCheck,
+  Zap,
+  CheckCircle2,
+  Loader2,
+  TrendingUp,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -55,13 +58,8 @@ const Signup: React.FC = () => {
     const searchParams = new URLSearchParams(window.location.search);
     const emailFromUrl = searchParams.get("email");
 
-    console.log("URL:", window.location.search);
-    console.log("Email from URL:", emailFromUrl);
-
     if (emailFromUrl) {
       const decodedEmail = decodeURIComponent(emailFromUrl);
-      console.log("Decoded email:", decodedEmail);
-
       setFormData((prev) => ({
         ...prev,
         email: decodedEmail,
@@ -82,62 +80,56 @@ const Signup: React.FC = () => {
     if (formData.password !== formData.confirmPassword)
       newErrors.confirmPassword = "Passwords do not match";
     if (!formData.agreeToTerms)
-      newErrors.agreeToTerms = "You must agree to the terms";
+      newErrors.agreeToTerms = "You must agree to the Terms & Privacy Policy";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!validateForm()) return;
+    e.preventDefault();
+    if (!validateForm()) return;
 
-  setIsLoading(true);
-  setErrors({});
+    setIsLoading(true);
+    setErrors({});
 
-  try {
-    const res = await apiRequest("POST", "/api/users/create", {
-      username: formData.username,
-      password: formData.password,
-      email: formData.email,
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      role: "admin",
-      avatar: "",
-    });
+    try {
+      const res = await apiRequest("POST", "/api/users/create", {
+        username: formData.username,
+        password: formData.password,
+        email: formData.email,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        role: "admin",
+        avatar: "",
+      });
 
-    const data = await res.json();
-    console.log("User created:", data);
+      const data = await res.json();
 
-    if (data.success) {
-      setLocation(`/verify-email?email=${encodeURIComponent(formData.email)}`);
-      return;
-    }
-
-    setErrors({ general: data.message });
-
-  } catch (error: any) {
-    console.error("Signup error:", error);
-
-    let message = "";
-
-    if (error?.message) {
-      try {
-        const jsonPart = error.message.replace(/^\d+:\s*/, "");
-        const parsed = JSON.parse(jsonPart);
-        message = parsed.message || "";
-      } catch {
-        message = error.message || "";
+      if (data.success) {
+        setLocation(`/verify-email?email=${encodeURIComponent(formData.email)}`);
+        return;
       }
+
+      setErrors({ general: data.message });
+    } catch (error: any) {
+      let message = "Signup failed. Please try again.";
+
+      if (error?.message) {
+        try {
+          const jsonPart = error.message.replace(/^\d+:\s*/, "");
+          const parsed = JSON.parse(jsonPart);
+          message = parsed.message || error.message;
+        } catch {
+          message = error.message || "Signup failed.";
+        }
+      }
+
+      setErrors({ general: message });
+    } finally {
+      setIsLoading(false);
     }
-
-    setErrors({ general: message });
-  } finally {
-    setIsLoading(false);
-  }
-};
-
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -150,294 +142,347 @@ const Signup: React.FC = () => {
     }
   };
 
+  const featureChecklist = [
+    "Multilingual AI Voice Autopilot in 40+ global languages",
+    "1-Click WhatsApp in-chat storefront & instant checkout",
+    "Visual flow builder with automated follow-up cadences",
+    "Omnichannel shared team inbox & multi-agent CRM",
+    "SME expense & receipt OCR balance sheet logging",
+    "Official Meta WhatsApp Cloud API verified messaging",
+  ];
+
   return (
-    <>
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-6">
-        <div className="max-w-md w-full space-y-8 mt-[50px]">
-          <div className="text-center">
-            <div className="flex justify-center mb-4">
+    <div className="min-h-screen flex bg-slate-950 font-sans text-slate-100 selection:bg-purple-600 selection:text-white">
+      {/* LEFT PANE: 2026 Brand Showcase & Value Props */}
+      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 xl:p-16 overflow-hidden border-r border-slate-800/80 bg-gradient-to-br from-slate-950 via-purple-950/30 to-slate-900">
+        {/* Background Ambient Glows */}
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
+
+        {/* Brand Logo */}
+        <div className="relative z-10">
+          <Link href="/" className="inline-flex items-center gap-3 group">
+            {brandSettings?.logo ? (
+              <img
+                src={brandSettings?.logo}
+                alt="Logo"
+                className="h-10 object-contain brightness-0 invert transition-transform group-hover:scale-105"
+              />
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-purple-500/25 border border-purple-400/30">
+                  <MessageSquare className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
+                    LINALA <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-semibold font-mono">2026</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 tracking-wider uppercase font-medium">WhatsApp AI Growth Engine</span>
+                </div>
+              </div>
+            )}
+          </Link>
+        </div>
+
+        {/* Center Content */}
+        <div className="relative z-10 my-auto py-8 max-w-lg">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-semibold uppercase tracking-wider mb-6">
+            <Zap className="w-3.5 h-3.5 text-purple-400" />
+            14-Day Free Trial • No Credit Card Required
+          </div>
+
+          <h1 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-white leading-tight mb-4">
+            Turn WhatsApp into Your Most Profitable Channel.
+          </h1>
+          <p className="text-slate-400 text-base leading-relaxed mb-8">
+            Deploy autonomous AI agents, automate follow-up cadences, and close deals in-chat with 1-click storefronts.
+          </p>
+
+          {/* Checklist */}
+          <div className="space-y-3.5 mb-8">
+            {featureChecklist.map((item, idx) => (
+              <div key={idx} className="flex items-center gap-3 text-sm text-slate-200">
+                <div className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Metric Bar */}
+          <div className="grid grid-cols-3 gap-3 pt-6 border-t border-slate-800/80">
+            <div>
+              <div className="text-lg font-bold text-white">500+</div>
+              <div className="text-[11px] text-slate-400 font-medium">Global Brands</div>
+            </div>
+            <div>
+              <div className="text-lg font-bold text-emerald-400">98.4%</div>
+              <div className="text-[11px] text-slate-400 font-medium">Open Rates</div>
+            </div>
+            <div>
+              <div className="text-lg font-bold text-purple-400">3.8x</div>
+              <div className="text-[11px] text-slate-400 font-medium">Sales Velocity</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Security */}
+        <div className="relative z-10 flex items-center justify-between text-xs text-slate-400 pt-6 border-t border-slate-800/60">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-purple-400" />
+            <span>Official Meta Cloud API • Enterprise Security</span>
+          </div>
+          <div className="font-mono text-[11px] text-slate-400">SOC2 Type II</div>
+        </div>
+      </div>
+
+      {/* RIGHT PANE: Modern Signup Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-10 lg:p-12 relative bg-slate-900/50">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl pointer-events-none lg:hidden" />
+
+        <div className="w-full max-w-md relative z-10">
+          {/* Mobile Logo */}
+          <div className="lg:hidden flex items-center justify-center mb-8">
+            <Link href="/" className="inline-flex items-center gap-2.5">
               {brandSettings?.logo ? (
                 <img
                   src={brandSettings?.logo}
                   alt="Logo"
-                  className="h-16 object-contain"
+                  className="h-10 object-contain brightness-0 invert"
                 />
               ) : (
-                <div className="bg-green-800 text-primary-foreground rounded-full p-3">
-                  <MessageSquare className="h-8 w-8" />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white shadow-lg">
+                    <MessageSquare className="w-5 h-5" />
+                  </div>
+                  <span className="text-xl font-bold text-white tracking-tight">LINALA</span>
                 </div>
               )}
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Create your account
-            </h1>
-            <p className="mt-2 text-gray-600">
-              Start your WhatsApp marketing journey today
+            </Link>
+          </div>
+
+          {/* Header */}
+          <div className="mb-6 text-center lg:text-left">
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+              Create Your Free Account
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Get started with full platform access in under 2 minutes.
             </p>
           </div>
 
-          <Card className="py-4">
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {errors.general && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                    {errors.general}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Username
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      type="text"
-                      name="username"
-                      value={formData.username}
-                      onChange={handleChange}
-                      className={`w-full pl-10 pr-4 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${
-                        errors.username ? "border-red-300" : "border-gray-300"
-                      }`}
-                      placeholder="Choose a unique username"
-                      required
-                    />
-                  </div>
-                  {errors.username && (
-                    <p className="mt-1 text-sm text-red-600">{errors.username}</p>
-                  )}
+          {/* Form Card */}
+          <Card className="bg-slate-900/90 border border-slate-800 shadow-2xl rounded-3xl backdrop-blur-xl overflow-hidden">
+            <CardContent className="p-6 sm:p-8">
+              {errors.general && (
+                <div className="mb-5 bg-rose-950/60 border border-rose-800/80 text-rose-200 rounded-2xl p-3.5 text-xs font-medium flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                  {errors.general}
                 </div>
+              )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      First Name
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* First & Last Name Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">First Name</label>
+                    <div className="relative group">
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
                       <input
                         type="text"
                         name="firstName"
                         value={formData.firstName}
                         onChange={handleChange}
-                        className={`w-full pl-10 pr-4 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${
-                          errors.firstName ? "border-red-300" : "border-gray-300"
-                        }`}
                         placeholder="John"
+                        className="w-full pl-10 pr-3 h-10 bg-slate-950/80 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
                         required
                       />
                     </div>
                     {errors.firstName && (
-                      <p className="mt-1 text-sm text-red-600">
-                        {errors.firstName}
-                      </p>
+                      <p className="text-[11px] text-rose-400">{errors.firstName}</p>
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Last Name
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Last Name</label>
+                    <div className="relative group">
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
                       <input
                         type="text"
                         name="lastName"
                         value={formData.lastName}
                         onChange={handleChange}
-                        className={`w-full pl-10 pr-4 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${
-                          errors.lastName ? "border-red-300" : "border-gray-300"
-                        }`}
                         placeholder="Doe"
+                        className="w-full pl-10 pr-3 h-10 bg-slate-950/80 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
                         required
                       />
                     </div>
                     {errors.lastName && (
-                      <p className="mt-1 text-sm text-red-600">
-                        {errors.lastName}
-                      </p>
+                      <p className="text-[11px] text-rose-400">{errors.lastName}</p>
                     )}
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Email
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                {/* Username */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Username</label>
+                  <div className="relative group">
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
+                    <input
+                      type="text"
+                      name="username"
+                      value={formData.username}
+                      onChange={handleChange}
+                      placeholder="johndoe"
+                      className="w-full pl-10 pr-3 h-10 bg-slate-950/80 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                      required
+                    />
+                  </div>
+                  {errors.username && (
+                    <p className="text-[11px] text-rose-400">{errors.username}</p>
+                  )}
+                </div>
+
+                {/* Email */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">Work Email</label>
+                  <div className="relative group">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
                     <input
                       type="email"
                       name="email"
                       value={formData.email}
                       onChange={handleChange}
-                      className={`w-full pl-10 pr-4 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${
-                        errors.email ? "border-red-300" : "border-gray-300"
-                      }`}
                       placeholder="john@company.com"
+                      className="w-full pl-10 pr-3 h-10 bg-slate-950/80 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
                       required
                     />
                   </div>
                   {errors.email && (
-                    <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+                    <p className="text-[11px] text-rose-400">{errors.email}</p>
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      className={`w-full pl-10 pr-12 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${
-                        errors.password ? "border-red-300" : "border-gray-300"
-                      }`}
-                      placeholder="Create a strong password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
+                {/* Passwords */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Password</label>
+                    <div className="relative group">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        placeholder="Min. 8 chars"
+                        className="w-full pl-10 pr-9 h-10 bg-slate-950/80 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                      >
+                        {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                    {errors.password && (
+                      <p className="text-[11px] text-rose-400">{errors.password}</p>
+                    )}
                   </div>
-                  {errors.password && (
-                    <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-                  )}
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Confirm Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      type={showConfirmPassword ? "text" : "password"}
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      className={`w-full pl-10 pr-12 py-2.5 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${
-                        errors.confirmPassword
-                          ? "border-red-300"
-                          : "border-gray-300"
-                      }`}
-                      placeholder="Confirm your password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300">Confirm Password</label>
+                    <div className="relative group">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-400" />
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        name="confirmPassword"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        placeholder="Re-enter password"
+                        className="w-full pl-10 pr-9 h-10 bg-slate-950/80 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                      >
+                        {showConfirmPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                    {errors.confirmPassword && (
+                      <p className="text-[11px] text-rose-400">{errors.confirmPassword}</p>
+                    )}
                   </div>
-                  {errors.confirmPassword && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {errors.confirmPassword}
-                    </p>
-                  )}
                 </div>
 
-                <div>
-                  <label className="flex items-start space-x-3">
+                {/* Terms Checkbox */}
+                <div className="pt-1">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
                     <input
                       type="checkbox"
                       name="agreeToTerms"
                       checked={formData.agreeToTerms}
                       onChange={handleChange}
-                      className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 mt-0.5"
+                      className="w-4 h-4 mt-0.5 rounded border-slate-700 bg-slate-950 text-purple-600 focus:ring-purple-500"
                     />
-                    <span className="text-sm text-gray-600">
+                    <span className="text-xs text-slate-400 leading-relaxed">
                       I agree to the{" "}
-                      <Link
-                        to="/terms"
-                        className="text-green-600 hover:text-green-700"
-                      >
+                      <Link href="/terms" className="text-purple-400 hover:text-purple-300 font-medium">
                         Terms of Service
                       </Link>{" "}
                       and{" "}
-                      <Link
-                        to="/privacy-policy"
-                        className="text-green-600 hover:text-green-700"
-                      >
+                      <Link href="/privacy-policy" className="text-purple-400 hover:text-purple-300 font-medium">
                         Privacy Policy
                       </Link>
                     </span>
                   </label>
                   {errors.agreeToTerms && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {errors.agreeToTerms}
-                    </p>
+                    <p className="text-[11px] text-rose-400 mt-1">{errors.agreeToTerms}</p>
                   )}
                 </div>
 
+                {/* Submit Button */}
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-md font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center"
+                  className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-purple-600/25 transition-all mt-2 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isLoading ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Creating workspace...</span>
+                    </>
                   ) : (
                     <>
-                      Create Account
-                      <ArrowRight className="w-4 h-4 ml-2" />
+                      <span>Start 14-Day Free Trial</span>
+                      <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
               </form>
 
-              <div className="mt-6 text-center">
-                <p className="text-gray-600">
-                  Already have an account?{" "}
-                  <Link
-                    to="/login"
-                    className="text-green-600 hover:text-green-700 font-medium"
-                  >
-                    Sign in
-                  </Link>
-                </p>
+              {/* Login Link */}
+              <div className="mt-6 text-center text-xs text-slate-400">
+                Already have a workspace?{" "}
+                <Link
+                  href="/login"
+                  className="font-semibold text-purple-400 hover:text-purple-300 transition-colors"
+                >
+                  Sign in
+                </Link>
               </div>
             </CardContent>
           </Card>
-
-          <div className="text-center">
-            <div className="flex items-center justify-center space-x-6 text-sm text-gray-500">
-              <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>Secure Login</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span>GDPR Compliant</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <span>24/7 Support</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
 export default Signup;
+

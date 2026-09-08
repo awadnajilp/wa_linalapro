@@ -95,9 +95,9 @@ export const Features: React.FC = () => {
       icon: Mic,
       title: "Human-Like Voice Notes",
       description:
-        "Understand voice notes in regional dialects and reply with ultra-fast, natural synthesized audio.",
+        "Understand voice notes in 40+ global languages and reply with ultra-fast, natural synthesized audio.",
       bullets: [
-        "Regional languages: Malayalam, Hindi, Arabic, English",
+        "40+ global languages & regional dialects worldwide",
         "Instant audio transcription & sentiment context",
         "0.4s response time with zero robotic tone",
       ],
@@ -110,7 +110,7 @@ export const Features: React.FC = () => {
               <Mic className="w-3.5 h-3.5" /> Voice Note Reply
             </span>
             <span className="bg-indigo-500/20 text-indigo-300 px-2.5 py-0.5 rounded-full text-[11px] font-semibold">
-              Malayalam / Manglish
+              40+ Languages Supported
             </span>
           </div>
 

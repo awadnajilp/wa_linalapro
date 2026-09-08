@@ -233,7 +233,7 @@ const Hero: React.FC = () => {
                       </div>
                       <span className="text-[11px] text-purple-400 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
-                        AI Agent Active (Malayalam, Manglish, English)
+                        AI Agent Active (40+ Global Languages)
                       </span>
                     </div>
                   </div>
@@ -248,7 +248,7 @@ const Hero: React.FC = () => {
                   <div className="flex justify-start">
                     <div className="bg-slate-800 text-slate-200 rounded-2xl rounded-tl-xs px-3.5 py-2.5 max-w-[85%] shadow-sm">
                       <p className="leading-relaxed">
-                        ഹലോ, Linen Casual Shirt Blue കളറിൽ ഉണ്ടോ? Rate എത്രയാ? UPI വഴി pay ചെയ്യാൻ പറ്റുമോ?
+                        Hello! Do you have the Signature Linen Shirt in Blue (Size L)? What's the price, and can I checkout directly?
                       </p>
                       <span className="text-[10px] text-slate-400 block text-right mt-1">10:42 AM</span>
                     </div>
@@ -259,7 +259,7 @@ const Hero: React.FC = () => {
                     <div className="bg-purple-950/70 border border-purple-500/30 text-white rounded-2xl rounded-tr-xs p-3 max-w-[90%] shadow-sm">
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[10px] font-semibold text-purple-300 flex items-center gap-1">
-                          <Sparkles className="w-3 h-3 text-purple-300" /> AI Voice Note (Malayalam)
+                          <Sparkles className="w-3 h-3 text-purple-300" /> AI Voice Note (Multilingual)
                         </span>
                         <span className="text-[10px] text-purple-200">0:14</span>
                       </div>
@@ -294,7 +294,7 @@ const Hero: React.FC = () => {
                       </div>
 
                       <p className="text-[11px] text-purple-100 mt-2 leading-relaxed">
-                        "തീർച്ചയായും! Blue Linen Shirt സ്റ്റോക്കിൽ ഉണ്ട്. ₹1,499 ആണ് വില. താഴെയുള്ള ബട്ടൺ വഴി UPI / Card ഉപയോഗിച്ച് direct ആയി ഓർഡർ ചെയ്യാം."
+                        "Yes! The Blue Linen Shirt in Size L is in stock for $49.00. Tap below to complete your instant checkout."
                       </p>
                     </div>
                   </div>
@@ -311,7 +311,7 @@ const Hero: React.FC = () => {
                             Signature Linen Shirt (Blue)
                           </div>
                           <div className="text-purple-400 font-bold text-sm mt-0.5">
-                            ₹1,499 <span className="text-[10px] text-slate-400 line-through">₹2,499</span>
+                            $49.00 <span className="text-[10px] text-slate-400 line-through">$79.00</span>
                           </div>
                           <span className="text-[10px] text-emerald-300 font-medium">✓ In Stock (Express Delivery)</span>
                         </div>

@@ -93,7 +93,7 @@ export const DeepDiveShowcases: React.FC = () => {
                 </div>
 
                 <div className="p-2 rounded-lg bg-purple-950/80 border border-purple-500/30 flex items-center justify-between text-xs">
-                  <span className="text-purple-200 font-medium">Payment Link (UPI / Card)</span>
+                  <span className="text-purple-200 font-medium">Payment Link (1-Click Checkout)</span>
                   <span className="text-emerald-400 font-bold font-mono">Paid ✓</span>
                 </div>
               </div>
@@ -113,7 +113,7 @@ export const DeepDiveShowcases: React.FC = () => {
           <div className="lg:col-span-6 order-2 lg:order-1 bg-slate-950 p-6 rounded-3xl border border-slate-800 shadow-xl">
             <div className="space-y-3.5">
               <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 text-xs">
-                <span className="text-slate-400">Audio Query (Malayalam)</span>
+                <span className="text-slate-400">Multilingual Voice Query</span>
                 <span className="text-indigo-400 font-mono text-[11px]">Sub-500ms AI</span>
               </div>
 
@@ -145,8 +145,8 @@ export const DeepDiveShowcases: React.FC = () => {
               </div>
 
               <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                <span>Dialect Support:</span>
-                <span className="text-purple-300 font-semibold">Malayalam, Arabic, Hindi, English</span>
+                <span>Global Dialect Support:</span>
+                <span className="text-purple-300 font-semibold">40+ Languages Worldwide</span>
               </div>
             </div>
           </div>
@@ -159,12 +159,12 @@ export const DeepDiveShowcases: React.FC = () => {
               Human-Like Multilingual Voice AI
             </h3>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              Understand incoming audio in regional dialects and reply with natural voice notes that build instant customer trust.
+              Understand incoming audio across 40+ global languages and reply with natural voice notes that build instant customer trust.
             </p>
 
             <div className="space-y-2 pt-1">
               {[
-                "Instant speech-to-text with 99.4% regional dialect accuracy",
+                "Instant speech-to-text with 99.4% multilingual dialect accuracy",
                 "Natural voice synthesis with zero robotic latency",
                 "Automatic CRM logging and order attribution",
               ].map((point, idx) => (

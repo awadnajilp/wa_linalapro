@@ -15,7 +15,7 @@ const FAQ_ITEMS: FAQItem[] = [
   {
     question: "How does the Multilingual AI Voice Note feature work?",
     answer:
-      "Linala's AI understands customer voice notes in regional dialects (Malayalam, Hindi, Arabic, English) and generates natural, human-like voice note replies in real time with 0.4s response speed.",
+      "Linala's AI understands customer voice notes across 40+ global languages and generates natural, human-like voice note replies in real time with 0.4s response speed.",
   },
   {
     question: "How does 1-Click WhatsApp Store checkout work?",

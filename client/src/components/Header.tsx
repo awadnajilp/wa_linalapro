@@ -213,12 +213,6 @@ const Header: React.FC = () => {
       path: "/best-practices",
     },
     {
-      title: "Developer API Reference",
-      desc: "REST APIs, webhooks, payload schemas & SDK documentation.",
-      icon: Code,
-      path: "/api-docs",
-    },
-    {
       title: "Case Studies & Benchmarks",
       desc: "Enterprise ROI stories and growth benchmarks.",
       icon: TrendingUp,
@@ -244,12 +238,6 @@ const Header: React.FC = () => {
       desc: "Join our global team across sales, engineering & marketing.",
       icon: Briefcase,
       path: "/careers",
-    },
-    {
-      title: "Contact Sales",
-      desc: "Dedicated enterprise onboarding and solution architecture.",
-      icon: Mail,
-      path: "/contact",
     },
   ];
 
@@ -538,10 +526,18 @@ const Header: React.FC = () => {
 
               {/* Pricing */}
               <Link
-                href="/#pricing"
+                href="/pricing"
                 className="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-colors"
               >
                 Pricing
+              </Link>
+
+              {/* Contact */}
+              <Link
+                href="/contact"
+                className="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-colors"
+              >
+                Contact
               </Link>
             </nav>
 
@@ -794,11 +790,22 @@ const Header: React.FC = () => {
             {/* Pricing Direct */}
             <div className="pt-2">
               <Link
-                href="/#pricing"
+                href="/pricing"
                 onClick={() => setIsMenuOpen(false)}
                 className="block font-bold text-slate-900 text-sm py-2"
               >
                 Pricing
+              </Link>
+            </div>
+
+            {/* Contact Direct */}
+            <div className="pt-1">
+              <Link
+                href="/contact"
+                onClick={() => setIsMenuOpen(false)}
+                className="block font-bold text-slate-900 text-sm py-2"
+              >
+                Contact
               </Link>
             </div>
           </div>

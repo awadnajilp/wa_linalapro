@@ -111,6 +111,7 @@ import RemindersLedger from "./pages/RemindersLedger";
 import WhatsAppFlows from "./pages/WhatsAppFlows";
 import FeaturesPage from "./pages/FeaturesPage";
 import UseCasesPage from "./pages/UseCasesPage";
+import PricingPage from "./pages/PricingPage";
 
 // Define route permissions mapping
 const ROUTE_PERMISSIONS: Record<string, string> = {
@@ -616,10 +617,10 @@ function Router() {
             <Footer />
           </>
         </Route>
-        <Route path="/api-docs">
+        <Route path="/pricing">
           <>
             <Header />
-            <ApiDocs />
+            <PricingPage />
             <Footer />
           </>
         </Route>

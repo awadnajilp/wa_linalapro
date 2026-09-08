@@ -25,21 +25,22 @@ const Footer: React.FC = () => {
 
   const links = {
     product: [
-      { name: "WhatsApp Store & Checkout", href: "/#features" },
-      { name: "Multilingual Voice AI", href: "/#features" },
-      { name: "Visual Flow Builder", href: "/#features" },
-      { name: "Cadence & Campaigns", href: "/#features" },
-      { name: "SME Financial Ledger", href: "/#features" },
-      { name: "Team Inbox & CRM", href: "/#features" },
+      { name: "Platform Features", href: "/features" },
+      { name: "Industry Use Cases", href: "/use-cases" },
+      { name: "Pricing & Plans", href: "/pricing" },
+      { name: "Multilingual Voice AI", href: "/features" },
+      { name: "Visual Flow Builder", href: "/features" },
+      { name: "Team Inbox & CRM", href: "/features" },
     ],
     company: [
       { name: "About Us", href: "/about" },
-      { name: "Contact Sales & Support", href: "/contact" },
+      { name: "Integrations & RMS", href: "/integrations" },
       { name: "Careers", href: "/careers" },
+      { name: "Contact Us", href: "/contact" },
     ],
     resources: [
-      { name: "Case Studies", href: "/case-studies" },
-      { name: "WhatsApp Business Guide", href: "/whatsapp-guide" },
+      { name: "Case Studies & ROI", href: "/case-studies" },
+      { name: "Meta Cloud API Guide", href: "/whatsapp-guide" },
       { name: "Best Practices", href: "/best-practices" },
     ],
     legal: [

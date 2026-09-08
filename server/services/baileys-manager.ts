@@ -826,17 +826,103 @@ export class BaileysManager {
     }
   }
 
+  static formatJid(to: string): string {
+    if (!to) return "";
+    const cleanTo = to.trim();
+    if (cleanTo.endsWith("@g.us") || cleanTo.endsWith("@s.whatsapp.net") || cleanTo.endsWith("@lid")) {
+      return cleanTo;
+    }
+    if (cleanTo.endsWith("@c.us")) {
+      return cleanTo.replace("@c.us", "@s.whatsapp.net");
+    }
+    const cleanDigits = cleanTo.replace(/\D/g, "");
+    return `${cleanDigits}@s.whatsapp.net`;
+  }
+
+  static extractParticipantContact(participant: any, sock?: any): { phone: string; name: string; lid?: string } | null {
+    if (!participant) return null;
+
+    let candidatePhone = "";
+    const lid = participant.lid || (participant.id?.endsWith("@lid") ? participant.id : undefined);
+
+    // 1. Direct phoneNumber attribute on participant (Baileys parses this from binary node when available)
+    if (participant.phoneNumber) {
+      candidatePhone = participant.phoneNumber;
+    } 
+    // 2. Direct E.164 phone JID (e.g. 9665...@s.whatsapp.net or @c.us)
+    else if (participant.id && (participant.id.endsWith("@s.whatsapp.net") || participant.id.endsWith("@c.us"))) {
+      candidatePhone = participant.id;
+    }
+    // 3. Lookup in socket contacts cache if participant has an LID
+    else if (sock?.contacts) {
+      const pId = participant.id;
+      const pLid = participant.lid;
+      const cached = (pId && sock.contacts[pId]) || (pLid && sock.contacts[pLid]);
+
+      if (cached?.phoneNumber) {
+        candidatePhone = cached.phoneNumber;
+      } else if (cached?.id && (cached.id.endsWith("@s.whatsapp.net") || cached.id.endsWith("@c.us"))) {
+        candidatePhone = cached.id;
+      } else {
+        // Search contacts where lid matches
+        for (const c of Object.values(sock.contacts) as any[]) {
+          if (!c) continue;
+          if ((pId && (c.lid === pId || c.id === pId)) || (pLid && (c.lid === pLid || c.id === pLid))) {
+            if (c.phoneNumber) {
+              candidatePhone = c.phoneNumber;
+              break;
+            }
+            if (c.id && (c.id.endsWith("@s.whatsapp.net") || c.id.endsWith("@c.us"))) {
+              candidatePhone = c.id;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (!candidatePhone) {
+      // If we only have an @lid or pure LID string with no real phone number mapping,
+      // return null so we don't import unmapped fake LIDs as phone numbers.
+      return null;
+    }
+
+    // Clean phone number: remove device suffix (:1, :2 etc.) and non-digits
+    const userPart = candidatePhone.split("@")[0] || "";
+    const cleanPhone = userPart.split(":")[0].replace(/\D/g, "");
+
+    // Real E.164 numbers must be between 7 and 15 digits
+    if (!cleanPhone || cleanPhone.length < 7 || cleanPhone.length > 15) {
+      return null;
+    }
+
+    // Determine name
+    let contactName = cleanPhone;
+    const pId = participant.id;
+    const pLid = participant.lid;
+    const cached = sock?.contacts ? (sock.contacts[pId] || sock.contacts[pLid] || sock.contacts[`${cleanPhone}@s.whatsapp.net`]) : null;
+
+    if (cached) {
+      contactName = cached.notify || cached.name || cached.verifiedName || cached.pushName || contactName;
+    }
+    if (contactName === cleanPhone && (participant.username || participant.name || participant.notify)) {
+      contactName = participant.username || participant.name || participant.notify;
+    }
+
+    return {
+      phone: cleanPhone,
+      name: contactName,
+      lid
+    };
+  }
+
   static async sendMessage(channelId: string, to: string, text: string, replyToWaId?: string): Promise<any> {
     const sock = this.activeSockets.get(channelId);
     if (!sock) {
       throw new Error(`WhatsApp QR session is disconnected or not initialized for channel ${channelId}`);
     }
 
-    const jid = to.endsWith("@g.us")
-      ? to
-      : (to.replace(/\D/g, "").startsWith("1") && to.replace(/\D/g, "").length === 15)
-        ? `${to.replace(/\D/g, "")}@lid`
-        : `${to.replace(/\D/g, "")}@s.whatsapp.net`;
+    const jid = this.formatJid(to);
     const options: any = {};
     if (replyToWaId) {
       options.quoted = { key: { id: replyToWaId, remoteJid: jid } };
@@ -914,11 +1000,7 @@ export class BaileysManager {
       throw new Error(`WhatsApp QR session is disconnected or not initialized for channel ${channelId}`);
     }
 
-    const jid = to.endsWith("@g.us")
-      ? to
-      : (to.replace(/\D/g, "").startsWith("1") && to.replace(/\D/g, "").length === 15)
-        ? `${to.replace(/\D/g, "")}@lid`
-        : `${to.replace(/\D/g, "")}@s.whatsapp.net`;
+    const jid = this.formatJid(to);
     const options: any = {};
     if (replyToWaId) {
       options.quoted = { key: { id: replyToWaId, remoteJid: jid } };
@@ -1121,11 +1203,7 @@ export class BaileysManager {
     }
 
     try {
-      const jid = to.endsWith("@g.us")
-        ? to
-        : (to.replace(/\D/g, "").startsWith("1") && to.replace(/\D/g, "").length === 15)
-          ? `${to.replace(/\D/g, "")}@lid`
-          : `${to.replace(/\D/g, "")}@s.whatsapp.net`;
+      const jid = this.formatJid(to);
 
       console.log(`[BaileysManager] Sending read receipt for message ${whatsappMessageId} in ${jid}`);
       

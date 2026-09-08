@@ -6,12 +6,46 @@ import { requireAuth } from "../middlewares/auth.middleware";
 import { AddonManager } from "../services/addon-manager";
 
 export function registerRemindersRoutes(app: Express) {
-  // Get all reminders (paginated, with search)
+  // Get distinct contacts who have reminders on this channel
+  app.get("/api/reminders/contacts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { channelId } = req.query;
+
+      if (!channelId) {
+        return res.status(400).json({ error: "ChannelId is required" });
+      }
+
+      const rows = await db
+        .select({
+          contactPhone: schema.reminders.contactPhone,
+          contactName: schema.reminders.contactName,
+          totalCount: sql<number>`count(*)`,
+          pendingCount: sql<number>`count(case when ${schema.reminders.status} in ('pending', 'reminded_early') then 1 end)`
+        })
+        .from(schema.reminders)
+        .where(
+          and(
+            eq(schema.reminders.tenantId, tenantId),
+            eq(schema.reminders.channelId, String(channelId))
+          )
+        )
+        .groupBy(schema.reminders.contactPhone, schema.reminders.contactName)
+        .orderBy(desc(sql<number>`count(*)`));
+
+      res.json(rows);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Get all reminders (paginated, with search & contact filtering)
   app.get("/api/reminders", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
-      const { channelId, search, status, page = "1", limit = "10" } = req.query;
+      const { channelId, search, status, contactPhone, page = "1", limit = "10" } = req.query;
 
       if (!channelId) {
         return res.status(400).json({ error: "ChannelId is required" });
@@ -33,6 +67,10 @@ export function registerRemindersRoutes(app: Express) {
 
       if (status && status !== "all") {
         conditions.push(eq(schema.reminders.status, String(status)));
+      }
+
+      if (contactPhone && contactPhone !== "all") {
+        conditions.push(eq(schema.reminders.contactPhone, String(contactPhone)));
       }
 
       if (search) {
@@ -189,7 +227,7 @@ export function registerRemindersRoutes(app: Express) {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
-      const { channelId, triggerKeyword, todoKeyword, defaultLeadTimeMinutes, aiPrompt, isActive, purchaseType } = req.body;
+      const { channelId, triggerKeyword, todoKeyword, defaultLeadTimeMinutes, aiPrompt, apiKeySource, isActive, purchaseType } = req.body;
 
       if (!channelId) {
         return res.status(400).json({ error: "ChannelId is required" });
@@ -244,6 +282,7 @@ export function registerRemindersRoutes(app: Express) {
             todoKeyword: todoKeyword || "todo",
             defaultLeadTimeMinutes: defaultLeadTimeMinutes !== undefined ? parseInt(String(defaultLeadTimeMinutes)) : 15,
             aiPrompt: aiPrompt || "You are a helper AI for a Reminders and To-Do app. Extract the task description (What) and the scheduled time (When) from the user's message. Interpret natural dates like 'tomorrow at 5pm' or 'next week 12th at 1pm' correctly.",
+            apiKeySource: apiKeySource || existing.apiKeySource || "own_key",
             isActive: isActive !== undefined ? isActive : true
           })
           .where(eq(schema.reminderConfigs.id, existing.id))
@@ -259,6 +298,7 @@ export function registerRemindersRoutes(app: Express) {
             todoKeyword: todoKeyword || "todo",
             defaultLeadTimeMinutes: defaultLeadTimeMinutes !== undefined ? parseInt(String(defaultLeadTimeMinutes)) : 15,
             aiPrompt: aiPrompt || "You are a helper AI for a Reminders and To-Do app. Extract the task description (What) and the scheduled time (When) from the user's message. Interpret natural dates like 'tomorrow at 5pm' or 'next week 12th at 1pm' correctly.",
+            apiKeySource: apiKeySource || "own_key",
             isActive: isActive !== undefined ? isActive : true
           })
           .returning();

@@ -2713,6 +2713,7 @@ export const reminderConfigs = pgTable("reminder_configs", {
   todoKeyword: text("todo_keyword").default("todo"),
   defaultLeadTimeMinutes: integer("default_lead_time_minutes").default(15),
   aiPrompt: text("ai_prompt").default("You are a helper AI for a Reminders and To-Do app. Extract the task description (What) and the scheduled time (When) from the user's message. Interpret natural dates like 'tomorrow at 5pm' or 'next week 12th at 1pm' correctly."),
+  apiKeySource: text("api_key_source").default("own_key"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });

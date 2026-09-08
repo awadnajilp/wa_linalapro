@@ -30,6 +30,7 @@ interface ReminderConfig {
   todoKeyword: string;
   defaultLeadTimeMinutes: number;
   aiPrompt: string;
+  apiKeySource?: "own_key" | "admin_key";
   isActive: boolean;
 }
 
@@ -40,13 +41,14 @@ export default function RemindersLedger() {
 
   // Filters
   const [statusFilter, setStatusFilter] = useState("all");
+  const [contactFilter, setContactFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const limit = 15;
 
   React.useEffect(() => {
     setPage(1);
-  }, [statusFilter, searchQuery, selectedChannel]);
+  }, [statusFilter, contactFilter, searchQuery, selectedChannel]);
 
   // Modals open state
   const [isReminderOpen, setIsReminderOpen] = useState(false);
@@ -64,6 +66,7 @@ export default function RemindersLedger() {
   const [botLeadTime, setBotLeadTime] = useState("15");
   const [botActive, setBotActive] = useState(true);
   const [botPrompt, setBotPrompt] = useState("You are a helper AI for a Reminders and To-Do app. Extract the task description (What) and the scheduled time (When) from the user's message. Interpret natural dates like 'tomorrow at 5pm' or 'next week 12th at 1pm' correctly.");
+  const [apiKeySource, setApiKeySource] = useState<"own_key" | "admin_key">("own_key");
   const [configChannelId, setConfigChannelId] = useState("");
 
   // Fetch Channels
@@ -95,6 +98,18 @@ export default function RemindersLedger() {
     }
   }, [selectedChannel?.id]);
 
+  // Fetch Distinct Contacts with Reminders
+  const { data: contactsWithReminders = [] } = useQuery<Array<{ contactPhone: string; contactName: string | null; totalCount: number; pendingCount: number }>>({
+    queryKey: ["/api/reminders/contacts", selectedChannel?.id],
+    queryFn: async () => {
+      if (!selectedChannel?.id) return [];
+      const res = await fetch(`/api/reminders/contacts?channelId=${selectedChannel.id}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedChannel?.id,
+  });
+
   // Fetch Config
   const { data: config } = useQuery<ReminderConfig>({
     queryKey: ["/api/reminders/config", configChannelId],
@@ -113,6 +128,7 @@ export default function RemindersLedger() {
       setBotLeadTime(String(config.defaultLeadTimeMinutes || 15));
       setBotActive(config.isActive !== undefined ? config.isActive : true);
       setBotPrompt(config.aiPrompt || "You are a helper AI for a Reminders and To-Do app. Extract the task description (What) and the scheduled time (When) from the user's message. Interpret natural dates like 'tomorrow at 5pm' or 'next week 12th at 1pm' correctly.");
+      setApiKeySource(config.apiKeySource || "own_key");
     }
   }, [config]);
 
@@ -127,19 +143,22 @@ export default function RemindersLedger() {
       "/api/reminders",
       selectedChannel?.id,
       statusFilter,
+      contactFilter,
       searchQuery,
       page
     ],
     queryFn: async () => {
-      const q = new URLSearchParams();
-      if (selectedChannel?.id) q.set("channelId", selectedChannel.id);
-      if (statusFilter !== "all") q.set("status", statusFilter);
-      if (searchQuery) q.set("search", searchQuery);
-      q.set("page", page.toString());
-      q.set("limit", limit.toString());
-
-      const res = await fetch(`/api/reminders?${q.toString()}`);
-      if (!res.ok) throw new Error("Failed to fetch reminders list");
+      if (!selectedChannel?.id) return { data: [], total: 0, page: 1, limit };
+      const params = new URLSearchParams({
+        channelId: selectedChannel.id,
+        status: statusFilter,
+        contactPhone: contactFilter,
+        search: searchQuery,
+        page: String(page),
+        limit: String(limit)
+      });
+      const res = await fetch(`/api/reminders?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to load reminders");
       return res.json();
     },
     enabled: !!selectedChannel?.id,
@@ -161,13 +180,17 @@ export default function RemindersLedger() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Reminder Scheduled", description: "Your manual reminder alert is successfully saved." });
+      toast({ title: "Success", description: "Reminder scheduled successfully." });
       queryClient.invalidateQueries({ queryKey: ["/api/reminders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reminders/contacts", selectedChannel?.id] });
       setIsReminderOpen(false);
       setNewTitle("");
       setNewPhone("");
       setNewName("");
       setNewDueTime("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
     }
   });
 
@@ -177,8 +200,9 @@ export default function RemindersLedger() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Deleted", description: "Reminder deleted/cancelled." });
+      toast({ title: "Deleted", description: "Reminder removed successfully." });
       queryClient.invalidateQueries({ queryKey: ["/api/reminders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reminders/contacts", selectedChannel?.id] });
     }
   });
 
@@ -217,6 +241,7 @@ export default function RemindersLedger() {
       todoKeyword: botTodo,
       defaultLeadTimeMinutes: parseInt(botLeadTime),
       aiPrompt: botPrompt,
+      apiKeySource,
       isActive: botActive,
       purchaseType: botModeType
     });
@@ -259,14 +284,14 @@ export default function RemindersLedger() {
                 <Settings className="w-4 h-4" /> Bot Configurations
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[450px] text-xs">
+            <DialogContent className="sm:max-w-[540px] text-xs">
               <DialogHeader>
                 <DialogTitle>Reminders Bot Configurations</DialogTitle>
-                <DialogDescription>Setup trigger words, modes, and default alert metrics.</DialogDescription>
+                <DialogDescription>Setup trigger words, modes, AI providers, and default alert metrics.</DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
+              <div className="grid gap-4 py-4 max-h-[75vh] overflow-y-auto px-1">
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="configChannel" className="text-right">Channel</Label>
+                  <Label htmlFor="configChannel" className="text-right font-medium">Channel</Label>
                   <select
                     id="configChannel"
                     value={configChannelId}
@@ -279,14 +304,14 @@ export default function RemindersLedger() {
                   </select>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label className="text-right">Enable Bot</Label>
+                  <Label className="text-right font-medium">Enable Bot</Label>
                   <div className="flex items-center col-span-3">
                     <Switch checked={botActive} onCheckedChange={setBotActive} />
                     <span className="text-slate-500 ml-2">Active parser webhook intercepts</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="botMode" className="text-right">Bot Mode</Label>
+                  <Label htmlFor="botMode" className="text-right font-medium">Bot Mode</Label>
                   <select
                     id="botMode"
                     value={botModeType}
@@ -298,15 +323,15 @@ export default function RemindersLedger() {
                   </select>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="triggerK" className="text-right">Trigger Keyword</Label>
+                  <Label htmlFor="triggerK" className="text-right font-medium">Trigger Keyword</Label>
                   <Input id="triggerK" value={botTrigger} onChange={(e) => setBotTrigger(e.target.value)} className="col-span-3 h-9" />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="todoK" className="text-right">Todo Keyword</Label>
+                  <Label htmlFor="todoK" className="text-right font-medium">Todo Keyword</Label>
                   <Input id="todoK" value={botTodo} onChange={(e) => setBotTodo(e.target.value)} className="col-span-3 h-9" />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="leadK" className="text-right">Default Lead Alert</Label>
+                  <Label htmlFor="leadK" className="text-right font-medium">Default Lead Alert</Label>
                   <select
                     id="leadK"
                     value={botLeadTime}
@@ -322,24 +347,91 @@ export default function RemindersLedger() {
                   </select>
                 </div>
 
-                <div className="border-t border-slate-100 pt-4 space-y-3 col-span-full">
+                {/* API Key Source Selection */}
+                <div className="border border-indigo-100 rounded-lg p-3 bg-indigo-50/40 space-y-2 col-span-full">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="font-semibold text-xs text-gray-900 block">AI API Key & Billing Provider</Label>
+                      <span className="text-[11px] text-gray-500 block">
+                        Choose whether to use your own API keys or Platform keys with pay-as-you-go wallet billing.
+                      </span>
+                    </div>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                      apiKeySource === "admin_key"
+                        ? "bg-purple-100 text-purple-800 border-purple-300"
+                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    }`}>
+                      {apiKeySource === "admin_key" ? "Platform Admin Keys" : "Own API Keys (Free)"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    <div
+                      onClick={() => setApiKeySource("own_key")}
+                      className={`cursor-pointer rounded-lg p-2.5 border transition-all ${
+                        apiKeySource === "own_key"
+                          ? "border-indigo-600 bg-indigo-50 ring-2 ring-indigo-600/20 shadow-sm"
+                          : "border-gray-200 hover:border-gray-300 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="reminderApiKeySource"
+                          checked={apiKeySource === "own_key"}
+                          onChange={() => setApiKeySource("own_key")}
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="font-semibold text-xs text-gray-900">Use My Own API Keys</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1 pl-5 leading-relaxed">
+                        Uses OpenAI, Sarvam &amp; Groq keys configured in your AI Settings. <strong>Zero wallet charges</strong>.
+                      </p>
+                    </div>
+
+                    <div
+                      onClick={() => setApiKeySource("admin_key")}
+                      className={`cursor-pointer rounded-lg p-2.5 border transition-all ${
+                        apiKeySource === "admin_key"
+                          ? "border-indigo-600 bg-indigo-50 ring-2 ring-indigo-600/20 shadow-sm"
+                          : "border-gray-200 hover:border-gray-300 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="reminderApiKeySource"
+                          checked={apiKeySource === "admin_key"}
+                          onChange={() => setApiKeySource("admin_key")}
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="font-semibold text-xs text-gray-900">Use Platform Admin Keys</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1 pl-5 leading-relaxed">
+                        Zero setup needed. Pay-as-you-go based on AI tokens used directly from your wallet balance.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-3 space-y-2 col-span-full">
                   <div className="flex justify-between items-center">
-                    <Label className="text-slate-400 font-bold uppercase">AI Parsing Agent prompt</Label>
+                    <Label className="text-slate-500 font-bold uppercase text-[11px]">AI Parsing Agent Prompt</Label>
                     {purchaseType === "ai" && (
-                      <span className="text-[9px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-200 uppercase">AI Plan Active</span>
+                      <span className="text-[9px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-200 uppercase">AI Mode Active</span>
                     )}
                   </div>
                   <Textarea
                     value={botPrompt}
                     onChange={(e) => setBotPrompt(e.target.value)}
-                    className="w-full min-h-[90px]"
+                    className="w-full min-h-[85px] text-xs"
                     placeholder="Instruct the AI how to parse dates..."
                   />
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" size="sm" onClick={() => setIsConfigOpen(false)}>Cancel</Button>
-                <Button size="sm" onClick={handleSaveConfig} className="bg-indigo-650 hover:bg-indigo-700 text-white">Save Changes</Button>
+                <Button size="sm" onClick={handleSaveConfig} className="bg-indigo-600 hover:bg-indigo-700 text-white">Save Changes</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -449,6 +541,20 @@ export default function RemindersLedger() {
                   className="pl-9 bg-slate-50 border-slate-200 text-xs h-9"
                 />
               </div>
+
+              {/* Contact Filter */}
+              <select
+                value={contactFilter}
+                onChange={(e) => setContactFilter(e.target.value)}
+                className="flex h-9 w-[180px] rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 truncate"
+              >
+                <option value="all">All Contacts ({contactsWithReminders.length})</option>
+                {contactsWithReminders.map((c) => (
+                  <option key={c.contactPhone} value={c.contactPhone}>
+                    {c.contactName ? `${c.contactName} (${c.contactPhone})` : c.contactPhone} — {c.pendingCount} pending
+                  </option>
+                ))}
+              </select>
 
               {/* Status Filter */}
               <select

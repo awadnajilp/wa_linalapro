@@ -622,34 +622,86 @@ const MessageItem = ({
         return renderDocumentBlock(downloadUrl);
 
       case "interactive":
-        const buttons = (message.metadata as any)?.buttons;
+      case "list": {
+        const meta = typeof message.metadata === "string"
+          ? (() => { try { return JSON.parse(message.metadata); } catch { return {}; } })()
+          : (message.metadata || {});
+        const buttons = meta?.buttons;
+        const sections = meta?.sections;
+        const buttonText = meta?.buttonText;
+        const headerImageUrl = meta?.headerImageUrl || (meta?.image?.link ? meta.image.link : null) || (meta?.header?.image?.link ? meta.header.image.link : null) || (message.mediaUrl && message.mediaUrl.startsWith("http") ? message.mediaUrl : null);
+
         return (
           <div className="space-y-3">
+            {headerImageUrl && (
+              <div className="rounded-lg overflow-hidden max-w-[260px] max-h-[220px]">
+                <img
+                  src={headerImageUrl}
+                  alt=""
+                  className="w-full h-auto object-cover rounded-lg"
+                  onError={(e) => { e.currentTarget.style.display = "none"; }}
+                />
+              </div>
+            )}
             {renderTextContent()}
-            {buttons && buttons.length > 0 && (
-              <div className="space-y-2">
+            {buttons && Array.isArray(buttons) && buttons.length > 0 && (
+              <div className="space-y-1.5 pt-1">
                 {buttons.map(
-                  (button: { id?: string; text: string }, index: number) => (
-                    <button
-                      key={button.id || index}
-                      className={cn(
-                        "w-full text-left px-3 py-2 rounded-lg border text-sm transition-colors",
-                        isOutbound
-                          ? "border-[#a8d98a] text-gray-700 hover:bg-[#c5e8b0]"
-                          : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                      )}
-                      onClick={() => {
-                        console.log("Button clicked:", button);
-                      }}
-                    >
-                      {button.text}
-                    </button>
-                  )
+                  (button: any, index: number) => {
+                    const btnLabel = button.title || button.text || button.reply?.title || (typeof button === "string" ? button : `Option ${index + 1}`);
+                    return (
+                      <div
+                        key={button.id || index}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-xl border text-xs font-medium flex items-center justify-between shadow-xs transition-colors",
+                          isOutbound
+                            ? "bg-white/90 border-[#a8d98a] text-gray-800"
+                            : "bg-white border-gray-200 text-gray-800"
+                        )}
+                      >
+                        <span className="truncate">{demo ? maskContent(btnLabel) : btnLabel}</span>
+                        <Reply className={cn("w-3.5 h-3.5 flex-shrink-0 ml-1.5", isOutbound ? "text-[#5b9e3a]" : "text-blue-500")} />
+                      </div>
+                    );
+                  }
                 )}
+              </div>
+            )}
+            {sections && Array.isArray(sections) && sections.length > 0 && (
+              <div className="space-y-2 pt-1">
+                {buttonText && (
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 px-1">
+                    📋 {buttonText}
+                  </div>
+                )}
+                {sections.map((section: any, sIdx: number) => (
+                  <div key={sIdx} className="space-y-1">
+                    {section.title && (
+                      <div className="text-[11px] font-medium text-gray-500 px-1">{section.title}</div>
+                    )}
+                    {Array.isArray(section.rows) && section.rows.map((row: any, rIdx: number) => (
+                      <div
+                        key={row.id || rIdx}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-xl border text-xs shadow-xs",
+                          isOutbound
+                            ? "bg-white/90 border-[#a8d98a] text-gray-800"
+                            : "bg-white border-gray-200 text-gray-800"
+                        )}
+                      >
+                        <div className="font-medium text-gray-900">{row.title || row.id}</div>
+                        {row.description && (
+                          <div className="text-[10px] text-gray-500 mt-0.5">{row.description}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
               </div>
             )}
           </div>
         );
+      }
 
       case "template": {
         const rawContent = message.content || "";

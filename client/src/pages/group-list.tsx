@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash, Edit, Plus, Users, Inbox, AlertCircle, Tag } from "lucide-react";
+import { Trash, Edit, Plus, Users, Inbox, AlertCircle, Tag, UserPlus, Loader2, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -203,6 +203,7 @@ export default function GroupsUI() {
   const [contactCounts, setContactCounts] = useState<Record<string, number>>({});
   const [syncing, setSyncing] = useState(false);
   const [importingJid, setImportingJid] = useState<string | null>(null);
+  const [bulkImporting, setBulkImporting] = useState(false);
 
   // Pagination states
   const [crmPage, setCrmPage] = useState(1);
@@ -212,6 +213,44 @@ export default function GroupsUI() {
 
   // Bulk WhatsApp Groups selection
   const [selectedWaGroupIds, setSelectedWaGroupIds] = useState<string[]>([]);
+
+  const handleBulkImportWhatsAppGroups = async () => {
+    if (!activeChannel?.id || selectedWaGroupIds.length === 0) return;
+    const selectedJids = selectedWaGroupIds
+      .map((id) => (whatsappGroups as any[])?.find((g: any) => g.id === id)?.phone)
+      .filter(Boolean);
+
+    if (selectedJids.length === 0) return;
+
+    setBulkImporting(true);
+    try {
+      const res = await apiRequest("POST", `/api/whatsapp/channels/${activeChannel.id}/import-group`, { jids: selectedJids });
+      const data = await res.json();
+      if (res.ok) {
+        toast({
+          title: "Groups Imported",
+          description: data.message || "WhatsApp group contacts imported successfully.",
+        });
+        fetchGroups();
+        fetchContactCounts();
+        setSelectedWaGroupIds([]);
+      } else {
+        toast({
+          title: "Import Failed",
+          description: data.message || "Failed to import groups.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to connect to the server.",
+        variant: "destructive",
+      });
+    } finally {
+      setBulkImporting(false);
+    }
+  };
 
   const handleBulkAddWaGroupsToList = async (listName: string) => {
     if (!activeChannel?.id || selectedWaGroupIds.length === 0) return;
@@ -1047,13 +1086,23 @@ export default function GroupsUI() {
               ) : (
                 <div className="space-y-4">
                   {selectedWaGroupIds.length > 0 && (
-                    <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-                      <span className="text-sm font-medium text-indigo-800">
+                    <div className="flex flex-wrap items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                      <span className="text-sm font-medium text-indigo-800 mr-2">
                         {selectedWaGroupIds.length} WhatsApp Group{selectedWaGroupIds.length !== 1 ? "s" : ""} selected
                       </span>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 font-medium shadow-sm"
+                        disabled={bulkImporting}
+                        onClick={handleBulkImportWhatsAppGroups}
+                      >
+                        {bulkImporting ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                        {bulkImporting ? "Importing Contacts..." : `Import Contacts from Selected (${selectedWaGroupIds.length})`}
+                      </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="default" size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1">
+                          <Button variant="outline" size="sm" className="bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-50 flex items-center gap-1">
                             <Plus size={14} /> Add Selected to CRM List...
                           </Button>
                         </DropdownMenuTrigger>
@@ -1077,9 +1126,9 @@ export default function GroupsUI() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        className="text-gray-600 hover:text-gray-800"
+                        className="text-gray-500 hover:text-gray-800 text-xs"
                         onClick={() => setSelectedWaGroupIds([])}
                       >
                         Cancel
@@ -1159,36 +1208,52 @@ export default function GroupsUI() {
                                 day: "numeric",
                               })}
                             </TableCell>
-                            <TableCell className="text-right space-x-2">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="sm" className="flex items-center gap-1">
-                                    <Plus size={14} /> Add to List
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-56">
-                                  <DropdownMenuLabel>Add to CRM Lists</DropdownMenuLabel>
-                                  <DropdownMenuSeparator />
-                                  {groups.length === 0 ? (
-                                    <div className="text-xs text-gray-500 p-2 text-center">
-                                      No CRM lists created. Create them in the CRM Lists tab.
-                                    </div>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-emerald-700 hover:text-white hover:bg-emerald-600 border-emerald-300 h-8 px-2.5 text-xs font-medium inline-flex items-center gap-1 shadow-sm"
+                                  disabled={importingJid === group.phone}
+                                  onClick={() => handleImportWhatsAppGroup(group.phone)}
+                                >
+                                  {importingJid === group.phone ? (
+                                    <Loader2 size={13} className="animate-spin" />
                                   ) : (
-                                    groups.map((labelGroup: any) => {
-                                      const isAssigned = (group.groups || []).includes(labelGroup.name);
-                                      return (
-                                        <DropdownMenuCheckboxItem
-                                          key={labelGroup.id}
-                                          checked={isAssigned}
-                                          onCheckedChange={() => handleToggleGroupLabel(group, labelGroup.name)}
-                                        >
-                                          {labelGroup.name}
-                                        </DropdownMenuCheckboxItem>
-                                      );
-                                    })
+                                    <UserPlus size={13} />
                                   )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                                  {importingJid === group.phone ? "Importing..." : "Import Contacts"}
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs flex items-center gap-1 text-gray-600 hover:text-gray-900 border-gray-200">
+                                      <Plus size={13} /> Add to List
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-56">
+                                    <DropdownMenuLabel>Add to CRM Lists</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    {groups.length === 0 ? (
+                                      <div className="text-xs text-gray-500 p-2 text-center">
+                                        No CRM lists created. Create them in the CRM Lists tab.
+                                      </div>
+                                    ) : (
+                                      groups.map((labelGroup: any) => {
+                                        const isAssigned = (group.groups || []).includes(labelGroup.name);
+                                        return (
+                                          <DropdownMenuCheckboxItem
+                                            key={labelGroup.id}
+                                            checked={isAssigned}
+                                            onCheckedChange={() => handleToggleGroupLabel(group, labelGroup.name)}
+                                          >
+                                            {labelGroup.name}
+                                          </DropdownMenuCheckboxItem>
+                                        );
+                                      })
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}

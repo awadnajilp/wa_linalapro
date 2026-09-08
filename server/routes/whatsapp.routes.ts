@@ -1695,10 +1695,13 @@ app.post(
   app.post("/api/whatsapp/channels/:channelId/import-group", requireAuth, async (req, res) => {
     try {
       const { channelId } = req.params;
-      const { jid } = req.body;
+      const { jid, jids } = req.body;
+      const userId = (req as any).user?.id || "";
 
-      if (!jid) {
-        return res.status(400).json({ success: false, message: "Missing required parameter: jid" });
+      const targetJids: string[] = Array.isArray(jids) ? jids : (jid ? [jid] : []);
+
+      if (targetJids.length === 0) {
+        return res.status(400).json({ success: false, message: "Missing required parameter: jid or jids" });
       }
 
       const sock = BaileysManager.activeSockets.get(channelId);
@@ -1706,53 +1709,143 @@ app.post(
         return res.status(400).json({ success: false, message: "WhatsApp QR session is disconnected or not initialized for this channel." });
       }
 
-      console.log(`[Group Import] Fetching metadata for group ${jid} on channel ${channelId}...`);
-      const groupMetadata = await sock.groupMetadata(jid);
-      if (!groupMetadata) {
-        return res.status(404).json({ success: false, message: "Failed to retrieve WhatsApp group metadata." });
-      }
+      const results: Array<{ groupName: string; totalParticipants: number; newContactsCreated: number; contactsUpdated: number }> = [];
+      let totalCreated = 0;
+      let totalUpdated = 0;
+      let totalParticipantsCount = 0;
 
-      const subject = groupMetadata.subject || "WhatsApp Group";
-      const participants = groupMetadata.participants || [];
+      for (const currentJid of targetJids) {
+        console.log(`[Group Import] Fetching metadata for group ${currentJid} on channel ${channelId}...`);
+        let groupMetadata: any;
+        try {
+          groupMetadata = await sock.groupMetadata(currentJid);
+        } catch (fetchErr: any) {
+          console.warn(`[Group Import] Failed to fetch group metadata for ${currentJid}:`, fetchErr.message);
+          continue;
+        }
 
-      // 2. Save/Update group contact in contacts table
-      const [existingGroupContact] = await db
-        .select()
-        .from(contacts)
-        .where(and(eq(contacts.channelId, channelId), eq(contacts.phone, jid)))
-        .limit(1);
+        if (!groupMetadata) continue;
 
-      if (!existingGroupContact) {
-        await db.insert(contacts).values({
-          channelId,
-          name: subject,
-          phone: jid,
-          isGroup: true,
-          status: "active",
-          source: "chatbot",
-          groups: ["Groups WA"],
-          createdBy: (req as any).user?.id || ""
-        });
-      } else {
-        await db.update(contacts)
-          .set({
+        const subject = groupMetadata.subject || "WhatsApp Group";
+        const participants = groupMetadata.participants || [];
+        totalParticipantsCount += participants.length;
+
+        // 1. Create or find CRM group (list)
+        const [existingGroup] = await db
+          .select()
+          .from(groups)
+          .where(and(eq(groups.channelId, channelId), eq(groups.name, subject)))
+          .limit(1);
+
+        if (!existingGroup) {
+          await db.insert(groups).values({
+            channelId,
             name: subject,
-            isGroup: true,
-            groups: Array.from(new Set([...(existingGroupContact.groups || []), "Groups WA"]))
-          })
-          .where(eq(contacts.id, existingGroupContact.id));
-      }
+            description: `Imported from WhatsApp Group (${currentJid})`,
+            createdBy: userId
+          });
+        }
 
-      // 3. Skip importing individual participants as contacts
-      let importedCount = 0;
+        // 2. Save/Update group chat contact in contacts table
+        const [existingGroupContact] = await db
+          .select()
+          .from(contacts)
+          .where(and(eq(contacts.channelId, channelId), eq(contacts.phone, currentJid)))
+          .limit(1);
+
+        if (!existingGroupContact) {
+          await db.insert(contacts).values({
+            channelId,
+            name: subject,
+            phone: currentJid,
+            isGroup: true,
+            status: "active",
+            source: "whatsapp_group",
+            groups: ["Groups WA", subject],
+            createdBy: userId
+          });
+        } else {
+          await db.update(contacts)
+            .set({
+              name: subject,
+              isGroup: true,
+              groups: Array.from(new Set([...(existingGroupContact.groups || []), "Groups WA", subject]))
+            })
+            .where(eq(contacts.id, existingGroupContact.id));
+        }
+
+        // 3. Import individual participants as CRM contacts
+        let groupNewContacts = 0;
+        let groupUpdatedContacts = 0;
+        let groupSkippedCount = 0;
+
+        for (const p of participants) {
+          const resolved = BaileysManager.extractParticipantContact(p, sock);
+          if (!resolved || !resolved.phone) {
+            groupSkippedCount++;
+            continue;
+          }
+
+          const { phone: cleanPhone, name: contactName } = resolved;
+
+          const [existingContact] = await db
+            .select()
+            .from(contacts)
+            .where(and(eq(contacts.channelId, channelId), eq(contacts.phone, cleanPhone)))
+            .limit(1);
+
+          if (!existingContact) {
+            await db.insert(contacts).values({
+              channelId,
+              name: contactName,
+              phone: cleanPhone,
+              isGroup: false,
+              status: "active",
+              source: "whatsapp_group",
+              groups: [subject],
+              createdBy: userId
+            });
+            groupNewContacts++;
+            totalCreated++;
+          } else {
+            const currentGroups = Array.isArray(existingContact.groups) ? existingContact.groups : [];
+            const updatedGroups = Array.from(new Set([...currentGroups, subject]));
+            const updates: any = {
+              groups: updatedGroups
+            };
+
+            // If contact only had phone number as name and we found a real name, update it
+            if ((!existingContact.name || existingContact.name === existingContact.phone) && contactName !== cleanPhone) {
+              updates.name = contactName;
+            }
+
+            await db.update(contacts)
+              .set(updates)
+              .where(eq(contacts.id, existingContact.id));
+            groupUpdatedContacts++;
+            totalUpdated++;
+          }
+        }
+
+        results.push({
+          groupName: subject,
+          totalParticipants: participants.length,
+          newContactsCreated: groupNewContacts,
+          contactsUpdated: groupUpdatedContacts,
+          skippedParticipants: groupSkippedCount
+        });
+      }
 
       res.json({
         success: true,
-        message: `Successfully imported WhatsApp group "${subject}" with ${participants.length} participants into CRM.`,
+        message: targetJids.length === 1
+          ? `Successfully imported ${results[0]?.newContactsCreated + results[0]?.contactsUpdated || 0} participants from "${results[0]?.groupName || "WhatsApp Group"}" into CRM (${totalCreated} new contacts created, ${totalUpdated} updated${results[0]?.skippedParticipants ? `, ${results[0]?.skippedParticipants} hidden/unmapped skipped` : ""}).`
+          : `Successfully imported across ${results.length} WhatsApp groups (${totalCreated} new contacts created, ${totalUpdated} updated).`,
         data: {
-          groupName: subject,
-          totalParticipants: participants.length,
-          newContactsCreated: importedCount
+          results,
+          totalParticipantsCount,
+          totalCreated,
+          totalUpdated
         }
       });
     } catch (error: any) {

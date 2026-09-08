@@ -1034,6 +1034,12 @@ const steps: MigrationStep[] = [
     `,
   },
   {
+    description: "Add api_key_source to reminder_configs (if not exists)",
+    sql: `
+      ALTER TABLE reminder_configs ADD COLUMN IF NOT EXISTS api_key_source TEXT DEFAULT 'own_key';
+    `,
+  },
+  {
     description: "Insert default WhatsApp Flows addon (if not exists)",
     sql: `
       INSERT INTO addons (id, slug, name, description, price, billing_cycle, ai_key_type, default_credits, is_active)

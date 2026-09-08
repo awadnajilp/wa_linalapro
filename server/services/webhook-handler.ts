@@ -1104,11 +1104,14 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                         }
                       });
                     } else {
+                      const errMsg = (parsed?.error && parsed.error.includes("wallet"))
+                        ? `⚠️ ${parsed.error}`
+                        : `⚠️ *Could not extract reminder details.* Please type: *What* and *When* clearly (e.g. "Call dentist tomorrow at 5pm"), or reply *exit* to cancel.`;
                       await waApi.sendDirectMessage({
                         to: message.from,
                         type: "text",
                         text: {
-                          body: `⚠️ *Could not extract reminder details.* Please type: *What* and *When* clearly (e.g. "Call dentist tomorrow at 5pm"), or reply *exit* to cancel.`
+                          body: errMsg
                         }
                       });
                     }
@@ -1249,28 +1252,36 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
                           }
                         });
                       } else {
-                        // Start session since inline parsing failed
-                        await db.insert(schema.reminderSessions).values({
-                          conversationId: conversation[0].id,
-                          status: purchaseType === "ai" ? "waiting_for_details" : "waiting_for_what"
-                        });
+                        if (parsed?.error && parsed.error.includes("wallet")) {
+                          await waApi.sendDirectMessage({
+                            to: message.from,
+                            type: "text",
+                            text: { body: `⚠️ ${parsed.error}` }
+                          });
+                        } else {
+                          // Start session since inline parsing failed
+                          await db.insert(schema.reminderSessions).values({
+                            conversationId: conversation[0].id,
+                            status: purchaseType === "ai" ? "waiting_for_details" : "waiting_for_what"
+                          });
 
-                        await db
-                          .update(schema.conversations)
-                          .set({ aiEnabled: true })
-                          .where(eq(schema.conversations.id, conversation[0].id));
+                          await db
+                            .update(schema.conversations)
+                            .set({ aiEnabled: true })
+                            .where(eq(schema.conversations.id, conversation[0].id));
 
-                        await waApi.sendDirectMessage({
-                          to: message.from,
-                          type: "text",
-                          text: {
-                            body: `⚠️ *Could not parse inline reminder.* Starting reminder flow.\n\n${
-                              purchaseType === "ai"
-                                ? "Please reply with what you want to be reminded of and when (e.g., 'call dentist tomorrow at 5pm')."
-                                : "What to remind? (Enter task/event description)"
-                            }`
-                          }
-                        });
+                          await waApi.sendDirectMessage({
+                            to: message.from,
+                            type: "text",
+                            text: {
+                              body: `⚠️ *Could not parse inline reminder.* Starting reminder flow.\n\n${
+                                purchaseType === "ai"
+                                  ? "Please reply with what you want to be reminded of and when (e.g., 'call dentist tomorrow at 5pm')."
+                                  : "What to remind? (Enter task/event description)"
+                              }`
+                            }
+                          });
+                        }
                       }
                     }
                   }

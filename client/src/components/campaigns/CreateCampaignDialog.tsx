@@ -305,6 +305,8 @@ export function CreateCampaignDialog({
           value={campaignType}
           onValueChange={(v) => {
             setCampaignType(v as any);
+            setContactsPage(1);
+            setContactsSearchQuery("");
             setSelectedContacts([]);
           }}
         >
@@ -651,13 +653,19 @@ export function CreateCampaignDialog({
 
             {activeChannel?.connectionMethod === "qr_code" && (
               <TabsContent value="groups" className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
-                    <Label className="mb-2 block">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <Label className="mb-1.5 text-xs font-semibold text-gray-700 block">
                       Filter by CRM List
                     </Label>
-                    <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                      <SelectTrigger>
+                    <Select
+                      value={selectedGroup}
+                      onValueChange={(val) => {
+                        setSelectedGroup(val);
+                        setContactsPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-xs">
                         <SelectValue placeholder={t("campaigns.selectGroup")} />
                       </SelectTrigger>
                       <SelectContent>
@@ -672,81 +680,169 @@ export function CreateCampaignDialog({
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex-1">
-                    <Label className="mb-2 block">Search WhatsApp Groups</Label>
+                  <div>
+                    <Label className="mb-1.5 text-xs font-semibold text-gray-700 block">Search WhatsApp Groups</Label>
                     <div className="relative">
                       <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input
-                        placeholder="Search group name..."
+                        placeholder="Search group name or JID..."
                         value={contactsSearchQuery}
-                        onChange={(e) => setContactsSearchQuery(e.target.value)}
-                        className="pl-9 h-10 text-sm"
+                        onChange={(e) => {
+                          setContactsSearchQuery(e.target.value);
+                          setContactsPage(1);
+                        }}
+                        className="pl-8 h-9 text-xs"
                       />
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label>Select WhatsApp Groups to Send To</Label>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={
-                          selectedContacts.length === filteredGroups.length &&
-                          filteredGroups.length > 0
-                        }
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedContacts(
-                              filteredGroups.map((c: any) => c.id)
-                            );
-                          } else {
-                            setSelectedContacts([]);
-                          }
-                        }}
-                      />
-                      <Label className="font-normal text-sm">
-                        Select All ({filteredGroups.length})
-                      </Label>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-1 border-b">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs font-bold text-gray-800">Select WhatsApp Groups to Send To</Label>
+                      {selectedContacts.length > 0 && (
+                        <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 text-[11px] px-2 py-0.5">
+                          {selectedContacts.length.toLocaleString()} selected
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 text-xs">
+                      {/* Select All Matching Filter (all pages) */}
+                      {totalContactsCount > 0 && (
+                        <button
+                          type="button"
+                          disabled={isSelectingAllMatching}
+                          onClick={handleSelectAllMatching}
+                          className="inline-flex items-center gap-1 text-purple-700 hover:text-purple-900 font-semibold bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded transition cursor-pointer disabled:opacity-50"
+                        >
+                          {isSelectingAllMatching ? (
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin text-purple-600" />
+                              <span>Selecting {totalContactsCount}...</span>
+                            </>
+                          ) : (
+                            <span>Select All ({totalContactsCount.toLocaleString()})</span>
+                          )}
+                        </button>
+                      )}
+
+                      {/* Select / Deselect on Current Page */}
+                      {displayedContacts.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const pageIds = displayedContacts.map((c: any) => c.id);
+                            const allPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selectedContacts.includes(id));
+                            if (allPageSelected) {
+                              setSelectedContacts(selectedContacts.filter((id) => !pageIds.includes(id)));
+                            } else {
+                              setSelectedContacts(Array.from(new Set([...selectedContacts, ...pageIds])));
+                            }
+                          }}
+                          className="text-purple-600 hover:text-purple-800 font-medium underline cursor-pointer"
+                        >
+                          {displayedContacts.length > 0 && displayedContacts.every((c: any) => selectedContacts.includes(c.id))
+                            ? "Deselect Page"
+                            : `Select Page (${displayedContacts.length})`}
+                        </button>
+                      )}
+
+                      {/* Clear All Selected */}
+                      {selectedContacts.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedContacts([])}
+                          className="text-red-500 hover:text-red-700 font-medium underline cursor-pointer"
+                        >
+                          Clear All ({selectedContacts.length.toLocaleString()})
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <ScrollArea className="h-64 border rounded-md p-4">
-                    {filteredGroups.length === 0 ? (
-                      <div className="text-center text-muted-foreground py-8">
-                        No WhatsApp Groups found. Sync them from the Lists & Groups page.
+
+                  <ScrollArea className="h-64 border rounded-md p-3 bg-white">
+                    {isContactsLoading ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-gray-500 gap-2">
+                        <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                        <span className="text-xs">Loading WhatsApp groups...</span>
+                      </div>
+                    ) : displayedContacts.length === 0 ? (
+                      <div className="text-center text-muted-foreground py-12 text-xs">
+                        {contactsSearchQuery
+                          ? "No WhatsApp groups matching your search query."
+                          : "No WhatsApp Groups found for this channel. Sync them from the Lists & Groups page."}
                       </div>
                     ) : (
-                      filteredGroups.map((contact: any) => (
+                      displayedContacts.map((contact: any) => (
                         <div
                           key={contact.id}
-                          className="flex items-center space-x-2 mb-2"
+                          className="flex items-center justify-between py-1.5 px-2 hover:bg-gray-50 rounded-md transition"
                         >
-                          <Checkbox
-                            checked={selectedContacts.includes(contact.id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setSelectedContacts([
-                                  ...selectedContacts,
-                                  contact.id,
-                                ]);
-                              } else {
-                                setSelectedContacts(
-                                  selectedContacts.filter(
-                                    (id) => id !== contact.id
-                                  )
-                                );
-                              }
-                            }}
-                          />
-                          <Label className="font-normal flex items-center gap-1.5 cursor-pointer">
-                            <Users className="w-4 h-4 text-green-600" />
-                            <span>{contact.name}</span>
-                            <span className="text-gray-400 text-xs">({contact.phone})</span>
-                          </Label>
+                          <div className="flex items-center space-x-2.5">
+                            <Checkbox
+                              id={`group-${contact.id}`}
+                              checked={selectedContacts.includes(contact.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedContacts([...selectedContacts, contact.id]);
+                                } else {
+                                  setSelectedContacts(selectedContacts.filter((id) => id !== contact.id));
+                                }
+                              }}
+                            />
+                            <Label htmlFor={`group-${contact.id}`} className="font-normal text-xs cursor-pointer flex items-center gap-1.5">
+                              <Users className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                              <span className="font-medium text-gray-900">{contact.name || "WhatsApp Group"}</span>
+                              <span className="text-gray-400 text-[11px]">({contact.phone})</span>
+                            </Label>
+                          </div>
+                          {Array.isArray(contact.groups) && contact.groups.length > 0 && (
+                            <div className="flex gap-1">
+                              {contact.groups.slice(0, 2).map((g: string, idx: number) => (
+                                <span key={idx} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                                  {g}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))
                     )}
                   </ScrollArea>
+
+                  {/* Pagination footer */}
+                  <div className="flex items-center justify-between pt-2 text-xs text-gray-600">
+                    <span>
+                      Total: <strong>{totalContactsCount.toLocaleString()}</strong> WhatsApp groups
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={contactsPage <= 1 || isContactsLoading}
+                        onClick={() => setContactsPage((p) => Math.max(1, p - 1))}
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5 mr-0.5" /> Prev
+                      </Button>
+                      <span className="text-xs px-2 font-medium">
+                        Page {contactsPage} of {totalContactsPages || 1}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={contactsPage >= totalContactsPages || isContactsLoading}
+                        onClick={() => setContactsPage((p) => Math.min(totalContactsPages, p + 1))}
+                      >
+                        Next <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </TabsContent>
             )}

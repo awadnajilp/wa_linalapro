@@ -3,6 +3,7 @@ import * as schema from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { WhatsAppApiService } from "./whatsapp-api";
 import { storage } from "../storage";
+import ExcelJS from "exceljs";
 
 export interface EcomTemplateDef {
   key: string;
@@ -98,8 +99,8 @@ export const ECOMMERCE_TEMPLATES_DEFINITIONS: Record<string, EcomTemplateDef> = 
   ecom_daily_order_summary: {
     key: "ecom_daily_order_summary",
     name: "ecom_daily_order_summary",
-    title: "Daily Summary Order Alert",
-    description: "Scheduled daily order and sales performance summary alert sent to store owners/team via WhatsApp.",
+    title: "Daily Summary Order Alert (Excel Attachment)",
+    description: "Scheduled daily order summary with attached Excel (.xlsx) spreadsheet report sent to store owners/team via WhatsApp.",
     category: "UTILITY",
     language: "en_US",
     variables: [
@@ -110,10 +111,10 @@ export const ECOMMERCE_TEMPLATES_DEFINITIONS: Record<string, EcomTemplateDef> = 
       { index: 5, name: "paid_orders", label: "Paid Orders Count", sample: "10" },
       { index: 6, name: "pending_orders", label: "Pending/COD Count", sample: "5" },
     ],
-    defaultHeader: "Daily Orders Summary",
+    defaultHeader: undefined,
     defaultBody:
-      "Daily order summary for {{1}} on {{2}}:\nTotal Orders: {{3}}\nTotal Revenue: {{4}}\nPaid Orders: {{5}}\nCOD / Pending: {{6}}\nCheck your store dashboard for full details.",
-    defaultFooter: "Automated Ecommerce Report",
+      "Daily order summary for {{1}} on {{2}}:\nTotal Orders: {{3}}\nTotal Revenue: {{4}}\nPaid Orders: {{5}}\nCOD / Pending: {{6}}\nPlease find attached your complete daily orders Excel report with customer shipping details.",
+    defaultFooter: "Automated Daily Orders Report",
     defaultButtons: [],
     metaPayload: {
       name: "ecom_daily_order_summary",
@@ -122,27 +123,28 @@ export const ECOMMERCE_TEMPLATES_DEFINITIONS: Record<string, EcomTemplateDef> = 
       components: [
         {
           type: "HEADER",
-          format: "TEXT",
-          text: "Daily Orders Summary",
+          format: "DOCUMENT",
+          example: {
+            header_handle: ["https://wa.linalapro.com/assets/sample-orders-report.xlsx"],
+          },
         },
         {
           type: "BODY",
-          text: "Daily order summary for {{1}} on {{2}}:\nTotal Orders: {{3}}\nTotal Revenue: {{4}}\nPaid Orders: {{5}}\nCOD / Pending: {{6}}\nCheck your store dashboard for full details.",
+          text: "Daily order summary for {{1}} on {{2}}:\nTotal Orders: {{3}}\nTotal Revenue: {{4}}\nPaid Orders: {{5}}\nCOD / Pending: {{6}}\nPlease find attached your complete daily orders Excel report with customer shipping details.",
           example: {
             body_text: [["X Pure Store", "2026-09-06", "15", "INR 7,485.00", "10", "5"]],
           },
         },
         {
           type: "FOOTER",
-          text: "Automated Ecommerce Report",
+          text: "Automated Daily Orders Report",
         },
       ],
     },
     localData: {
-      header: "Daily Orders Summary",
-      body: "Daily order summary for {{1}} on {{2}}:\nTotal Orders: {{3}}\nTotal Revenue: {{4}}\nPaid Orders: {{5}}\nCOD / Pending: {{6}}\nCheck your store dashboard for full details.",
-      footer: "Automated Ecommerce Report",
-      mediaType: "text",
+      body: "Daily order summary for {{1}} on {{2}}:\nTotal Orders: {{3}}\nTotal Revenue: {{4}}\nPaid Orders: {{5}}\nCOD / Pending: {{6}}\nPlease find attached your complete daily orders Excel report with customer shipping details.",
+      footer: "Automated Daily Orders Report",
+      mediaType: "document",
       buttons: [],
     },
   },
@@ -150,8 +152,8 @@ export const ECOMMERCE_TEMPLATES_DEFINITIONS: Record<string, EcomTemplateDef> = 
   ecom_abandoned_cart_1: {
     key: "ecom_abandoned_cart_1",
     name: "ecom_abandoned_cart_1",
-    title: "Abandoned Cart Reminder 1",
-    description: "Initial follow-up reminder to customers who started checkout but did not complete.",
+    title: "Abandoned Cart Reminder 1 (Product Photo Header)",
+    description: "Initial recovery reminder sent with product photo header to customers who left items in checkout.",
     category: "UTILITY",
     language: "en_US",
     variables: [
@@ -159,9 +161,9 @@ export const ECOMMERCE_TEMPLATES_DEFINITIONS: Record<string, EcomTemplateDef> = 
       { index: 2, name: "product_name", label: "Product Name", sample: "Septic Tank Cleaner 300g" },
       { index: 3, name: "total_price", label: "Product Price", sample: "INR 499.00" },
     ],
-    defaultHeader: "Cart Reminder",
+    defaultHeader: undefined,
     defaultBody:
-      "Hello {{1}}, we noticed you did not finish placing your order for {{2}} (Total: {{3}}). Would you like help completing your order now?",
+      "Hello {{1}}, we noticed you did not finish placing your order for {{2}} (Total: {{3}}). Your reserved item is shown above. Would you like help completing your order now?",
     defaultFooter: "Reply 1 to continue",
     defaultButtons: [],
     metaPayload: {
@@ -171,12 +173,14 @@ export const ECOMMERCE_TEMPLATES_DEFINITIONS: Record<string, EcomTemplateDef> = 
       components: [
         {
           type: "HEADER",
-          format: "TEXT",
-          text: "Cart Reminder",
+          format: "IMAGE",
+          example: {
+            header_handle: ["https://wa.linalapro.com/assets/sample-product.png"],
+          },
         },
         {
           type: "BODY",
-          text: "Hello {{1}}, we noticed you did not finish placing your order for {{2}} (Total: {{3}}). Would you like help completing your order now?",
+          text: "Hello {{1}}, we noticed you did not finish placing your order for {{2}} (Total: {{3}}). Your reserved item is shown above. Would you like help completing your order now?",
           example: {
             body_text: [["John", "Septic Tank Cleaner 300g", "INR 499.00"]],
           },
@@ -188,10 +192,9 @@ export const ECOMMERCE_TEMPLATES_DEFINITIONS: Record<string, EcomTemplateDef> = 
       ],
     },
     localData: {
-      header: "Cart Reminder",
-      body: "Hello {{1}}, we noticed you did not finish placing your order for {{2}} (Total: {{3}}). Would you like help completing your order now?",
+      body: "Hello {{1}}, we noticed you did not finish placing your order for {{2}} (Total: {{3}}). Your reserved item is shown above. Would you like help completing your order now?",
       footer: "Reply 1 to continue",
-      mediaType: "text",
+      mediaType: "image",
       buttons: [],
     },
   },
@@ -199,8 +202,8 @@ export const ECOMMERCE_TEMPLATES_DEFINITIONS: Record<string, EcomTemplateDef> = 
   ecom_abandoned_cart_2: {
     key: "ecom_abandoned_cart_2",
     name: "ecom_abandoned_cart_2",
-    title: "Abandoned Cart Reminder 2 (Discount Offer)",
-    description: "Second follow-up reminder with special coupon discount to recover abandoned cart before expiration.",
+    title: "Abandoned Cart Reminder 2 (Product Photo & Discount)",
+    description: "Second recovery reminder with product image header and coupon discount to recover abandoned cart before expiry.",
     category: "UTILITY",
     language: "en_US",
     variables: [
@@ -209,9 +212,9 @@ export const ECOMMERCE_TEMPLATES_DEFINITIONS: Record<string, EcomTemplateDef> = 
       { index: 3, name: "coupon_code", label: "Coupon Code", sample: "SAVE10" },
       { index: 4, name: "discount_percent", label: "Discount %", sample: "10%" },
     ],
-    defaultHeader: "Special Cart Offer",
+    defaultHeader: undefined,
     defaultBody:
-      "Hello {{1}}, your cart with {{2}} is waiting. You can use coupon code {{3}} for {{4}} off to complete your purchase today.",
+      "Hello {{1}}, your cart with {{2}} is waiting for you above. You can use coupon code {{3}} for {{4}} off to complete your purchase today!",
     defaultFooter: "Limited time offer",
     defaultButtons: [],
     metaPayload: {
@@ -221,12 +224,14 @@ export const ECOMMERCE_TEMPLATES_DEFINITIONS: Record<string, EcomTemplateDef> = 
       components: [
         {
           type: "HEADER",
-          format: "TEXT",
-          text: "Special Cart Offer",
+          format: "IMAGE",
+          example: {
+            header_handle: ["https://wa.linalapro.com/assets/sample-product.png"],
+          },
         },
         {
           type: "BODY",
-          text: "Hello {{1}}, your cart with {{2}} is waiting. You can use coupon code {{3}} for {{4}} off to complete your purchase today.",
+          text: "Hello {{1}}, your cart with {{2}} is waiting for you above. You can use coupon code {{3}} for {{4}} off to complete your purchase today!",
           example: {
             body_text: [["John", "Septic Tank Cleaner 300g", "SAVE10", "10%"]],
           },
@@ -238,10 +243,9 @@ export const ECOMMERCE_TEMPLATES_DEFINITIONS: Record<string, EcomTemplateDef> = 
       ],
     },
     localData: {
-      header: "Special Cart Offer",
-      body: "Hello {{1}}, your cart with {{2}} is waiting. You can use coupon code {{3}} for {{4}} off to complete your purchase today.",
+      body: "Hello {{1}}, your cart with {{2}} is waiting for you above. You can use coupon code {{3}} for {{4}} off to complete your purchase today!",
       footer: "Limited time offer",
-      mediaType: "text",
+      mediaType: "image",
       buttons: [],
     },
   },
@@ -343,19 +347,181 @@ export function formatEcomTemplateForQR(
  */
 export function buildMetaTemplateParameters(
   templateKey: string,
-  values: (string | number)[]
+  values: (string | number)[],
+  mediaHeader?: { type: "document" | "image"; url: string; filename?: string }
 ): any[] {
+  const components: any[] = [];
+
+  if (mediaHeader && mediaHeader.url) {
+    if (mediaHeader.type === "document") {
+      components.push({
+        type: "header",
+        parameters: [
+          {
+            type: "document",
+            document: {
+              link: mediaHeader.url,
+              filename: mediaHeader.filename || "Daily_Orders_Report.xlsx",
+            },
+          },
+        ],
+      });
+    } else if (mediaHeader.type === "image") {
+      components.push({
+        type: "header",
+        parameters: [
+          {
+            type: "image",
+            image: {
+              link: mediaHeader.url,
+            },
+          },
+        ],
+      });
+    }
+  }
+
   const bodyParams = values.map((val) => ({
     type: "text",
     text: String(val ?? ""),
   }));
 
-  return [
-    {
-      type: "body",
-      parameters: bodyParams,
-    },
+  components.push({
+    type: "body",
+    parameters: bodyParams,
+  });
+
+  return components;
+}
+
+/**
+ * Generate a sample Excel (.xlsx) buffer for Meta document template approval.
+ */
+async function getSampleExcelBuffer(): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Daily Orders");
+  worksheet.columns = [
+    { header: "Order ID", key: "orderId", width: 15 },
+    { header: "Customer Name", key: "customerName", width: 20 },
+    { header: "Phone", key: "phone", width: 15 },
+    { header: "Product", key: "product", width: 25 },
+    { header: "Quantity", key: "qty", width: 10 },
+    { header: "Amount", key: "amount", width: 15 },
+    { header: "Payment Status", key: "status", width: 15 },
   ];
+  worksheet.addRow({
+    orderId: "ORD-1001",
+    customerName: "John Doe",
+    phone: "+919876543210",
+    product: "Sample Product",
+    qty: 1,
+    amount: "INR 499.00",
+    status: "PAID",
+  });
+  return (await workbook.xlsx.writeBuffer()) as Buffer;
+}
+
+/**
+ * Generate a sample PNG image buffer for Meta image template approval.
+ */
+function getSampleImageBuffer(): Buffer {
+  return Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "base64"
+  );
+}
+
+/**
+ * Build components and upload sample media handles for Meta template creation.
+ */
+async function prepareMetaComponentsAndPayload(
+  def: EcomTemplateDef,
+  bodyText: string,
+  headerText?: string,
+  footerText?: string,
+  waApi?: WhatsAppApiService | null
+): Promise<{ metaPayload: any; mediaType: string }> {
+  const mediaType = def.localData.mediaType || "text";
+  const varMatches = bodyText.match(/\{\{(\d+)\}\}/g) || [];
+  const varCount = varMatches.length;
+  const exampleSamples = def.variables.slice(0, Math.max(varCount, 1)).map((v) => v.sample);
+
+  let headerHandle: string | null = null;
+  if (waApi) {
+    if (mediaType === "document") {
+      try {
+        const docBuf = await getSampleExcelBuffer();
+        headerHandle = await waApi.uploadTemplateMedia(
+          docBuf,
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "sample_daily_orders.xlsx"
+        );
+      } catch (err: any) {
+        console.warn(`[Ecom Templates] Meta upload failed for document sample:`, err.message);
+      }
+    } else if (mediaType === "image") {
+      try {
+        const imgBuf = getSampleImageBuffer();
+        headerHandle = await waApi.uploadTemplateMedia(
+          imgBuf,
+          "image/png",
+          "sample_product.png"
+        );
+      } catch (err: any) {
+        console.warn(`[Ecom Templates] Meta upload failed for image sample:`, err.message);
+      }
+    }
+  }
+
+  const components: any[] = [];
+  if (mediaType === "document" && headerHandle) {
+    components.push({
+      type: "HEADER",
+      format: "DOCUMENT",
+      example: {
+        header_handle: [headerHandle],
+      },
+    });
+  } else if (mediaType === "image" && headerHandle) {
+    components.push({
+      type: "HEADER",
+      format: "IMAGE",
+      example: {
+        header_handle: [headerHandle],
+      },
+    });
+  } else if (headerText && mediaType === "text") {
+    components.push({
+      type: "HEADER",
+      format: "TEXT",
+      text: headerText,
+    });
+  }
+
+  components.push({
+    type: "BODY",
+    text: bodyText,
+    example: {
+      body_text: [exampleSamples],
+    },
+  });
+
+  if (footerText) {
+    components.push({
+      type: "FOOTER",
+      text: footerText,
+    });
+  }
+
+  return {
+    metaPayload: {
+      name: def.name,
+      category: "UTILITY",
+      language: def.language || "en_US",
+      components,
+    },
+    mediaType,
+  };
 }
 
 /**
@@ -397,19 +563,42 @@ export async function provisionEcommerceTemplatesForChannel(
 
       let metaId = existing?.whatsappTemplateId || null;
       let status = existing?.status || (isCloudApi ? "PENDING" : "APPROVED");
+      const mediaType = def.localData.mediaType || "text";
 
       if (isCloudApi && waApi && channel.whatsappBusinessAccountId) {
         try {
-          // Attempt to create on Meta
-          const res = await waApi.createTemplate(def.metaPayload);
-          metaId = res?.id || metaId;
-          status = (res?.status || "PENDING").toUpperCase();
-        } catch (metaErr: any) {
-          console.warn(`[Ecom Templates] Meta create notice for "${def.name}":`, metaErr.message);
-          // If already exists on Meta, keep status
-          if (metaErr.message?.includes("already exists") || metaErr.message?.includes("duplicate")) {
-            status = existing?.status || "APPROVED";
+          const { metaPayload: builtPayload } = await prepareMetaComponentsAndPayload(
+            def,
+            def.localData.body,
+            def.localData.header,
+            def.localData.footer,
+            waApi
+          );
+
+          try {
+            const res = await waApi.createTemplate(builtPayload);
+            metaId = res?.id || metaId;
+            status = (res?.status || "PENDING").toUpperCase();
+          } catch (createErr: any) {
+            if (
+              createErr.message?.includes("already exists") ||
+              createErr.message?.includes("duplicate") ||
+              createErr.message?.includes("status can't be changed")
+            ) {
+              try {
+                await waApi.deleteTemplate(def.name);
+                const res = await waApi.createTemplate(builtPayload);
+                metaId = res?.id || metaId;
+                status = (res?.status || "PENDING").toUpperCase();
+              } catch {
+                status = existing?.status || "APPROVED";
+              }
+            } else {
+              console.warn(`[Ecom Templates] Meta create notice for "${def.name}":`, createErr.message);
+            }
           }
+        } catch (metaErr: any) {
+          console.warn(`[Ecom Templates] Meta build error for "${def.name}":`, metaErr.message);
         }
       }
 
@@ -421,6 +610,7 @@ export async function provisionEcommerceTemplatesForChannel(
           body: def.localData.body,
           footer: def.localData.footer || "",
           buttons: def.localData.buttons || [],
+          mediaType: mediaType,
           status: status,
           ...(metaId ? { whatsappTemplateId: metaId } : {}),
           updatedAt: new Date(),
@@ -441,14 +631,14 @@ export async function provisionEcommerceTemplatesForChannel(
           whatsappTemplateId: metaId,
           channelId: channelId,
           createdBy: userId || channel.createdBy || "",
-          mediaType: "text",
+          mediaType: mediaType,
         });
         createdCount++;
         results.push({ name: def.name, action: "created", status, id: created.id });
       }
     } catch (err: any) {
       console.error(`[Ecom Templates] Failed to provision "${def.name}":`, err.message);
-      results.push({ name: def.name, action: "failed", error: err.message });
+      results.push({ name: def.name, action: "error", error: err.message });
     }
   }
 
@@ -500,64 +690,37 @@ export async function submitEcommerceTemplateToMeta(
   const isCloudApi = channel.connectionMethod === "embedded" || channel.connectionMethod === "waba" || !channel.connectionMethod;
   const waApi = isCloudApi ? new WhatsAppApiService(channel) : null;
 
-  // Extract variables from bodyText (e.g. {{1}}, {{2}}...)
-  const varMatches = bodyText.match(/\{\{(\d+)\}\}/g) || [];
-  const varCount = varMatches.length;
-
-  // Generate example data based on variable count
-  const exampleSamples = def.variables.slice(0, Math.max(varCount, 1)).map((v) => v.sample);
-
-  const components: any[] = [];
-  if (headerText) {
-    components.push({
-      type: "HEADER",
-      format: "TEXT",
-      text: headerText,
-    });
-  }
-
-  components.push({
-    type: "BODY",
-    text: bodyText,
-    example: {
-      body_text: [exampleSamples],
-    },
-  });
-
-  if (footerText) {
-    components.push({
-      type: "FOOTER",
-      text: footerText,
-    });
-  }
-
-  const metaPayload: any = {
-    name: templateName,
-    category: "UTILITY",
-    language: def.language || "en_US",
-    components,
-  };
-
   let metaResult: any = null;
   let finalStatus = isCloudApi ? "PENDING" : "APPROVED";
+  let mediaType = def.localData.mediaType || "text";
 
   if (isCloudApi && waApi && channel.whatsappBusinessAccountId) {
-    if (existing?.whatsappTemplateId) {
-      try {
-        metaResult = await waApi.editTemplate(existing.whatsappTemplateId, metaPayload);
-        finalStatus = (metaResult?.status || "PENDING").toUpperCase();
-      } catch (editErr: any) {
-        console.warn(`[Ecom Templates] Edit on Meta failed for ${templateName}, falling back to create:`, editErr.message);
-        try {
-          metaResult = await waApi.createTemplate(metaPayload);
-          finalStatus = (metaResult?.status || "PENDING").toUpperCase();
-        } catch (createErr: any) {
-          throw new Error(`Meta Template API Error: ${createErr.message}`);
-        }
-      }
-    } else {
-      metaResult = await waApi.createTemplate(metaPayload);
+    const { metaPayload: builtPayload, mediaType: detectedMediaType } = await prepareMetaComponentsAndPayload(
+      def,
+      bodyText,
+      headerText,
+      footerText,
+      waApi
+    );
+    mediaType = detectedMediaType;
+
+    try {
+      metaResult = await waApi.createTemplate(builtPayload);
       finalStatus = (metaResult?.status || "PENDING").toUpperCase();
+    } catch (createErr: any) {
+      console.warn(`[Ecom Templates] Direct create failed for ${templateName} (${createErr.message}), deleting and recreating on Meta...`);
+      try {
+        await waApi.deleteTemplate(templateName);
+      } catch (delErr: any) {
+        console.warn(`[Ecom Templates] Delete on Meta notice for ${templateName}:`, delErr.message);
+      }
+
+      try {
+        metaResult = await waApi.createTemplate(builtPayload);
+        finalStatus = (metaResult?.status || "PENDING").toUpperCase();
+      } catch (retryErr: any) {
+        throw new Error(`Meta Template API Error: ${retryErr.message}`);
+      }
     }
   }
 
@@ -568,6 +731,7 @@ export async function submitEcommerceTemplateToMeta(
       header: headerText || null,
       body: bodyText,
       footer: footerText || null,
+      mediaType: mediaType,
       status: finalStatus,
       ...(metaResult?.id ? { whatsappTemplateId: metaResult.id } : {}),
       updatedAt: new Date(),
@@ -586,7 +750,7 @@ export async function submitEcommerceTemplateToMeta(
       whatsappTemplateId: metaResult?.id || null,
       channelId: channelId,
       createdBy: userId || channel.createdBy || "",
-      mediaType: "text",
+      mediaType: mediaType,
     });
   }
 

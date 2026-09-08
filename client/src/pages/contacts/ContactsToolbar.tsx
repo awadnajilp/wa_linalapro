@@ -15,6 +15,7 @@
  * ============================================================
  */
 
+import React, { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Search,
@@ -33,8 +35,11 @@ import {
   Download,
   Trash2,
   FolderPlus,
+  Users,
+  FileSpreadsheet,
 } from "lucide-react";
 import { type Contact } from "./types";
+import { WhatsAppGroupImportDialog } from "./WhatsAppGroupImportDialog";
 
 interface ContactsToolbarProps {
   searchQuery: string;
@@ -94,6 +99,8 @@ export function ContactsToolbar({
   activeChannel,
 }: ContactsToolbarProps) {
   const { t } = useTranslation();
+  const [showWhatsAppGroupImport, setShowWhatsAppGroupImport] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <>
@@ -319,6 +326,22 @@ export function ContactsToolbar({
                 <span className="sm:hidden">Export</span>
               </Button>
 
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx"
+                className="hidden"
+                disabled={isImporting}
+                onChange={(e) => {
+                  if (e.target.files?.[0]?.name.endsWith(".csv")) {
+                    handleCSVUpload(e);
+                  } else {
+                    handleExcelUpload(e);
+                  }
+                  e.target.value = "";
+                }}
+              />
+
               {user?.username === "demouser" ? (
                 <Button
                   disabled={true}
@@ -336,36 +359,47 @@ export function ContactsToolbar({
                   </span>
                 </Button>
               ) : (
-                <label className={isImporting ? "cursor-not-allowed opacity-60" : "cursor-pointer"}>
-                  <input
-                    type="file"
-                    accept=".csv,.xlsx"
-                    className="hidden"
-                    disabled={isImporting}
-                    onChange={(e) => {
-                      if (e.target.files?.[0]?.name.endsWith(".csv")) {
-                        handleCSVUpload(e);
-                      } else {
-                        handleExcelUpload(e);
-                      }
-                    }}
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs sm:text-sm"
-                    disabled={isImporting}
-                    asChild
-                  >
-                    <span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs sm:text-sm"
+                      disabled={isImporting}
+                    >
                       <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
                       <span className="hidden sm:inline">
                         {isImporting ? "Importing…" : t("contacts.importContacts")}
                       </span>
                       <span className="sm:hidden">{isImporting ? "…" : "Import"}</span>
-                    </span>
-                  </Button>
-                </label>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem
+                      onClick={() => fileInputRef.current?.click()}
+                      className="cursor-pointer flex items-center gap-2 py-2"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                      <div>
+                        <span className="font-medium text-xs text-gray-900 block">Excel / CSV File</span>
+                        <span className="text-[10px] text-gray-400 block">Upload .xlsx or .csv contacts</span>
+                      </div>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator />
+
+                    <DropdownMenuItem
+                      onClick={() => setShowWhatsAppGroupImport(true)}
+                      className="cursor-pointer flex items-center gap-2 py-2 text-emerald-700 focus:text-emerald-800 focus:bg-emerald-50"
+                    >
+                      <Users className="w-4 h-4 text-emerald-600" />
+                      <div>
+                        <span className="font-semibold text-xs text-emerald-900 block">WhatsApp Groups</span>
+                        <span className="text-[10px] text-emerald-600/80 block">Extract group participants</span>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
 
               <Button
@@ -450,6 +484,13 @@ export function ContactsToolbar({
           </CardContent>
         </Card>
       )}
+
+      {/* WhatsApp Group Import Dialog */}
+      <WhatsAppGroupImportDialog
+        open={showWhatsAppGroupImport}
+        onOpenChange={setShowWhatsAppGroupImport}
+        activeChannel={activeChannel}
+      />
     </>
   );
 }

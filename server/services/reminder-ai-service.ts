@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import { db } from "../db";
 import * as schema from "@shared/schema";
-import { eq, and } from "drizzle-orm";
-import { AddonManager } from "./addon-manager";
+import { eq, and, inArray } from "drizzle-orm";
+import { AiBillingService } from "./ai-billing-service";
 
 export function getTimezoneLabel(offset: number): string {
   if (offset === 3) return "UTC+3 (KSA/AST)";
@@ -23,8 +23,6 @@ export function formatLocalTime(dueTime: Date | string, offset: number): string 
   const displayHours = hours % 12 || 12;
   return `${dateStr} ${displayHours}:${pad(minutes)} ${ampm}`;
 }
-
-import { eq, and, inArray } from "drizzle-orm";
 
 export async function getContactTimezoneOffset(phone: string, channelId: string): Promise<number> {
   try {
@@ -115,40 +113,38 @@ export class ReminderAIService {
         .limit(1);
 
       const customPrompt = config?.aiPrompt || `You are a helper AI for a Reminders and To-Do app. Extract the task description (What) and the scheduled time (When) from the user's message. Interpret natural dates like 'tomorrow at 5pm' or 'next week 12th at 1pm' correctly.`;
+      const apiKeySource = (config as any)?.apiKeySource || "own_key";
 
-      // 2. Fetch AI keys config (determine if using tenant key or admin keys)
-      const [addon] = await db
-        .select()
-        .from(schema.addons)
-        .where(eq(schema.addons.slug, "reminders-module"))
-        .limit(1);
+      // 2. Resolve credentials (platform admin vs tenant own keys)
+      const resolvedCreds = await AiBillingService.resolveAiCredentials(tenantId, apiKeySource);
 
-      if (!addon) {
-        return { title: "", dueTime: "", leadTimeMinutes: 15, error: "Reminders Module addon not registered." };
+      // If using platform admin key, verify tenant wallet has positive balance
+      if (apiKeySource === "admin_key") {
+        const walletStatus = await AiBillingService.checkTenantWallet(tenantId);
+        if (!walletStatus.hasBalance) {
+          console.warn(`[Reminders AI] Tenant ${tenantId} has zero or negative wallet balance (${walletStatus.balance} ${walletStatus.currency}). Pausing AI reminder parsing.`);
+          return {
+            title: "",
+            dueTime: "",
+            leadTimeMinutes: 15,
+            error: "AI Assistant is currently unavailable due to insufficient wallet balance. Please recharge your wallet."
+          };
+        }
       }
-
-      let apiKey = "";
-      let baseURL = "https://api.openai.com/v1";
-      let model = "gpt-4o-mini";
-
-      const useAdminKey = addon.aiKeyType === "admin";
 
       // Candidates to try
       const candidates: Array<{ provider: string; key: string; model: string; url?: string }> = [];
 
-      if (useAdminKey) {
-        // Use platform keys and verify credits
-        const hasCredits = await AddonManager.consumeCredits(tenantId, "reminders-module", 1);
-        if (!hasCredits) {
-          return { title: "", dueTime: "", leadTimeMinutes: 15, error: "Insufficient AI credits. Please recharge your Reminders Module." };
+      if (apiKeySource === "admin_key") {
+        if (resolvedCreds.groqApiKey) {
+          candidates.push({ provider: "groq", key: resolvedCreds.groqApiKey, model: "llama-3.3-70b-versatile", url: "https://api.groq.com/openai/v1" });
         }
-        
-        const adminKey = addon.adminApiKey || "";
-        const adminUrl = addon.adminApiEndpoint || (addon.adminProvider === "groq" ? "https://api.groq.com/openai/v1" : "https://api.openai.com/v1");
-        const adminModel = addon.adminLlmModel || "gpt-4o-mini";
-        const adminProvider = addon.adminProvider || "openai";
-        
-        candidates.push({ provider: adminProvider, key: adminKey, model: adminModel, url: adminUrl });
+        if (resolvedCreds.openaiApiKey) {
+          candidates.push({ provider: "openai", key: resolvedCreds.openaiApiKey, model: "gpt-4o-mini" });
+        }
+        if (resolvedCreds.sarvamApiKey) {
+          candidates.push({ provider: "sarvam", key: resolvedCreds.sarvamApiKey, model: "sarvam-105b-conversations", url: "https://api.sarvam.ai/v1" });
+        }
       } else {
         // Use tenant's keys from users table
         const [tenant] = await db
@@ -196,17 +192,17 @@ export class ReminderAIService {
             });
           }
         }
-      }
 
-      // Fallback candidates from env
-      if (process.env.OPENAI_API_KEY) {
-        candidates.push({ provider: "openai", key: process.env.OPENAI_API_KEY, model: "gpt-4o-mini" });
-      }
-      if (process.env.SARVAM_API_KEY) {
-        candidates.push({ provider: "sarvam", key: process.env.SARVAM_API_KEY, model: "sarvam-105b-conversations", url: "https://api.sarvam.ai/v1" });
-      }
-      if (process.env.GROQ_API_KEY) {
-        candidates.push({ provider: "groq", key: process.env.GROQ_API_KEY, model: "llama-3.3-70b-versatile", url: "https://api.groq.com/openai/v1" });
+        // Fallback candidates from env if own keys not fully provided
+        if (process.env.OPENAI_API_KEY) {
+          candidates.push({ provider: "openai", key: process.env.OPENAI_API_KEY, model: "gpt-4o-mini" });
+        }
+        if (process.env.GROQ_API_KEY) {
+          candidates.push({ provider: "groq", key: process.env.GROQ_API_KEY, model: "llama-3.3-70b-versatile", url: "https://api.groq.com/openai/v1" });
+        }
+        if (process.env.SARVAM_API_KEY) {
+          candidates.push({ provider: "sarvam", key: process.env.SARVAM_API_KEY, model: "sarvam-105b-conversations", url: "https://api.sarvam.ai/v1" });
+        }
       }
 
       // Deduplicate candidates by provider (preserving order of insertion)
@@ -291,6 +287,22 @@ Input text: "${text}"`;
               console.error("[ReminderAIService] Timezone conversion failed:", convErr.message);
             }
           }
+
+          // Record & Bill LLM Usage
+          const promptTokens = response.usage?.prompt_tokens || Math.ceil(prompt.length / 4);
+          const completionTokens = response.usage?.completion_tokens || Math.ceil(resText.length / 4);
+          AiBillingService.recordAndBillUsage({
+            tenantId,
+            channelId,
+            source: "reminders",
+            serviceType: "llm",
+            provider: cand.provider,
+            model: cand.model,
+            inputUnits: promptTokens,
+            outputUnits: completionTokens,
+            apiKeySource,
+            metadata: { senderPhone, task: parsed.title || "reminder" }
+          }).catch((err) => console.error("[Reminders AI Billing Error - LLM]", err.message));
 
           return {
             title: parsed.title || "",

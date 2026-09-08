@@ -480,6 +480,11 @@ export function registerEcommerceRoutes(app: Express) {
         config = created;
       }
 
+      // Automatically provision/submit required ecommerce WhatsApp templates in background for this channel
+      provisionEcommerceTemplatesForChannel(String(channelId), tenantId).catch((provErr: any) => {
+        console.warn(`[Ecommerce Config] Automatic template provision note for channel ${channelId}:`, provErr?.message);
+      });
+
       res.json(config);
     } catch (err: any) {
       res.status(500).json({ error: err.message });

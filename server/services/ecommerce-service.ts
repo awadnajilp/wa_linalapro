@@ -320,6 +320,8 @@ export class EcommerceService {
           content: text,
           direction: "outbound",
           fromType: "bot",
+          fromUser: false,
+          type: "text",
           messageType: "text",
           status: "delivered",
           whatsappMessageId: waMsgId,
@@ -334,6 +336,11 @@ export class EcommerceService {
           (global as any).broadcastToConversation(conversationId, {
             type: "new-message",
             message: msg,
+            content: text,
+            direction: "outbound",
+            fromType: "bot",
+            status: "delivered",
+            createdAt: msg.createdAt || new Date().toISOString(),
           });
         }
       }
@@ -365,6 +372,8 @@ export class EcommerceService {
           content: caption || `[${mediaType}]`,
           direction: "outbound",
           fromType: "bot",
+          fromUser: false,
+          type: mediaType,
           messageType: mediaType,
           mediaUrl: mediaUrl,
           status: "delivered",
@@ -380,6 +389,11 @@ export class EcommerceService {
           (global as any).broadcastToConversation(conversationId, {
             type: "new-message",
             message: msg,
+            content: caption || `[${mediaType}]`,
+            direction: "outbound",
+            fromType: "bot",
+            status: "delivered",
+            createdAt: msg.createdAt || new Date().toISOString(),
           });
         }
       }
@@ -409,6 +423,8 @@ export class EcommerceService {
           content: caption || "[Voice Note]",
           direction: "outbound",
           fromType: "bot",
+          fromUser: false,
+          type: "audio",
           messageType: "audio",
           mediaUrl: voiceMediaUrl,
           status: "delivered",
@@ -424,6 +440,11 @@ export class EcommerceService {
           (global as any).broadcastToConversation(conversationId, {
             type: "new-message",
             message: msg,
+            content: caption || "[Voice Note]",
+            direction: "outbound",
+            fromType: "bot",
+            status: "delivered",
+            createdAt: msg.createdAt || new Date().toISOString(),
           });
         }
       }
@@ -454,6 +475,8 @@ export class EcommerceService {
           content: caption || filename,
           direction: "outbound",
           fromType: "bot",
+          fromUser: false,
+          type: "document",
           messageType: "document",
           status: "delivered",
           whatsappMessageId: waMsgId,
@@ -468,6 +491,11 @@ export class EcommerceService {
           (global as any).broadcastToConversation(conversationId, {
             type: "new-message",
             message: msg,
+            content: caption || filename,
+            direction: "outbound",
+            fromType: "bot",
+            status: "delivered",
+            createdAt: msg.createdAt || new Date().toISOString(),
           });
         }
       }
@@ -3798,10 +3826,13 @@ CRITICAL DIRECTIVES:
     };
 
     if (headerImageUrl) {
-      payload.interactive.header = {
-        type: "image",
-        image: { link: headerImageUrl }
-      };
+      const url = typeof headerImageUrl === "string" ? headerImageUrl : (headerImageUrl.image?.link || headerImageUrl.link);
+      if (url) {
+        payload.interactive.header = {
+          type: "image",
+          image: { link: url }
+        };
+      }
     }
 
     const response = await fetch(
@@ -3825,16 +3856,19 @@ CRITICAL DIRECTIVES:
     try {
       if (conversationId) {
         const waMsgId = resJson?.messages?.[0]?.id || null;
+        const finalHeaderUrl = typeof headerImageUrl === "string" ? headerImageUrl : (headerImageUrl?.image?.link || headerImageUrl?.link || null);
         const msg = await storage.createMessage({
           conversationId,
           content: bodyText,
           direction: "outbound",
           fromType: "bot",
+          fromUser: false,
+          type: "interactive",
           messageType: "interactive",
-          mediaUrl: headerImageUrl || null,
+          mediaUrl: finalHeaderUrl,
           status: "delivered",
           whatsappMessageId: waMsgId,
-          metadata: { buttons, headerImageUrl },
+          metadata: { buttons, headerImageUrl: finalHeaderUrl },
           timestamp: new Date(),
         });
         await storage.updateConversation(conversationId, {
@@ -3845,6 +3879,11 @@ CRITICAL DIRECTIVES:
           (global as any).broadcastToConversation(conversationId, {
             type: "new-message",
             message: msg,
+            content: bodyText,
+            direction: "outbound",
+            fromType: "bot",
+            status: "delivered",
+            createdAt: msg.createdAt || new Date().toISOString(),
           });
         }
       }
@@ -3912,6 +3951,8 @@ CRITICAL DIRECTIVES:
           content: contentText,
           direction: "outbound",
           fromType: "bot",
+          fromUser: false,
+          type: "interactive",
           messageType: "interactive",
           status: "delivered",
           whatsappMessageId: waMsgId,
@@ -3920,12 +3961,17 @@ CRITICAL DIRECTIVES:
         });
         await storage.updateConversation(conversationId, {
           lastMessageAt: new Date(),
-          lastMessageText: bodyText,
+          lastMessageText: contentText,
         });
         if ((global as any).broadcastToConversation) {
           (global as any).broadcastToConversation(conversationId, {
             type: "new-message",
             message: msg,
+            content: contentText,
+            direction: "outbound",
+            fromType: "bot",
+            status: "delivered",
+            createdAt: msg.createdAt || new Date().toISOString(),
           });
         }
       }
@@ -4500,6 +4546,29 @@ CRITICAL DIRECTIVES:
         `📋 *Today's Orders Breakdown:*\n${ordersListText}\n\n` +
         `_Sent automatically by ${storeName} Ecommerce_`;
 
+      // Generate Excel file for WhatsApp document header and attachments
+      let reportExcelUrl: string | null = null;
+      let reportExcelFilename: string | null = null;
+      try {
+        const fileDateStr = targetDate.toISOString().split("T")[0];
+        const storeNameClean = storeName.replace(/[^a-zA-Z0-9]/g, "_");
+        const excelFilename = `Daily_Orders_${storeNameClean}_${fileDateStr}.xlsx`;
+        const excelBuffer = await this.generateDailyOrdersExcelBuffer(orders, config, storeName, fileDateStr);
+
+        const reportsDir = path.join(process.cwd(), "uploads", "reports");
+        if (!fs.existsSync(reportsDir)) {
+          fs.mkdirSync(reportsDir, { recursive: true });
+        }
+        const filePath = path.join(reportsDir, excelFilename);
+        await fs.promises.writeFile(filePath, excelBuffer);
+
+        const domain = process.env.BASE_URL || process.env.APP_URL || "https://wa.linalapro.com";
+        reportExcelUrl = `${domain.replace(/\/+$/, "")}/uploads/reports/${excelFilename}`;
+        reportExcelFilename = excelFilename;
+      } catch (excelErr: any) {
+        console.warn("[Ecommerce Daily Report WA] Excel generation for WA failed:", excelErr.message);
+      }
+
       const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
       let summaryTemplate: any = null;
 
@@ -4525,6 +4594,12 @@ CRITICAL DIRECTIVES:
         try {
           const cleanPhone = phone.replace(/[^0-9]/g, "");
           if (cleanPhone.length >= 7) {
+            const mediaHeader = reportExcelUrl ? {
+              type: "document" as const,
+              url: reportExcelUrl,
+              filename: reportExcelFilename || "Daily_Orders_Report.xlsx"
+            } : undefined;
+
             if (isCloudApi && summaryTemplate) {
               const components = buildMetaTemplateParameters("ecom_daily_order_summary", [
                 storeName,
@@ -4533,7 +4608,7 @@ CRITICAL DIRECTIVES:
                 `${currency} ${totalRevenue.toFixed(2)}`,
                 String(paidCount),
                 String(codCount + pendingCount)
-              ]);
+              ], mediaHeader);
               try {
                 await WhatsAppApiService.sendTemplateMessage(
                   channelRow,
@@ -4546,7 +4621,31 @@ CRITICAL DIRECTIVES:
                 successCount++;
                 continue;
               } catch (tplErr: any) {
-                console.warn(`[Ecommerce Reports WA] Template send failed for ${cleanPhone}, falling back to text:`, tplErr.message);
+                console.warn(`[Ecommerce Reports WA] Template send failed for ${cleanPhone}, falling back to media/text:`, tplErr.message);
+              }
+            }
+
+            if (!isCloudApi && reportExcelUrl) {
+              try {
+                await WhatsAppApiService.sendTemplateMessage(
+                  channelRow,
+                  cleanPhone,
+                  "ecom_daily_order_summary",
+                  buildMetaTemplateParameters("ecom_daily_order_summary", [
+                    storeName,
+                    dateStr,
+                    String(orders.length),
+                    `${currency} ${totalRevenue.toFixed(2)}`,
+                    String(paidCount),
+                    String(codCount + pendingCount)
+                  ], mediaHeader),
+                  "en_US",
+                  false
+                );
+                successCount++;
+                continue;
+              } catch (qrMediaErr: any) {
+                console.warn(`[Ecommerce Reports WA] QR Document send failed for ${cleanPhone}:`, qrMediaErr.message);
               }
             }
 
@@ -4800,7 +4899,21 @@ CRITICAL DIRECTIVES:
           const params = followupNum === 1
             ? [customerName, productName, price]
             : [customerName, productName, config.abandonedCartDiscountCode || "SAVE10", `${config.abandonedCartDiscountPercent || 10}%`];
-          const components = buildMetaTemplateParameters(tplName, params);
+
+          let productPhotoUrl = cart.productPhoto || null;
+          if (productPhotoUrl && !productPhotoUrl.startsWith("http")) {
+            productPhotoUrl = `https://wa.linalapro.com${productPhotoUrl.startsWith("/") ? "" : "/"}${productPhotoUrl}`;
+          }
+          if (!productPhotoUrl) {
+            productPhotoUrl = "https://wa.linalapro.com/assets/sample-product.png";
+          }
+
+          const mediaHeader = productPhotoUrl ? {
+            type: "image" as const,
+            url: productPhotoUrl,
+          } : undefined;
+
+          const components = buildMetaTemplateParameters(tplName, params, mediaHeader);
 
           await WhatsAppApiService.sendTemplateMessage(
             channelRow,
@@ -4811,7 +4924,7 @@ CRITICAL DIRECTIVES:
             false
           );
           templateSent = true;
-          console.log(`[Ecommerce Recovery] Sent ${tplName} template to ${to} for cart ${cart.id}`);
+          console.log(`[Ecommerce Recovery] Sent ${tplName} template with image header to ${to} for cart ${cart.id}`);
         } catch (tplErr: any) {
           console.warn(`[Ecommerce Recovery] Template send failed for ${to}, falling back to interactive/text:`, tplErr.message);
         }

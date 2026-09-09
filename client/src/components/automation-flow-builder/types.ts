@@ -91,6 +91,7 @@ export interface BuilderNodeData {
   webhookMethod?: "GET" | "POST" | "PUT" | "DELETE";
   webhookHeaders?: Record<string, string>;
   webhookBody?: string;
+  webhookResponseVariable?: string;
   endMessage?: string;
   groupId?: string;
   groupName?: string;

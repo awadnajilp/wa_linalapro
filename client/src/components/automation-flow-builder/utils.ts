@@ -74,6 +74,7 @@ export const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
     webhookMethod: "POST",
     webhookHeaders: {},
     webhookBody: "",
+    webhookResponseVariable: "",
   },
   mysql: {
     kind: "mysql",

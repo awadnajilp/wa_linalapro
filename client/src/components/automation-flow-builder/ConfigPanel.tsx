@@ -2034,6 +2034,85 @@ export function ConfigPanel({
                   Flow variables set by "Set Variable" nodes are also available using {"{{your_variable_name}}"} syntax.
                 </div>
               </div>
+
+              <SectionHeader>Response Handling</SectionHeader>
+              <div className="space-y-3 bg-amber-50/50 rounded-xl p-4 border border-amber-200">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-gray-700">Save Response Object to Variable (Optional)</Label>
+                  <Input
+                    value={d.webhookResponseVariable || ""}
+                    onChange={(e) => onChange({ webhookResponseVariable: e.target.value.replace(/[^a-zA-Z0-9_]/g, "") })}
+                    placeholder="e.g. api_data"
+                    className="h-9 text-xs font-mono bg-white"
+                  />
+                  <div className="text-[10px] text-gray-500">
+                    Stores the entire JSON response object into this custom variable name for direct access in downstream nodes.
+                  </div>
+                </div>
+              </div>
+
+              <SectionHeader>How to Access Response Objects & Nested Keys</SectionHeader>
+              <div className="bg-slate-900 text-slate-100 rounded-xl p-4 space-y-3.5 border border-slate-800 text-xs shadow-inner">
+                <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
+                  <Globe className="w-4 h-4 shrink-0" />
+                  <span>Webhook Response Object & Dot-Notation Guide</span>
+                </div>
+
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  When a webhook executes, the platform automatically captures the response into <code className="text-amber-300 bg-slate-800 px-1 py-0.5 rounded font-mono font-semibold">{"{{webhook_response}}"}</code> and the HTTP status code into <code className="text-amber-300 bg-slate-800 px-1 py-0.5 rounded font-mono font-semibold">{"{{webhook_status}}"}</code>.
+                </p>
+
+                <div className="space-y-1.5 bg-slate-950/80 rounded-lg p-3 border border-slate-800">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Example API Response JSON:</div>
+                  <pre className="text-[10px] font-mono text-emerald-400 overflow-x-auto p-1 leading-relaxed">
+{`{
+  "status": "success",
+  "order": {
+    "id": "ORD-9842",
+    "total": 149.99,
+    "customer": {
+      "name": "Sarah Ahmed",
+      "email": "sarah@example.com"
+    },
+    "items": [
+      { "name": "Espresso Blend", "qty": 2 }
+    ]
+  }
+}`}
+                  </pre>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Accessing Nested Variables via Dot Notation:</div>
+                  <div className="space-y-1 text-[11px] font-mono">
+                    <div className="bg-slate-800/80 p-2 rounded flex items-center justify-between border border-slate-700/50">
+                      <span className="text-amber-300">{"{{webhook_response.order.id}}"}</span>
+                      <span className="text-slate-400 text-[10px] font-sans">&rarr; "ORD-9842"</span>
+                    </div>
+                    <div className="bg-slate-800/80 p-2 rounded flex items-center justify-between border border-slate-700/50">
+                      <span className="text-amber-300">{"{{webhook_response.order.customer.name}}"}</span>
+                      <span className="text-slate-400 text-[10px] font-sans">&rarr; "Sarah Ahmed"</span>
+                    </div>
+                    <div className="bg-slate-800/80 p-2 rounded flex items-center justify-between border border-slate-700/50">
+                      <span className="text-amber-300">{"{{webhook_response.order.items[0].name}}"}</span>
+                      <span className="text-slate-400 text-[10px] font-sans">&rarr; "Espresso Blend"</span>
+                    </div>
+                    <div className="bg-slate-800/80 p-2 rounded flex items-center justify-between border border-slate-700/50">
+                      <span className="text-amber-300">{"{{webhook_response}}"}</span>
+                      <span className="text-slate-400 text-[10px] font-sans">&rarr; Full JSON string</span>
+                    </div>
+                    <div className="bg-slate-800/80 p-2 rounded flex items-center justify-between border border-slate-700/50">
+                      <span className="text-amber-300">{"{{webhook_status}}"}</span>
+                      <span className="text-slate-400 text-[10px] font-sans">&rarr; 200</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-slate-400 leading-normal border-t border-slate-800 pt-2 space-y-1">
+                  <div>💡 <strong>Tip:</strong> If you set a custom response variable (e.g. <code className="text-amber-300">api_data</code>), you can also write <code className="text-amber-300">{"{{api_data.order.customer.name}}"}</code> in any Message or Condition node!</div>
+                  <div>💡 You can also use a <strong>Set Variable</strong> node with source <em>"From Webhook Response"</em> to extract specific keys or full objects into clean variable names.</div>
+                </div>
+              </div>
             </>
           )}
 
@@ -2942,14 +3021,16 @@ export function ConfigPanel({
                 )}
                 {d.variableSource === "from_webhook" && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-gray-700">JSON Path</Label>
+                    <Label className="text-xs font-semibold text-gray-700">JSON Path / Key</Label>
                     <Input
                       value={d.variableValue || ""}
                       onChange={(e) => onChange({ variableValue: e.target.value })}
-                      placeholder="e.g., data.result.value"
+                      placeholder="e.g. data.order.id or * for full response"
                       className="h-9 text-sm font-mono rounded-lg bg-white"
                     />
-                    <div className="text-[10px] text-gray-400">Dot-notation path from webhook response JSON</div>
+                    <div className="text-[10px] text-gray-500 leading-tight">
+                      Dot-notation path from webhook JSON response (e.g. <code className="text-purple-600 font-mono">user.id</code>, <code className="text-purple-600 font-mono">items[0].name</code>, or leave blank / <code className="text-purple-600 font-mono">*</code> for the entire object).
+                    </div>
                   </div>
                 )}
               </div>
@@ -3579,7 +3660,7 @@ function WhatsAppFlowSelect({
   channelId?: string;
   onChange: (flow: any) => void;
 }) {
-  const { data: flowsData, isLoading } = useQuery<{ status: string; data: any[] }>({
+  const { data: flowsData, isLoading } = useQuery<{ status?: string; data?: any[] } | any[]>({
     queryKey: ["whatsapp-flows-list", channelId],
     queryFn: async () => {
       const url = channelId ? `/api/whatsapp-flows?channelId=${channelId}` : "/api/whatsapp-flows";
@@ -3589,13 +3670,23 @@ function WhatsAppFlowSelect({
     },
   });
 
-  const flows = flowsData?.data || [];
+  const flowsList: any[] = Array.isArray(flowsData)
+    ? flowsData
+    : Array.isArray((flowsData as any)?.data)
+      ? (flowsData as any).data
+      : [];
+
+  const validFlows = flowsList.filter((f) => f && (f.id != null || f.flowId != null));
 
   return (
     <Select
-      value={value}
+      value={value ? String(value) : undefined}
       onValueChange={(val) => {
-        const found = flows.find((f) => f.id === val);
+        if (!val || val === "__none__") {
+          onChange(null);
+          return;
+        }
+        const found = validFlows.find((f) => String(f.id ?? f.flowId) === val);
         onChange(found || null);
       }}
     >
@@ -3603,15 +3694,24 @@ function WhatsAppFlowSelect({
         <SelectValue placeholder={isLoading ? "Loading flows..." : "Choose a WhatsApp Flow"} />
       </SelectTrigger>
       <SelectContent>
-        {flows.map((flow) => (
-          <SelectItem key={flow.id} value={flow.id} className="text-xs">
-            {flow.name} ({flow.status || "DRAFT"})
+        {validFlows.length > 0 && (
+          <SelectItem value="__none__" className="text-xs text-gray-500 italic">
+            -- None (Select a Flow) --
           </SelectItem>
-        ))}
-        {flows.length === 0 && !isLoading && (
-          <SelectItem value="_empty" disabled className="text-xs text-muted-foreground">
-            No flows found. Create one in WhatsApp Flows.
-          </SelectItem>
+        )}
+        {validFlows.map((flow) => {
+          const flowKey = String(flow.id ?? flow.flowId ?? "");
+          if (!flowKey) return null;
+          return (
+            <SelectItem key={flowKey} value={flowKey} className="text-xs">
+              {flow.name || "Untitled Flow"} ({flow.status || "DRAFT"})
+            </SelectItem>
+          );
+        })}
+        {validFlows.length === 0 && !isLoading && (
+          <div className="py-3 px-2 text-center text-xs text-muted-foreground">
+            No WhatsApp flows found. Create one in WhatsApp Flows.
+          </div>
         )}
       </SelectContent>
     </Select>

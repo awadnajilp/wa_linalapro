@@ -449,16 +449,23 @@ export function WebhookNode({ data }: { data: BuilderNodeData }) {
       <Handle type="target" position={Position.Top} className="!bg-orange-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
       <NodeShell
         icon={<Globe className="w-4 h-4" />}
-        title="Webhook"
+        title={data?.label || "Webhook"}
         color="text-orange-700"
         bgColor="bg-orange-50"
         borderColor="border-orange-100"
       >
-        {data.webhookUrl ? (
+        {data?.webhookUrl ? (
           <div className="space-y-1.5">
-            <span className="inline-block bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[10px] font-bold">
-              {data.webhookMethod || "POST"}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                {data.webhookMethod || "POST"}
+              </span>
+              {data.webhookResponseVariable && (
+                <span className="text-[9px] font-mono bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded truncate" title={`Saves response to {{${data.webhookResponseVariable}}}`}>
+                  &rarr; {`{{${data.webhookResponseVariable}}}`}
+                </span>
+              )}
+            </div>
             <div className="text-[11px] text-gray-500 truncate bg-gray-50 rounded px-2 py-1 font-mono border border-gray-100">{data.webhookUrl}</div>
           </div>
         ) : (
@@ -1188,27 +1195,30 @@ export function NoonPaymentNode({ data }: { data: BuilderNodeData }) {
 }
 
 export function WhatsAppFlowNode({ data }: { data: BuilderNodeData }) {
+  const flowName = typeof data?.whatsappFlowName === "string" ? data.whatsappFlowName : (data?.whatsappFlowName ? String(data.whatsappFlowName) : "");
+  const ctaText = typeof data?.whatsappFlowCtaText === "string" ? data.whatsappFlowCtaText : "Start Form";
+
   return (
     <div className="relative">
       <Handle type="target" position={Position.Top} className="!bg-purple-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
       <NodeShell
         icon={<Sparkles className="w-4 h-4" />}
-        title={data.label || "WhatsApp Flow"}
+        title={data?.label || "WhatsApp Flow"}
         color="text-purple-700"
         bgColor="bg-purple-50"
         borderColor="border-purple-100"
       >
-        {data.whatsappFlowName ? (
+        {flowName ? (
           <div className="space-y-1.5">
             <div className="flex items-center gap-1.5 bg-white rounded-md p-1.5 border border-purple-100 shadow-2xs">
               <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
               <span className="text-[11px] font-semibold text-gray-800 truncate">
-                {data.whatsappFlowName}
+                {flowName}
               </span>
             </div>
             <div className="flex items-center justify-between text-[10px] text-gray-500 px-0.5">
-              <span>CTA: {data.whatsappFlowCtaText || "Start Form"}</span>
-              {data.whatsappFlowAutoSave !== false && (
+              <span>CTA: {ctaText}</span>
+              {data?.whatsappFlowAutoSave !== false && (
                 <span className="text-emerald-600 font-medium">Auto CRM</span>
               )}
             </div>

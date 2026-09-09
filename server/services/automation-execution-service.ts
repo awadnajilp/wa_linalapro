@@ -3289,9 +3289,14 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     } else if (source === 'from_message') {
       varValue = context.lastUserMessage || '';
     } else if (source === 'from_webhook') {
-      const path = varValue;
-      const webhookData = context.variables['_lastWebhookResponse'] || {};
-      varValue = this.getNestedValue(webhookData, path) || '';
+      const path = varValue?.trim();
+      const webhookData = context.variables['_lastWebhookResponse'] || context.variables['webhook_response'] || {};
+      if (!path || path === '' || path === '.' || path === '*' || path.toLowerCase() === 'root') {
+        varValue = webhookData;
+      } else {
+        const extracted = this.getNestedValue(webhookData, path);
+        varValue = extracted !== undefined ? extracted : '';
+      }
     }
 
     context.variables[varName] = varValue;
@@ -3300,7 +3305,16 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
   }
 
   private getNestedValue(obj: any, path: string): any {
-    return path.split('.').reduce((curr, key) => curr?.[key], obj);
+    if (!path || path.trim() === '' || path.trim() === '.' || path.trim() === '*' || path.trim().toLowerCase() === 'root') return obj;
+    return path.split('.').reduce((curr, key) => {
+      if (curr == null) return undefined;
+      const arrayMatch = key.match(/^(.+)\[(\d+)\]$/);
+      if (arrayMatch) {
+        const arr = curr[arrayMatch[1]];
+        return Array.isArray(arr) ? arr[parseInt(arrayMatch[2], 10)] : undefined;
+      }
+      return curr[key];
+    }, obj);
   }
 
   private async executeSendLocation(node: any, context: ExecutionContext) {
@@ -3851,6 +3865,13 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
 
       context.variables['_lastWebhookResponse'] = responseData;
       context.variables['_lastWebhookStatus'] = responseStatus;
+      context.variables['webhook_response'] = responseData;
+      context.variables['webhook_status'] = responseStatus;
+
+      const respVar = node.data?.webhookResponseVariable?.trim();
+      if (respVar) {
+        context.variables[respVar] = responseData;
+      }
 
       console.log(`✅ Webhook response: ${responseStatus} - ${responseText.substring(0, 200)}`);
 
@@ -3871,6 +3892,11 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         console.error(`⏱️ Webhook timed out after 30s: ${finalUrl}`);
         context.variables['_lastWebhookResponse'] = { error: 'timeout' };
         context.variables['_lastWebhookStatus'] = 408;
+        context.variables['webhook_response'] = { error: 'timeout' };
+        context.variables['webhook_status'] = 408;
+        if (node.data?.webhookResponseVariable?.trim()) {
+          context.variables[node.data.webhookResponseVariable.trim()] = { error: 'timeout' };
+        }
         return {
           action: 'webhook_timeout',
           url: finalUrl,
@@ -5661,7 +5687,11 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     return text.replace(/\{\{([^}]+)\}\}/g, (match, varName) => {
       const trimmed = varName.trim();
       const val = this.resolveVariable(trimmed, variables);
-      return val !== undefined ? String(val) : match;
+      if (val === undefined) return match;
+      if (typeof val === 'object' && val !== null) {
+        return JSON.stringify(val);
+      }
+      return String(val);
     });
   }
 
@@ -5672,7 +5702,13 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     let current: any = variables;
     for (const part of parts) {
       if (current == null || typeof current !== 'object') return undefined;
-      current = current[part];
+      const arrayMatch = part.match(/^(.+)\[(\d+)\]$/);
+      if (arrayMatch) {
+        const arr = current[arrayMatch[1]];
+        current = Array.isArray(arr) ? arr[parseInt(arrayMatch[2], 10)] : undefined;
+      } else {
+        current = current[part];
+      }
     }
     return current;
   }

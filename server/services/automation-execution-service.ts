@@ -884,19 +884,27 @@ private stemWord(word: string = ""): string {
       let processedResponse = userResponse;
       let selectedButtonId = null;
 
-      // If it is an image upload and we are saving it
-      if (messageObject && messageObject.type === 'image' && pendingExecution.saveAs) {
-        const getContact = await db.query.contacts.findFirst({
-          where: eq(contacts.id, pendingExecution.contactId!),
-        });
-        if (getContact && getContact.channelId) {
-          const channelRow = await storage.getChannel(getContact.channelId);
-          if (channelRow) {
-            const waApi = new WhatsAppApiService(channelRow);
-            const mediaId = (messageObject.image as any)?.id || messageObject.mediaId;
-            if (mediaId) {
+      // If it is an image or document upload and we are saving it
+      if (messageObject && (messageObject.type === 'image' || messageObject.type === 'document') && pendingExecution.saveAs) {
+        let fileUrl = messageObject.mediaUrl || (messageObject.image as any)?.url || (messageObject.document as any)?.url || "";
+        const mediaId = (messageObject.image as any)?.id || (messageObject.document as any)?.id || messageObject.mediaId;
+
+        if (!fileUrl && mediaId) {
+          const cached = WhatsAppApiService.mediaCache.get(mediaId);
+          if (cached?.url) {
+            fileUrl = cached.url;
+          }
+        }
+
+        if (!fileUrl && mediaId) {
+          const getContact = await db.query.contacts.findFirst({
+            where: eq(contacts.id, pendingExecution.contactId!),
+          });
+          if (getContact && getContact.channelId) {
+            const channelRow = await storage.getChannel(getContact.channelId);
+            if (channelRow) {
+              const waApi = new WhatsAppApiService(channelRow);
               try {
-                let fileUrl = "";
                 if (channelRow.connectionMethod === "qr_code") {
                   fileUrl = await waApi.fetchMediaUrl(mediaId);
                 } else {
@@ -953,16 +961,18 @@ private stemWord(word: string = ""): string {
                     }
                   }
                 }
-
-                if (fileUrl) {
-                  processedResponse = fileUrl; // Store the permanent media URL in the variable!
-                  console.log(`📸 Fetched and saved media URL permanently: ${fileUrl}`);
-                }
               } catch (err: any) {
                 console.error("Failed to fetch media URL permanently in handleUserResponse:", err.message);
               }
             }
           }
+        }
+
+        if (fileUrl) {
+          processedResponse = fileUrl; // Store the permanent media URL in the variable!
+          console.log(`📸 Fetched and saved media URL permanently: ${fileUrl}`);
+        } else if (processedResponse === "[Image]" || processedResponse === "[Document]") {
+          processedResponse = "";
         }
       }
       
@@ -5880,7 +5890,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
                   date: new Date(),
                   loggedByName: getContact?.name || getContact?.phone || "Unknown",
                   loggedByPhone: getContact?.phone || "Unknown",
-                  mediaUrl: vars.expense_receipt_media || null,
+                  mediaUrl: (vars.expense_receipt_media && vars.expense_receipt_media !== "[Image]" && vars.expense_receipt_media !== "[Document]") ? vars.expense_receipt_media : null,
                 });
 
                 // Disable AI Takeover for this conversation thread

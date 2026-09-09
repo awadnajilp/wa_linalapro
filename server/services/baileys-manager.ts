@@ -467,14 +467,15 @@ export class BaileysManager {
         }
         console.log(`[BaileysManager] Received incoming message ${messageId} from ${senderPhone} on channel ${channelId}`);
 
-        // Download incoming media if any (only audio/voice note is downloaded automatically for real-time STT and AI takeover)
-        if (msg.audioMessage) {
+        // Download incoming media if any (image, document, video, or audio for STT, OCR, and permanent storage)
+        const mediaMsg = msg.imageMessage || msg.documentMessage || msg.videoMessage || msg.audioMessage;
+        let downloadedMediaUrl: string | undefined;
+        if (mediaMsg) {
           try {
             console.log(`[BaileysManager] Downloading incoming media for message ${messageId}...`);
             const buffer = await downloadMediaMessage(message, "buffer", {}, {} as any);
             
-            const mediaMsg = msg.audioMessage;
-            const mimeType = mediaMsg!.mimetype || "application/octet-stream";
+            const mimeType = mediaMsg.mimetype || "application/octet-stream";
             const originalName = (mediaMsg as any).fileName || "file";
             
             let ext = "bin";
@@ -555,6 +556,7 @@ export class BaileysManager {
             
             // Cache it in WhatsAppApiService
             const mediaId = `baileys_media_${messageId}`;
+            downloadedMediaUrl = downloadedUrl;
             WhatsAppApiService.mediaCache.set(mediaId, { url: downloadedUrl, mimeType });
           } catch (dlErr) {
             console.error(`[BaileysManager] Failed to download incoming media:`, dlErr);
@@ -562,7 +564,7 @@ export class BaileysManager {
         }
 
         // Map to WebhookMessage format
-        const webhookMsg = this.mapBaileysToWebhookMessage(message);
+        const webhookMsg = this.mapBaileysToWebhookMessage(message, downloadedMediaUrl);
         if (!webhookMsg) return;
 
         // Call the WebhookHandler to parse, store, trigger chatbot and execute automation flows!
@@ -585,7 +587,7 @@ export class BaileysManager {
     }
   }
 
-  private static mapBaileysToWebhookMessage(baileysMsg: any): any {
+  private static mapBaileysToWebhookMessage(baileysMsg: any, downloadedMediaUrl?: string): any {
     const key = baileysMsg.key;
     if (!key) return null;
 
@@ -654,6 +656,7 @@ export class BaileysManager {
         id: `baileys_media_${id}`,
         mime_type: msg.imageMessage.mimetype || "image/jpeg",
         caption: msg.imageMessage.caption || "",
+        url: downloadedMediaUrl || undefined,
       };
     } else if (msg.videoMessage) {
       type = "video";
@@ -661,6 +664,7 @@ export class BaileysManager {
         id: `baileys_media_${id}`,
         mime_type: msg.videoMessage.mimetype || "video/mp4",
         caption: msg.videoMessage.caption || "",
+        url: downloadedMediaUrl || undefined,
       };
     } else if (msg.audioMessage) {
       type = "audio";
@@ -668,6 +672,7 @@ export class BaileysManager {
         id: `baileys_media_${id}`,
         mime_type: msg.audioMessage.mimetype || "audio/ogg",
         voice: msg.audioMessage.ptt || false,
+        url: downloadedMediaUrl || undefined,
       };
     } else if (msg.documentMessage) {
       type = "document";
@@ -676,6 +681,7 @@ export class BaileysManager {
         mime_type: msg.documentMessage.mimetype || "application/pdf",
         filename: msg.documentMessage.fileName || "document",
         caption: msg.documentMessage.caption || "",
+        url: downloadedMediaUrl || undefined,
       };
     } else if (msg.locationMessage) {
       type = "location";
@@ -720,6 +726,7 @@ export class BaileysManager {
       audio,
       document,
       location,
+      mediaUrl: downloadedMediaUrl || undefined,
       rawBaileysMessage: baileysMsg,
     };
   }

@@ -875,9 +875,9 @@ export default function ExpenseLedger() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {e.mediaUrl ? (
+                    {e.mediaUrl && e.mediaUrl !== "[Image]" && (e.mediaUrl.startsWith("http") || e.mediaUrl.startsWith("/uploads") || e.mediaUrl.startsWith("/api")) ? (
                       <div className="flex items-center gap-2">
-                        {e.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) || e.mediaUrl.includes("image") || e.mediaUrl.includes("baileys_media_") || e.mediaUrl.startsWith("http") ? (
+                        {e.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp|svg)/i) || e.mediaUrl.includes("image") || e.mediaUrl.includes("baileys_media_") || e.mediaUrl.startsWith("http") ? (
                           <button
                             type="button"
                             onClick={() => setSelectedReceipt(e)}

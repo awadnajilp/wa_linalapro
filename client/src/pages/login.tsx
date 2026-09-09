@@ -139,16 +139,16 @@ export default function LoginPage() {
   ];
 
   return (
-    <div className="min-h-screen flex font-sans selection:bg-purple-600 selection:text-white">
-      {/* LEFT PANE: Dark Brand Showcase & Telemetry */}
-      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 xl:p-16 overflow-hidden border-r border-slate-800/80 bg-slate-950 text-slate-100">
-        {/* Background Ambient Glow Circles */}
-        <div className="absolute -top-32 -left-32 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
+    <div className="min-h-screen flex font-sans selection:bg-emerald-500 selection:text-white bg-[#0a0e17]">
+      {/* LEFT PANE: Creative Dark Editorial Showcase */}
+      <div className="hidden lg:flex lg:w-7/12 xl:w-3/5 relative flex-col justify-between p-12 xl:p-16 overflow-hidden bg-[#090d16] text-slate-100 border-r border-slate-800/80">
+        {/* Subtle Architectural Grid & Refined Ambient Glow */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b12_1px,transparent_1px),linear-gradient(to_bottom,#1e293b12_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-bl from-emerald-500/10 via-indigo-500/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-20 -left-20 w-[450px] h-[450px] bg-gradient-to-tr from-indigo-600/10 via-purple-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
 
-        {/* Top Header / Logo */}
-        <div className="relative z-10">
+        {/* Top Header / Brand Logo */}
+        <div className="relative z-10 flex items-center justify-between">
           <Link href="/" className="inline-flex items-center gap-3 group">
             {brandSettings?.logo ? (
               <img
@@ -158,66 +158,118 @@ export default function LoginPage() {
               />
             ) : (
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-purple-500/25 border border-purple-400/30">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 border border-emerald-400/30">
                   <MessageSquare className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex flex-col">
                   <span className="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
-                    LINALA <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-semibold font-mono">2026</span>
+                    LINALA <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-semibold font-mono">PRO</span>
                   </span>
-                  <span className="text-[10px] text-slate-400 tracking-wider uppercase font-medium">WhatsApp AI Growth Engine</span>
+                  <span className="text-[10px] text-slate-400 tracking-wider uppercase font-medium">WhatsApp Commerce & Voice AI</span>
                 </div>
               </div>
             )}
           </Link>
+
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/80 border border-slate-700/80 text-slate-300 text-xs font-medium backdrop-blur-md">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            Meta Cloud API Verified
+          </div>
         </div>
 
-        {/* Center Copy & Interactive Mockup */}
-        <div className="relative z-10 my-auto py-8 max-w-lg">
-          {/* Eyebrow Pill */}
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-semibold uppercase tracking-wider mb-6">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            Live Enterprise Platform
+        {/* Center Canvas: Realistic Human-Crafted Interactive Showcase */}
+        <div className="relative z-10 my-auto py-6 max-w-xl">
+          <div className="mb-6">
+            <h1 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-white leading-snug">
+              Every customer conversation, <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-indigo-300">
+                engineered into revenue.
+              </span>
+            </h1>
+            <p className="mt-3 text-slate-400 text-sm xl:text-base leading-relaxed">
+              Power your business with autonomous voice AI agents, native in-chat checkout catalogs, and cadence follow-ups.
+            </p>
           </div>
 
-          <h1 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-white leading-tight mb-4">
-            Autonomous WhatsApp Commerce & AI Agents.
-          </h1>
-          <p className="text-slate-400 text-base leading-relaxed mb-8">
-            Manage conversations, close deals in-chat, and automate multilingual voice follow-ups on the official WhatsApp Cloud API.
-          </p>
-
-          {/* Feature List */}
-          <div className="space-y-4 mb-8">
-            {liveHighlights.map((item, idx) => (
-              <div
-                key={idx}
-                className="flex items-start gap-3.5 p-3 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-sm transition-all hover:border-purple-500/40 hover:bg-slate-900/90"
-              >
-                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0 text-purple-400">
-                  <item.icon className="w-4 h-4" />
+          {/* Realistic WhatsApp Live Interaction Card */}
+          <div className="relative rounded-3xl bg-slate-900/90 border border-slate-800/90 p-5 shadow-2xl shadow-black/60 backdrop-blur-xl space-y-3.5">
+            {/* Simulation Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="relative">
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-xs">
+                    L
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-slate-900" />
                 </div>
                 <div>
-                  <div className="text-sm font-semibold text-white">{item.title}</div>
-                  <div className="text-xs text-slate-400 mt-0.5 leading-relaxed">{item.desc}</div>
+                  <div className="font-bold text-white flex items-center gap-1">
+                    Linala AI Assistant <span className="text-emerald-400 text-[11px]">✓</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono">0.4s Voice SLA • Arabic & English</div>
                 </div>
               </div>
-            ))}
-          </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-medium">
+                Live Session
+              </span>
+            </div>
 
-          {/* Metric Badges */}
-          <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-800/80">
-            <div>
-              <div className="text-lg font-bold text-white">40+</div>
-              <div className="text-[11px] text-slate-400 font-medium">Global Dialects</div>
+            {/* Simulated Chat Bubbles */}
+            <div className="space-y-2.5 text-xs">
+              {/* Voice Note Bubble */}
+              <div className="flex items-start gap-2 max-w-[85%] bg-slate-800/80 border border-slate-700/60 rounded-2xl rounded-tl-sm p-3 text-slate-200">
+                <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                  <Zap className="w-3.5 h-3.5" />
+                </div>
+                <div className="space-y-1 w-full">
+                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <span className="font-semibold text-emerald-300">🎙️ AI Voice Note (Najdi Dialect)</span>
+                    <span>0:14</span>
+                  </div>
+                  <div className="flex items-center gap-1 py-1">
+                    <div className="h-4 w-1 bg-emerald-400 rounded-full animate-pulse" />
+                    <div className="h-6 w-1 bg-emerald-400 rounded-full animate-pulse delay-75" />
+                    <div className="h-3 w-1 bg-emerald-400 rounded-full" />
+                    <div className="h-5 w-1 bg-emerald-400 rounded-full animate-pulse delay-100" />
+                    <div className="h-2 w-1 bg-slate-600 rounded-full" />
+                    <div className="h-4 w-1 bg-slate-600 rounded-full" />
+                    <div className="h-6 w-1 bg-slate-600 rounded-full" />
+                    <div className="h-3 w-1 bg-slate-600 rounded-full" />
+                    <div className="h-5 w-1 bg-slate-600 rounded-full" />
+                  </div>
+                  <div className="text-[11px] text-slate-300 italic">
+                    "أهلاً بك! تم تأكيد طلبك رقم #4820، وسيصلك المندوب غداً إن شاء الله."
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Confirmation Pill */}
+              <div className="ml-auto max-w-[80%] bg-emerald-950/60 border border-emerald-500/40 rounded-2xl rounded-tr-sm p-3 text-emerald-100 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-bold">
+                  <span>💳 1-Click WhatsApp Checkout</span>
+                  <span className="text-emerald-400">Paid • SAR 249.00</span>
+                </div>
+                <div className="text-[10px] text-emerald-200/80 flex items-center justify-between">
+                  <span>Apple Pay / Mada</span>
+                  <span className="font-mono">ID: #LN-9482</span>
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="text-lg font-bold text-emerald-400">0.4s</div>
-              <div className="text-[11px] text-slate-400 font-medium">Voice AI Latency</div>
-            </div>
-            <div>
-              <div className="text-lg font-bold text-purple-400">3.8x</div>
-              <div className="text-[11px] text-slate-400 font-medium">Conversion Lift</div>
+
+            {/* Live Telemetry Row */}
+            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-800 text-center">
+              <div className="p-2 rounded-xl bg-slate-800/40 border border-slate-800">
+                <div className="text-base font-bold text-white">40+</div>
+                <div className="text-[10px] text-slate-400">Global Dialects</div>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-800/40 border border-slate-800">
+                <div className="text-base font-bold text-emerald-400">0.4s</div>
+                <div className="text-[10px] text-slate-400">Voice SLA</div>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-800/40 border border-slate-800">
+                <div className="text-base font-bold text-indigo-400">3.8x</div>
+                <div className="text-[10px] text-slate-400">Conversion Lift</div>
+              </div>
             </div>
           </div>
         </div>
@@ -225,15 +277,15 @@ export default function LoginPage() {
         {/* Bottom Trust & Compliance */}
         <div className="relative z-10 flex items-center justify-between text-xs text-slate-400 pt-6 border-t border-slate-800/60">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-purple-400" />
-            <span>Official Meta Cloud API • SOC2 Type II Certified</span>
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>Official Meta Cloud API • Enterprise SOC2 Type II Certified</span>
           </div>
-          <div className="font-mono text-[11px] text-slate-400">99.9% Uptime SLA</div>
+          <div className="font-mono text-[11px] text-slate-400">99.9% SLA</div>
         </div>
       </div>
 
-      {/* RIGHT PANE: Clean Crisp Light Form Container (Two-Tone) */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-10 lg:p-12 relative bg-slate-50/80">
+      {/* RIGHT PANE: Clean Crisp Light Form Container */}
+      <div className="w-full lg:w-5/12 xl:w-2/5 flex items-center justify-center p-6 sm:p-10 lg:p-12 relative bg-slate-50">
         <div className="w-full max-w-md relative z-10">
           {/* Mobile Brand Logo */}
           <div className="lg:hidden flex items-center justify-center mb-8">
@@ -246,7 +298,7 @@ export default function LoginPage() {
                 />
               ) : (
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-purple-600 flex items-center justify-center text-white shadow-lg">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-lg">
                     <MessageSquare className="w-5 h-5" />
                   </div>
                   <span className="text-xl font-bold text-slate-900 tracking-tight">LINALA</span>
@@ -258,13 +310,13 @@ export default function LoginPage() {
           {/* Form Header */}
           <div className="mb-6 text-center lg:text-left">
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-              {step === "login" && "Welcome Back"}
+              {step === "login" && "Sign In"}
               {step === "forgot" && "Reset Your Password"}
               {step === "verify" && "Verify Security Code"}
               {step === "reset" && "Create New Password"}
             </h2>
             <p className="mt-2 text-sm text-slate-500">
-              {step === "login" && "Enter your credentials to access your WhatsApp growth dashboard"}
+              {step === "login" && "Access your WhatsApp workspace and AI voice agents"}
               {step === "forgot" && "Enter your account email to receive an instant reset code"}
               {step === "verify" && "Enter the 6-digit verification code sent to your email"}
               {step === "reset" && "Choose a strong password with at least 8 characters"}
@@ -272,7 +324,7 @@ export default function LoginPage() {
           </div>
 
           {/* Clean Light Card */}
-          <Card className="bg-white border border-slate-200/90 shadow-xl shadow-slate-200/50 rounded-3xl overflow-hidden">
+          <Card className="bg-white border border-slate-200/90 shadow-xl shadow-slate-200/60 rounded-3xl overflow-hidden">
             <CardContent className="p-6 sm:p-8">
               {error && (
                 <Alert className="mb-5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-3.5">
@@ -297,12 +349,12 @@ export default function LoginPage() {
                           </FormLabel>
                           <FormControl>
                             <div className="relative group">
-                              <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-600" />
+                              <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-emerald-600" />
                               <Input
                                 placeholder="Enter your username"
                                 {...field}
                                 disabled={loginMutation.isPending}
-                                className="pl-10 h-11 bg-slate-50/70 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-purple-500/20 focus-visible:border-purple-600 focus-visible:bg-white transition-all"
+                                className="pl-10 h-11 bg-slate-50/70 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-600 focus-visible:bg-white transition-all"
                               />
                             </div>
                           </FormControl>
@@ -327,20 +379,20 @@ export default function LoginPage() {
                                 setError(null);
                                 setStep("forgot");
                               }}
-                              className="text-xs text-purple-600 hover:text-purple-700 font-semibold transition-colors"
+                              className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold transition-colors"
                             >
                               Forgot password?
                             </button>
                           </div>
                           <FormControl>
                             <div className="relative group">
-                              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-purple-600" />
+                              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-emerald-600" />
                               <Input
                                 type={showPassword ? "text" : "password"}
                                 placeholder="••••••••"
                                 {...field}
                                 disabled={loginMutation.isPending}
-                                className="pl-10 pr-10 h-11 bg-slate-50/70 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-purple-500/20 focus-visible:border-purple-600 focus-visible:bg-white transition-all"
+                                className="pl-10 pr-10 h-11 bg-slate-50/70 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-emerald-500/20 focus-visible:border-emerald-600 focus-visible:bg-white transition-all"
                               />
                               <button
                                 type="button"
@@ -364,7 +416,7 @@ export default function LoginPage() {
                     <Button
                       type="submit"
                       disabled={loginMutation.isPending}
-                      className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-purple-600/25 transition-all mt-2 cursor-pointer flex items-center justify-center gap-2"
+                      className="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-emerald-600/25 transition-all mt-2 cursor-pointer flex items-center justify-center gap-2"
                     >
                       {loginMutation.isPending ? (
                         <>
@@ -425,7 +477,7 @@ export default function LoginPage() {
               Don't have a Linala workspace yet?{" "}
               <Link
                 href="/signup"
-                className="font-bold text-purple-600 hover:text-purple-700 transition-colors"
+                className="font-bold text-emerald-600 hover:text-emerald-700 transition-colors"
               >
                 Create Account (14-Day Free Trial)
               </Link>

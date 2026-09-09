@@ -35,6 +35,7 @@ import { LanguageSelector } from "./language-selector";
 import { AppSettings } from "@/types/types";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/lib/i18n";
 
 const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);

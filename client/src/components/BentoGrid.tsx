@@ -39,15 +39,15 @@ export const BentoGrid: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-12 gap-5">
           
           {/* Bento Card 1 (7 cols): Zapier & API */}
-          <div className="lg:col-span-7 bg-[#090e1a] rounded-3xl p-7 text-white border border-slate-800/80 flex flex-col justify-between relative overflow-hidden group shadow-lg">
-            {/* Structural subtle grid & emerald/indigo glow */}
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b12_1px,transparent_1px),linear-gradient(to_bottom,#1e293b12_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
-            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute bottom-0 left-10 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="lg:col-span-7 bg-[#0a0614] rounded-3xl p-7 text-white border border-purple-900/50 flex flex-col justify-between relative overflow-hidden group shadow-lg">
+            {/* Structural subtle grid & brand purple/indigo glow */}
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#581c8712_1px,transparent_1px),linear-gradient(to_bottom,#581c8712_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
+            <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-10 w-48 h-48 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
 
             <div className="relative z-10">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-semibold mb-4 border border-emerald-500/25">
-                <Share2 className="w-3 h-3" /> {isAr ? "+1000 تكامل وربط مباشر" : "1,000+ Integrations"}
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-semibold mb-4 border border-purple-500/30">
+                <Share2 className="w-3 h-3 text-purple-400" /> {isAr ? "+1000 تكامل وربط مباشر" : "1,000+ Integrations"}
               </div>
               <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
                 {isAr ? "تكاملات Zapier، الويب هوك و REST API" : "Zapier, Webhooks & REST API Connectors"}
@@ -59,7 +59,7 @@ export const BentoGrid: React.FC = () => {
               </p>
             </div>
 
-            <div className="mt-6 pt-5 border-t border-slate-800/80 relative z-10">
+            <div className="mt-6 pt-5 border-t border-purple-900/40 relative z-10">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {[
                   { name: isAr ? "Zapier و Make" : "Zapier & Make", badge: isAr ? "مزامنة حية" : "Live Sync" },
@@ -67,9 +67,9 @@ export const BentoGrid: React.FC = () => {
                   { name: isAr ? "جداول جوجل" : "Google Sheets", badge: isAr ? "مزامنة ثنائية" : "2-Way Sync" },
                   { name: isAr ? "Orderown & API" : "Custom API", badge: isAr ? "ويب هوك مباشر" : "REST & Hooks" },
                 ].map((item, idx) => (
-                  <div key={idx} className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-700/60 hover:border-emerald-500/40 transition-colors">
+                  <div key={idx} className="bg-[#181030]/80 p-2.5 rounded-xl border border-purple-800/40 hover:border-purple-500/60 transition-colors">
                     <div className="text-xs font-bold text-white truncate">{item.name}</div>
-                    <div className="text-[10px] text-emerald-400 mt-0.5 font-mono">{item.badge}</div>
+                    <div className="text-[10px] text-purple-300 mt-0.5 font-mono">{item.badge}</div>
                   </div>
                 ))}
               </div>

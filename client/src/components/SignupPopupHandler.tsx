@@ -27,29 +27,43 @@ export function SignupPopupHandler() {
     // Only for unauthenticated users
     if (isAuthenticated) return;
 
-    const popupShown = sessionStorage.getItem("signupPopupShown");
-    if (popupShown === "true") return;
+    try {
+      const popupShown = typeof window !== "undefined" && sessionStorage.getItem("signupPopupShown");
+      if (popupShown === "true") return;
+    } catch {
+      return;
+    }
 
     // Show after 20 seconds
     const timer = setTimeout(() => {
       setShowPopup(true);
-      sessionStorage.setItem("signupPopupShown", "true");
+      try {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("signupPopupShown", "true");
+        }
+      } catch {}
     }, 20000);
 
     // Show on scroll past half page
     const handleScroll = () => {
-      const alreadyShown = sessionStorage.getItem("signupPopupShown");
-      if (
-        window.scrollY > window.innerHeight * 0.5 &&
-        alreadyShown !== "true"
-      ) {
-        setShowPopup(true);
-        sessionStorage.setItem("signupPopupShown", "true");
+      try {
+        const alreadyShown = typeof window !== "undefined" && sessionStorage.getItem("signupPopupShown");
+        if (
+          window.scrollY > window.innerHeight * 0.5 &&
+          alreadyShown !== "true"
+        ) {
+          setShowPopup(true);
+          try {
+            sessionStorage.setItem("signupPopupShown", "true");
+          } catch {}
+          window.removeEventListener("scroll", handleScroll);
+        }
+      } catch {
         window.removeEventListener("scroll", handleScroll);
       }
     };
 
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
 
     return () => {
       clearTimeout(timer);

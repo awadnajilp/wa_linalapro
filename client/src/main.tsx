@@ -25,23 +25,37 @@ if (process.env.NODE_ENV === "production") {
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { hasError: boolean }
+  { hasError: boolean; error: any }
 > {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null };
   }
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("Uncaught application error:", error, errorInfo);
   }
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "sans-serif", color: "#374151" }}>
-          <p style={{ fontSize: "1.1rem", marginBottom: "0.75rem" }}>Something went wrong — please refresh the page.</p>
-          <button onClick={() => window.location.reload()} style={{ padding: "0.5rem 1.25rem", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9rem" }}>
-            Refresh
-          </button>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "1.5rem", fontFamily: "system-ui, -apple-system, sans-serif", color: "#1e293b", textAlign: "center", background: "#f8fafc" }}>
+          <div style={{ maxWidth: "420px", background: "#ffffff", padding: "2rem", borderRadius: "1.25rem", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0" }}>
+            <h2 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "0.5rem", color: "#0f172a" }}>Linala WhatsApp CRM</h2>
+            <p style={{ fontSize: "0.9rem", color: "#64748b", marginBottom: "1.5rem", lineHeight: "1.5" }}>
+              The page encountered an unexpected issue while loading on this device.
+            </p>
+            <button
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                window.location.reload();
+              }}
+              style={{ width: "100%", padding: "0.75rem 1.25rem", background: "#9333ea", color: "#fff", border: "none", borderRadius: "0.75rem", cursor: "pointer", fontSize: "0.9rem", fontWeight: 600, boxShadow: "0 4px 12px rgba(147, 51, 234, 0.25)" }}
+            >
+              Reload Page
+            </button>
+          </div>
         </div>
       );
     }

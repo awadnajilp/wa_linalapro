@@ -192,9 +192,14 @@ function ProtectedRoutes() {
   const [location, setLocation] = useLocation();
 
   // Check flag immediately on mount - synchronously
-  const fromLoginFlag =
-    typeof window !== "undefined" &&
-    sessionStorage.getItem("fromLogin") === "true";
+  let fromLoginFlag = false;
+  try {
+    fromLoginFlag =
+      typeof window !== "undefined" &&
+      sessionStorage.getItem("fromLogin") === "true";
+  } catch {
+    fromLoginFlag = false;
+  }
 
   const [showLoading, setShowLoading] = useState(fromLoginFlag);
   const [isLoginRedirect] = useState(fromLoginFlag);
@@ -202,7 +207,9 @@ function ProtectedRoutes() {
   // Clear flag immediately after reading
   useEffect(() => {
     if (fromLoginFlag) {
-      sessionStorage.removeItem("fromLogin");
+      try {
+        sessionStorage.removeItem("fromLogin");
+      } catch {}
     }
   }, [fromLoginFlag]);
 

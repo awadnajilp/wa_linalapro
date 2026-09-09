@@ -9,7 +9,11 @@ export const WhatsAppWidget: React.FC = () => {
   const [location] = useLocation();
   const { isAuthenticated } = useAuth();
   const [isDismissed, setIsDismissed] = useState(() => {
-    return sessionStorage.getItem("hideWaWidget") === "true";
+    try {
+      return typeof window !== "undefined" && sessionStorage.getItem("hideWaWidget") === "true";
+    } catch {
+      return false;
+    }
   });
 
   const { data: brandSettings } = useQuery<AppSettings>({
@@ -25,7 +29,7 @@ export const WhatsAppWidget: React.FC = () => {
 
   // Default number: +91 483 435 4892
   const rawNumber = (brandSettings as any)?.supportWhatsapp || "+914834354892";
-  const cleanPhone = rawNumber.replace(/[^0-9]/g, "");
+  const cleanPhone = (typeof rawNumber === "string" ? rawNumber : "+914834354892").replace(/[^0-9]/g, "");
 
   const handleOpenWhatsApp = () => {
     const message = encodeURIComponent(
@@ -37,7 +41,11 @@ export const WhatsAppWidget: React.FC = () => {
   const handleDismiss = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsDismissed(true);
-    sessionStorage.setItem("hideWaWidget", "true");
+    try {
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("hideWaWidget", "true");
+      }
+    } catch {}
   };
 
   return (

@@ -32,26 +32,29 @@ export function LanguageSelector() {
     fetchEnabledLanguages();
   }, []);
 
-  const currentConfig = languages[language];
+  const currentConfig = languages?.[language] || languages?.["en"] || {
+    flag: language === "ar" ? "🇸🇦" : "🇬🇧",
+    nativeName: language === "ar" ? "العربية" : "English",
+  };
 
   return (
-    <Select value={language} onValueChange={(value: any) => setLanguage(value)}>
+    <Select value={language || "en"} onValueChange={(value: any) => setLanguage(value)}>
       <SelectTrigger className="w-[110px]" data-testid="select-language">
         <span className="flex items-center gap-1.5">
-          <span className="text-base leading-none">{currentConfig?.flag}</span>
-          <span>{currentConfig?.nativeName}</span>
+          <span className="text-base leading-none">{currentConfig.flag}</span>
+          <span>{currentConfig.nativeName}</span>
         </span>
       </SelectTrigger>
       <SelectContent>
-        {Object.entries(languages).map(([code, config]) => (
+        {Object.entries(languages || {}).map(([code, config]) => (
           <SelectItem
             key={code}
             value={code}
             data-testid={`option-language-${code}`}
           >
             <span className="flex items-center gap-2">
-              <span className="text-base leading-none">{config.flag}</span>
-              <span>{config.nativeName}</span>
+              <span className="text-base leading-none">{config?.flag}</span>
+              <span>{config?.nativeName}</span>
             </span>
           </SelectItem>
         ))}

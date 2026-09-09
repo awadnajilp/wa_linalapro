@@ -46,6 +46,8 @@ const defaultExchangeRates: Record<string, number> = {
   EGP: 48.0,
 };
 
+const defaultCurrencyList = ["USD", "SAR", "AED", "INR", "EUR", "GBP", "KWD", "BHD", "OMR", "QAR", "EGP"];
+
 const PricingPage: React.FC = () => {
   const { language, t } = useTranslation();
   const isAr = language === "ar";
@@ -72,32 +74,23 @@ const PricingPage: React.FC = () => {
     queryFn: async () => {
       try {
         const res = await fetch("/api/payment-providers/currency-map");
-        if (!res.ok) return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "AED", "INR", "GBP", "EUR"], exchangeRates: defaultExchangeRates } };
+        if (!res.ok) return { success: false, data: { currencyMap: {}, availableCurrencies: defaultCurrencyList, exchangeRates: defaultExchangeRates } };
         return await res.json();
       } catch {
-        return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "AED", "INR", "GBP", "EUR"], exchangeRates: defaultExchangeRates } };
+        return { success: false, data: { currencyMap: {}, availableCurrencies: defaultCurrencyList, exchangeRates: defaultExchangeRates } };
       }
     },
     retry: false,
   });
 
-  const availableCurrencies = currencyMapData?.data?.availableCurrencies || ["SAR", "USD", "AED", "INR", "GBP", "EUR"];
-  const [selectedCurrency, setSelectedCurrency] = useState<string>("SAR");
-
-  useEffect(() => {
-    if (availableCurrencies.length > 0 && !selectedCurrency) {
-      const upper = currency?.toUpperCase() || "";
-      if (availableCurrencies.includes(upper)) {
-        setSelectedCurrency(upper);
-      } else {
-        setSelectedCurrency(availableCurrencies[0] || "SAR");
-      }
-    }
-  }, [availableCurrencies, currency]);
+  const availableCurrencies = currencyMapData?.data?.availableCurrencies?.length
+    ? currencyMapData.data.availableCurrencies
+    : defaultCurrencyList;
+  const [selectedCurrency, setSelectedCurrency] = useState<string>("USD");
 
   const currencySymbolMap: Record<string, string> = {
-    SAR: "ر.س ",
     USD: "$",
+    SAR: "ر.س ",
     AED: "د.إ ",
     INR: "₹",
     EUR: "€",
@@ -111,7 +104,7 @@ const PricingPage: React.FC = () => {
 
   const activeCurrencySymbol = selectedCurrency
     ? (currencySymbolMap[selectedCurrency] || selectedCurrency + " ")
-    : "ر.س ";
+    : "$ ";
 
   const fetchPlans = async (): Promise<void> => {
     try {
@@ -353,15 +346,16 @@ const PricingPage: React.FC = () => {
             </div>
 
             {/* Currency Selector */}
-            {availableCurrencies.length > 1 && (
-              <div className="flex items-center space-x-2 rtl:space-x-reverse">
+            {availableCurrencies.length > 0 && (
+              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-2 shadow-2xs">
+                <Globe2 className="w-4 h-4 text-purple-600 flex-shrink-0" />
                 <span className="text-xs font-semibold text-slate-500">
                   {isAr ? "العملة:" : "Currency:"}
                 </span>
                 <select
                   value={selectedCurrency}
                   onChange={(e) => setSelectedCurrency(e.target.value)}
-                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 shadow-2xs cursor-pointer"
+                  className="bg-transparent text-xs sm:text-sm font-bold text-slate-800 focus:outline-none cursor-pointer outline-none"
                 >
                   {availableCurrencies.map((curr) => (
                     <option key={curr} value={curr}>

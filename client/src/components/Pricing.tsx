@@ -26,6 +26,7 @@ import {
   ArrowRight,
   AlertCircle,
   Star,
+  Globe2,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { PaymentProvidersResponse, Plan, PlansDataTypes } from "@/types/types";
@@ -49,6 +50,8 @@ const defaultExchangeRates: Record<string, number> = {
   QAR: 3.64,
   EGP: 48.0,
 };
+
+const defaultCurrencyList = ["USD", "SAR", "AED", "INR", "EUR", "GBP", "KWD", "BHD", "OMR", "QAR", "EGP"];
 
 const Pricing = () => {
   const { language, t } = useTranslation();
@@ -91,35 +94,26 @@ const Pricing = () => {
     queryFn: async () => {
       try {
         const res = await fetch("/api/payment-providers/currency-map");
-        if (!res.ok) return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "INR", "AED", "GBP", "EUR"], exchangeRates: defaultExchangeRates } };
+        if (!res.ok) return { success: false, data: { currencyMap: {}, availableCurrencies: defaultCurrencyList, exchangeRates: defaultExchangeRates } };
         return await res.json();
       } catch {
-        return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "INR", "AED", "GBP", "EUR"], exchangeRates: defaultExchangeRates } };
+        return { success: false, data: { currencyMap: {}, availableCurrencies: defaultCurrencyList, exchangeRates: defaultExchangeRates } };
       }
     },
     retry: false,
   });
 
-  const availableCurrencies = currencyMapData?.data?.availableCurrencies || ["SAR", "USD", "INR", "AED", "GBP", "EUR"];
-  const [selectedCurrency, setSelectedCurrency] = useState<string>("SAR");
-
-  useEffect(() => {
-    if (availableCurrencies.length > 0 && !selectedCurrency) {
-      const upper = currency?.toUpperCase() || "";
-      if (availableCurrencies.includes(upper)) {
-        setSelectedCurrency(upper);
-      } else {
-        setSelectedCurrency(availableCurrencies[0] || "SAR");
-      }
-    }
-  }, [availableCurrencies, currency]);
+  const availableCurrencies = currencyMapData?.data?.availableCurrencies?.length
+    ? currencyMapData.data.availableCurrencies
+    : defaultCurrencyList;
+  const [selectedCurrency, setSelectedCurrency] = useState<string>("USD");
 
   const currencySymbolMap: Record<string, string> = {
     USD: "$",
     INR: "₹",
     EUR: "€",
     GBP: "£",
-    AED: "د.إ",
+    AED: "د.إ ",
     SGD: "S$",
     AUD: "A$",
     CAD: "C$",
@@ -138,7 +132,7 @@ const Pricing = () => {
 
   const activeCurrencySymbol = selectedCurrency
     ? (currencySymbolMap[selectedCurrency] || selectedCurrency + " ")
-    : "ر.س ";
+    : "$ ";
 
   const calculateConvertedPrice = (rawPrice: string | number | undefined) => {
     const num = typeof rawPrice === "string" ? parseFloat(rawPrice) : (typeof rawPrice === "number" ? rawPrice : 0);
@@ -394,51 +388,56 @@ const Pricing = () => {
               {t("Landing.pricingSec.subHeadline")}
             </p>
 
-            {/* Billing Toggle */}
-            <div className="flex items-center justify-center space-x-4 mb-12 flex-wrap gap-4">
-              <span
-                className={`font-medium ${
-                  isAnnual ? "text-gray-500" : "text-gray-900"
-                }`}
-              >
-                {t("Landing.pricingSec.billingToggle.monthly")}
-              </span>
-              <button
-                onClick={() => setIsAnnual(!isAnnual)}
-                className={`relative w-14 h-7 rounded-full transition-colors ${
-                  isAnnual ? "bg-purple-500" : "bg-gray-300"
-                }`}
-              >
-                <div
-                  className={`absolute w-5 h-5 bg-white rounded-full top-1 transition-transform ${
-                    isAnnual ? "translate-x-7" : "translate-x-1"
+            {/* Billing Toggle & Currency Switcher Controls */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-12">
+              {/* Monthly / Annual Switcher */}
+              <div className="inline-flex items-center bg-gray-100 p-1.5 rounded-2xl border border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setIsAnnual(false)}
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                    !isAnnual
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-900"
                   }`}
-                ></div>
-              </button>
-              <span
-                className={`font-medium ${
-                  isAnnual ? "text-gray-900" : "text-gray-500"
-                }`}
-              >
-                {t("Landing.pricingSec.billingToggle.annual")}
-              </span>
-              {isAnnual && (
-                <span className="bg-purple-100 text-purple-800 text-xs px-3 py-1 rounded-full font-medium">
-                  {t("Landing.pricingSec.billingToggle.saveLabel")}
-                </span>
-              )}
-              {availableCurrencies.length > 1 && (
-                <select
-                  value={selectedCurrency}
-                  onChange={(e) => setSelectedCurrency(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer"
                 >
-                  {availableCurrencies.map((cur) => (
-                    <option key={cur} value={cur}>
-                      {currencySymbolMap[cur] || ""} {cur}
-                    </option>
-                  ))}
-                </select>
+                  {isAr ? "اشتراك شهري" : t("Landing.pricingSec.billingToggle.monthly")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAnnual(true)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                    isAnnual
+                      ? "bg-purple-600 text-white shadow-sm"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  <span>{isAr ? "اشتراك سنوي" : t("Landing.pricingSec.billingToggle.annual")}</span>
+                  <span className="px-2 py-0.5 rounded-md bg-pink-500 text-white text-[10px] font-extrabold uppercase tracking-wide">
+                    {isAr ? "وفر 20%" : t("Landing.pricingSec.billingToggle.saveLabel")}
+                  </span>
+                </button>
+              </div>
+
+              {/* Currency Selector */}
+              {availableCurrencies.length > 0 && (
+                <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl px-4 py-2 shadow-xs">
+                  <Globe2 className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                  <span className="text-xs font-semibold text-gray-500">
+                    {isAr ? "العملة:" : "Currency:"}
+                  </span>
+                  <select
+                    value={selectedCurrency}
+                    onChange={(e) => setSelectedCurrency(e.target.value)}
+                    className="bg-transparent text-xs sm:text-sm font-bold text-gray-900 focus:outline-none cursor-pointer outline-none"
+                  >
+                    {availableCurrencies.map((cur) => (
+                      <option key={cur} value={cur}>
+                        {cur} ({currencySymbolMap[cur] || cur})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
             </div>
           </div>

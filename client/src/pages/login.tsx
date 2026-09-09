@@ -4,7 +4,7 @@
  * ============================================================
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -41,6 +41,12 @@ import {
   ShieldCheck,
   TrendingUp,
   ArrowRight,
+  Volume2,
+  ShoppingBag,
+  Share2,
+  Wallet,
+  Clock,
+  Users,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AppSettings } from "@/types/types";
@@ -191,13 +197,13 @@ export default function LoginPage() {
 
   const [activeFeatureIdx, setActiveFeatureIdx] = useState(0);
 
-  // Auto-scroll through features every 3.5s
-  useState(() => {
+  // Auto-scroll through features every 3.8s
+  useEffect(() => {
     const timer = setInterval(() => {
       setActiveFeatureIdx((prev) => (prev + 1) % featuresList.length);
     }, 3800);
     return () => clearInterval(timer);
-  });
+  }, [featuresList.length]);
 
   return (
     <div className="min-h-screen flex font-sans selection:bg-purple-600 selection:text-white bg-[#080511]">

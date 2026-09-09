@@ -20,17 +20,15 @@ export const DeepDiveShowcases: React.FC = () => {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   return (
-    <section className={`py-20 lg:py-28 bg-[#0a0614] text-white relative overflow-hidden ${isAr ? "font-arabic" : ""}`} dir={isAr ? "rtl" : "ltr"}>
-      {/* Refined subtle structural grid lines & brand ambient lighting */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#581c8712_1px,transparent_1px),linear-gradient(to_bottom,#581c8712_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
-      <div className="absolute -top-40 right-1/4 w-[600px] h-[600px] bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-1/4 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+    <section className={`py-20 lg:py-28 bg-[#0A0910] text-white relative overflow-hidden ${isAr ? "font-arabic" : ""}`} dir={isAr ? "rtl" : "ltr"}>
+      {/* Subtle structural grid lines */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e172e_1px,transparent_1px),linear-gradient(to_bottom,#1e172e_1px,transparent_1px)] bg-[size:40px_40px] opacity-40 pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Section Title */}
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 text-xs font-semibold uppercase tracking-wider mb-3">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-950/80 text-purple-300 border border-purple-800/50 text-xs font-semibold uppercase tracking-wider mb-3">
             <Sparkles className="w-3.5 h-3.5 text-purple-400" />
             {isAr ? "عائد استثماري فوري" : "Revenue Impact"}
           </div>
@@ -47,7 +45,7 @@ export const DeepDiveShowcases: React.FC = () => {
         {/* Deep Dive 1: WhatsApp E-Commerce & Instant Checkout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center mb-24">
           <div className="lg:col-span-6 space-y-4">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-xs font-semibold border border-purple-500/30">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-purple-950/80 text-purple-300 text-xs font-semibold border border-purple-800/50">
               <ShoppingBag className="w-3.5 h-3.5 text-purple-400" /> {isAr ? "تجارة فورية بضغطة واحدة" : "Instant Commerce"}
             </div>
             <h3 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
@@ -73,7 +71,7 @@ export const DeepDiveShowcases: React.FC = () => {
                   ]
               ).map((point, idx) => (
                 <div key={idx} className="flex items-center gap-2.5">
-                  <div className="w-4 h-4 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center flex-shrink-0">
+                  <div className="w-4 h-4 rounded-full bg-purple-950 text-purple-400 flex items-center justify-center flex-shrink-0 border border-purple-800/60">
                     <CheckCircle2 className="w-3 h-3" />
                   </div>
                   <span className="text-xs sm:text-sm text-slate-200">{point}</span>
@@ -84,7 +82,7 @@ export const DeepDiveShowcases: React.FC = () => {
             <div className="pt-3">
               <Link
                 href="/signup"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm transition-all shadow-lg shadow-purple-600/25"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#9333EA] hover:bg-[#7E22CE] text-white font-bold text-xs sm:text-sm transition-all shadow-md shadow-purple-900/30"
               >
                 <span>{isAr ? "ابدأ متجر واتساب الآن" : "Launch WhatsApp Store"}</span>
                 <ArrowRight className={`w-4 h-4 ${isAr ? "rotate-180" : ""}`} />
@@ -93,16 +91,16 @@ export const DeepDiveShowcases: React.FC = () => {
           </div>
 
           {/* Visual Simulation Card */}
-          <div className="lg:col-span-6 bg-[#110b22] p-6 rounded-3xl border border-purple-900/50 shadow-2xl relative">
+          <div className="lg:col-span-6 bg-[#110E1A] p-6 rounded-3xl border border-slate-800/90 shadow-xl relative">
             <div className="space-y-3.5">
-              <div className="flex items-center justify-between pb-2.5 border-b border-purple-900/40 text-xs">
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 text-xs">
                 <span className="text-slate-400">{isAr ? "العميل: سارة العتيبي" : "Customer: Sarah A."}</span>
                 <span className="text-purple-400 font-mono font-semibold">{isAr ? "السلة: 249 ر.س" : "Cart: 249 SAR"}</span>
               </div>
 
-              <div className="bg-[#181030] p-4 rounded-2xl border border-purple-800/40 space-y-3">
+              <div className="bg-[#161222] p-4 rounded-2xl border border-purple-900/40 space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-purple-950/80 border border-purple-500/30 flex items-center justify-center text-purple-300 font-bold text-base">
+                  <div className="w-11 h-11 rounded-xl bg-purple-950 border border-purple-800/60 flex items-center justify-center text-purple-300 font-bold text-base">
                     🛍️
                   </div>
                   <div>
@@ -111,7 +109,7 @@ export const DeepDiveShowcases: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-purple-950/60 border border-purple-500/30 flex items-center justify-between text-xs">
+                <div className="p-2.5 rounded-xl bg-[#0F0C18] border border-purple-900/50 flex items-center justify-between text-xs">
                   <span className="text-purple-200 font-medium">
                     {isAr ? "رابط الدفع الفوري (Apple Pay / Mada)" : "Instant Checkout (Apple Pay / Mada)"}
                   </span>
@@ -119,7 +117,7 @@ export const DeepDiveShowcases: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-[#0f091c] border border-purple-900/40 flex items-center justify-between text-xs text-purple-300">
+              <div className="p-3 rounded-xl bg-[#0F0C18] border border-slate-800 flex items-center justify-between text-xs text-purple-300">
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> {isAr ? "تم تجهيز الشحنة وإرسالها" : "Order Dispatched"}
                 </span>
@@ -131,14 +129,14 @@ export const DeepDiveShowcases: React.FC = () => {
 
         {/* Deep Dive 2: Multilingual Voice Note AI */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center">
-          <div className="lg:col-span-6 order-2 lg:order-1 bg-[#110b22] p-6 rounded-3xl border border-purple-900/50 shadow-2xl">
+          <div className="lg:col-span-6 order-2 lg:order-1 bg-[#110E1A] p-6 rounded-3xl border border-slate-800/90 shadow-xl">
             <div className="space-y-3.5">
-              <div className="flex items-center justify-between pb-2.5 border-b border-purple-900/40 text-xs">
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 text-xs">
                 <span className="text-slate-400">{isAr ? "استفسار صوتي من العميل" : "Multilingual Voice Query"}</span>
                 <span className="text-purple-400 font-mono text-[11px]">0.4s Voice SLA</span>
               </div>
 
-              <div className="bg-[#181030] p-4 rounded-2xl border border-purple-800/40 space-y-3">
+              <div className="bg-[#161222] p-4 rounded-2xl border border-purple-900/40 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-purple-300 flex items-center gap-1.5">
                     <Volume2 className="w-3.5 h-3.5 text-purple-400" /> {isAr ? "رسالة صوتية مولدة بالذكاء الاصطناعي" : "AI Synthesized Voice Note"}
@@ -146,18 +144,18 @@ export const DeepDiveShowcases: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsPlayingAudio(!isPlayingAudio)}
-                    className="w-7 h-7 rounded-full bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer shadow-md shadow-purple-600/30"
+                    className="w-7 h-7 rounded-full bg-[#9333EA] hover:bg-[#7E22CE] text-white flex items-center justify-center transition-transform active:scale-95 cursor-pointer shadow-sm shadow-purple-900/30"
                   >
                     {isPlayingAudio ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
                   </button>
                 </div>
 
-                <div className="flex items-center gap-1.5 h-8 px-2.5 bg-[#0e081c] rounded-xl border border-purple-950/60">
+                <div className="flex items-center gap-1.5 h-8 px-2.5 bg-[#0A0910] rounded-xl border border-slate-800">
                   {[25, 60, 30, 85, 95, 45, 75, 90, 40, 80, 100, 65, 35, 70, 50, 85, 30, 15].map((h, i) => (
                     <div
                       key={i}
                       className={`flex-1 rounded-full transition-all duration-300 ${
-                        isPlayingAudio ? "bg-purple-400" : "bg-purple-950"
+                        isPlayingAudio ? "bg-[#9333EA]" : "bg-slate-800"
                       }`}
                       style={{ height: `${h}%` }}
                     />
@@ -165,7 +163,7 @@ export const DeepDiveShowcases: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-[#0f091c] border border-purple-900/40 flex items-center justify-between text-xs text-slate-400">
+              <div className="p-3 rounded-xl bg-[#0F0C18] border border-slate-800 flex items-center justify-between text-xs text-slate-400">
                 <span>{isAr ? "دعم اللهجات الإقليمية:" : "Global Dialect Support:"}</span>
                 <span className="text-purple-300 font-semibold">{isAr ? "اللهجة السعودية وأكثر من 40 لغة" : "40+ Dialects & Languages"}</span>
               </div>
@@ -173,7 +171,7 @@ export const DeepDiveShowcases: React.FC = () => {
           </div>
 
           <div className="lg:col-span-6 order-1 lg:order-2 space-y-4">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-xs font-semibold border border-purple-500/30">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-purple-950/80 text-purple-300 text-xs font-semibold border border-purple-800/50">
               <Bot className="w-3.5 h-3.5 text-purple-400" /> {isAr ? "ذكاء صوتي فائق" : "Voice Intelligence"}
             </div>
             <h3 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">
@@ -199,7 +197,7 @@ export const DeepDiveShowcases: React.FC = () => {
                   ]
               ).map((point, idx) => (
                 <div key={idx} className="flex items-center gap-2.5">
-                  <div className="w-4 h-4 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center flex-shrink-0">
+                  <div className="w-4 h-4 rounded-full bg-purple-950 text-purple-400 flex items-center justify-center flex-shrink-0 border border-purple-800/60">
                     <CheckCircle2 className="w-3 h-3" />
                   </div>
                   <span className="text-xs sm:text-sm text-slate-200">{point}</span>
@@ -210,7 +208,7 @@ export const DeepDiveShowcases: React.FC = () => {
             <div className="pt-3">
               <Link
                 href="/signup"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm transition-all shadow-lg shadow-purple-600/25"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#9333EA] hover:bg-[#7E22CE] text-white font-bold text-xs sm:text-sm transition-all shadow-md shadow-purple-900/30"
               >
                 <span>{isAr ? "جرّب المساعد الصوتي الآن" : "Experience Voice AI"}</span>
                 <ArrowRight className={`w-4 h-4 ${isAr ? "rotate-180" : ""}`} />

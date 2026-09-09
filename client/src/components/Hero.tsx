@@ -117,7 +117,7 @@ const Hero: React.FC = () => {
             {isAr ? "انطلق ونمّ أسرع مع " : "Grow Faster with "}{" "}
             <span className="text-purple-600">{isAr ? "نظام لينالا لواتساب CRM" : "Linala WhatsApp CRM"}</span>{" "}
             {isAr ? "لـ " : "for "}
-            <span className="block mt-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 bg-clip-text text-transparent">
+            <span className="block mt-2 text-purple-600">
               {displayText}
               <span className="inline-block w-[3px] h-[0.85em] bg-purple-600 ml-1.5 rtl:mr-1.5 align-middle animate-pulse" />
             </span>

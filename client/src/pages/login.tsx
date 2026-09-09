@@ -204,13 +204,11 @@ export default function LoginPage() {
   ];
 
   return (
-    <div className="min-h-screen flex font-sans selection:bg-purple-600 selection:text-white bg-[#080511]">
-      {/* LEFT PANE: Spacious, Modern & Clean Obsidian-Purple Showcase */}
-      <div className="hidden lg:flex lg:w-7/12 xl:w-3/5 relative flex-col justify-between p-10 xl:p-14 overflow-hidden bg-[#0a0614] text-slate-100 border-r border-purple-950/60">
-        {/* Subtle Brand Architectural Grid & Deep Violet Glow */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#581c8712_1px,transparent_1px),linear-gradient(to_bottom,#581c8712_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
-        <div className="absolute top-0 right-0 w-[550px] h-[550px] bg-gradient-to-bl from-purple-600/15 via-indigo-600/10 to-transparent rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-[500px] h-[500px] bg-gradient-to-tr from-purple-800/15 via-pink-600/5 to-transparent rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen flex font-sans selection:bg-purple-600 selection:text-white bg-[#0A0910]">
+      {/* LEFT PANE: Clean, Solid Obsidian-Purple Showcase */}
+      <div className="hidden lg:flex lg:w-7/12 xl:w-3/5 relative flex-col justify-between p-10 xl:p-14 overflow-hidden bg-[#0C0A14] text-slate-100 border-r border-slate-800/80">
+        {/* Subtle Brand Structural Grid */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e172e_1px,transparent_1px),linear-gradient(to_bottom,#1e172e_1px,transparent_1px)] bg-[size:32px_32px] opacity-40 pointer-events-none" />
 
         {/* Top Header / Brand Logo */}
         <div className="relative z-10 flex items-center justify-between">
@@ -223,12 +221,12 @@ export default function LoginPage() {
               />
             ) : (
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-purple-800 flex items-center justify-center shadow-lg shadow-purple-600/30 border border-purple-400/40">
+                <div className="w-10 h-10 rounded-2xl bg-[#9333EA] flex items-center justify-center shadow-md shadow-purple-900/30 border border-purple-400/30">
                   <MessageSquare className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex flex-col">
                   <span className="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
-                    LINALA <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-semibold font-mono">PRO</span>
+                    LINALA <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-950 border border-purple-800/60 text-purple-300 font-semibold font-mono">PRO</span>
                   </span>
                   <span className="text-[10px] text-purple-300/70 tracking-wider uppercase font-medium">WhatsApp AI & Commerce Suite</span>
                 </div>
@@ -236,7 +234,7 @@ export default function LoginPage() {
             )}
           </Link>
 
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-950/60 border border-purple-800/50 text-purple-200 text-xs font-medium backdrop-blur-md">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#161224] border border-purple-900/60 text-purple-200 text-xs font-medium">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             Meta Cloud API Partner
           </div>
@@ -245,13 +243,13 @@ export default function LoginPage() {
         {/* Center Canvas: Spacious, Crisp Hero & Smooth Floating Feature Stream */}
         <div className="relative z-10 my-auto py-2 max-w-xl">
           <div className="mb-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 text-xs font-semibold uppercase tracking-wider mb-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-950/80 text-purple-300 border border-purple-800/50 text-xs font-semibold uppercase tracking-wider mb-3">
               <Sparkles className="w-3.5 h-3.5 text-purple-400" />
               Unified WhatsApp Engine
             </div>
             <h1 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-white leading-tight">
               One connected workspace for your{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-300 to-indigo-300">
+              <span className="text-purple-400">
                 WhatsApp revenue.
               </span>
             </h1>
@@ -462,7 +460,7 @@ export default function LoginPage() {
                     <Button
                       type="submit"
                       disabled={loginMutation.isPending}
-                      className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-700 hover:from-purple-700 hover:to-indigo-800 text-white font-bold text-sm shadow-lg shadow-purple-600/25 transition-all mt-2 cursor-pointer flex items-center justify-center gap-2"
+                      className="w-full h-11 rounded-xl bg-[#9333EA] hover:bg-[#7E22CE] text-white font-bold text-sm shadow-md shadow-purple-900/20 transition-all mt-2 cursor-pointer flex items-center justify-center gap-2"
                     >
                       {loginMutation.isPending ? (
                         <>

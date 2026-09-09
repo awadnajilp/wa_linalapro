@@ -54,13 +54,19 @@ const PricingPage: React.FC = () => {
   }>({
     queryKey: ["/api/payment-providers/currency-map"],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/payment-providers/currency-map");
-      return res.json();
+      try {
+        const res = await fetch("/api/payment-providers/currency-map");
+        if (!res.ok) return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "AED", "INR", "GBP", "EUR"] } };
+        return await res.json();
+      } catch {
+        return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "AED", "INR", "GBP", "EUR"] } };
+      }
     },
+    retry: false,
   });
 
-  const availableCurrencies = currencyMapData?.data?.availableCurrencies || [];
-  const [selectedCurrency, setSelectedCurrency] = useState<string>("");
+  const availableCurrencies = currencyMapData?.data?.availableCurrencies || ["SAR", "USD", "AED", "INR", "GBP", "EUR"];
+  const [selectedCurrency, setSelectedCurrency] = useState<string>("SAR");
 
   useEffect(() => {
     if (availableCurrencies.length > 0 && !selectedCurrency) {
@@ -68,39 +74,35 @@ const PricingPage: React.FC = () => {
       if (availableCurrencies.includes(upper)) {
         setSelectedCurrency(upper);
       } else {
-        setSelectedCurrency(availableCurrencies[0]);
+        setSelectedCurrency(availableCurrencies[0] || "SAR");
       }
     }
   }, [availableCurrencies, currency]);
 
   const currencySymbolMap: Record<string, string> = {
+    SAR: "ر.س ",
     USD: "$",
+    AED: "د.إ ",
     INR: "₹",
     EUR: "€",
     GBP: "£",
-    AED: "د.إ",
-    SAR: "ر.س",
-    BHD: "د.ب",
-    SGD: "S$",
-    AUD: "A$",
-    CAD: "C$",
-    JPY: "¥",
   };
 
   const activeCurrencySymbol = selectedCurrency
     ? (currencySymbolMap[selectedCurrency] || selectedCurrency + " ")
-    : isAr ? "ر.س" : currencySymbol || "$";
+    : "ر.س ";
 
   const fetchPlans = async (): Promise<void> => {
     try {
       setLoading(true);
-      const response = await apiRequest("GET", "/api/admin/plans");
+      const response = await fetch("/api/admin/plans");
+      if (!response.ok) return;
       const data: PlansDataTypes = await response.json();
       if (data.success && Array.isArray(data.data)) {
         setPlans(data.data);
       }
     } catch (error) {
-      console.error("Error fetching plans:", error);
+      console.warn("Error fetching dynamic plans:", error);
     } finally {
       setLoading(false);
     }
@@ -404,13 +406,22 @@ const PricingPage: React.FC = () => {
                       <p className="text-xs font-bold uppercase tracking-wider text-slate-700">
                         {isAr ? "الميزات المشمولة:" : "What's Included:"}
                       </p>
-                      {plan.features && Array.isArray(plan.features) ? (
-                        plan.features.map((feat, fIdx) => (
-                          <div key={fIdx} className="flex items-start gap-2.5 text-xs text-slate-700">
-                            <CheckCircle2 className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
-                            <span>{feat}</span>
-                          </div>
-                        ))
+                      {plan.features && Array.isArray(plan.features) && plan.features.length > 0 ? (
+                        plan.features.map((feat: any, fIdx: number) => {
+                          const featName = typeof feat === "string" ? feat : feat?.name || "";
+                          const isInc = typeof feat === "string" ? true : feat?.included !== false;
+                          if (!featName) return null;
+                          return (
+                            <div key={fIdx} className="flex items-start gap-2.5 text-xs text-slate-700">
+                              {isInc ? (
+                                <CheckCircle2 className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
+                              ) : (
+                                <X className="w-4 h-4 text-slate-300 flex-shrink-0 mt-0.5" />
+                              )}
+                              <span className={isInc ? "text-slate-700" : "text-slate-400"}>{featName}</span>
+                            </div>
+                          );
+                        })
                       ) : (
                         <>
                           <div className="flex items-start gap-2.5 text-xs text-slate-700">

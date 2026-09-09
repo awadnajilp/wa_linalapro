@@ -52,11 +52,15 @@ const Pricing = () => {
     useQuery<PaymentProvidersResponse>({
       queryKey: ["/api/payment-providers"],
       queryFn: async () => {
-        const res = await apiRequest("GET", "/api/payment-providers");
-        if (!res.ok) throw new Error("Failed to fetch payment providers");
-        const data = await res.json();
-        return data;
+        try {
+          const res = await fetch("/api/payment-providers");
+          if (!res.ok) return { success: false, data: [] } as any;
+          return await res.json();
+        } catch {
+          return { success: false, data: [] } as any;
+        }
       },
+      retry: false,
     });
 
   // Fetch currency map
@@ -69,9 +73,15 @@ const Pricing = () => {
   }>({
     queryKey: ["/api/payment-providers/currency-map"],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/payment-providers/currency-map");
-      return res.json();
+      try {
+        const res = await fetch("/api/payment-providers/currency-map");
+        if (!res.ok) return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "INR", "AED", "GBP", "EUR"] } };
+        return await res.json();
+      } catch {
+        return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "INR", "AED", "GBP", "EUR"] } };
+      }
     },
+    retry: false,
   });
 
   const availableCurrencies = currencyMapData?.data?.availableCurrencies || [];
@@ -102,6 +112,7 @@ const Pricing = () => {
     BRL: "R$",
     MXN: "MX$",
     ZAR: "R",
+    SAR: "ر.س ",
   };
 
   const activeCurrencySymbol = selectedCurrency
@@ -120,18 +131,14 @@ const Pricing = () => {
   const fetchPlans = async (): Promise<void> => {
     try {
       setLoading(true);
-      const response = await apiRequest("GET", "/api/admin/plans");
+      const response = await fetch("/api/admin/plans");
+      if (!response.ok) return;
       const data: PlansDataTypes = await response.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setPlans(data.data);
       }
     } catch (error) {
-      console.error("Error fetching plans:", error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch plans",
-        variant: "destructive",
-      });
+      console.warn("Error fetching plans:", error);
     } finally {
       setLoading(false);
     }
@@ -262,26 +269,31 @@ const Pricing = () => {
 
               {/* Features - Grow to fill space */}
               <ul className="space-y-4 mb-8 flex-grow">
-                {plan.features && plan.features.length > 0 ? (
-                  plan.features.map((feature, featureIndex) => (
-                    <li
-                      key={`${feature.name}-${featureIndex}`}
-                      className="flex items-start space-x-3"
-                    >
-                      {feature.included ? (
-                        <Check className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
-                      ) : (
-                        <X className="w-5 h-5 text-gray-300 mt-0.5 flex-shrink-0" />
-                      )}
-                      <span
-                        className={`text-sm ${
-                          feature.included ? "text-gray-700" : "text-gray-400"
-                        }`}
+                {plan.features && Array.isArray(plan.features) && plan.features.length > 0 ? (
+                  plan.features.map((feature: any, featureIndex: number) => {
+                    const featName = typeof feature === "string" ? feature : feature?.name || "";
+                    const isIncluded = typeof feature === "string" ? true : feature?.included !== false;
+                    if (!featName) return null;
+                    return (
+                      <li
+                        key={`${featName}-${featureIndex}`}
+                        className="flex items-start space-x-3"
                       >
-                        {feature.name}
-                      </span>
-                    </li>
-                  ))
+                        {isIncluded ? (
+                          <Check className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
+                        ) : (
+                          <X className="w-5 h-5 text-gray-300 mt-0.5 flex-shrink-0" />
+                        )}
+                        <span
+                          className={`text-sm ${
+                            isIncluded ? "text-gray-700" : "text-gray-400"
+                          }`}
+                        >
+                          {featName}
+                        </span>
+                      </li>
+                    );
+                  })
                 ) : (
                   <>
                     <li className="flex items-start space-x-3">

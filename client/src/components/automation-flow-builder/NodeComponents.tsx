@@ -48,7 +48,8 @@ import {
   CreditCard,
   ShieldCheck,
   Zap,
-  BadgeDollarSign
+  BadgeDollarSign,
+  Sparkles,
 } from "lucide-react";
 import { BuilderNodeData } from "./types";
 

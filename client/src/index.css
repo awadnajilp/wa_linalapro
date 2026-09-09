@@ -162,3 +162,17 @@ html {
     transform: rotate(360deg);
   }
 }
+
+@keyframes marqueeVertical {
+  0% {
+    transform: translateY(0%);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+.animate-marquee-vertical {
+  animation: marqueeVertical 24s linear infinite;
+}
+

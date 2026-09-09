@@ -126,88 +126,86 @@ export default function LoginPage() {
     loginMutation.mutate(data);
   };
 
-  const featuresList = [
+  const moduleCards = [
     {
       id: "voice",
       icon: Volume2,
-      badge: "Voice Agent Autopilot",
-      title: "Multilingual Voice AI & Dialects",
-      desc: "Native voice notes across 40+ languages (Najdi, Hijazi, Gulf, Egyptian & English) with sub-second response SLA.",
-      tag: "0.4s Voice SLA",
+      title: "Multilingual Voice AI",
+      tag: "0.4s SLA",
       color: "from-purple-500 to-indigo-600",
-      accentBg: "bg-purple-500/10 text-purple-300 border-purple-500/25",
-      highlight: "🎙️ AI Audio: 'تم تأكيد طلبك وسيصلك غداً بإذن الله' • Dialect Match: 99.4%",
+      accentBorder: "border-purple-800/40 hover:border-purple-500/60",
+      iconBg: "bg-purple-500/20 text-purple-300",
+      detail: "Arabic (Najdi / Gulf) & 40+ Dialects",
+      extra: (
+        <div className="flex items-center gap-1">
+          <div className="h-3 w-1 bg-purple-400 rounded-full animate-pulse" />
+          <div className="h-4 w-1 bg-purple-400 rounded-full animate-pulse delay-75" />
+          <div className="h-2 w-1 bg-purple-400 rounded-full" />
+          <div className="h-5 w-1 bg-purple-400 rounded-full animate-pulse delay-100" />
+          <div className="h-3 w-1 bg-purple-400 rounded-full" />
+        </div>
+      ),
     },
     {
       id: "ecommerce",
       icon: ShoppingBag,
-      badge: "E-Commerce Module",
-      title: "WhatsApp Store & 1-Click Checkout",
-      desc: "Interactive in-chat catalogs, item customization, instant Apple Pay / Mada checkout, and automated shipping labels.",
-      tag: "Instant Payments",
-      color: "from-purple-600 to-pink-600",
-      accentBg: "bg-purple-500/10 text-purple-300 border-purple-500/25",
-      highlight: "💳 Paid Order #LN-9482 (SAR 249.00) via Apple Pay • Stock Synced",
+      title: "WhatsApp Store & Checkout",
+      tag: "Apple Pay / Mada",
+      color: "from-pink-500 to-purple-600",
+      accentBorder: "border-purple-800/40 hover:border-purple-500/60",
+      iconBg: "bg-pink-500/20 text-pink-300",
+      detail: "Paid • Order #LN-9482 (SAR 249)",
+      extra: <span className="text-[10px] text-emerald-400 font-bold">Paid ✓</span>,
     },
     {
       id: "zapier",
       icon: Share2,
-      badge: "1,000+ Integrations",
-      title: "Zapier, Webhooks & Custom REST API",
-      desc: "Bi-directional instant sync with Shopify, Salla, Zid, WooCommerce, Google Sheets, HubSpot, and custom webhooks.",
-      tag: "2-Way Live Sync",
-      color: "from-purple-600 to-cyan-600",
-      accentBg: "bg-purple-500/10 text-purple-300 border-purple-500/25",
-      highlight: "⚡ Live Webhook: Salla Order #58210 synced to WhatsApp pipeline in 80ms",
+      title: "Zapier & API Connectors",
+      tag: "1,000+ Apps",
+      color: "from-purple-600 to-cyan-500",
+      accentBorder: "border-purple-800/40 hover:border-purple-500/60",
+      iconBg: "bg-cyan-500/20 text-cyan-300",
+      detail: "Salla • Shopify • Zid • Sheets",
+      extra: <span className="text-[10px] text-purple-300 font-mono">Live 2-Way</span>,
     },
     {
       id: "expense",
       icon: Wallet,
-      badge: "Expense & Finance Module",
-      title: "SME Expense Ledger & Receipt OCR",
-      desc: "Snap receipts, track daily company expenses, manage categorized spending limits, and export instant VAT reports.",
-      tag: "Automated Ledger",
-      color: "from-purple-600 to-emerald-600",
-      accentBg: "bg-purple-500/10 text-purple-300 border-purple-500/25",
-      highlight: "🧾 Receipt OCR Verified: 'Office Logistics SAR 420.00' • Account Logged",
+      title: "Expense & Finance Ledger",
+      tag: "Receipt OCR",
+      color: "from-emerald-500 to-purple-600",
+      accentBorder: "border-purple-800/40 hover:border-purple-500/60",
+      iconBg: "bg-emerald-500/20 text-emerald-300",
+      detail: "Office Logistics • SAR 420.00",
+      extra: <span className="text-[10px] text-emerald-400 font-medium">Logged ✓</span>,
     },
     {
       id: "reminders",
       icon: Clock,
-      badge: "Reminder & Cadence Engine",
-      title: "Automated Cadences & Follow-ups",
-      desc: "Multi-step smart follow-up sequences for abandoned carts, scheduled appointments, and recurring customer check-ins.",
-      tag: "99.2% Delivery",
-      color: "from-purple-600 to-amber-500",
-      accentBg: "bg-purple-500/10 text-purple-300 border-purple-500/25",
-      highlight: "🔔 Cadence Step 2 Triggered: 'Appointment Reminder for Tomorrow at 4:00 PM'",
+      title: "Automated Cadences",
+      tag: "99.2% Open Rate",
+      color: "from-amber-500 to-purple-600",
+      accentBorder: "border-purple-800/40 hover:border-purple-500/60",
+      iconBg: "bg-amber-500/20 text-amber-300",
+      detail: "Step 2: Appointment Alert 4:00 PM",
+      extra: <span className="text-[10px] text-amber-300">Auto-Sent</span>,
     },
     {
       id: "crm",
       icon: Users,
-      badge: "Team CRM & Lead Scoring",
-      title: "Omnichannel CRM & AI Lead Scoring",
-      desc: "Unified multi-agent shared inbox, automated buyer intent qualification (96/100), and auto-routing to top closers.",
+      title: "Team CRM & Lead Scoring",
       tag: "Score: 96 / 100",
       color: "from-purple-600 to-indigo-500",
-      accentBg: "bg-purple-500/10 text-purple-300 border-purple-500/25",
-      highlight: "🏷️ Tags: [VIP Buyer, Hot Lead] • Auto-routed to Senior Account Exec",
+      accentBorder: "border-purple-800/40 hover:border-purple-500/60",
+      iconBg: "bg-indigo-500/20 text-indigo-300",
+      detail: "🏷️ VIP Buyer • Routed to Closer",
+      extra: <span className="text-[10px] text-purple-300 font-bold">Hot Deal 🔥</span>,
     },
   ];
 
-  const [activeFeatureIdx, setActiveFeatureIdx] = useState(0);
-
-  // Auto-scroll through features every 3.8s
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setActiveFeatureIdx((prev) => (prev + 1) % featuresList.length);
-    }, 3800);
-    return () => clearInterval(timer);
-  }, [featuresList.length]);
-
   return (
     <div className="min-h-screen flex font-sans selection:bg-purple-600 selection:text-white bg-[#080511]">
-      {/* LEFT PANE: Creative Brand #9333EA Obsidian-Purple Showcase */}
+      {/* LEFT PANE: Spacious, Modern & Clean Obsidian-Purple Showcase */}
       <div className="hidden lg:flex lg:w-7/12 xl:w-3/5 relative flex-col justify-between p-10 xl:p-14 overflow-hidden bg-[#0a0614] text-slate-100 border-r border-purple-950/60">
         {/* Subtle Brand Architectural Grid & Deep Violet Glow */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#581c8712_1px,transparent_1px),linear-gradient(to_bottom,#581c8712_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
@@ -232,7 +230,7 @@ export default function LoginPage() {
                   <span className="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
                     LINALA <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-semibold font-mono">PRO</span>
                   </span>
-                  <span className="text-[10px] text-purple-300/70 tracking-wider uppercase font-medium">WhatsApp Commerce & AI Suite</span>
+                  <span className="text-[10px] text-purple-300/70 tracking-wider uppercase font-medium">WhatsApp AI & Commerce Suite</span>
                 </div>
               </div>
             )}
@@ -244,92 +242,85 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Center Canvas: Dynamic Moving / Scrollable Platform Showcase */}
-        <div className="relative z-10 my-auto py-4 max-w-xl">
-          <div className="mb-5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 text-xs font-semibold uppercase tracking-wider mb-2.5">
+        {/* Center Canvas: Spacious, Crisp Hero & Smooth Floating Feature Stream */}
+        <div className="relative z-10 my-auto py-2 max-w-xl">
+          <div className="mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 text-xs font-semibold uppercase tracking-wider mb-3">
               <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-              All-In-One WhatsApp Operating System
+              Unified WhatsApp Engine
             </div>
-            <h1 className="text-2xl xl:text-3xl font-extrabold tracking-tight text-white leading-tight">
-              One platform powering your <br />
+            <h1 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-white leading-tight">
+              One connected workspace for your{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-300 to-indigo-300">
-                Voice AI, Stores, Finance & CRM.
+                WhatsApp revenue.
               </span>
             </h1>
+            <p className="mt-2.5 text-slate-300 text-sm leading-relaxed max-w-lg">
+              Voice AI autopilot, in-chat commerce, financial ledger, and cadence follow-ups.
+            </p>
           </div>
 
-          {/* Active Feature Spotlight Card */}
-          {(() => {
-            const feat = featuresList[activeFeatureIdx];
-            const Icon = feat.icon;
-            return (
-              <div className="relative rounded-3xl bg-[#110b22]/90 border border-purple-900/50 p-5 shadow-2xl shadow-purple-950/50 backdrop-blur-xl transition-all duration-500 mb-5">
-                <div className="flex items-center justify-between pb-3 border-b border-purple-900/40 text-xs">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-600/30">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-white flex items-center gap-1.5">
-                        {feat.title}
-                      </div>
-                      <div className="text-[10px] text-purple-300/70 font-mono">{feat.badge}</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-200 border border-purple-500/30 font-semibold font-mono">
-                    {feat.tag}
-                  </span>
-                </div>
-
-                <p className="mt-3 text-xs sm:text-sm text-slate-300 leading-relaxed">
-                  {feat.desc}
-                </p>
-
-                {/* Micro-preview badge */}
-                <div className="mt-3.5 p-3 rounded-2xl bg-[#181030]/80 border border-purple-800/40 flex items-center gap-2 text-xs text-purple-200 font-medium">
-                  <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping shrink-0" />
-                  <span className="truncate">{feat.highlight}</span>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Moving / Scrollable 6-Module Feature Bar & Selector */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-[11px] text-purple-300/80 font-medium px-1">
-              <span>Platform Modules & Capabilities</span>
-              <span className="font-mono">{activeFeatureIdx + 1} / {featuresList.length} (Auto-rotating)</span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              {featuresList.map((f, idx) => {
-                const FIcon = f.icon;
-                const isActive = idx === activeFeatureIdx;
+          {/* Smooth Vertical Floating Stream of Feature Cards */}
+          <div className="relative overflow-hidden h-[290px] [mask-image:linear-gradient(to_bottom,transparent,black_10%,black_90%,transparent)] group">
+            <div className="space-y-2.5 animate-marquee-vertical hover:[animation-play-state:paused]">
+              {/* First Set of 6 Cards */}
+              {moduleCards.map((card) => {
+                const Icon = card.icon;
                 return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => setActiveFeatureIdx(idx)}
-                    className={`text-left p-2.5 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between ${
-                      isActive
-                        ? "bg-purple-600/25 border-purple-500/80 text-white shadow-lg shadow-purple-900/40 scale-[1.02]"
-                        : "bg-[#110b22]/50 border-purple-950/60 text-slate-400 hover:border-purple-800/60 hover:text-slate-200"
-                    }`}
+                  <div
+                    key={card.id}
+                    className={`flex items-center justify-between p-3.5 rounded-2xl bg-[#120b24]/90 border ${card.accentBorder} shadow-lg shadow-purple-950/40 backdrop-blur-md transition-all duration-200 hover:scale-[1.01] hover:bg-[#190f33]`}
                   >
-                    <div className="flex items-center justify-between w-full mb-1">
-                      <FIcon className={`w-3.5 h-3.5 ${isActive ? "text-purple-300" : "text-slate-500"}`} />
-                      {isActive && <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />}
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl ${card.iconBg} flex items-center justify-center flex-shrink-0 shadow-xs`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white flex items-center gap-2">
+                          {card.title}
+                          <span className="text-[10px] px-2 py-0.2 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 font-mono font-normal">
+                            {card.tag}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-300 mt-0.5">{card.detail}</div>
+                      </div>
                     </div>
-                    <div className="text-[11px] font-bold truncate">{f.badge}</div>
-                  </button>
+                    <div className="shrink-0 pl-2">{card.extra}</div>
+                  </div>
+                );
+              })}
+
+              {/* Seamless Duplicate Set for Smooth Infinite Gliding */}
+              {moduleCards.map((card) => {
+                const Icon = card.icon;
+                return (
+                  <div
+                    key={`dup-${card.id}`}
+                    className={`flex items-center justify-between p-3.5 rounded-2xl bg-[#120b24]/90 border ${card.accentBorder} shadow-lg shadow-purple-950/40 backdrop-blur-md transition-all duration-200 hover:scale-[1.01] hover:bg-[#190f33]`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl ${card.iconBg} flex items-center justify-center flex-shrink-0 shadow-xs`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white flex items-center gap-2">
+                          {card.title}
+                          <span className="text-[10px] px-2 py-0.2 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 font-mono font-normal">
+                            {card.tag}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-300 mt-0.5">{card.detail}</div>
+                      </div>
+                    </div>
+                    <div className="shrink-0 pl-2">{card.extra}</div>
+                  </div>
                 );
               })}
             </div>
           </div>
         </div>
 
-        {/* Bottom Trust & Security */}
+        {/* Bottom Trust & Compliance */}
         <div className="relative z-10 flex items-center justify-between text-xs text-purple-300/60 pt-5 border-t border-purple-950/60">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-purple-400" />

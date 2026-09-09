@@ -19,7 +19,7 @@ import { createRoot } from "react-dom/client";
 import React from "react";
 import App from "./App";
 import "./index.css";
-if (process.env.NODE_ENV === "production") {
+if (typeof process !== "undefined" && process.env?.NODE_ENV === "production") {
   console.log = () => {};
 }
 

@@ -36,8 +36,23 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "@/lib/i18n";
 import { Link, useLocation } from "wouter";
 
+const defaultExchangeRates: Record<string, number> = {
+  USD: 1.0,
+  SAR: 3.75,
+  AED: 3.67,
+  INR: 95.70,
+  GBP: 0.78,
+  EUR: 0.92,
+  KWD: 0.31,
+  BHD: 0.38,
+  OMR: 0.38,
+  QAR: 3.64,
+  EGP: 48.0,
+};
+
 const Pricing = () => {
-  const { t } = useTranslation();
+  const { language, t } = useTranslation();
+  const isAr = language === "ar";
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -63,29 +78,30 @@ const Pricing = () => {
       retry: false,
     });
 
-  // Fetch currency map
+  // Fetch currency map and exchange rates
   const { data: currencyMapData } = useQuery<{
     success: boolean;
     data: {
       currencyMap: Record<string, { providerKey: string; providerId: string; providerName: string }[]>;
       availableCurrencies: string[];
+      exchangeRates?: Record<string, number>;
     };
   }>({
     queryKey: ["/api/payment-providers/currency-map"],
     queryFn: async () => {
       try {
         const res = await fetch("/api/payment-providers/currency-map");
-        if (!res.ok) return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "INR", "AED", "GBP", "EUR"] } };
+        if (!res.ok) return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "INR", "AED", "GBP", "EUR"], exchangeRates: defaultExchangeRates } };
         return await res.json();
       } catch {
-        return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "INR", "AED", "GBP", "EUR"] } };
+        return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "INR", "AED", "GBP", "EUR"], exchangeRates: defaultExchangeRates } };
       }
     },
     retry: false,
   });
 
-  const availableCurrencies = currencyMapData?.data?.availableCurrencies || [];
-  const [selectedCurrency, setSelectedCurrency] = useState<string>("");
+  const availableCurrencies = currencyMapData?.data?.availableCurrencies || ["SAR", "USD", "INR", "AED", "GBP", "EUR"];
+  const [selectedCurrency, setSelectedCurrency] = useState<string>("SAR");
 
   useEffect(() => {
     if (availableCurrencies.length > 0 && !selectedCurrency) {
@@ -93,7 +109,7 @@ const Pricing = () => {
       if (availableCurrencies.includes(upper)) {
         setSelectedCurrency(upper);
       } else {
-        setSelectedCurrency(availableCurrencies[0]);
+        setSelectedCurrency(availableCurrencies[0] || "SAR");
       }
     }
   }, [availableCurrencies, currency]);
@@ -113,11 +129,25 @@ const Pricing = () => {
     MXN: "MX$",
     ZAR: "R",
     SAR: "ر.س ",
+    KWD: "د.ك ",
+    BHD: "د.ب ",
+    OMR: "ر.ع ",
+    QAR: "ر.ق ",
+    EGP: "ج.م ",
   };
 
   const activeCurrencySymbol = selectedCurrency
     ? (currencySymbolMap[selectedCurrency] || selectedCurrency + " ")
-    : currencySymbol;
+    : "ر.س ";
+
+  const calculateConvertedPrice = (rawPrice: string | number | undefined) => {
+    const num = typeof rawPrice === "string" ? parseFloat(rawPrice) : (typeof rawPrice === "number" ? rawPrice : 0);
+    if (isNaN(num)) return 0;
+    const rates = currencyMapData?.data?.exchangeRates || defaultExchangeRates;
+    const rate = rates[selectedCurrency] || defaultExchangeRates[selectedCurrency] || 1.0;
+    const converted = num * rate;
+    return converted >= 10 ? Math.round(converted) : parseFloat(converted.toFixed(2));
+  };
 
   // Icon mapping
   const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -235,13 +265,13 @@ const Pricing = () => {
                 <div className="flex items-baseline justify-center mb-2">
                   <span className="text-4xl font-bold text-gray-900">
                     {activeCurrencySymbol}
-                    {isAnnual ? plan.annualPrice : plan.monthlyPrice}
+                    {calculateConvertedPrice(isAnnual ? (plan.annualPrice || plan.yearlyPrice) : (plan.monthlyPrice || plan.price))}
                   </span>
                   <span className="text-gray-600 ml-2">
                     /
                     {isAnnual
-                      ? t("Landing.pricingSec.pricing.year")
-                      : t("Landing.pricingSec.pricing.month")}
+                      ? (isAr ? "سنة" : t("Landing.pricingSec.pricing.year"))
+                      : (isAr ? "شهر" : t("Landing.pricingSec.pricing.month"))}
                   </span>
                 </div>
 

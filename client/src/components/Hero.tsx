@@ -17,17 +17,9 @@ import {
 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 
-const TYPING_HIGHLIGHTS = [
-  "WhatsApp E-Commerce & Checkout",
-  "Multilingual Voice Note AI",
-  "Visual Workflow Automations",
-  "Automated Cadence Follow-ups",
-  "SME Expense & Financial Ledger",
-  "Unified Multi-Agent CRM Inbox",
-];
-
 const Hero: React.FC = () => {
-  const { t } = useTranslation();
+  const { language, t } = useTranslation();
+  const isAr = language === "ar";
   const [wordIdx, setWordIdx] = useState(0);
   const [displayText, setDisplayText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
@@ -35,9 +27,27 @@ const Hero: React.FC = () => {
   const [audioProgress, setAudioProgress] = useState(35);
   const [activeTab, setActiveTab] = useState<"chat" | "checkout" | "analytics">("chat");
 
+  const TYPING_HIGHLIGHTS = isAr
+    ? [
+        "متجر وكتالوج واتساب والدفع المباشر",
+        "الردود الصوتية بالذكاء الاصطناعي واللهجات المحلية",
+        "أتمتة التدفقات ومسارات العمل المرئية",
+        "متابعات التذكير والسلاسل التلقائية",
+        "دفتر المصروفات والمالية للشركات",
+        "صندوق وارد الفريق المشترك وإدارة علاقات العملاء (CRM)",
+      ]
+    : [
+        "WhatsApp E-Commerce & Checkout",
+        "Multilingual Voice Note AI",
+        "Visual Workflow Automations",
+        "Automated Cadence Follow-ups",
+        "SME Expense & Financial Ledger",
+        "Unified Multi-Agent CRM Inbox",
+      ];
+
   // Typewriter effect
   useEffect(() => {
-    const current = TYPING_HIGHLIGHTS[wordIdx];
+    const current = TYPING_HIGHLIGHTS[wordIdx] || TYPING_HIGHLIGHTS[0];
     let timer: NodeJS.Timeout;
 
     if (!isDeleting && displayText === current) {
@@ -57,7 +67,7 @@ const Hero: React.FC = () => {
     }
 
     return () => clearTimeout(timer);
-  }, [displayText, isDeleting, wordIdx]);
+  }, [displayText, isDeleting, wordIdx, isAr]);
 
   // Simulated audio progress
   useEffect(() => {
@@ -85,7 +95,7 @@ const Hero: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
-        {/* Top Brevo-Style Announcement Pill */}
+        {/* Top Announcement Pill */}
         <div className="flex justify-center mb-6">
           <Link
             href="/#features"
@@ -93,36 +103,40 @@ const Hero: React.FC = () => {
           >
             <span className="flex h-2 w-2 rounded-full bg-purple-600 animate-ping" />
             <span className="text-xs font-semibold text-purple-900 tracking-wide">
-              NEW: AI Voice Note Replies & Instant WhatsApp Store
+              {isAr ? "جديد: الردود الصوتية بالذكاء الاصطناعي ومتجر واتساب الفوري" : "NEW: AI Voice Note Replies & Instant WhatsApp Store"}
             </span>
-            <span className="inline-flex items-center text-xs font-medium text-purple-700 group-hover:translate-x-0.5 transition-transform">
-              See what's new <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+            <span className="inline-flex items-center text-xs font-medium text-purple-700 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 transition-transform">
+              {isAr ? "اكتشف الجديد" : "See what's new"} <ChevronRight className="w-3.5 h-3.5 ml-0.5 rtl:rotate-180" />
             </span>
           </Link>
         </div>
 
         {/* Hero Main Copy */}
         <div className="text-center max-w-4xl mx-auto mb-10 lg:mb-14">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-slate-900 tracking-tight leading-[1.12]">
-            Grow Faster with <span className="text-purple-600">Linala WhatsApp CRM</span> for{" "}
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-slate-900 tracking-tight leading-[1.15]">
+            {isAr ? "انطلق ونمّ أسرع مع " : "Grow Faster with "}{" "}
+            <span className="text-purple-600">{isAr ? "نظام لينالا لواتساب CRM" : "Linala WhatsApp CRM"}</span>{" "}
+            {isAr ? "لـ " : "for "}
             <span className="block mt-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 bg-clip-text text-transparent">
               {displayText}
-              <span className="inline-block w-[3px] h-[0.85em] bg-purple-600 ml-1.5 align-middle animate-pulse" />
+              <span className="inline-block w-[3px] h-[0.85em] bg-purple-600 ml-1.5 rtl:mr-1.5 align-middle animate-pulse" />
             </span>
           </h1>
 
           <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed font-normal">
-            The all-in-one Linala WhatsApp CRM. Deploy autonomous AI agents, launch WhatsApp stores with 1-click checkout, qualify leads, and automate revenue 24/7.
+            {isAr
+              ? "المنصة الشاملة لأتمتة واتساب وإدارة علاقات العملاء (CRM). أطلق وكلاء ذكاء اصطناعي مستقلين، أنشئ متاجر واتساب مع دفع فوري بنقرة واحدة، تأهيل العملاء المحتملين ومضاعفة المبيعات على مدار الساعة."
+              : "The all-in-one Linala WhatsApp CRM. Deploy autonomous AI agents, launch WhatsApp stores with 1-click checkout, qualify leads, and automate revenue 24/7."}
           </p>
 
-          {/* Dual CTAs (Brevo Style) */}
+          {/* Dual CTAs */}
           <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               href="/signup"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base shadow-lg shadow-purple-600/25 hover:shadow-xl hover:shadow-purple-600/35 hover:-translate-y-0.5 transition-all duration-200"
             >
-              <span>Start 14-Day Free Trial</span>
-              <ArrowRight className="w-5 h-5" />
+              <span>{isAr ? "ابدأ تجربة مجانية لمدة 14 يوماً" : "Start 14-Day Free Trial"}</span>
+              <ArrowRight className="w-5 h-5 rtl:rotate-180" />
             </Link>
 
             <Link
@@ -130,7 +144,7 @@ const Hero: React.FC = () => {
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-semibold text-base border border-slate-200 hover:border-slate-300 shadow-sm hover:shadow transition-all duration-200"
             >
               <Sparkles className="w-4 h-4 text-purple-600" />
-              <span>Book Live Demo</span>
+              <span>{isAr ? "احجز عرضاً توضيحياً مباشراً" : "Book Live Demo"}</span>
             </Link>
           </div>
 
@@ -138,19 +152,19 @@ const Hero: React.FC = () => {
           <div className="mt-8 flex flex-wrap items-center justify-center gap-y-2 gap-x-6 text-xs sm:text-sm font-medium text-slate-600">
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-purple-600" />
-              <span>No credit card required</span>
+              <span>{isAr ? "بدون بطاقة ائتمانية" : "No credit card required"}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-purple-600" />
-              <span>5-minute zero-code setup</span>
+              <span>{isAr ? "إعداد خلال 5 دقائق بدون برمجة" : "5-minute zero-code setup"}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-purple-600" />
-              <span>Official Meta Cloud API</span>
+              <span>{isAr ? "بوابة Meta Cloud API الرسمية" : "Official Meta Cloud API"}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-purple-600" />
-              <span>99.9% Uptime SLA</span>
+              <span>{isAr ? "ضمان تشغيل بنسبة 99.9%" : "99.9% Uptime SLA"}</span>
             </div>
           </div>
         </div>
@@ -185,7 +199,7 @@ const Hero: React.FC = () => {
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  💬 AI Voice Chat
+                  {isAr ? "💬 محادثة صوتية ذكية" : "💬 AI Voice Chat"}
                 </button>
                 <button
                   type="button"
@@ -196,7 +210,7 @@ const Hero: React.FC = () => {
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  🛒 Instant Ecom
+                  {isAr ? "🛒 متجر واتساب فوري" : "🛒 Instant Ecom"}
                 </button>
                 <button
                   type="button"
@@ -207,7 +221,7 @@ const Hero: React.FC = () => {
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  📊 Live Insights
+                  {isAr ? "📊 تحليلات حية" : "📊 Live Insights"}
                 </button>
               </div>
             </div>
@@ -222,23 +236,23 @@ const Hero: React.FC = () => {
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white text-sm shadow">
-                        W
+                        L
                       </div>
                       <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-slate-900 rounded-full" />
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-sm text-white">Zenta Premium Store</span>
+                        <span className="font-semibold text-sm text-white">{isAr ? "متجر زنتا الفاخر" : "Zenta Premium Store"}</span>
                         <ShieldCheck className="w-4 h-4 text-purple-400" />
                       </div>
                       <span className="text-[11px] text-purple-400 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
-                        AI Agent Active (40+ Global Languages)
+                        {isAr ? "وكيل ذكاء اصطناعي نشط (40+ لغة)" : "AI Agent Active (40+ Global Languages)"}
                       </span>
                     </div>
                   </div>
                   <span className="text-[11px] text-slate-400 font-mono bg-slate-800/80 px-2 py-1 rounded">
-                    Official API
+                    {isAr ? "واجهة Meta الرسمية" : "Official API"}
                   </span>
                 </div>
 
@@ -248,7 +262,9 @@ const Hero: React.FC = () => {
                   <div className="flex justify-start">
                     <div className="bg-slate-800 text-slate-200 rounded-2xl rounded-tl-xs px-3.5 py-2.5 max-w-[85%] shadow-sm">
                       <p className="leading-relaxed">
-                        Hello! Do you have the Signature Linen Shirt in Blue (Size L)? What's the price, and can I checkout directly?
+                        {isAr
+                          ? "مرحباً! هل متوفر عندكم قميص الكتان الفاخر باللون الكحلي مقاس L؟ وكم سعره؟ وهل أقدر أطلب وأدفع هنا مباشرة؟"
+                          : "Hello! Do you have the Signature Linen Shirt in Blue (Size L)? What's the price, and can I checkout directly?"}
                       </p>
                       <span className="text-[10px] text-slate-400 block text-right mt-1">10:42 AM</span>
                     </div>
@@ -259,7 +275,7 @@ const Hero: React.FC = () => {
                     <div className="bg-purple-950/70 border border-purple-500/30 text-white rounded-2xl rounded-tr-xs p-3 max-w-[90%] shadow-sm">
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[10px] font-semibold text-purple-300 flex items-center gap-1">
-                          <Sparkles className="w-3 h-3 text-purple-300" /> AI Voice Note (Multilingual)
+                          <Sparkles className="w-3 h-3 text-purple-300" /> {isAr ? "ملاحظة صوتية بالذكاء الاصطناعي (لهجة محلية)" : "AI Voice Note (Multilingual)"}
                         </span>
                         <span className="text-[10px] text-purple-200">0:14</span>
                       </div>
@@ -269,7 +285,7 @@ const Hero: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setIsPlayingAudio(!isPlayingAudio)}
-                          className="w-8 h-8 rounded-full bg-purple-500 hover:bg-purple-400 text-white flex items-center justify-center transition-all flex-shrink-0"
+                          className="w-8 h-8 rounded-full bg-purple-500 hover:bg-purple-400 text-white flex items-center justify-center transition-all flex-shrink-0 cursor-pointer"
                           title={isPlayingAudio ? "Pause Voice Note" : "Play Voice Note"}
                         >
                           {isPlayingAudio ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
@@ -294,7 +310,9 @@ const Hero: React.FC = () => {
                       </div>
 
                       <p className="text-[11px] text-purple-100 mt-2 leading-relaxed">
-                        "Yes! The Blue Linen Shirt in Size L is in stock for $49.00. Tap below to complete your instant checkout."
+                        {isAr
+                          ? "\"أهلاً بك! نعم متوفر قميص الكتان الكحلي مقاس L وسعره 185 ر.س. تفضل بالضغط أدناه لإتمام طلبك والدفع الفوري الآمن.\""
+                          : "\"Yes! The Blue Linen Shirt in Size L is in stock for $49.00. Tap below to complete your instant checkout.\""}
                       </p>
                     </div>
                   </div>
@@ -308,12 +326,14 @@ const Hero: React.FC = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-semibold text-white truncate">
-                            Signature Linen Shirt (Blue)
+                            {isAr ? "قميص كتان فاخر (كحلي)" : "Signature Linen Shirt (Blue)"}
                           </div>
                           <div className="text-purple-400 font-bold text-sm mt-0.5">
-                            $49.00 <span className="text-[10px] text-slate-400 line-through">$79.00</span>
+                            {isAr ? "185 ر.س" : "$49.00"} <span className="text-[10px] text-slate-400 line-through">{isAr ? "299 ر.س" : "$79.00"}</span>
                           </div>
-                          <span className="text-[10px] text-emerald-300 font-medium">✓ In Stock (Express Delivery)</span>
+                          <span className="text-[10px] text-emerald-300 font-medium">
+                            {isAr ? "✓ متوفر في المخزون (توصيل سريع)" : "✓ In Stock (Express Delivery)"}
+                          </span>
                         </div>
                       </div>
 
@@ -321,15 +341,15 @@ const Hero: React.FC = () => {
                       <div className="mt-2.5 pt-2 border-t border-slate-700/60 grid grid-cols-2 gap-2">
                         <button
                           type="button"
-                          className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-[11px] transition-colors"
+                          className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-[11px] transition-colors cursor-pointer"
                         >
-                          <ShoppingBag className="w-3 h-3" /> Buy Now
+                          <ShoppingBag className="w-3 h-3" /> {isAr ? "اشترِ الآن" : "Buy Now"}
                         </button>
                         <button
                           type="button"
-                          className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium text-[11px] transition-colors"
+                          className="flex items-center justify-center gap-1 py-1.5 px-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium text-[11px] transition-colors cursor-pointer"
                         >
-                          🏬 View Catalog
+                          🏬 {isAr ? "تصفح الكتالوج" : "View Catalog"}
                         </button>
                       </div>
                     </div>
@@ -348,16 +368,16 @@ const Hero: React.FC = () => {
                     </div>
                     <div>
                       <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        WhatsApp Conversion Velocity
+                        {isAr ? "سرعة ومعدل التحويل عبر واتساب" : "WhatsApp Conversion Velocity"}
                       </div>
                       <div className="text-2xl font-bold text-slate-900">
-                        3.8x <span className="text-xs font-semibold text-purple-600">+280% vs Email</span>
+                        3.8x <span className="text-xs font-semibold text-purple-600">{isAr ? "+280% مقارنة بالبريد" : "+280% vs Email"}</span>
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
-                      ⚡ 1.8s AI Latency
+                      {isAr ? "⚡ سرعة استجابة 1.8 ثانية" : "⚡ 1.8s AI Latency"}
                     </span>
                   </div>
                 </div>
@@ -371,15 +391,15 @@ const Hero: React.FC = () => {
                       </div>
                       <div>
                         <div className="text-xs font-bold text-slate-900">
-                          Instant WhatsApp Payment Confirmed
+                          {isAr ? "تم تأكيد عملية دفع فورية عبر واتساب" : "Instant WhatsApp Payment Confirmed"}
                         </div>
                         <div className="text-xs text-slate-500">
-                          Customer: Alex M. · Instant 1-Click Pay · Order #9482
+                          {isAr ? "العميل: محمد ع. · دفع فوري مدى / أبل باي · طلب #9482" : "Customer: Alex M. · Instant 1-Click Pay · Order #9482"}
                         </div>
                       </div>
                     </div>
                     <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded-md">
-                      +$49.00
+                      {isAr ? "+185 ر.س" : "+$49.00"}
                     </span>
                   </div>
 
@@ -387,9 +407,9 @@ const Hero: React.FC = () => {
                   <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
                     <span className="flex items-center gap-1 text-purple-700 font-medium">
                       <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" />
-                      Receipt Sent on WhatsApp
+                      {isAr ? "تم إرسال الفاتورة عبر واتساب" : "Receipt Sent on WhatsApp"}
                     </span>
-                    <span>Tracking URL Dispatched</span>
+                    <span>{isAr ? "تم إرسال رابط التتبع المباشر" : "Tracking URL Dispatched"}</span>
                   </div>
                 </div>
 
@@ -398,20 +418,24 @@ const Hero: React.FC = () => {
                   <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                     <div className="flex items-center gap-2 mb-1.5">
                       <Zap className="w-4 h-4 text-purple-600" />
-                      <span className="text-xs font-bold text-slate-900">Drip Followup Cadence</span>
+                      <span className="text-xs font-bold text-slate-900">{isAr ? "سلاسل المتابعة التلقائية" : "Drip Followup Cadence"}</span>
                     </div>
                     <p className="text-[11px] text-slate-500 leading-snug">
-                      Auto recovered 42 abandoned carts today with personalized discount coupons.
+                      {isAr
+                        ? "تم استرداد 42 سلة متروكة اليوم تلقائياً عبر كوبونات خصم ديناميكية."
+                        : "Auto recovered 42 abandoned carts today with personalized discount coupons."}
                     </p>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
                     <div className="flex items-center gap-2 mb-1.5">
                       <Bot className="w-4 h-4 text-indigo-600" />
-                      <span className="text-xs font-bold text-slate-900">SME Expense Scanner</span>
+                      <span className="text-xs font-bold text-slate-900">{isAr ? "ماسح المصروفات للشركات" : "SME Expense Scanner"}</span>
                     </div>
                     <p className="text-[11px] text-slate-500 leading-snug">
-                      Snap bill photos on WhatsApp → AI auto logs into category ledger in 2s.
+                      {isAr
+                        ? "صوّر الفاتورة بواتساب ← يقوم الذكاء الاصطناعي بقيدها في الدفاتر المالية خلال ثانيتين."
+                        : "Snap bill photos on WhatsApp → AI auto logs into category ledger in 2s."}
                     </p>
                   </div>
                 </div>
@@ -421,10 +445,12 @@ const Hero: React.FC = () => {
           </div>
         </div>
 
-        {/* Global Logo Cloud & Social Proof (Brevo Style) */}
+        {/* Global Logo Cloud & Social Proof */}
         <div className="mt-16 sm:mt-20 pt-10 border-t border-slate-200/70 text-center">
           <p className="text-xs sm:text-sm font-semibold text-slate-500 uppercase tracking-wider mb-7">
-            Trusted by 5,000+ fast-growing brands, D2C merchants, and global enterprises
+            {isAr
+              ? "موثوق من أكثر من 5,000 علامة تجارية ومؤسسة رائدة في المملكة والخليج والعالم"
+              : "Trusted by 5,000+ fast-growing brands, D2C merchants, and global enterprises"}
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10 opacity-75 grayscale hover:grayscale-0 transition-all duration-300">

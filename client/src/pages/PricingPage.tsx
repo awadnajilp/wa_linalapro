@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Check,
+  CheckCircle2,
   X,
   Zap,
   Crown,
@@ -31,6 +32,20 @@ import { PaymentProvidersResponse, Plan, PlansDataTypes } from "@/types/types";
 import { useToast } from "@/hooks/use-toast";
 import CheckoutModal from "@/components/modals/CheckoutPage";
 
+const defaultExchangeRates: Record<string, number> = {
+  USD: 1.0,
+  SAR: 3.75,
+  AED: 3.67,
+  INR: 95.70,
+  GBP: 0.78,
+  EUR: 0.92,
+  KWD: 0.31,
+  BHD: 0.38,
+  OMR: 0.38,
+  QAR: 3.64,
+  EGP: 48.0,
+};
+
 const PricingPage: React.FC = () => {
   const { language, t } = useTranslation();
   const isAr = language === "ar";
@@ -44,22 +59,23 @@ const PricingPage: React.FC = () => {
   const { user, currencySymbol, currency } = useAuth();
   const [, setLocation] = useLocation();
 
-  // Fetch currency map
+  // Fetch currency map and exchange rates
   const { data: currencyMapData } = useQuery<{
     success: boolean;
     data: {
       currencyMap: Record<string, { providerKey: string; providerId: string; providerName: string }[]>;
       availableCurrencies: string[];
+      exchangeRates?: Record<string, number>;
     };
   }>({
     queryKey: ["/api/payment-providers/currency-map"],
     queryFn: async () => {
       try {
         const res = await fetch("/api/payment-providers/currency-map");
-        if (!res.ok) return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "AED", "INR", "GBP", "EUR"] } };
+        if (!res.ok) return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "AED", "INR", "GBP", "EUR"], exchangeRates: defaultExchangeRates } };
         return await res.json();
       } catch {
-        return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "AED", "INR", "GBP", "EUR"] } };
+        return { success: false, data: { currencyMap: {}, availableCurrencies: ["SAR", "USD", "AED", "INR", "GBP", "EUR"], exchangeRates: defaultExchangeRates } };
       }
     },
     retry: false,
@@ -86,6 +102,11 @@ const PricingPage: React.FC = () => {
     INR: "₹",
     EUR: "€",
     GBP: "£",
+    KWD: "د.ك ",
+    BHD: "د.ب ",
+    OMR: "ر.ع ",
+    QAR: "ر.ق ",
+    EGP: "ج.م ",
   };
 
   const activeCurrencySymbol = selectedCurrency
@@ -123,9 +144,13 @@ const PricingPage: React.FC = () => {
 
   const calculatePrice = (plan: Plan) => {
     const basePrice = isAnnual
-      ? parseFloat(plan.yearlyPrice || plan.price || "0")
-      : parseFloat(plan.price || "0");
-    return basePrice;
+      ? parseFloat(plan.yearlyPrice || plan.annualPrice || plan.price || "0")
+      : parseFloat(plan.monthlyPrice || plan.price || "0");
+    if (isNaN(basePrice)) return 0;
+    const rates = currencyMapData?.data?.exchangeRates || defaultExchangeRates;
+    const rate = rates[selectedCurrency] || defaultExchangeRates[selectedCurrency] || 1.0;
+    const converted = basePrice * rate;
+    return converted >= 10 ? Math.round(converted) : parseFloat(converted.toFixed(2));
   };
 
   const faqs = isAr

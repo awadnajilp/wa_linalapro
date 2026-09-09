@@ -70,7 +70,7 @@ export function registerPaymentsRoutes(app: Express) {
 
   app.get("/api/payment-providers", requireAuth, requireRole("superadmin"), getAllProviders);
   app.get("/api/payment-providers/active", requireAuth, requireRole("superadmin"), getActiveProviders);
-  app.get("/api/payment-providers/currency-map", requireAuth, requireRole("superadmin"), getCurrencyGatewayMap);
+  app.get("/api/payment-providers/currency-map", getCurrencyGatewayMap);
   app.get("/api/payment-providers/:id", requireAuth, requireRole("superadmin"), getProviderById);
   app.get("/api/payment-providers/key/:key", requireAuth, requireRole("superadmin"), getProviderByKey);
   app.post("/api/payment-providers", requireAuth, requireRole("superadmin"), createProvider);

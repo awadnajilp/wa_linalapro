@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Sparkles,
 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface UseCaseItem {
   id: string;
@@ -23,108 +24,148 @@ interface UseCaseItem {
   highlights: string[];
 }
 
-const USE_CASES: UseCaseItem[] = [
-  {
-    id: "ecom",
-    icon: ShoppingCart,
-    title: "E-Commerce & D2C",
-    badge: "Retail Brands",
-    headline: "Automate Catalogs & 1-Click WhatsApp Checkout",
-    description:
-      "Allow buyers to browse catalogs, purchase via UPI/Card, and receive automated abandoned cart reminders.",
-    growthMetric: "+380%",
-    metricLabel: "WhatsApp Sales Growth",
-    highlights: [
-      "Native WhatsApp catalogs with 1-click checkout",
-      "Automated cart recovery drip sequences",
-      "Instant PDF order invoices & dispatch tracking",
-    ],
-  },
-  {
-    id: "realestate",
-    icon: Building2,
-    title: "Real Estate",
-    badge: "Developers & Brokers",
-    headline: "Qualify High-Ticket Buyers & Book Site Visits",
-    description:
-      "Capture Click-to-WhatsApp ad leads, qualify buyer budgets with AI, and dispatch brochures automatically.",
-    growthMetric: "82%",
-    metricLabel: "Faster Lead-to-Visit Rate",
-    highlights: [
-      "Instant Click-to-WhatsApp ad lead capture",
-      "Automated PDF brochures & video floor plans",
-      "AI qualification of buyer budget and location",
-    ],
-  },
-  {
-    id: "healthcare",
-    icon: Stethoscope,
-    title: "Healthcare & Clinics",
-    badge: "Clinics & Hospitals",
-    headline: "Automate Appointments & Prescription Alerts",
-    description:
-      "Enable patients to book doctor slots, receive PDF prescriptions, and reduce no-shows with automated reminders.",
-    growthMetric: "65%",
-    metricLabel: "Fewer Patient No-Shows",
-    highlights: [
-      "24/7 automated doctor slot booking",
-      "Instant WhatsApp confirmation with map directions",
-      "Pre-visit preparation & follow-up cadences",
-    ],
-  },
-  {
-    id: "services",
-    icon: Briefcase,
-    title: "B2B & Agencies",
-    badge: "Professional Services",
-    headline: "Accelerate Sales Pipeline with Shared CRM",
-    description:
-      "Route enterprise prospects to reps, manage deals on Kanban boards, and sync notes with Zapier & HubSpot.",
-    growthMetric: "4.2x",
-    metricLabel: "Faster Sales Response SLA",
-    highlights: [
-      "Multi-agent team routing with collision avoidance",
-      "Zapier & webhook sync with Salesforce & HubSpot",
-      "Internal staff notes & custom deal stages",
-    ],
-  },
-  {
-    id: "education",
-    icon: GraduationCap,
-    title: "Education & EdTech",
-    badge: "Institutes & Academies",
-    headline: "Automate Course Inquiries & Enrollment",
-    description:
-      "Qualify prospective student interests, share syllabus PDFs, and collect tuition fees on WhatsApp.",
-    growthMetric: "3.5x",
-    metricLabel: "Higher Admissions Rate",
-    highlights: [
-      "Instant course syllabus & fee structure delivery",
-      "Automated counseling slot scheduling",
-      "Direct fee payment links via Razorpay & UPI",
-    ],
-  },
-];
-
 export const UseCases: React.FC = () => {
+  const { language } = useTranslation();
+  const isAr = language === "ar";
   const [activeId, setActiveId] = useState("ecom");
+
+  const USE_CASES: UseCaseItem[] = [
+    {
+      id: "ecom",
+      icon: ShoppingCart,
+      title: isAr ? "التجارة الإلكترونية والبراندات" : "E-Commerce & D2C",
+      badge: isAr ? "المتاجر والعلامات التجارية" : "Retail Brands",
+      headline: isAr ? "أتمتة الكتالوجات والشراء بضغطة واحدة" : "Automate Catalogs & 1-Click WhatsApp Checkout",
+      description: isAr
+        ? "تمكين العملاء من استعراض المنتجات، إتمام الشراء عبر مدى والبطاقات، واستلام تذكيرات مؤتمتة للسلات المتروكة."
+        : "Allow buyers to browse catalogs, purchase via UPI/Card, and receive automated abandoned cart reminders.",
+      growthMetric: "+380%",
+      metricLabel: isAr ? "نمو مبيعات واتساب" : "WhatsApp Sales Growth",
+      highlights: isAr
+        ? [
+            "كتالوجات أصلية داخل واتساب مع شراء فوري",
+            "سلاسل تذكير ذكية لاسترجاع السلات المتروكة",
+            "إصدار فوري لفواتير PDF وتتبع الشحنات آلياً",
+          ]
+        : [
+            "Native WhatsApp catalogs with 1-click checkout",
+            "Automated cart recovery drip sequences",
+            "Instant PDF order invoices & dispatch tracking",
+          ],
+    },
+    {
+      id: "realestate",
+      icon: Building2,
+      title: isAr ? "العقارات والتطوير العقاري" : "Real Estate",
+      badge: isAr ? "المطورون والوسطاء العقاريون" : "Developers & Brokers",
+      headline: isAr ? "تأهيل العملاء وحجز مواعيد المعاينة آلياً" : "Qualify High-Ticket Buyers & Book Site Visits",
+      description: isAr
+        ? "استقبال عملاء إعلانات واتساب، تأهيل ميزانيات الشراء بالذكاء الاصطناعي، وإرسال البروشورات ومخططات المشاريع فورياً."
+        : "Capture Click-to-WhatsApp ad leads, qualify buyer budgets with AI, and dispatch brochures automatically.",
+      growthMetric: "82%",
+      metricLabel: isAr ? "زيارة أسرع للمشاريع العقارية" : "Faster Lead-to-Visit Rate",
+      highlights: isAr
+        ? [
+            "استقبال فوري للعملاء من إعلانات Click-to-WhatsApp",
+            "إرسال فوري لكتيبات PDF ومخططات المشاريع بالفيديو",
+            "تأهيل ميزانية العميل والمدينة المفضلة بالذكاء الاصطناعي",
+          ]
+        : [
+            "Instant Click-to-WhatsApp ad lead capture",
+            "Automated PDF brochures & video floor plans",
+            "AI qualification of buyer budget and location",
+          ],
+    },
+    {
+      id: "healthcare",
+      icon: Stethoscope,
+      title: isAr ? "المراكز الطبية والعيادات" : "Healthcare & Clinics",
+      badge: isAr ? "المستشفيات والعيادات" : "Clinics & Hospitals",
+      headline: isAr ? "أتمتة حجز المواعيد وتنبيهات الوصفات" : "Automate Appointments & Prescription Alerts",
+      description: isAr
+        ? "حجز مواعيد الأطباء، إرسال تذكيرات المواعيد للحد من عدم الحضور، وإرسال التقارير الطبية بأمان."
+        : "Enable patients to book doctor slots, receive PDF prescriptions, and reduce no-shows with automated reminders.",
+      growthMetric: "65%",
+      metricLabel: isAr ? "انخفاض في تغيب المرضى" : "Fewer Patient No-Shows",
+      highlights: isAr
+        ? [
+            "حجز مواعيد العيادات على مدار 24/7 آلياً",
+            "تأكيد الموعد فوراً مع موقع العيادة على خرائط جوجل",
+            "سلاسل توجيه ومتابعة المريض قبل وبعد الكشف",
+          ]
+        : [
+            "24/7 automated doctor slot booking",
+            "Instant WhatsApp confirmation with map directions",
+            "Pre-visit preparation & follow-up cadences",
+          ],
+    },
+    {
+      id: "services",
+      icon: Briefcase,
+      title: isAr ? "الشركات والخدمات المهنية" : "B2B & Agencies",
+      badge: isAr ? "الخدمات والشركات" : "Professional Services",
+      headline: isAr ? "تسريع إغلاق الصفقات مع صندوق محادثات مشترك" : "Accelerate Sales Pipeline with Shared CRM",
+      description: isAr
+        ? "توزيع العملاء والشركات على مسؤولي المبيعات، إدارة مراحل الصفقات على كانبان، ومزامنة الملاحظات مع Zapier و CRM."
+        : "Route enterprise prospects to reps, manage deals on Kanban boards, and sync notes with Zapier & HubSpot.",
+      growthMetric: "4.2x",
+      metricLabel: isAr ? "استجابة أسرع لاتفاقيات المبيعات" : "Faster Sales Response SLA",
+      highlights: isAr
+        ? [
+            "توزيع المحادثات على الفريق بدون أي تضارب",
+            "ربط Zapier والويب هوك مع أنظمة CRM العالمية",
+            "ملاحظات داخلية خاصة ومراحل صفقات مخصصة",
+          ]
+        : [
+            "Multi-agent team routing with collision avoidance",
+            "Zapier & webhook sync with Salesforce & HubSpot",
+            "Internal staff notes & custom deal stages",
+          ],
+    },
+    {
+      id: "education",
+      icon: GraduationCap,
+      title: isAr ? "التعليم والمعاهد والتدريب" : "Education & EdTech",
+      badge: isAr ? "الأكاديميات والجامعات" : "Institutes & Academies",
+      headline: isAr ? "أتمتة استفسارات الدورات والتسجيل الفوري" : "Automate Course Inquiries & Enrollment",
+      description: isAr
+        ? "تأهيل اهتمامات الطلاب والدارسين، مشاركة مناهج الدورات التدريبية كملف PDF، واستقبال رسوم التسجيل عبر واتساب."
+        : "Qualify prospective student interests, share syllabus PDFs, and collect tuition fees on WhatsApp.",
+      growthMetric: "3.5x",
+      metricLabel: isAr ? "معدل قبول وتسجيل أعلى" : "Higher Admissions Rate",
+      highlights: isAr
+        ? [
+            "إرسال الخطة الدراسية وتفاصيل الرسوم فوراً",
+            "جدولة جلسات الاستشارة الأكاديمية آلياً",
+            "روابط دفع رسوم مباشرة عبر بوابة آمنة",
+          ]
+        : [
+            "Instant course syllabus & fee structure delivery",
+            "Automated counseling slot scheduling",
+            "Direct fee payment links via Razorpay & UPI",
+          ],
+    },
+  ];
+
   const activeCase = USE_CASES.find((u) => u.id === activeId) || USE_CASES[0];
 
   return (
-    <section id="solutions" className="py-20 lg:py-24 bg-white relative">
+    <section id="solutions" className={`py-20 lg:py-24 bg-white relative ${isAr ? "font-arabic" : ""}`} dir={isAr ? "rtl" : "ltr"}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-14">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-800 text-xs font-semibold uppercase tracking-wider mb-3">
             <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-            Industry Solutions
+            {isAr ? "حلول ونماذج القطاعات" : "Industry Solutions"}
           </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-            Tailored for High-Growth Industries
+            {isAr ? "حلول مخصصة للقطاعات سريعة النمو" : "Tailored for High-Growth Industries"}
           </h2>
           <p className="mt-2 text-sm sm:text-base text-slate-600">
-            See how Linala WhatsApp CRM powers revenue across diverse business verticals.
+            {isAr
+              ? "تعرّف كيف يساهم لينالا واتساب CRM في زيادة المبيعات عبر مختلف مجالات الأعمال."
+              : "See how Linala WhatsApp CRM powers revenue across diverse business verticals."}
           </p>
         </div>
 
@@ -182,8 +223,8 @@ export const UseCases: React.FC = () => {
                   href="/signup"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-md shadow-purple-600/20"
                 >
-                  <span>Get Started for {activeCase.title}</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <span>{isAr ? `ابدأ الآن مع ${activeCase.title}` : `Get Started for ${activeCase.title}`}</span>
+                  <ArrowRight className={`w-4 h-4 ${isAr ? "rotate-180" : ""}`} />
                 </Link>
               </div>
             </div>
@@ -197,7 +238,9 @@ export const UseCases: React.FC = () => {
                 {activeCase.metricLabel}
               </div>
               <p className="text-[11px] text-slate-500 mt-2">
-                Average benchmark achieved by active Linala clients within 30 days.
+                {isAr
+                  ? "متوسط النتائج المحققة لعملاء لينالا خلال أول 30 يوماً من الاستخدام."
+                  : "Average benchmark achieved by active Linala clients within 30 days."}
               </p>
             </div>
 

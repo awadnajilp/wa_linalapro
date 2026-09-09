@@ -9,23 +9,29 @@ import {
   Shield,
   Layers,
 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 export const BentoGrid: React.FC = () => {
+  const { language } = useTranslation();
+  const isAr = language === "ar";
+
   return (
-    <section className="py-20 bg-white relative overflow-hidden">
+    <section className={`py-20 bg-white relative overflow-hidden ${isAr ? "font-arabic" : ""}`} dir={isAr ? "rtl" : "ltr"}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-14">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-800 text-xs font-semibold uppercase tracking-wider mb-3">
             <Layers className="w-3.5 h-3.5 text-purple-600" />
-            Linala WhatsApp CRM Features
+            {isAr ? "مزايا وتكاملات منصة لينالا" : "Linala WhatsApp CRM Features"}
           </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-            Built for Modern Commerce & Scale
+            {isAr ? "مصممة لنمو تجارتك ومبيعاتك بكفاءة" : "Built for Modern Commerce & Scale"}
           </h2>
           <p className="mt-2.5 text-sm sm:text-base text-slate-600">
-            From Zapier webhooks to native mobile apps, manage your entire WhatsApp funnel in one place.
+            {isAr
+              ? "من تكاملات Zapier والويب هوك إلى تطبيقات الجوال الأصلية، أدر مسار مبيعات واتساب بالكامل في مكان واحد."
+              : "From Zapier webhooks to native mobile apps, manage your entire WhatsApp funnel in one place."}
           </p>
         </div>
 
@@ -38,23 +44,25 @@ export const BentoGrid: React.FC = () => {
 
             <div>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-purple-500/20 text-purple-300 text-xs font-semibold mb-4 border border-purple-500/30">
-                <Share2 className="w-3 h-3" /> 1,000+ Integrations
+                <Share2 className="w-3 h-3" /> {isAr ? "+1000 تكامل وربط مباشر" : "1,000+ Integrations"}
               </div>
               <h3 className="text-xl sm:text-2xl font-bold tracking-tight">
-                Zapier, Webhooks & REST API Connectors
+                {isAr ? "تكاملات Zapier، الويب هوك و REST API" : "Zapier, Webhooks & REST API Connectors"}
               </h3>
               <p className="mt-2 text-xs sm:text-sm text-slate-400 leading-relaxed max-w-md">
-                Sync Linala WhatsApp CRM with Shopify, WooCommerce, HubSpot, Salesforce, and Google Sheets instantly.
+                {isAr
+                  ? "اربط لينالا فورياً مع شوبيفاي، زد، سلة، ووكومرس، Orderown، هب سبوت، وجداول جوجل بكل سلاسة."
+                  : "Sync Linala WhatsApp CRM with Shopify, WooCommerce, HubSpot, Salesforce, and Google Sheets instantly."}
               </p>
             </div>
 
             <div className="mt-6 pt-5 border-t border-slate-800">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {[
-                  { name: "Zapier & Make", badge: "Live Sync" },
-                  { name: "Shopify / Woo", badge: "Auto Orders" },
-                  { name: "Google Sheets", badge: "2-Way Sync" },
-                  { name: "Custom API", badge: "REST & Hooks" },
+                  { name: isAr ? "Zapier و Make" : "Zapier & Make", badge: isAr ? "مزامنة حية" : "Live Sync" },
+                  { name: isAr ? "سلة / زد / شوبيفاي" : "Shopify / Woo", badge: isAr ? "طلبات تلقائية" : "Auto Orders" },
+                  { name: isAr ? "جداول جوجل" : "Google Sheets", badge: isAr ? "مزامنة ثنائية" : "2-Way Sync" },
+                  { name: isAr ? "Orderown & API" : "Custom API", badge: isAr ? "ويب هوك مباشر" : "REST & Hooks" },
                 ].map((item, idx) => (
                   <div key={idx} className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
                     <div className="text-xs font-bold text-white truncate">{item.name}</div>
@@ -69,13 +77,15 @@ export const BentoGrid: React.FC = () => {
           <div className="lg:col-span-5 bg-purple-50/60 rounded-3xl p-7 border border-purple-200/80 flex flex-col justify-between">
             <div>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-purple-600 text-white text-xs font-semibold mb-4">
-                <Smartphone className="w-3 h-3" /> Mobile Apps
+                <Smartphone className="w-3 h-3" /> {isAr ? "تطبيقات الجوال" : "Mobile Apps"}
               </div>
               <h3 className="text-xl font-bold text-slate-900 tracking-tight">
-                Native Android & iOS Apps
+                {isAr ? "تطبيقات أصلية لنظامي أندرويد و iOS" : "Native Android & iOS Apps"}
               </h3>
               <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
-                Reply to high-ticket leads and track live orders on the go with real-time push alerts.
+                {isAr
+                  ? "رد على العملاء وتابع الطلبات والمحادثات أينما كنت مع إشعارات فورية مباشرة."
+                  : "Reply to high-ticket leads and track live orders on the go with real-time push alerts."}
               </p>
             </div>
 
@@ -85,12 +95,12 @@ export const BentoGrid: React.FC = () => {
                   📱
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-slate-900">App Store & Play Store</div>
-                  <div className="text-[11px] text-purple-700 font-medium">Real-time Push Alerts</div>
+                  <div className="text-xs font-bold text-slate-900">{isAr ? "متجر آب ستور وجوجل بلاي" : "App Store & Play Store"}</div>
+                  <div className="text-[11px] text-purple-700 font-medium">{isAr ? "إشعارات دفع حية وفورية" : "Real-time Push Alerts"}</div>
                 </div>
               </div>
               <span className="text-[11px] font-semibold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
-                Live
+                {isAr ? "متاح الآن" : "Live"}
               </span>
             </div>
           </div>
@@ -102,15 +112,20 @@ export const BentoGrid: React.FC = () => {
                 <Tags className="w-4 h-4" />
               </div>
               <h3 className="text-lg font-bold text-slate-900">
-                Dynamic Tags & Segmentation
+                {isAr ? "الوسوم الذكية وتقسيم العملاء" : "Dynamic Tags & Segmentation"}
               </h3>
               <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
-                Auto-tag contacts based on behavior, purchase intent, and response triggers.
+                {isAr
+                  ? "تصنيف تلقائي للمحادثات والعملاء حسب السلوك، نية الشراء، والتفاعل."
+                  : "Auto-tag contacts based on behavior, purchase intent, and response triggers."}
               </p>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-1.5">
-              {["🏷️ VIP Buyer", "⚡ Hot Lead", "🛒 Cart Pending", "🔥 Re-order Due"].map((tag, i) => (
+              {(isAr
+                ? ["🏷️ عميل VIP", "⚡ عميل مهتم جداً", "🛒 سلة معلقة", "🔥 موعد إعادة شراء"]
+                : ["🏷️ VIP Buyer", "⚡ Hot Lead", "🛒 Cart Pending", "🔥 Re-order Due"]
+              ).map((tag, i) => (
                 <span key={i} className="text-[11px] font-semibold bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700">
                   {tag}
                 </span>
@@ -125,19 +140,21 @@ export const BentoGrid: React.FC = () => {
                 <Zap className="w-4 h-4" />
               </div>
               <h3 className="text-lg font-bold text-slate-900">
-                AI Lead Qualification
+                {isAr ? "تأهيل العملاء بالذكاء الاصطناعي" : "AI Lead Qualification"}
               </h3>
               <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
-                Score incoming buyer intent and route hot prospects to your closers instantly.
+                {isAr
+                  ? "تقييم نية الشراء آلياً وتوجيه الصفقات الجاهزة لمسؤولي الإغلاق فوراً."
+                  : "Score incoming buyer intent and route hot prospects to your closers instantly."}
               </p>
             </div>
 
             <div className="mt-5 p-3 rounded-xl bg-white border border-slate-200 text-xs text-slate-700">
               <div className="flex justify-between items-center mb-1">
-                <span className="font-semibold text-slate-900">Score: 96 / 100</span>
-                <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded">Hot Lead</span>
+                <span className="font-semibold text-slate-900">{isAr ? "التقييم: 96 / 100" : "Score: 96 / 100"}</span>
+                <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded">{isAr ? "فرصة ممتازة" : "Hot Lead"}</span>
               </div>
-              <span className="text-[11px] text-slate-500">Auto-routed to senior rep</span>
+              <span className="text-[11px] text-slate-500">{isAr ? "تم التوجيه تلقائياً لمسؤول المبيعات" : "Auto-routed to senior rep"}</span>
             </div>
           </div>
 
@@ -148,19 +165,21 @@ export const BentoGrid: React.FC = () => {
                 <Shield className="w-4 h-4" />
               </div>
               <h3 className="text-lg font-bold text-slate-900">
-                Official Meta Cloud API
+                {isAr ? "واجهة Meta السحابية الرسمية" : "Official Meta Cloud API"}
               </h3>
               <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
-                Enterprise security, green badge verification, and 99.9% message deliverability.
+                {isAr
+                  ? "أمان بمستوى المؤسسات، توثيق بالعلامة الخضراء، ومعدل تسليم رسائل يصل إلى 99.9%."
+                  : "Enterprise security, green badge verification, and 99.9% message deliverability."}
               </p>
             </div>
 
             <div className="mt-5 flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800">
               <span className="flex items-center gap-1.5 text-purple-700">
-                <CheckCircle className="w-3.5 h-3.5 text-purple-600" /> Meta Verified
+                <CheckCircle className="w-3.5 h-3.5 text-purple-600" /> {isAr ? "معتمد من Meta" : "Meta Verified"}
               </span>
               <span className="flex items-center gap-1.5 text-emerald-700">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> 99.9% Uptime
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> {isAr ? "استقرار 99.9%" : "99.9% Uptime"}
               </span>
             </div>
           </div>

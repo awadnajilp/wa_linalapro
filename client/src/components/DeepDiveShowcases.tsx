@@ -12,25 +12,30 @@ import {
   ArrowRight,
   TrendingUp,
 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 export const DeepDiveShowcases: React.FC = () => {
+  const { language } = useTranslation();
+  const isAr = language === "ar";
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   return (
-    <section className="py-20 lg:py-24 bg-slate-900 text-white relative overflow-hidden">
+    <section className={`py-20 lg:py-24 bg-slate-900 text-white relative overflow-hidden ${isAr ? "font-arabic" : ""}`} dir={isAr ? "rtl" : "ltr"}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Section Title */}
         <div className="text-center max-w-2xl mx-auto mb-16">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-semibold uppercase tracking-wider mb-3">
             <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-            Revenue Impact
+            {isAr ? "عائد استثماري فوري" : "Revenue Impact"}
           </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-            Turn WhatsApp into Your Top Sales Channel
+            {isAr ? "حوّل واتساب إلى أقوى قنوات مبيعاتك" : "Turn WhatsApp into Your Top Sales Channel"}
           </h2>
           <p className="mt-2.5 text-sm sm:text-base text-slate-400">
-            Automate orders and support with Linala WhatsApp CRM.
+            {isAr
+              ? "أتمتة كاملة للطلبات وخدمة العملاء مع نظام لينالا لواتساب CRM."
+              : "Automate orders and support with Linala WhatsApp CRM."}
           </p>
         </div>
 
@@ -38,21 +43,30 @@ export const DeepDiveShowcases: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center mb-20">
           <div className="lg:col-span-6 space-y-4">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-purple-500/20 text-purple-400 text-xs font-semibold">
-              <ShoppingBag className="w-3.5 h-3.5" /> Instant Commerce
+              <ShoppingBag className="w-3.5 h-3.5" /> {isAr ? "تجارة فورية بضغطة واحدة" : "Instant Commerce"}
             </div>
             <h3 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              From First "Hi" to Paid Order in 60 Seconds
+              {isAr ? "من أول رسالة إلى طلب مدفوع في 60 ثانية" : "From First \"Hi\" to Paid Order in 60 Seconds"}
             </h3>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              Customers browse catalogs inside WhatsApp, select options, and pay instantly via UPI QR, Razorpay, Stripe, or Cash on Delivery.
+              {isAr
+                ? "يتصفح عملاؤك الكتالوج داخل واتساب مباشرة، يحددون المقاسات والخيارات، ويدفعون فورياً عبر مدى، Apple Pay، أو الدفع عند الاستلام."
+                : "Customers browse catalogs inside WhatsApp, select options, and pay instantly via UPI QR, Razorpay, Stripe, or Cash on Delivery."}
             </p>
 
             <div className="space-y-2 pt-1">
-              {[
-                "Interactive catalog cards with live stock & pricing",
-                "1-click checkout with automatic shipping address collection",
-                "Instant payment confirmation & automated tracking alerts",
-              ].map((point, idx) => (
+              {(isAr
+                ? [
+                    "بطاقات كتالوج تفاعلية مع عرض فوري للأسعار والمخزون",
+                    "دفع سريع بضغطة واحدة مع جمع تلقائي لعنوان الشحن",
+                    "تأكيد فوري للدفع وتحديثات مؤتمتة لتتبع الشحنة",
+                  ]
+                : [
+                    "Interactive catalog cards with live stock & pricing",
+                    "1-click checkout with automatic shipping address collection",
+                    "Instant payment confirmation & automated tracking alerts",
+                  ]
+              ).map((point, idx) => (
                 <div key={idx} className="flex items-center gap-2.5">
                   <div className="w-4 h-4 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center flex-shrink-0">
                     <CheckCircle2 className="w-3 h-3" />
@@ -67,8 +81,8 @@ export const DeepDiveShowcases: React.FC = () => {
                 href="/signup"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-md shadow-purple-600/20"
               >
-                <span>Launch WhatsApp Store</span>
-                <ArrowRight className="w-4 h-4" />
+                <span>{isAr ? "ابدأ متجر واتساب الآن" : "Launch WhatsApp Store"}</span>
+                <ArrowRight className={`w-4 h-4 ${isAr ? "rotate-180" : ""}`} />
               </Link>
             </div>
           </div>
@@ -77,8 +91,8 @@ export const DeepDiveShowcases: React.FC = () => {
           <div className="lg:col-span-6 bg-slate-950 p-6 rounded-3xl border border-slate-800 shadow-xl relative">
             <div className="space-y-3.5">
               <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 text-xs">
-                <span className="text-slate-400">Customer: Ananya S.</span>
-                <span className="text-purple-400 font-mono font-semibold">Cart: $49.00</span>
+                <span className="text-slate-400">{isAr ? "العميل: سارة العتيبي" : "Customer: Ananya S."}</span>
+                <span className="text-purple-400 font-mono font-semibold">{isAr ? "السلة: 185 ر.س" : "Cart: $49.00"}</span>
               </div>
 
               <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
@@ -87,20 +101,22 @@ export const DeepDiveShowcases: React.FC = () => {
                     🛍️
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-white">Silk Linen Outfit</div>
-                    <div className="text-[11px] text-slate-400">Size: M • Navy Blue</div>
+                    <div className="text-xs font-bold text-white">{isAr ? "طقم كتان فاخر" : "Silk Linen Outfit"}</div>
+                    <div className="text-[11px] text-slate-400">{isAr ? "المقاس: M • كحلي" : "Size: M • Navy Blue"}</div>
                   </div>
                 </div>
 
                 <div className="p-2 rounded-lg bg-purple-950/80 border border-purple-500/30 flex items-center justify-between text-xs">
-                  <span className="text-purple-200 font-medium">Payment Link (1-Click Checkout)</span>
-                  <span className="text-emerald-400 font-bold font-mono">Paid ✓</span>
+                  <span className="text-purple-200 font-medium">
+                    {isAr ? "رابط الدفع الفوري (مدى / Apple Pay)" : "Payment Link (1-Click Checkout)"}
+                  </span>
+                  <span className="text-emerald-400 font-bold font-mono">{isAr ? "تم الدفع ✓" : "Paid ✓"}</span>
                 </div>
               </div>
 
               <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-800/40 flex items-center justify-between text-xs text-emerald-300">
                 <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Order Dispatched
+                  <CheckCircle2 className="w-3.5 h-3.5" /> {isAr ? "تم تجهيز الشحنة وإرسالها" : "Order Dispatched"}
                 </span>
                 <span className="font-mono text-[11px]">Tracking #LN-9902</span>
               </div>
@@ -113,14 +129,14 @@ export const DeepDiveShowcases: React.FC = () => {
           <div className="lg:col-span-6 order-2 lg:order-1 bg-slate-950 p-6 rounded-3xl border border-slate-800 shadow-xl">
             <div className="space-y-3.5">
               <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 text-xs">
-                <span className="text-slate-400">Multilingual Voice Query</span>
+                <span className="text-slate-400">{isAr ? "استفسار صوتي من العميل" : "Multilingual Voice Query"}</span>
                 <span className="text-indigo-400 font-mono text-[11px]">Sub-500ms AI</span>
               </div>
 
               <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-indigo-300 flex items-center gap-1.5">
-                    <Volume2 className="w-3.5 h-3.5" /> AI Synthesized Voice Note
+                    <Volume2 className="w-3.5 h-3.5" /> {isAr ? "رسالة صوتية مولدة بالذكاء الاصطناعي" : "AI Synthesized Voice Note"}
                   </span>
                   <button
                     type="button"
@@ -145,29 +161,38 @@ export const DeepDiveShowcases: React.FC = () => {
               </div>
 
               <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                <span>Global Dialect Support:</span>
-                <span className="text-purple-300 font-semibold">40+ Languages Worldwide</span>
+                <span>{isAr ? "دعم اللهجات الإقليمية:" : "Global Dialect Support:"}</span>
+                <span className="text-purple-300 font-semibold">{isAr ? "اللهجة السعودية وأكثر من 40 لغة" : "40+ Languages Worldwide"}</span>
               </div>
             </div>
           </div>
 
           <div className="lg:col-span-6 order-1 lg:order-2 space-y-4">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-400 text-xs font-semibold">
-              <Bot className="w-3.5 h-3.5" /> Voice Intelligence
+              <Bot className="w-3.5 h-3.5" /> {isAr ? "ذكاء صوتي فائق" : "Voice Intelligence"}
             </div>
             <h3 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Human-Like Multilingual Voice AI
+              {isAr ? "ذكاء اصطناعي صوتي يحاكي الصوت البشري بدقة" : "Human-Like Multilingual Voice AI"}
             </h3>
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              Understand incoming audio across 40+ global languages and reply with natural voice notes that build instant customer trust.
+              {isAr
+                ? "استمع لرسائل العملاء الصوتية بمختلف اللهجات واللغات وأرسل ردوداً صوتية طبيعية وموثوقة تزيد من ثقة العميل ومعدل إتمام الشراء."
+                : "Understand incoming audio across 40+ global languages and reply with natural voice notes that build instant customer trust."}
             </p>
 
             <div className="space-y-2 pt-1">
-              {[
-                "Instant speech-to-text with 99.4% multilingual dialect accuracy",
-                "Natural voice synthesis with zero robotic latency",
-                "Automatic CRM logging and order attribution",
-              ].map((point, idx) => (
+              {(isAr
+                ? [
+                    "تحويل فوري للصوت إلى نص بدقة 99.4% للهجات واللغات المتعددة",
+                    "توليد صوتي واقعي وطبيعي بزمن استجابة لا يتجاوز أجزاء من الثانية",
+                    "تسجيل المحادثة وتفاصيل الطلب في نظام الـ CRM آلياً",
+                  ]
+                : [
+                    "Instant speech-to-text with 99.4% multilingual dialect accuracy",
+                    "Natural voice synthesis with zero robotic latency",
+                    "Automatic CRM logging and order attribution",
+                  ]
+              ).map((point, idx) => (
                 <div key={idx} className="flex items-center gap-2.5">
                   <div className="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center flex-shrink-0">
                     <CheckCircle2 className="w-3 h-3" />
@@ -182,8 +207,8 @@ export const DeepDiveShowcases: React.FC = () => {
                 href="/signup"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs sm:text-sm transition-all shadow-md shadow-purple-600/20"
               >
-                <span>Experience Voice AI</span>
-                <ArrowRight className="w-4 h-4" />
+                <span>{isAr ? "جرّب المساعد الصوتي الآن" : "Experience Voice AI"}</span>
+                <ArrowRight className={`w-4 h-4 ${isAr ? "rotate-180" : ""}`} />
               </Link>
             </div>
           </div>

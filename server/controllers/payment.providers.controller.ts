@@ -19,7 +19,7 @@ import { Request, Response } from 'express';
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { db } from '../db';
 import { eq } from 'drizzle-orm';
-import { paymentProviders } from '@shared/schema';
+import { paymentProviders, panelConfig } from '@shared/schema';
 
 export const getCurrencyGatewayMap = async (req: Request, res: Response) => {
   try {
@@ -46,13 +46,32 @@ export const getCurrencyGatewayMap = async (req: Request, res: Response) => {
       }
     }
 
-    const availableCurrencies = Object.keys(currencyMap).sort();
+    const pConfigs = await db.select().from(panelConfig).limit(1);
+    const settings = (pConfigs[0]?.walletSettings as any) || {};
+    const exchangeRates: Record<string, number> = settings.exchangeRates || {
+      USD: 1.0,
+      SAR: 3.75,
+      AED: 3.67,
+      INR: 95.70,
+      GBP: 0.78,
+      EUR: 0.92,
+      KWD: 0.31,
+      BHD: 0.38,
+      OMR: 0.38,
+      QAR: 3.64,
+      EGP: 48.0,
+    };
+
+    const availableCurrencies = Object.keys(currencyMap).length > 0
+      ? Object.keys(currencyMap).sort()
+      : ["SAR", "USD", "AED", "INR", "GBP", "EUR"];
 
     res.status(200).json({
       success: true,
       data: {
         currencyMap,
         availableCurrencies,
+        exchangeRates,
         providers: providers.map(p => ({
           id: p.id,
           name: p.name,

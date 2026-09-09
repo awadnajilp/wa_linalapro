@@ -1,49 +1,63 @@
 import React from "react";
 import { TrendingUp, Zap, Clock, ShieldCheck, ArrowUpRight } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 export const MetricsSection: React.FC = () => {
+  const { language } = useTranslation();
+  const isAr = language === "ar";
+
   const metrics = [
     {
       stat: "98.4%",
-      label: "Average Open Rate",
-      sublabel: "4x higher engagement than traditional email marketing.",
-      trend: "+76% lift",
+      label: isAr ? "متوسط معدل فتح الرسائل" : "Average Open Rate",
+      sublabel: isAr
+        ? "تفاعل يفوق التسويق عبر البريد الإلكتروني التقليدي بأكثر من 4 أضعاف."
+        : "4x higher engagement than traditional email marketing.",
+      trend: isAr ? "+76% زيادة تفاعل" : "+76% lift",
       icon: TrendingUp,
     },
     {
       stat: "3.8x",
-      label: "Higher Conversions",
-      sublabel: "Driven by 1-click WhatsApp checkout & Buy Now buttons.",
-      trend: "380% ROI",
+      label: isAr ? "مضاعفة معدل التحويل" : "Higher Conversions",
+      sublabel: isAr
+        ? "مدعومة بتجربة الدفع والشراء بضغطة واحدة داخل واتساب مباشرة."
+        : "Driven by 1-click WhatsApp checkout & Buy Now buttons.",
+      trend: isAr ? "380% عائد استثماري" : "380% ROI",
       icon: Zap,
     },
     {
       stat: "0.4s",
-      label: "AI Response Speed",
-      sublabel: "Instant voice & text replies in regional languages.",
-      trend: "Autopilot",
+      label: isAr ? "سرعة استجابة الذكاء الاصطناعي" : "AI Response Speed",
+      sublabel: isAr
+        ? "ردود صوتية ونصية فائقة السرعة باللهجات المحلية واللغات العالمية."
+        : "Instant voice & text replies in regional languages.",
+      trend: isAr ? "طيار آلي 24/7" : "Autopilot",
       icon: Clock,
     },
     {
       stat: "42%",
-      label: "Cart Recovery",
-      sublabel: "Automated cadence follow-ups for abandoned carts.",
-      trend: "+42% orders",
+      label: isAr ? "استرداد السلات المتروكة" : "Cart Recovery",
+      sublabel: isAr
+        ? "متابعات تسلسلية ذكية ومؤتمتة لعملاء السلات المعلقة والمتروكة."
+        : "Automated cadence follow-ups for abandoned carts.",
+      trend: isAr ? "+42% طلبات مكتملة" : "+42% orders",
       icon: ShieldCheck,
     },
   ];
 
   return (
-    <section className="py-16 lg:py-20 bg-slate-50/70 relative">
+    <section className={`py-16 lg:py-20 bg-slate-50/70 relative ${isAr ? "font-arabic" : ""}`} dir={isAr ? "rtl" : "ltr"}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-12">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight">
-            Proven Results with Linala WhatsApp CRM
+            {isAr ? "نتائج وأرقام مثبتة مع لينالا واتساب CRM" : "Proven Results with Linala WhatsApp CRM"}
           </h2>
           <p className="mt-2 text-sm sm:text-base text-slate-600">
-            Real performance benchmarks from 500+ high-growth brands.
+            {isAr
+              ? "مؤشرات أداء حقيقية وموثقة من أكثر من 500+ علامة تجارية سريعة النمو."
+              : "Real performance benchmarks from 500+ high-growth brands."}
           </p>
         </div>
 
@@ -59,7 +73,7 @@ export const MetricsSection: React.FC = () => {
                   <item.icon className="w-4 h-4" />
                 </div>
                 <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
-                  {item.trend} <ArrowUpRight className="w-3 h-3" />
+                  {item.trend} <ArrowUpRight className={`w-3 h-3 ${isAr ? "rotate-90" : ""}`} />
                 </span>
               </div>
 

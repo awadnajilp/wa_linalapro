@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Wallet, Coins, Plus, Trash, FileSpreadsheet, Settings, UserCheck, Calendar, Filter, Sparkles, Volume2, Paperclip } from "lucide-react";
+import { Wallet, Coins, Plus, Trash, FileSpreadsheet, Settings, UserCheck, Calendar, Filter, Sparkles, Volume2, Paperclip, ExternalLink, Eye } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -67,6 +67,7 @@ export default function ExpenseLedger() {
   const [isExpenseOpen, setIsExpenseOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [selectedReceipt, setSelectedReceipt] = useState<Expense | null>(null);
   const [showGuide, setShowGuide] = useState(() => {
     return localStorage.getItem("linala_dismiss_expense_guide") !== "true";
   });
@@ -877,24 +878,25 @@ export default function ExpenseLedger() {
                     {e.mediaUrl ? (
                       <div className="flex items-center gap-2">
                         {e.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) || e.mediaUrl.includes("image") || e.mediaUrl.includes("baileys_media_") || e.mediaUrl.startsWith("http") ? (
-                          <a
-                            href={e.mediaUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="relative block w-8 h-8 rounded border border-gray-200 overflow-hidden hover:opacity-85 transition-opacity"
-                            title="View Receipt"
+                          <button
+                            type="button"
+                            onClick={() => setSelectedReceipt(e)}
+                            className="relative group block w-9 h-9 rounded-lg border border-gray-200 overflow-hidden hover:ring-2 hover:ring-indigo-500 hover:border-transparent transition-all shadow-xs cursor-pointer bg-gray-50 flex-shrink-0"
+                            title="Click to preview receipt"
                           >
-                            <img src={e.mediaUrl} alt="Receipt" className="w-full h-full object-cover" />
-                          </a>
+                            <img src={e.mediaUrl} alt="Receipt" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                            <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <Eye className="w-3.5 h-3.5 text-white drop-shadow" />
+                            </div>
+                          </button>
                         ) : (
-                          <a
-                            href={e.mediaUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-900 font-medium hover:underline"
+                          <button
+                            type="button"
+                            onClick={() => setSelectedReceipt(e)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors border border-indigo-200/60 shadow-2xs cursor-pointer"
                           >
-                            <Paperclip className="w-3.5 h-3.5" /> View File
-                          </a>
+                            <Paperclip className="w-3.5 h-3.5" /> View Receipt
+                          </button>
                         )}
                       </div>
                     ) : (
@@ -945,17 +947,113 @@ export default function ExpenseLedger() {
         )}
       </div>
 
-      {/* Bot Instructions Tip Box */}
-      <Card className="bg-indigo-50/50 border border-indigo-100 p-4 flex gap-4 items-start shadow-xs">
-        <Sparkles className="w-6 h-6 text-indigo-600 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <h4 className="text-sm font-bold text-indigo-900 flex items-center gap-1"><Volume2 className="w-4 h-4" /> AI Voice-to-Expense Enablement</h4>
-          <p className="text-xs text-indigo-700 leading-relaxed">
-            Your Expense Bot supports hands-free voice message logging. Simply press record on WhatsApp, and speak naturally. For example: 
-            _“Just spent 45 dollars on lunch from credit card”_ or _“paid 120 dollars for internet bill from bank”_. The AI automatically detects your message, transcribes it, extracts the amount, matches the payment account, and saves it instantly!
-          </p>
-        </div>
-      </Card>
+      {/* Receipt Preview Popup Modal */}
+      <Dialog open={!!selectedReceipt} onOpenChange={(open) => !open && setSelectedReceipt(null)}>
+        <DialogContent className="max-w-2xl w-full p-0 overflow-hidden bg-white border border-gray-100 shadow-2xl rounded-2xl">
+          <DialogHeader className="p-5 pb-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+            <div className="flex items-center justify-between pr-6">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                  <Paperclip className="w-4 h-4" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-gray-900">
+                    Receipt Attachment
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-gray-500">
+                    Uploaded voucher and transaction details
+                  </DialogDescription>
+                </div>
+              </div>
+              {selectedReceipt && (
+                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                  selectedReceipt.type === "deposit"
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-red-50 text-red-700 border border-red-200"
+                }`}>
+                  {selectedReceipt.type === "deposit" ? "+" : "-"} {selectedReceipt.amount}
+                </span>
+              )}
+            </div>
+          </DialogHeader>
+
+          {selectedReceipt && (
+            <div className="p-5 space-y-4">
+              {/* Media Preview Container */}
+              <div className="relative rounded-xl overflow-hidden bg-slate-900/5 border border-gray-200/80 flex items-center justify-center min-h-[220px] max-h-[55vh]">
+                {selectedReceipt.mediaUrl && (selectedReceipt.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) || selectedReceipt.mediaUrl.includes("image") || selectedReceipt.mediaUrl.includes("baileys_media_") || selectedReceipt.mediaUrl.startsWith("http")) ? (
+                  <img
+                    src={selectedReceipt.mediaUrl}
+                    alt="Receipt Attachment"
+                    className="max-h-[55vh] w-auto max-w-full object-contain mx-auto rounded-lg"
+                  />
+                ) : selectedReceipt.mediaUrl && selectedReceipt.mediaUrl.match(/\.pdf/i) ? (
+                  <iframe
+                    src={selectedReceipt.mediaUrl}
+                    className="w-full h-[50vh] border-0"
+                    title="PDF Receipt"
+                  />
+                ) : (
+                  <div className="text-center p-8 space-y-2">
+                    <FileSpreadsheet className="w-12 h-12 text-indigo-500 mx-auto opacity-70" />
+                    <p className="text-sm font-medium text-gray-700">Receipt Attachment File</p>
+                    <p className="text-xs text-gray-400">Click below to open or download the document</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Transaction Summary Card */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-gray-50/80 p-3.5 rounded-xl border border-gray-150 text-xs">
+                <div>
+                  <span className="text-gray-400 block text-[11px] mb-0.5">Category</span>
+                  <span className="font-semibold text-gray-800">{selectedReceipt.category}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block text-[11px] mb-0.5">Date</span>
+                  <span className="font-medium text-gray-700">{new Date(selectedReceipt.date).toLocaleDateString()}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block text-[11px] mb-0.5">Account</span>
+                  <span className="font-medium text-gray-700">
+                    {accounts?.find(a => a.id === selectedReceipt.paymentAccountId)?.name || "Cash"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block text-[11px] mb-0.5">Logged By</span>
+                  <span className="font-medium text-gray-700">{selectedReceipt.loggedByName || selectedReceipt.loggedByPhone || "Direct Entry"}</span>
+                </div>
+                {selectedReceipt.description && (
+                  <div className="col-span-2 sm:col-span-4 pt-2 border-t border-gray-200/60">
+                    <span className="text-gray-400 block text-[11px] mb-0.5">Description / Notes</span>
+                    <p className="text-gray-700 italic">{selectedReceipt.description}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="p-4 bg-gray-50/60 border-t border-gray-100 flex items-center justify-between sm:justify-between">
+            {selectedReceipt?.mediaUrl ? (
+              <a
+                href={selectedReceipt.mediaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/70 transition-colors shadow-2xs"
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> Open in New Tab
+              </a>
+            ) : <div />}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedReceipt(null)}
+              className="rounded-xl px-4 text-xs font-medium"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

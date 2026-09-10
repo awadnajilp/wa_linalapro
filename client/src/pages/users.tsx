@@ -593,12 +593,24 @@ const handleExportCSV = async () => {
                           )}
                         </div>
                         <div>
-                          <Link
-                            href={`/users/${u.id}`}
-                            className="text-sm font-medium hover:text-green-600"
-                          >
-                            {isDemoUser(user?.username) ? maskName(u.username) : u.username}
-                          </Link>
+                          <div className="flex items-center gap-1.5">
+                            <Link
+                              href={`/users/${u.id}`}
+                              className="text-sm font-medium hover:text-green-600"
+                            >
+                              {isDemoUser(user?.username) ? maskName(u.username) : u.username}
+                            </Link>
+                            {u.role === "superadmin" && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">
+                                SUPERADMIN
+                              </span>
+                            )}
+                            {u.role === "manager" && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                                MANAGER
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-500">{isDemoUser(user?.username) ? maskEmail(u.email) : u.email}</p>
                         </div>
                       </div>

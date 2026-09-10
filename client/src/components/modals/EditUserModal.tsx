@@ -31,13 +31,13 @@ import { apiRequest } from "@/lib/queryClient";
 interface EditUserModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  user: { id: string; username: string; email: string; isEmailVerified?: boolean } | null;
+  user: { id: string; username: string; email: string; role?: string; isEmailVerified?: boolean } | null;
   onSuccess: () => void;
 }
 
 export default function EditUserModal({ open, onOpenChange, user, onSuccess }: EditUserModalProps) {
   const { toast } = useToast();
-  const [form, setForm] = useState({ username: "", email: "", password: "", sendEmail: false, isEmailVerified: false });
+  const [form, setForm] = useState({ username: "", email: "", role: "admin", password: "", sendEmail: false, isEmailVerified: false });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -45,6 +45,7 @@ export default function EditUserModal({ open, onOpenChange, user, onSuccess }: E
       setForm({
         username: user.username || "",
         email: user.email || "",
+        role: user.role || "admin",
         password: "",
         sendEmail: false,
         isEmailVerified: user.isEmailVerified ?? false,
@@ -62,6 +63,7 @@ export default function EditUserModal({ open, onOpenChange, user, onSuccess }: E
       const payload: any = {
         username: form.username,
         email: form.email,
+        role: form.role,
         isEmailVerified: form.isEmailVerified,
       };
       if (form.password) {
@@ -91,6 +93,18 @@ export default function EditUserModal({ open, onOpenChange, user, onSuccess }: E
           <DialogTitle>Edit User</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 mt-4">
+          <div>
+            <Label className="font-semibold text-gray-800">Role & Access Level</Label>
+            <select
+              value={form.role}
+              onChange={(e) => setForm(prev => ({ ...prev, role: e.target.value }))}
+              className="w-full mt-1.5 px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
+            >
+              <option value="admin">Tenant / Customer (Standard User)</option>
+              <option value="manager">Manager (Sub-Admin — Wallets, Subscriptions, Users, Tickets)</option>
+              <option value="superadmin">Superadmin (Full System Access)</option>
+            </select>
+          </div>
           <div>
             <Label>Username</Label>
             <Input value={form.username} onChange={(e) => setForm(prev => ({ ...prev, username: e.target.value }))} placeholder="Username" />

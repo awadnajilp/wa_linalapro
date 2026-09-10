@@ -48,6 +48,7 @@ export default function AddUserModal({
     email: "",
     firstName: "",
     lastName: "",
+    role: "admin",
   });
 
   const [loading, setLoading] = useState(false);
@@ -88,7 +89,7 @@ export default function AddUserModal({
 
     toast({
       title: "Success",
-      description: "User created successfully!",
+      description: `User created successfully with role ${form.role}!`,
     });
 
     onSuccess();
@@ -100,6 +101,7 @@ export default function AddUserModal({
       email: "",
       firstName: "",
       lastName: "",
+      role: "admin",
     });
 
   } catch (error: any) {
@@ -122,7 +124,7 @@ let msg = "Something went wrong";
 
   toast({
     title: "Error",
-    description: msg, // <-- only "Username already exists."
+    description: msg,
     variant: "destructive",
   });
 
@@ -140,6 +142,20 @@ let msg = "Something went wrong";
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
+          {/* Role selection */}
+          <div>
+            <Label className="font-semibold text-gray-800">Role & Access Level *</Label>
+            <select
+              value={form.role}
+              onChange={(e) => updateField("role", e.target.value)}
+              className="w-full mt-1.5 px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
+            >
+              <option value="admin">Tenant / Customer (Standard User)</option>
+              <option value="manager">Manager (Sub-Admin — Wallets, Subscriptions, Users, Tickets)</option>
+              <option value="superadmin">Superadmin (Full System Access)</option>
+            </select>
+          </div>
+
           {/* Username */}
           <div>
             <Label>Username *</Label>

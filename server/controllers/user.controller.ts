@@ -585,8 +585,9 @@ export const updateUser = async (req: Request, res: Response) => {
     // Verify requesting user is allowed to edit this profile
     const isSelf = requestor.id === id;
     const isSuperadmin = requestor.role === "superadmin";
+    const isManager = requestor.role === "manager";
 
-    if (!isSelf && !isSuperadmin) {
+    if (!isSelf && !isSuperadmin && !isManager) {
       return res.status(403).json({ success: false, message: "Not authorized to update this user" });
     }
 
@@ -602,9 +603,11 @@ export const updateUser = async (req: Request, res: Response) => {
     if (username !== undefined) updates.username = username;
     if (email !== undefined) updates.email = email;
 
-    // Privileged fields only superadmin can modify
+    // Privileged fields
     if (isSuperadmin) {
       if (otherUpdates.role !== undefined) updates.role = otherUpdates.role;
+    }
+    if (isSuperadmin || isManager) {
       if (otherUpdates.status !== undefined) updates.status = otherUpdates.status;
       if (otherUpdates.permissions !== undefined) updates.permissions = otherUpdates.permissions;
       if (otherUpdates.isAdminMember !== undefined) updates.isAdminMember = otherUpdates.isAdminMember;

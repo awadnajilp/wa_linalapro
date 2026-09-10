@@ -67,7 +67,8 @@ export default function Dashboard() {
     },
   });
 
-  const isAdmin = user?.role === "superadmin";
+  const isSuperadminOrManager = user?.role === "superadmin" || user?.role === "manager";
+  const isAdmin = isSuperadminOrManager;
 
   const { data: activityLogs = [], isLoading } = useQuery({
     queryKey: ["/api/team/activity-logs"],
@@ -112,7 +113,7 @@ export default function Dashboard() {
   queryFn: async () => {
     const params = new URLSearchParams({
       days: timeRange.toString(),
-      ...(user?.role !== "superadmin" && activeChannel?.id && {
+      ...(!isSuperadminOrManager && activeChannel?.id && {
         channelId: activeChannel.id,
       }),
     });
@@ -123,7 +124,7 @@ export default function Dashboard() {
   },
 
   enabled:
-    user.role === "superadmin"
+    isSuperadminOrManager
       ? true
       : !!activeChannel?.id,
 });
@@ -245,7 +246,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex-1 dots-bg min-h-screen">
-      {user?.role === "superadmin" ? (
+      {isSuperadminOrManager ? (
         <Header
           title={t("dashboard.title")}
           subtitle={t("dashboard.subtitle")}
@@ -266,7 +267,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div>
         <AdminStats />
 
-        {user?.role !== "superadmin" && stats && (
+        {!isSuperadminOrManager && stats && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card className="rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md transition-all duration-200 bg-white overflow-hidden">
@@ -433,7 +434,7 @@ export default function Dashboard() {
         {/* Charts and Recent Activity */}
         <div
           className={`grid grid-cols-1 gap-6 ${
-            user?.role === "superadmin" ? "lg:grid-cols-3" : "lg:grid-cols-1"
+            isSuperadminOrManager ? "lg:grid-cols-3" : "lg:grid-cols-1"
           }`}
         >
           {/* Message Analytics Chart */}
@@ -505,7 +506,7 @@ export default function Dashboard() {
           </Card>
 
           {/* Recent Activities */}
-          {user?.role === "superadmin" && (
+          {isSuperadminOrManager && (
             <Card className="hover-lift fade-in">
               <CardHeader>
                 <CardTitle className="flex items-center">
@@ -574,7 +575,7 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Actions and API Status */}
-        {user?.role !== "superadmin" && (
+        {!isSuperadminOrManager && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Quick Actions */}
           <Card className="hover-lift fade-in">

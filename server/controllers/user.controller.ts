@@ -18,7 +18,7 @@
 import { Request, Response } from "express";
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { db } from "../db";
-import {users, channels} from "@shared/schema";
+import { users, channels, transactions, userActivityLogs } from "@shared/schema";
 import { eq, or, like, sql, and, desc, gte, inArray, gt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
@@ -702,10 +702,25 @@ export const updateUserStatus = async (req: Request, res: Response) => {
 export const deleteUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const currentUser = (req.session as any)?.user || req.user;
+
+    if (currentUser?.id === id) {
+      return res.status(400).json({ success: false, message: "You cannot delete your own account." });
+    }
+
+    // Delete dependent records that might not have ON DELETE CASCADE
+    await db.delete(transactions).where(eq(transactions.userId, id)).catch((e) => {
+      console.warn("Could not delete transactions for user:", e);
+    });
+    await db.delete(userActivityLogs).where(eq(userActivityLogs.userId, id)).catch((e) => {
+      console.warn("Could not delete activity logs for user:", e);
+    });
+
     await db.delete(users).where(eq(users.id, id));
     res.status(200).json({ success: true, message: "User deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Error deleting user", error });
+  } catch (error: any) {
+    console.error("Error deleting user:", error);
+    res.status(500).json({ success: false, message: "Error deleting user: " + (error?.message || error), error });
   }
 };
 

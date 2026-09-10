@@ -810,7 +810,18 @@ export default function Sidebar() {
               ? sidebarItemsCategories
                   .filter((item) => {
                     if (isManager && !isSuper) {
-                      return !["/gateway", "/languages", "/plans", "/admin/managers"].includes(item.path);
+                      const managerAllowedPaths = [
+                        "/dashboard",
+                        "/users",
+                        "/channels-management",
+                        "/campaigns",
+                        "/templates",
+                        "/contacts-management",
+                        "/master-subscriptions",
+                        "/support-tickets",
+                        "/admin/wallets",
+                      ];
+                      return managerAllowedPaths.includes(item.path);
                     }
                     return true;
                   })

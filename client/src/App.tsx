@@ -306,7 +306,7 @@ function ProtectedRoutes() {
             />
           </Route>
           <Route path="/plans">
-            <PermissionRoute component={Plans} />
+            <PermissionRoute component={Plans} requiredRoles={["superadmin", "admin"]} />
           </Route>
           <Route path="/gateway">
             <PermissionRoute component={GatewaySettings} requiredRoles={["superadmin"]} />
@@ -390,7 +390,7 @@ function ProtectedRoutes() {
             <PermissionRoute component={Segmentation} />
           </Route>
           <Route path="/message-logs">
-            <PermissionRoute component={SuperadminMessageLogs} requiredRoles={["superadmin", "manager"]} />
+            <PermissionRoute component={SuperadminMessageLogs} requiredRoles={["superadmin"]} />
           </Route>
           <Route path="/health-monitor">
             <PermissionRoute component={HealthMonitor} />
@@ -399,7 +399,7 @@ function ProtectedRoutes() {
             <PermissionRoute component={Reports} />
           </Route>
           <Route path="/transactions-logs">
-            <PermissionRoute component={TransactionsPage} requiredRoles={["superadmin", "manager"]} />
+            <PermissionRoute component={TransactionsPage} requiredRoles={["superadmin"]} />
           </Route>
           <Route path="/contacts-management">
             <PermissionRoute component={ContactsManagements} requiredRoles={["superadmin", "manager"]} />
@@ -423,7 +423,7 @@ function ProtectedRoutes() {
             <PermissionRoute component={BillingSubscriptionPage} />
           </Route>
           <Route path="/notifications">
-            <PermissionRoute component={Notifications} />
+            <PermissionRoute component={Notifications} requiredRoles={["superadmin"]} />
           </Route>
           <Route path="/user-notifications">
             <PermissionRoute component={UserNotifications} />
@@ -459,7 +459,7 @@ function ProtectedRoutes() {
             <PermissionRoute component={WhatsAppFlows} requiredRoles={["admin"]} />
           </Route>
           <Route path="/admin/addons">
-            <PermissionRoute component={AdminAddons} requiredRoles={["superadmin", "manager"]} />
+            <PermissionRoute component={AdminAddons} requiredRoles={["superadmin"]} />
           </Route>
           <Route path="/admin/managers">
             <PermissionRoute component={AdminManagersPage} requiredRoles={["superadmin"]} />

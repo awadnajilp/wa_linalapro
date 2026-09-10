@@ -20,7 +20,7 @@ export async function runSubscriptionRenewalCron(): Promise<{
     const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
 
-    // Fetch active or recently expired subscriptions that expire within 7 days or expired within last 3 days
+    // Fetch active or recently expired subscriptions that expire within 7 days or expired within last 3 days (excluding already renewed users)
     const candidates = await db
       .select({
         subscription: subscriptions,
@@ -31,19 +31,33 @@ export async function runSubscriptionRenewalCron(): Promise<{
       .leftJoin(users, eq(subscriptions.userId, users.id))
       .leftJoin(plans, eq(subscriptions.planId, plans.id))
       .where(
-        or(
-          // Expiring within 7 days
-          and(
-            eq(subscriptions.status, "active"),
-            gte(subscriptions.endDate, now),
-            lte(subscriptions.endDate, sevenDaysFromNow)
+        and(
+          or(
+            // Expiring within 7 days
+            and(
+              eq(subscriptions.status, "active"),
+              gte(subscriptions.endDate, now),
+              lte(subscriptions.endDate, sevenDaysFromNow)
+            ),
+            // Recently expired (past 3 days) - ONLY if user has NOT renewed
+            and(
+              or(eq(subscriptions.status, "expired"), eq(subscriptions.status, "active")),
+              lt(subscriptions.endDate, now),
+              gte(subscriptions.endDate, threeDaysAgo),
+              sql`NOT EXISTS (
+                SELECT 1 FROM subscriptions s_act
+                WHERE s_act.user_id = ${subscriptions.userId}
+                AND s_act.status = 'active'
+                AND s_act.end_date >= ${now}
+              )`
+            )
           ),
-          // Recently expired (past 3 days)
-          and(
-            or(eq(subscriptions.status, "expired"), eq(subscriptions.status, "active")),
-            lt(subscriptions.endDate, now),
-            gte(subscriptions.endDate, threeDaysAgo)
-          )
+          // Ensure we only process the latest subscription record per user
+          sql`NOT EXISTS (
+            SELECT 1 FROM subscriptions s_new
+            WHERE s_new.user_id = ${subscriptions.userId}
+            AND s_new.created_at > ${subscriptions.createdAt}
+          )`
         )
       );
 

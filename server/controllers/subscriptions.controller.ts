@@ -76,13 +76,32 @@ export const getAllSubscriptions = async (req: Request, res: Response) => {
       );
     } else if (effectiveTab === "expired") {
       conditions.push(
-        or(
-          eq(subscriptions.status, "expired"),
-          lt(subscriptions.endDate, now)
-        )
+        sql`(${subscriptions.status} = 'expired' OR ${subscriptions.endDate} < ${now})
+          AND NOT EXISTS (
+            SELECT 1 FROM subscriptions s_act
+            WHERE s_act.user_id = ${subscriptions.userId}
+            AND s_act.status = 'active'
+            AND s_act.end_date >= ${now}
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM subscriptions s_new
+            WHERE s_new.user_id = ${subscriptions.userId}
+            AND (${subscriptions.status} = 'expired' OR ${subscriptions.endDate} < ${now})
+            AND s_new.created_at > ${subscriptions.createdAt}
+          )`
       );
     } else if (effectiveTab === "cancelled") {
-      conditions.push(eq(subscriptions.status, "cancelled"));
+      conditions.push(
+        and(
+          eq(subscriptions.status, "cancelled"),
+          sql`NOT EXISTS (
+            SELECT 1 FROM subscriptions s_act
+            WHERE s_act.user_id = ${subscriptions.userId}
+            AND s_act.status = 'active'
+            AND s_act.end_date >= ${now}
+          )`
+        )
+      );
     } else if (status && status !== "all") {
       conditions.push(eq(subscriptions.status, status));
     }
@@ -106,8 +125,30 @@ export const getAllSubscriptions = async (req: Request, res: Response) => {
         totalCount: sql<number>`COUNT(*)`,
         activeCount: sql<number>`COUNT(*) FILTER (WHERE ${subscriptions.status} = 'active' AND ${subscriptions.endDate} >= ${now})`,
         expiringSoonCount: sql<number>`COUNT(*) FILTER (WHERE ${subscriptions.status} = 'active' AND ${subscriptions.endDate} >= ${now} AND ${subscriptions.endDate} <= ${sevenDaysLater})`,
-        expiredCount: sql<number>`COUNT(*) FILTER (WHERE ${subscriptions.status} = 'expired' OR ${subscriptions.endDate} < ${now})`,
-        cancelledCount: sql<number>`COUNT(*) FILTER (WHERE ${subscriptions.status} = 'cancelled')`,
+        expiredCount: sql<number>`COUNT(*) FILTER (
+          WHERE (${subscriptions.status} = 'expired' OR ${subscriptions.endDate} < ${now})
+          AND NOT EXISTS (
+            SELECT 1 FROM subscriptions s_act
+            WHERE s_act.user_id = ${subscriptions.userId}
+            AND s_act.status = 'active'
+            AND s_act.end_date >= ${now}
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM subscriptions s_new
+            WHERE s_new.user_id = ${subscriptions.userId}
+            AND (${subscriptions.status} = 'expired' OR ${subscriptions.endDate} < ${now})
+            AND s_new.created_at > ${subscriptions.createdAt}
+          )
+        )`,
+        cancelledCount: sql<number>`COUNT(*) FILTER (
+          WHERE ${subscriptions.status} = 'cancelled'
+          AND NOT EXISTS (
+            SELECT 1 FROM subscriptions s_act
+            WHERE s_act.user_id = ${subscriptions.userId}
+            AND s_act.status = 'active'
+            AND s_act.end_date >= ${now}
+          )
+        )`,
       })
       .from(subscriptions);
 
@@ -195,6 +236,28 @@ export const sendRenewalReminder = async (req: Request, res: Response) => {
     const msDiff = endDate.getTime() - now.getTime();
     const daysLeft = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
     const isExpired = daysLeft <= 0 || subRecord.subscription.status === "expired";
+
+    // If subscription is expired, verify that the user has not already renewed
+    if (isExpired) {
+      const [activeRenewedSub] = await db
+        .select()
+        .from(subscriptions)
+        .where(
+          and(
+            eq(subscriptions.userId, subRecord.subscription.userId),
+            eq(subscriptions.status, "active"),
+            gte(subscriptions.endDate, now)
+          )
+        )
+        .limit(1);
+
+      if (activeRenewedSub) {
+        return res.status(400).json({
+          success: false,
+          message: "This customer has already renewed their account with an active subscription.",
+        });
+      }
+    }
 
     const planName = subRecord.plan?.name || (subRecord.subscription.planData as any)?.name || "Plan";
 

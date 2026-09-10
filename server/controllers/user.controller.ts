@@ -799,10 +799,15 @@ export const getAllManagers = async (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
     const search = (req.query.search as string) || "";
+    const requestedRole = req.query.role as string;
     const offset = (page - 1) * limit;
 
+    const roleCondition = requestedRole && (requestedRole === "manager" || requestedRole === "superadmin")
+      ? eq(users.role, requestedRole)
+      : or(eq(users.role, "manager"), eq(users.role, "superadmin"));
+
     const conditions: any[] = [
-      or(eq(users.role, "manager"), eq(users.role, "superadmin")),
+      roleCondition,
       search
         ? or(
             like(users.username, sql`${'%' + search + '%'}`),
@@ -840,9 +845,25 @@ export const getAllManagers = async (req: Request, res: Response) => {
     const totalCountResult = await countQuery;
     const total = Number(totalCountResult[0]?.total ?? 0);
 
+    // Global stats for staff
+    const [superadminRes, managerRes, activeRes] = await Promise.all([
+      db.select({ count: sql<number>`COUNT(*)` }).from(users).where(eq(users.role, "superadmin")),
+      db.select({ count: sql<number>`COUNT(*)` }).from(users).where(eq(users.role, "manager")),
+      db.select({ count: sql<number>`COUNT(*)` }).from(users).where(and(or(eq(users.role, "manager"), eq(users.role, "superadmin")), eq(users.status, "active"))),
+    ]);
+
+    const stats = {
+      total: Number(superadminRes[0]?.count ?? 0) + Number(managerRes[0]?.count ?? 0),
+      superadmins: Number(superadminRes[0]?.count ?? 0),
+      managers: Number(managerRes[0]?.count ?? 0),
+      active: Number(activeRes[0]?.count ?? 0),
+    };
+
     res.status(200).json({
       success: true,
       data: managers,
+      users: managers,
+      stats,
       pagination: {
         page,
         limit,

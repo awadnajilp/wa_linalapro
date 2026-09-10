@@ -106,7 +106,7 @@ export default function AdminManagersPage() {
     },
   });
 
-  const managers: ManagerUser[] = data?.users || [];
+  const managers: ManagerUser[] = data?.data || data?.users || [];
   const pagination = data?.pagination || { page: 1, limit: 10, total: 0, totalPages: 1 };
 
   // Mutations
@@ -224,10 +224,10 @@ export default function AdminManagersPage() {
   };
 
   // Stats calculation
-  const totalCount = pagination.total || 0;
-  const superadminCount = managers.filter((m) => m.role === "superadmin").length;
-  const managerCount = managers.filter((m) => m.role === "manager").length;
-  const activeCount = managers.filter((m) => m.status === "active").length;
+  const totalCount = data?.stats?.total ?? (pagination.total || 0);
+  const superadminCount = data?.stats?.superadmins ?? managers.filter((m) => m.role === "superadmin").length;
+  const managerCount = data?.stats?.managers ?? managers.filter((m) => m.role === "manager").length;
+  const activeCount = data?.stats?.active ?? managers.filter((m) => m.status === "active").length;
 
   return (
     <div className="min-h-screen bg-slate-50/50 p-4 sm:p-6 lg:p-8 space-y-6">

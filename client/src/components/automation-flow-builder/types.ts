@@ -106,6 +106,11 @@ export interface BuilderNodeData {
   locationAddress?: string;
   listButtonText?: string;
   listSections?: ListSection[];
+  useDynamicList?: boolean;
+  dynamicListVariable?: string;
+  dynamicSectionTitle?: string;
+  useDynamicButtons?: boolean;
+  dynamicButtonsVariable?: string;
   mediaType?: "image" | "video" | "audio" | "document";
   mediaUrl?: string;
   mediaId?: string;

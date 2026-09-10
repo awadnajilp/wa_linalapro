@@ -690,11 +690,19 @@ export function SendListMessageNode({ data }: { data: BuilderNodeData }) {
         ) : (
           <div className="text-gray-400 italic text-[11px]">No body text</div>
         )}
-        <div className="flex items-center gap-2">
-          <span className="inline-block bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded text-[10px] font-bold">
-            {data.listSections?.length || 0} sections
-          </span>
-          <span className="text-[10px] text-gray-400">{totalRows} items</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          {data.useDynamicList && data.dynamicListVariable ? (
+            <span className="inline-block bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">
+              Dynamic: {data.dynamicListVariable}
+            </span>
+          ) : (
+            <>
+              <span className="inline-block bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                {data.listSections?.length || 0} sections
+              </span>
+              <span className="text-[10px] text-gray-400">{totalRows} items</span>
+            </>
+          )}
         </div>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-sky-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />

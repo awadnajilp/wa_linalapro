@@ -560,19 +560,64 @@ export function ConfigPanel({
                 <>
                   <SectionHeader>Quick Reply Buttons</SectionHeader>
                   <div className="space-y-2">
-                    <div className="flex justify-end">
-                      <Button size="sm" variant="outline" onClick={addButton} className="h-7 text-[10px] font-semibold rounded-lg">
-                        <Plus className="w-3 h-3 mr-1" /> Add Button
-                      </Button>
+                    <div className="grid grid-cols-2 gap-1.5 bg-gray-100 p-1 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => onChange({ useDynamicButtons: false })}
+                        className={`text-xs py-1 px-2 rounded-md font-medium transition-colors ${
+                          !d.useDynamicButtons ? 'bg-white shadow-xs text-blue-700 font-semibold' : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Static Buttons
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onChange({ useDynamicButtons: true })}
+                        className={`text-xs py-1 px-2 rounded-md font-medium transition-colors ${
+                          d.useDynamicButtons ? 'bg-white shadow-xs text-blue-700 font-semibold' : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Dynamic (From Variable)
+                      </button>
                     </div>
-                    {d.buttons?.map((btn) => (
-                      <div key={btn.id} className="flex items-center gap-2">
-                        <Input value={btn.text} onChange={(e) => updateButton(btn.id, { text: e.target.value })} className="h-8 text-sm rounded-lg" />
-                        <Button size="sm" variant="ghost" onClick={() => removeButton(btn.id)} className="h-8 w-8 p-0 text-red-400 rounded-lg">
-                          <X className="w-3.5 h-3.5" />
-                        </Button>
+
+                    {d.useDynamicButtons ? (
+                      <div className="space-y-2.5 bg-blue-50/60 rounded-xl p-3 border border-blue-200">
+                        <div className="space-y-1">
+                          <Label className="text-xs font-semibold text-blue-900">Buttons Variable</Label>
+                          <Input
+                            value={d.dynamicButtonsVariable || ""}
+                            onChange={(e) => onChange({ dynamicButtonsVariable: e.target.value })}
+                            placeholder="e.g., webhook_response.options or choices"
+                            className="h-8 text-xs font-mono bg-white rounded-lg border-blue-300"
+                          />
+                        </div>
+                        <div className="bg-white rounded-lg p-2.5 border border-blue-200 text-[11px] text-gray-600 space-y-1">
+                          <div className="font-semibold text-blue-800">💡 Dynamic Buttons Format:</div>
+                          <p>Accepts an array of strings or objects (max 3 buttons):</p>
+                          <div className="bg-slate-900 text-emerald-300 rounded p-1.5 font-mono text-[10px]">
+                            {'["Accept", "Decline", "More Info"]'}
+                          </div>
+                        </div>
                       </div>
-                    ))}
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <div className="text-[10px] text-gray-500">Supports {'{{variables}}'} (max 20 chars)</div>
+                          <Button size="sm" variant="outline" onClick={addButton} className="h-7 text-[10px] font-semibold rounded-lg">
+                            <Plus className="w-3 h-3 mr-1" /> Add Button
+                          </Button>
+                        </div>
+                        {d.buttons?.map((btn) => (
+                          <div key={btn.id} className="flex items-center gap-2">
+                            <Input value={btn.text} onChange={(e) => updateButton(btn.id, { text: e.target.value })} placeholder="e.g. Order #{{order_id}}" className="h-8 text-sm rounded-lg" />
+                            <Button size="sm" variant="ghost" onClick={() => removeButton(btn.id)} className="h-8 w-8 p-0 text-red-400 rounded-lg">
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
                 </>
               )}
@@ -808,17 +853,31 @@ export function ConfigPanel({
                           <SelectTrigger className="h-8 text-xs bg-white rounded-lg"><SelectValue placeholder="Select source" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="fullName">Full Name</SelectItem>
+                            <SelectItem value="firstName">First Name</SelectItem>
+                            <SelectItem value="lastName">Last Name</SelectItem>
                             <SelectItem value="phone">Phone</SelectItem>
-                            <SelectItem value="custom">Custom Value</SelectItem>
+                            <SelectItem value="variable">Flow / Webhook Variable</SelectItem>
+                            <SelectItem value="custom">Custom Value / Expression</SelectItem>
                           </SelectContent>
                         </Select>
-                        {(d.variableMapping as any)?.[index]?.type === "custom" && (
-                          <Input
-                            className="h-8 text-xs rounded-lg"
-                            value={(d.variableMapping as any)?.[index]?.value || ""}
-                            onChange={(e) => onChange({ variableMapping: { ...(d.variableMapping as any || {}), [index]: { ...(d.variableMapping as any)?.[index], value: e.target.value } } })}
-                            placeholder={`Custom value for ${varText}`}
-                          />
+                        {((d.variableMapping as any)?.[index]?.type === "custom" || (d.variableMapping as any)?.[index]?.type === "variable") && (
+                          <div className="space-y-1">
+                            <Input
+                              className="h-8 text-xs font-mono rounded-lg"
+                              value={(d.variableMapping as any)?.[index]?.value || ""}
+                              onChange={(e) => onChange({ variableMapping: { ...(d.variableMapping as any || {}), [index]: { ...(d.variableMapping as any)?.[index], value: e.target.value } } })}
+                              placeholder={
+                                (d.variableMapping as any)?.[index]?.type === "variable"
+                                  ? "e.g., webhook_response.data.order_id or my_variable"
+                                  : `e.g. Total AED {{amount}} or custom text`
+                              }
+                            />
+                            <div className="text-[10px] text-gray-400">
+                              {(d.variableMapping as any)?.[index]?.type === "variable"
+                                ? "Resolves value from previous Webhook response or saved flow variable."
+                                : "Supports embedded {{variable_name}} tokens."}
+                            </div>
+                          </div>
                         )}
                         {sampleValue && <p className="text-[10px] text-gray-400">Sample: <span className="font-semibold">{sampleValue}</span></p>}
                       </div>
@@ -3093,9 +3152,10 @@ export function ConfigPanel({
                     rows={3}
                     value={d.message || ""}
                     onChange={(e) => onChange({ message: e.target.value })}
-                    placeholder="Message shown above the list button"
+                    placeholder="Message shown above the list button (e.g., Hello {{name}}, please select an option)"
                     className="text-sm resize-none rounded-lg bg-white"
                   />
+                  <div className="text-[10px] text-gray-400">Supports variables like {'{{contact_name}}'} or {'{{webhook_response.foo}}'}</div>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-gray-700">Button Text</Label>
@@ -3106,62 +3166,138 @@ export function ConfigPanel({
                     className="h-9 text-sm rounded-lg bg-white"
                     maxLength={20}
                   />
-                  <div className="text-[10px] text-gray-400">Max 20 characters</div>
+                  <div className="text-[10px] text-gray-400">Max 20 characters (clickable WhatsApp button that opens menu)</div>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <SectionHeader>Sections</SectionHeader>
-                  <Button size="sm" variant="outline" onClick={addListSection} className="h-7 text-[10px] font-semibold rounded-lg">
-                    <Plus className="w-3 h-3 mr-1" /> Add Section
-                  </Button>
+              {/* Data Source Mode Toggle */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-gray-700">List Items Source</Label>
+                <div className="grid grid-cols-2 gap-1.5 bg-gray-100 p-1 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => onChange({ useDynamicList: false })}
+                    className={`text-xs py-1.5 px-2 rounded-md font-medium transition-colors ${
+                      !d.useDynamicList ? 'bg-white shadow-xs text-sky-700 font-semibold' : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Static Sections
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChange({ useDynamicList: true })}
+                    className={`text-xs py-1.5 px-2 rounded-md font-medium transition-colors ${
+                      d.useDynamicList ? 'bg-white shadow-xs text-sky-700 font-semibold' : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Dynamic (Webhook/Vars)
+                  </button>
                 </div>
+              </div>
 
-                {(d.listSections || []).map((section, sIdx) => (
-                  <div key={sIdx} className="bg-gray-50 rounded-xl p-3 border border-gray-200 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={section.title}
-                        onChange={(e) => updateListSection(sIdx, e.target.value)}
-                        placeholder="Section title"
-                        className="h-7 text-xs rounded-lg flex-1"
-                      />
-                      <Button size="sm" variant="ghost" onClick={() => removeListSection(sIdx)} className="h-7 w-7 p-0 text-red-400 rounded-lg">
-                        <X className="w-3 h-3" />
-                      </Button>
+              {d.useDynamicList ? (
+                <div className="space-y-3 bg-sky-50/60 rounded-xl p-3.5 border border-sky-200">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-sky-900">Source Variable Name</Label>
+                    <Input
+                      value={d.dynamicListVariable || ""}
+                      onChange={(e) => onChange({ dynamicListVariable: e.target.value })}
+                      placeholder="e.g., webhook_response.products or items"
+                      className="h-8 text-xs font-mono bg-white rounded-lg border-sky-300"
+                    />
+                    <div className="text-[10px] text-sky-700">Points to an array in previous Webhook response or saved variable.</div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-sky-900">Section Header Title</Label>
+                    <Input
+                      value={d.dynamicSectionTitle || "Select Option"}
+                      onChange={(e) => onChange({ dynamicSectionTitle: e.target.value })}
+                      placeholder="Select Option"
+                      className="h-8 text-xs bg-white rounded-lg border-sky-300"
+                      maxLength={24}
+                    />
+                  </div>
+
+                  {/* Instruction Guide Card */}
+                  <div className="bg-white rounded-lg p-3 border border-sky-200 space-y-1.5 text-[11px] text-gray-600 leading-relaxed shadow-xs">
+                    <div className="font-semibold text-sky-800 flex items-center gap-1">
+                      <span>💡</span> How Dynamic List Population Works:
                     </div>
+                    <p>The variable should contain an array of objects or strings from your API/Webhook:</p>
+                    <div className="bg-slate-900 text-emerald-300 rounded p-2 font-mono text-[10px] overflow-x-auto space-y-1">
+                      <div>{"// Option 1: Detailed Objects"}</div>
+                      <div>[</div>
+                      <div>{'  {"id": "prod_1", "title": "Apple iPhone", "description": "128GB - AED 3,299"},'}</div>
+                      <div>{'  {"id": "prod_2", "title": "Samsung Galaxy", "description": "256GB - AED 2,899"}'}</div>
+                      <div>]</div>
+                      <div className="pt-1">{"// Option 2: Simple Strings"}</div>
+                      <div>{'["Customer Support", "Sales Inquiry", "Billing Help"]'}</div>
+                    </div>
+                    <p className="text-[10px] text-gray-500 italic">
+                      * WhatsApp limits list menus to max 10 rows. Extra items will be capped automatically.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-800 flex items-start gap-1.5">
+                    <span className="text-xs">💡</span>
+                    <span><strong>Variable Support:</strong> You can use <code>{'{{contact_name}}'}</code>, <code>{'{{webhook_response.price}}'}</code>, or any flow variable in titles and descriptions below.</span>
+                  </div>
 
-                    {section.rows.map((row, rIdx) => (
-                      <div key={row.id} className="pl-3 border-l-2 border-sky-200 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={row.title}
-                            onChange={(e) => updateListRow(sIdx, rIdx, { title: e.target.value })}
-                            placeholder="Item title"
-                            className="h-7 text-xs rounded-lg flex-1"
-                            maxLength={24}
-                          />
-                          <Button size="sm" variant="ghost" onClick={() => removeListRow(sIdx, rIdx)} className="h-7 w-7 p-0 text-red-400 rounded-lg">
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </div>
-                        <Input
-                          value={row.description || ""}
-                          onChange={(e) => updateListRow(sIdx, rIdx, { description: e.target.value })}
-                          placeholder="Description (optional)"
-                          className="h-6 text-[10px] rounded-lg"
-                          maxLength={72}
-                        />
-                      </div>
-                    ))}
-
-                    <Button size="sm" variant="ghost" onClick={() => addListRow(sIdx)} className="h-6 text-[10px] text-sky-600 hover:text-sky-700 hover:bg-sky-50 w-full rounded-lg">
-                      <Plus className="w-3 h-3 mr-1" /> Add Item
+                  <div className="flex items-center justify-between">
+                    <SectionHeader>Sections & Items</SectionHeader>
+                    <Button size="sm" variant="outline" onClick={addListSection} className="h-7 text-[10px] font-semibold rounded-lg">
+                      <Plus className="w-3 h-3 mr-1" /> Add Section
                     </Button>
                   </div>
-                ))}
-              </div>
+
+                  {(d.listSections || []).map((section, sIdx) => (
+                    <div key={sIdx} className="bg-gray-50 rounded-xl p-3 border border-gray-200 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={section.title}
+                          onChange={(e) => updateListSection(sIdx, e.target.value)}
+                          placeholder="Section title (e.g., Category {{cat_name}})"
+                          className="h-7 text-xs rounded-lg flex-1"
+                        />
+                        <Button size="sm" variant="ghost" onClick={() => removeListSection(sIdx)} className="h-7 w-7 p-0 text-red-400 rounded-lg">
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+
+                      {section.rows.map((row, rIdx) => (
+                        <div key={row.id} className="pl-3 border-l-2 border-sky-200 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={row.title}
+                              onChange={(e) => updateListRow(sIdx, rIdx, { title: e.target.value })}
+                              placeholder="Item title (e.g., {{product_title}})"
+                              className="h-7 text-xs rounded-lg flex-1"
+                              maxLength={24}
+                            />
+                            <Button size="sm" variant="ghost" onClick={() => removeListRow(sIdx, rIdx)} className="h-7 w-7 p-0 text-red-400 rounded-lg">
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          <Input
+                            value={row.description || ""}
+                            onChange={(e) => updateListRow(sIdx, rIdx, { description: e.target.value })}
+                            placeholder="Description (optional, supports {{var}})"
+                            className="h-6 text-[10px] rounded-lg"
+                            maxLength={72}
+                          />
+                        </div>
+                      ))}
+
+                      <Button size="sm" variant="ghost" onClick={() => addListRow(sIdx)} className="h-6 text-[10px] text-sky-600 hover:text-sky-700 hover:bg-sky-50 w-full rounded-lg">
+                        <Plus className="w-3 h-3 mr-1" /> Add Item
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
 

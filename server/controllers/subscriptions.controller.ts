@@ -1101,3 +1101,276 @@ export const checkExpiredSubscriptions = async (
     });
   }
 };
+
+export const sendManualRenewalReminder = async (req: Request, res: Response) => {
+  try {
+    const { subscriptionId } = req.body;
+    if (!subscriptionId) {
+      return res.status(400).json({ success: false, message: "subscriptionId is required" });
+    }
+
+    const subRows = await db
+      .select({
+        subscription: subscriptions,
+        user: users,
+        plan: plans,
+      })
+      .from(subscriptions)
+      .innerJoin(users, eq(subscriptions.userId, users.id))
+      .leftJoin(plans, eq(subscriptions.planId, plans.id))
+      .where(eq(subscriptions.id, subscriptionId))
+      .limit(1);
+
+    if (subRows.length === 0) {
+      return res.status(404).json({ success: false, message: "Subscription not found" });
+    }
+
+    const subRecord = subRows[0];
+    const now = new Date();
+    const endDate = subRecord.subscription.endDate ? new Date(subRecord.subscription.endDate) : now;
+    const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const isExpired = subRecord.subscription.status === "expired" || endDate < now;
+
+    if (isExpired) {
+      const [activeRenewedSub] = await db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(
+          and(
+            eq(subscriptions.userId, subRecord.subscription.userId),
+            eq(subscriptions.status, "active"),
+            gte(subscriptions.endDate, now)
+          )
+        )
+        .limit(1);
+
+      if (activeRenewedSub) {
+        return res.status(400).json({
+          success: false,
+          message: "This customer has already renewed their account with an active subscription.",
+        });
+      }
+    }
+
+    const { sendSingleRenewalReminder } = await import("../services/renewal-reminder.service");
+    const sendResult = await sendSingleRenewalReminder({
+      user: subRecord.user,
+      subscription: subRecord.subscription,
+      plan: subRecord.plan,
+      daysLeft: Math.max(0, daysLeft),
+      isExpired,
+      forceWhatsapp: true,
+      forceEmail: true,
+      forcePush: true,
+    });
+
+    const deliveredChannels: string[] = [];
+    if (sendResult.emailSent) deliveredChannels.push("Email");
+    if (sendResult.whatsappSent) deliveredChannels.push("WhatsApp");
+    if (sendResult.pushSent) deliveredChannels.push("Mobile Push");
+    if (sendResult.inAppSent) deliveredChannels.push("In-App");
+
+    res.status(200).json({
+      success: true,
+      message: deliveredChannels.length > 0
+        ? "Reminder sent via: " + deliveredChannels.join(", ")
+        : "Reminder processed with warnings: " + (sendResult.errors.join("; ") || "No delivery channels active"),
+      result: sendResult,
+    });
+  } catch (error) {
+    console.error("Error sending manual renewal reminder:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error while sending renewal reminder",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const getRenewalReminderSettingsController = async (req: Request, res: Response) => {
+  try {
+    const { getRenewalReminderSettings, getAvailableReminderChannels } = await import("../services/renewal-reminder.service");
+    const settings = await getRenewalReminderSettings();
+    const availableChannels = await getAvailableReminderChannels();
+    res.status(200).json({ success: true, settings, channels: availableChannels });
+  } catch (error) {
+    console.error("Error fetching renewal reminder settings:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch settings", error });
+  }
+};
+
+export const saveRenewalReminderSettingsController = async (req: Request, res: Response) => {
+  try {
+    const { saveRenewalReminderSettings } = await import("../services/renewal-reminder.service");
+    const updated = await saveRenewalReminderSettings(req.body);
+    res.status(200).json({ success: true, settings: updated });
+  } catch (error) {
+    console.error("Error saving renewal reminder settings:", error);
+    res.status(500).json({ success: false, message: "Failed to save settings", error });
+  }
+};
+
+export const sendRenewalReminder = async (req: Request, res: Response) => {
+  try {
+    const subscriptionId = req.params.id || req.body.subscriptionId;
+    if (!subscriptionId) {
+      return res.status(400).json({ success: false, message: "subscriptionId is required" });
+    }
+
+    const subRows = await db
+      .select({
+        subscription: subscriptions,
+        user: users,
+        plan: plans,
+      })
+      .from(subscriptions)
+      .innerJoin(users, eq(subscriptions.userId, users.id))
+      .leftJoin(plans, eq(subscriptions.planId, plans.id))
+      .where(eq(subscriptions.id, subscriptionId))
+      .limit(1);
+
+    if (subRows.length === 0) {
+      return res.status(404).json({ success: false, message: "Subscription not found" });
+    }
+
+    const subRecord = subRows[0];
+    const now = new Date();
+    const endDate = subRecord.subscription.endDate ? new Date(subRecord.subscription.endDate) : now;
+    const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const isExpired = subRecord.subscription.status === "expired" || endDate < now;
+
+    if (isExpired) {
+      const [activeRenewedSub] = await db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(
+          and(
+            eq(subscriptions.userId, subRecord.subscription.userId),
+            eq(subscriptions.status, "active"),
+            gte(subscriptions.endDate, now)
+          )
+        )
+        .limit(1);
+
+      if (activeRenewedSub) {
+        return res.status(400).json({
+          success: false,
+          message: "This customer has already renewed their account with an active subscription.",
+        });
+      }
+    }
+
+    const { sendSingleRenewalReminder } = await import("../services/renewal-reminder.service");
+    const sendResult = await sendSingleRenewalReminder({
+      user: subRecord.user,
+      subscription: subRecord.subscription,
+      plan: subRecord.plan,
+      daysLeft: Math.max(0, daysLeft),
+      isExpired,
+      forceWhatsapp: true,
+      forceEmail: true,
+      forcePush: true,
+    });
+
+    const deliveredChannels: string[] = [];
+    if (sendResult.emailSent) deliveredChannels.push("Email");
+    if (sendResult.whatsappSent) deliveredChannels.push("WhatsApp");
+    if (sendResult.pushSent) deliveredChannels.push("Mobile Push");
+    if (sendResult.inAppSent) deliveredChannels.push("In-App");
+
+    res.status(200).json({
+      success: true,
+      message: deliveredChannels.length > 0
+        ? "Reminder sent via: " + deliveredChannels.join(", ")
+        : "Reminder processed with warnings: " + (sendResult.errors.join("; ") || "No delivery channels active"),
+      result: sendResult,
+    });
+  } catch (error) {
+    console.error("Error sending renewal reminder:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error while sending renewal reminder",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+
+
+export const triggerAutoRenewalReminders = async (req: Request, res: Response) => {
+  try {
+    const { runSubscriptionRenewalCheck } = await import("../cron/subscription-renewal.cron");
+    const cronResult = await runSubscriptionRenewalCheck();
+    res.status(200).json({
+      success: true,
+      message: "Automated renewal reminder cycle triggered successfully",
+      result: cronResult,
+    });
+  } catch (error) {
+    console.error("Error triggering auto renewal reminders:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to trigger auto renewal reminders",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const sendTestRenewalReminderController = async (req: Request, res: Response) => {
+  try {
+    const { subscriptionId, daysLeft = 7 } = req.body;
+    if (!subscriptionId) {
+      return res.status(400).json({ success: false, message: "subscriptionId is required" });
+    }
+
+    const subRows = await db
+      .select({
+        subscription: subscriptions,
+        user: users,
+        plan: plans,
+      })
+      .from(subscriptions)
+      .innerJoin(users, eq(subscriptions.userId, users.id))
+      .leftJoin(plans, eq(subscriptions.planId, plans.id))
+      .where(eq(subscriptions.id, subscriptionId))
+      .limit(1);
+
+    if (subRows.length === 0) {
+      return res.status(404).json({ success: false, message: "Subscription not found" });
+    }
+
+    const subRecord = subRows[0];
+    const { sendSingleRenewalReminder } = await import("../services/renewal-reminder.service");
+    const sendResult = await sendSingleRenewalReminder({
+      user: subRecord.user,
+      subscription: subRecord.subscription,
+      plan: subRecord.plan,
+      daysLeft: Number(daysLeft),
+      isExpired: false,
+      forceWhatsapp: true,
+      forceEmail: true,
+      forcePush: true,
+    });
+
+    const deliveredChannels: string[] = [];
+    if (sendResult.emailSent) deliveredChannels.push("Email");
+    if (sendResult.whatsappSent) deliveredChannels.push("WhatsApp");
+    if (sendResult.pushSent) deliveredChannels.push("Mobile Push");
+    if (sendResult.inAppSent) deliveredChannels.push("In-App");
+
+    res.status(200).json({
+      success: true,
+      message: deliveredChannels.length > 0
+        ? "Test reminder delivered via: " + deliveredChannels.join(", ")
+        : "Test reminder processed with warnings: " + (sendResult.errors.join("; ") || "No delivery channels active"),
+      result: sendResult,
+    });
+  } catch (error) {
+    console.error("Error sending test renewal reminder:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error while sending test reminder",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};

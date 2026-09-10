@@ -1257,6 +1257,39 @@ private async executeCustomReply(node: any, context: ExecutionContext) {
                    nodeData.documentFile?.path || nodeData.documentFile?.cloudUrl;
   let buttons = nodeData.buttons || [];
 
+  // Support dynamic buttons from variable
+  const dynButtonsVar = (nodeData.dynamicButtonsVariable || "").replace(/^\{\{|\}\}$/g, "").trim();
+  if (nodeData.useDynamicButtons || dynButtonsVar) {
+    const rawDynButtons = this.resolveVariable(dynButtonsVar, context.variables);
+    let parsedButtons = rawDynButtons;
+    if (typeof parsedButtons === "string") {
+      try { parsedButtons = JSON.parse(parsedButtons); } catch {}
+    }
+    if (Array.isArray(parsedButtons) && parsedButtons.length > 0) {
+      buttons = parsedButtons.slice(0, 3).map((b: any, idx: number) => {
+        if (typeof b === "object" && b !== null) {
+          return {
+            id: this.replaceVariables(String(b.id || b.value || `btn_${idx + 1}`), context.variables).substring(0, 200),
+            text: this.replaceVariables(String(b.text || b.title || b.label || b.name || `Option ${idx + 1}`), context.variables).substring(0, 20),
+            action: b.action || "next",
+          };
+        }
+        return {
+          id: `btn_${idx + 1}`,
+          text: this.replaceVariables(String(b), context.variables).substring(0, 20),
+          action: "next",
+        };
+      });
+    }
+  } else {
+    // Resolve variables in static button texts and ids
+    buttons = buttons.map((btn: any) => ({
+      ...btn,
+      id: this.replaceVariables(btn.id || "", context.variables),
+      text: this.replaceVariables(btn.text || "", context.variables).substring(0, 20),
+    }));
+  }
+
   const channel = await storage.getChannel(effectiveChannelId);
   const isQr = channel?.connectionMethod === "qr_code";
   if (isQr) {
@@ -3166,11 +3199,19 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       case "phone":
         value = contact.phone || "";
         break;
-      case "custom":
-        value = mapping.value || "";
+      case "variable":
+      case "flow_variable": {
+        const varPath = (mapping.value || mapping.variableName || "").replace(/^\{\{|\}\}$/g, "").trim();
+        const resolved = this.resolveVariable(varPath, context.variables);
+        value = resolved !== undefined && resolved !== null
+          ? (typeof resolved === "object" ? JSON.stringify(resolved) : String(resolved))
+          : "";
         break;
+      }
+      case "custom":
       default:
-        value = "";
+        value = this.replaceVariables(mapping.value || "", context.variables);
+        break;
     }
 
     parameters.push(value);
@@ -3382,12 +3423,59 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
   }
 
   private async executeSendListMessage(node: any, context: ExecutionContext) {
-    const { message, listButtonText, listSections } = node.data || {};
+    const { message, listButtonText, listSections, useDynamicList, dynamicListVariable, dynamicSectionTitle } = node.data || {};
     if (!message) throw new Error('List message body text is required');
-    if (!listSections || listSections.length === 0) throw new Error('At least one section is required');
     if (!context.conversationId) throw new Error('No conversation ID in context');
 
-    console.log(`📋 Sending list message with ${listSections.length} sections`);
+    let effectiveSections: any[] = listSections || [];
+
+    // Support dynamic list items from variable (webhook response or saved variable)
+    const dynVarName = (dynamicListVariable || node.data?.dynamicItemsVariable || "").replace(/^\{\{|\}\}$/g, "").trim();
+    if (useDynamicList || dynVarName) {
+      const resolved = this.resolveVariable(dynVarName, context.variables);
+      let listData = resolved;
+      if (typeof listData === "string") {
+        try { listData = JSON.parse(listData); } catch {}
+      }
+
+      if (Array.isArray(listData) && listData.length > 0) {
+        if (listData[0] && Array.isArray(listData[0].rows)) {
+          // Nested sections structure: [{ title: "Section", rows: [{ id, title, description }] }]
+          effectiveSections = listData.map((sec: any) => ({
+            title: this.replaceVariables(String(sec.title || "Options"), context.variables).substring(0, 24),
+            rows: (sec.rows || []).slice(0, 10).map((r: any, idx: number) => ({
+              id: this.replaceVariables(String(r.id || r.value || `row_${idx + 1}`), context.variables).substring(0, 200),
+              title: this.replaceVariables(String(r.title || r.name || r.label || r), context.variables).substring(0, 24),
+              ...(r.description ? { description: this.replaceVariables(String(r.description), context.variables).substring(0, 72) } : {}),
+            })),
+          }));
+        } else {
+          // Flat list of items or strings
+          const rows = listData.slice(0, 10).map((r: any, idx: number) => {
+            if (typeof r === "object" && r !== null) {
+              return {
+                id: this.replaceVariables(String(r.id || r.value || `row_${idx + 1}`), context.variables).substring(0, 200),
+                title: this.replaceVariables(String(r.title || r.name || r.label || `Option ${idx + 1}`), context.variables).substring(0, 24),
+                ...(r.description ? { description: this.replaceVariables(String(r.description), context.variables).substring(0, 72) } : {}),
+              };
+            }
+            return {
+              id: `row_${idx + 1}`,
+              title: this.replaceVariables(String(r), context.variables).substring(0, 24),
+            };
+          });
+
+          const secTitle = this.replaceVariables(dynamicSectionTitle || "Select Option", context.variables).substring(0, 24);
+          effectiveSections = [{ title: secTitle, rows }];
+        }
+      }
+    }
+
+    if (!effectiveSections || effectiveSections.length === 0) {
+      throw new Error('At least one list section or a valid dynamic list variable array is required');
+    }
+
+    console.log(`📋 Sending list message with ${effectiveSections.length} sections to conversation ${context.conversationId}`);
 
     const conversation = await storage.getConversation(context.conversationId);
     if (!conversation) throw new Error('Conversation not found');
@@ -3398,6 +3486,16 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     if (!channel) throw new Error('Channel not found');
 
     const bodyText = this.replaceVariables(message, context.variables);
+    const finalButtonText = this.replaceVariables(listButtonText || "View Options", context.variables).substring(0, 20);
+
+    const formattedSections = effectiveSections.map((section: any) => ({
+      title: this.replaceVariables(section.title || "Options", context.variables).substring(0, 24),
+      rows: (section.rows || []).slice(0, 10).map((row: any, idx: number) => ({
+        id: this.replaceVariables(row.id || `row_${idx + 1}`, context.variables).substring(0, 200),
+        title: this.replaceVariables(row.title || `Item ${idx + 1}`, context.variables).substring(0, 24),
+        ...(row.description ? { description: this.replaceVariables(row.description, context.variables).substring(0, 72) } : {}),
+      })),
+    }));
 
     const payload = {
       messaging_product: "whatsapp",
@@ -3408,15 +3506,8 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         type: "list",
         body: { text: bodyText },
         action: {
-          button: listButtonText || "View Options",
-          sections: listSections.map((section: any) => ({
-            title: section.title,
-            rows: section.rows.map((row: any) => ({
-              id: row.id || `row_${Math.random().toString(36).slice(2, 8)}`,
-              title: row.title,
-              ...(row.description ? { description: row.description } : {}),
-            })),
-          })),
+          button: finalButtonText,
+          sections: formattedSections,
         },
       },
     };

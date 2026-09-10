@@ -793,3 +793,124 @@ export const registerFcmToken = async (req: Request, res: Response) => {
     return res.status(500).json({ success: false, message: "Error registering FCM token", error });
   }
 };
+
+export const getAllManagers = async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const search = (req.query.search as string) || "";
+    const offset = (page - 1) * limit;
+
+    const conditions: any[] = [
+      or(eq(users.role, "manager"), eq(users.role, "superadmin")),
+      search
+        ? or(
+            like(users.username, sql`${'%' + search + '%'}`),
+            like(users.email, sql`${'%' + search + '%'}`)
+          )
+        : undefined,
+    ].filter(Boolean);
+
+    const managers = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        role: users.role,
+        avatar: users.avatar,
+        status: users.status,
+        permissions: users.permissions,
+        lastLogin: users.lastLogin,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      })
+      .from(users)
+      .where(and(...conditions))
+      .orderBy(desc(users.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const countQuery = db
+      .select({ total: sql<number>`COUNT(*)` })
+      .from(users)
+      .where(and(...conditions));
+
+    const totalCountResult = await countQuery;
+    const total = Number(totalCountResult[0]?.total ?? 0);
+
+    res.status(200).json({
+      success: true,
+      data: managers,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching managers:", error);
+    res.status(500).json({ success: false, message: "Error fetching managers", error });
+  }
+};
+
+export const createManager = async (req: Request, res: Response) => {
+  try {
+    const { username, password, email, firstName, lastName, role = "manager" } = req.body;
+
+    if (!username || !password || !email) {
+      return res.status(400).json({
+        success: false,
+        message: "Username, password, and email are required.",
+      });
+    }
+
+    const existingUser = await db.select().from(users).where(eq(users.username, username));
+    if (existingUser.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: "Username already exists. Please choose another one.",
+      });
+    }
+
+    const existingEmail = await db.select().from(users).where(eq(users.email, email));
+    if (existingEmail.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: "Email already exists.",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const assignedRole = role === "superadmin" ? "superadmin" : "manager";
+
+    const [newManager] = await db
+      .insert(users)
+      .values({
+        username,
+        password: hashedPassword,
+        email,
+        firstName,
+        lastName,
+        role: assignedRole,
+        isEmailVerified: true,
+        status: "active",
+        permissions: defaultPermissions,
+      })
+      .returning();
+
+    const safeManager = { ...newManager };
+    delete (safeManager as any).password;
+
+    res.status(201).json({
+      success: true,
+      data: safeManager,
+      message: `Superadmin ${assignedRole === "superadmin" ? "Superadmin" : "Manager"} account '${username}' created successfully.`,
+    });
+  } catch (error) {
+    console.error("Error creating manager account:", error);
+    res.status(500).json({ success: false, message: "Error creating manager account", error });
+  }
+};

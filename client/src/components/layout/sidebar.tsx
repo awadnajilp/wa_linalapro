@@ -49,6 +49,7 @@ import {
   LifeBuoy,
   ShoppingCart,
   Workflow,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChannelSwitcher } from "@/components/channel-switcher";
@@ -469,6 +470,12 @@ const sidebarItemsCategories = [
     path: "/admin/addons",
     color: "text-indigo-600",
   },
+  {
+    name: "navigation.superadmin_team",
+    icon: ShieldCheck,
+    path: "/admin/managers",
+    color: "text-indigo-600",
+  },
 ];
 
 // Category-based structure for superadmin
@@ -803,7 +810,7 @@ export default function Sidebar() {
               ? sidebarItemsCategories
                   .filter((item) => {
                     if (isManager && !isSuper) {
-                      return !["/gateway", "/languages", "/plans"].includes(item.path);
+                      return !["/gateway", "/languages", "/plans", "/admin/managers"].includes(item.path);
                     }
                     return true;
                   })

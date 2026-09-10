@@ -28,11 +28,20 @@ import {
   verifyEmailOTP,
   createUserSuperadmin,
   exportAllUsers,
-  registerFcmToken
+  registerFcmToken,
+  getAllManagers,
+  createManager
 } from "../controllers/user.controller";
 import type { Express } from "express";
 
 export function userRoutes(app: Express) {
+  // Manager / Sub-Admin team routes (Superadmin only)
+  app.get("/api/admin/managers", requireAuth, requireRole("superadmin"), getAllManagers);
+  app.post("/api/admin/managers", requireAuth, requireRole("superadmin"), createManager);
+  app.put("/api/admin/managers/:id", requireAuth, requireRole("superadmin"), updateUser);
+  app.delete("/api/admin/managers/:id", requireAuth, requireRole("superadmin"), deleteUser);
+
+  // General tenant users routes
   app.get("/api/admin/users/export", requireAuth, requireRole("superadmin", "manager"), exportAllUsers);
   app.get("/api/admin/users", requireAuth, requireRole("superadmin", "manager"), getAllUsers);
   app.get("/api/admin/users/:id", requireAuth, requireRole("superadmin", "manager"), getUserById);

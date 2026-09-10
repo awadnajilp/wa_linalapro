@@ -112,6 +112,7 @@ import WhatsAppFlows from "./pages/WhatsAppFlows";
 import FeaturesPage from "./pages/FeaturesPage";
 import UseCasesPage from "./pages/UseCasesPage";
 import PricingPage from "./pages/PricingPage";
+import AdminManagersPage from "./pages/AdminManagersPage";
 
 // Define route permissions mapping
 const ROUTE_PERMISSIONS: Record<string, string> = {
@@ -459,6 +460,9 @@ function ProtectedRoutes() {
           </Route>
           <Route path="/admin/addons">
             <PermissionRoute component={AdminAddons} requiredRoles={["superadmin", "manager"]} />
+          </Route>
+          <Route path="/admin/managers">
+            <PermissionRoute component={AdminManagersPage} requiredRoles={["superadmin"]} />
           </Route>
           <Route component={NotFound} />
         </Switch>

@@ -89,7 +89,7 @@ export default function AddUserModal({
 
     toast({
       title: "Success",
-      description: `User created successfully with role ${form.role}!`,
+      description: "User created successfully!",
     });
 
     onSuccess();
@@ -138,24 +138,10 @@ let msg = "Something went wrong";
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New User</DialogTitle>
+          <DialogTitle>Add New Tenant User</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
-          {/* Role selection */}
-          <div>
-            <Label className="font-semibold text-gray-800">Role & Access Level *</Label>
-            <select
-              value={form.role}
-              onChange={(e) => updateField("role", e.target.value)}
-              className="w-full mt-1.5 px-3 py-2 border border-gray-300 rounded-md bg-white text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
-            >
-              <option value="admin">Tenant / Customer (Standard User)</option>
-              <option value="manager">Manager (Sub-Admin — Wallets, Subscriptions, Users, Tickets)</option>
-              <option value="superadmin">Superadmin (Full System Access)</option>
-            </select>
-          </div>
-
           {/* Username */}
           <div>
             <Label>Username *</Label>

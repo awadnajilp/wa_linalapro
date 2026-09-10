@@ -130,9 +130,11 @@ export const campaignsController = {
     const page = Number(req.query.page || 1);
     const limit = Number(req.query.limit || 10);
     const user = (req.session as any)?.user;
+    const isSuperOrManager = user && (user.role === 'superadmin' || user.role === 'manager');
+    const targetUserId = (req.query.userId as string) || (req.query.user_id as string);
 
     if (channelId) {
-      if (user && user.role !== 'superadmin') {
+      if (!isSuperOrManager) {
         const ownerId = user.role === 'team' ? user.createdBy : user.id;
         const channels = await storage.getChannelsByUserId(ownerId);
         const channelIds = channels.map((ch: any) => ch.id);
@@ -142,7 +144,10 @@ export const campaignsController = {
       }
       const campaigns = await storage.getCampaignsByChannel(channelId, page, limit);
       res.json(campaigns);
-    } else if (user && user.role === 'superadmin') {
+    } else if (isSuperOrManager && targetUserId && targetUserId !== "all") {
+      const campaigns = await storage.getCampaignByUserId(targetUserId, page, limit);
+      res.json(campaigns);
+    } else if (isSuperOrManager) {
       const campaigns = await storage.getCampaigns(page, limit);
       res.json(campaigns);
     } else {
@@ -217,6 +222,15 @@ export const campaignsController = {
   if (data.campaignType === "csv" && data.csvData) {
     for (const row of data.csvData) {
       if (row.phone) {
+        // Extract any custom variables from CSV row
+        const rowVariables: Record<string, string> = {};
+        Object.entries(row).forEach(([k, v]) => {
+          const cleanK = k.trim().toLowerCase();
+          if (!["name", "phone", "email", "groups", "tags"].includes(cleanK)) {
+            rowVariables[cleanK] = v ? String(v).trim() : "";
+          }
+        });
+
         let contact = await storage.getContactByPhoneAndChannel(row.phone, data.channelId);
         if (!contact) {
           contact = await storage.createContact({
@@ -224,16 +238,24 @@ export const campaignsController = {
             name: row.name || row.phone,
             phone: row.phone,
             email: row.email || null,
+            variables: rowVariables,
             groups: ["csv_import"],
             tags: [`campaign_${data.name}`],
           });
         } else {
           const currentTags: string[] = (contact.tags as string[]) || [];
           const campaignTag = `campaign_${data.name}`;
+          const currentVars = (typeof contact.variables === "object" ? contact.variables : {}) as Record<string, any>;
+          const updatePayload: Record<string, any> = {};
+
           if (!currentTags.includes(campaignTag)) {
-            await storage.updateContact(contact.id, {
-              tags: [...currentTags, campaignTag],
-            });
+            updatePayload.tags = [...currentTags, campaignTag];
+          }
+          if (Object.keys(rowVariables).length > 0) {
+            updatePayload.variables = { ...currentVars, ...rowVariables };
+          }
+          if (Object.keys(updatePayload).length > 0) {
+            await storage.updateContact(contact.id, updatePayload);
           }
         }
         contactIds.push(contact.id);

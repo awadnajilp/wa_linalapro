@@ -44,6 +44,14 @@ import { useAuth } from "@/contexts/auth-context";
 import { api } from "@/lib/api";
 import { useTranslation } from "@/lib/i18n";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 type SyncFail = {
   status: string;
   message: string;
@@ -107,10 +115,24 @@ export default function Templates() {
   const [activeDraft, setActiveDraft] = useState<TemplateDraft | null>(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+  const [selectedTenantUserId, setSelectedTenantUserId] = useState<string>("all");
   const { toast } = useToast();
   const { user } = useAuth();
   const userRole = user?.role;
+  const isPrivilegedRole = userRole === "superadmin" || userRole === "manager";
   const { t } = useTranslation();
+
+  // Fetch tenant users for superadmin/manager filter
+  const { data: tenantUsersResponse } = useQuery({
+    queryKey: ["/api/admin/users", "template-tenant-filter"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/admin/users?limit=100");
+      return await res.json();
+    },
+    enabled: isPrivilegedRole,
+  });
+  const tenantUsers: Array<{ id: string; username: string; email: string }> =
+    tenantUsersResponse?.data || [];
 
   // Fetch active channel
   const { data: activeChannel } = useQuery({
@@ -142,10 +164,14 @@ export default function Templates() {
 
   // Fetch templates (paginated)
   const { data: templatesData, isLoading: templatesLoading } = useQuery({
-    queryKey: ["templates", userRole, channelId, page, limit],
+    queryKey: ["templates", userRole, channelId, page, limit, selectedTenantUserId],
     queryFn: async () => {
-      if (userRole === "superadmin") {
-        const res = await fetch(`/api/templates?page=${page}&limit=${limit}`, {
+      if (isPrivilegedRole) {
+        const userQueryParam =
+          selectedTenantUserId && selectedTenantUserId !== "all"
+            ? `&userId=${selectedTenantUserId}`
+            : "";
+        const res = await fetch(`/api/templates?page=${page}&limit=${limit}${userQueryParam}`, {
           credentials: "include",
         });
         if (!res.ok) throw new Error(await res.text());
@@ -156,7 +182,7 @@ export default function Templates() {
         return data;
       }
     },
-    enabled: userRole === "superadmin" || !!activeChannel,
+    enabled: isPrivilegedRole || !!activeChannel,
   });
 
 
@@ -385,7 +411,7 @@ const createTemplateMutation = useMutation({
   };
   const handleSyncTemplates = () => syncTemplatesMutation.mutate();
 
-  if (!activeChannel && userRole !== "superadmin") {
+  if (!activeChannel && !isPrivilegedRole) {
     return (
       <div className="flex-1 dots-bg min-h-screen">
         <Header
@@ -412,7 +438,7 @@ const createTemplateMutation = useMutation({
     );
   }
 
-  if (activeChannel?.connectionMethod === "qr_code" && userRole !== "superadmin") {
+  if (activeChannel?.connectionMethod === "qr_code" && !isPrivilegedRole) {
     return (
       <div className="flex-1 dots-bg min-h-screen">
         <Header
@@ -446,17 +472,47 @@ const createTemplateMutation = useMutation({
     <div className="flex-1 dots-bg min-h-screen">
       <Header
         title={t("templates.title")}
-        subtitle={t("templates.userSubTitle")}
+        subtitle={isPrivilegedRole ? "Manage and inspect master templates across all tenant accounts" : t("templates.userSubTitle")}
       />
       <main className="p-4 sm:p-6">
         <Card>
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <CardTitle className="flex items-center text-lg sm:text-xl">
-                <FileText className="w-5 h-5 mr-2" />
-                {t("templates.mess_Temp")}
-              </CardTitle>
-              {userRole !== "superadmin" && (
+              <div className="flex items-center gap-4">
+                <CardTitle className="flex items-center text-lg sm:text-xl">
+                  <FileText className="w-5 h-5 mr-2" />
+                  {t("templates.mess_Temp")}
+                </CardTitle>
+
+                {isPrivilegedRole && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Tenant:
+                    </span>
+                    <Select
+                      value={selectedTenantUserId}
+                      onValueChange={(val) => {
+                        setSelectedTenantUserId(val);
+                        setPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="w-[180px] h-9 text-sm bg-white">
+                        <SelectValue placeholder="All Tenants" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Tenants</SelectItem>
+                        {tenantUsers.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.username || u.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              {!isPrivilegedRole && (
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <Button
                     variant="outline"

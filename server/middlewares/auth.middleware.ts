@@ -101,7 +101,7 @@ export const requirePermission = (...permissions: string[]) => {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    if (user.role === "admin" || user.role === "user" || user.role === "superadmin") {
+    if (user.role === "admin" || user.role === "user" || user.role === "superadmin" || user.role === "manager") {
       return next();
     }
 

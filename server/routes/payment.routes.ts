@@ -80,15 +80,15 @@ export function registerPaymentsRoutes(app: Express) {
 
   // ==================== TRANSACTIONS ROUTES ====================
 
-  app.get("/api/transactions", requireAuth, requireRole("superadmin"), getAllTransactions);
-  app.get("/api/transactions/stats", requireAuth, requireRole("superadmin"), getTransactionStats);
-  app.get("/api/transactions/export", requireAuth, requireRole("superadmin"), exportTransactions);
+  app.get("/api/transactions", requireAuth, requireRole("superadmin", "manager"), getAllTransactions);
+  app.get("/api/transactions/stats", requireAuth, requireRole("superadmin", "manager"), getTransactionStats);
+  app.get("/api/transactions/export", requireAuth, requireRole("superadmin", "manager"), exportTransactions);
   app.get("/api/transactions/:id", requireAuth, getTransactionById);
   app.get("/api/transactions/user/:userId", requireAuth, getTransactionsByUserId);
   app.post("/api/transactions", requireAuth, createTransaction);
-  app.patch("/api/transactions/:id/status", requireAuth, requireRole("superadmin"), updateTransactionStatus);
-  app.post("/api/transactions/:id/complete", requireAuth, requireRole("superadmin"), completeTransaction);
-  app.post("/api/transactions/:id/refund", requireAuth, requireRole("superadmin"), refundTransaction);
+  app.patch("/api/transactions/:id/status", requireAuth, requireRole("superadmin", "manager"), updateTransactionStatus);
+  app.post("/api/transactions/:id/complete", requireAuth, requireRole("superadmin", "manager"), completeTransaction);
+  app.post("/api/transactions/:id/refund", requireAuth, requireRole("superadmin", "manager"), refundTransaction);
   app.post("/api/payment/initiate", requireAuth, initiatePayment);
   app.post("/api/payment/verify/razorpay", requireAuth, verifyRazorpayPayment);
   app.post("/api/payment/verify/stripe", requireAuth, verifyStripePayment);
@@ -99,15 +99,15 @@ export function registerPaymentsRoutes(app: Express) {
 
   // ==================== SUBSCRIPTIONS ROUTES ====================
 
-  app.get("/api/subscriptions", requireAuth, requireRole("superadmin"), getAllSubscriptions);
+  app.get("/api/subscriptions", requireAuth, requireRole("superadmin", "manager"), getAllSubscriptions);
   app.get("/api/subscriptions/:id", requireAuth, getSubscriptionById);
   app.get("/api/subscriptions/user/:userId", requireAuth, getSubscriptionsByUserId);
   app.get("/api/subscriptions/user/:userId/active", requireAuth, getActiveSubscriptionByUserId);
-  app.post("/api/subscriptions", requireAuth, requireRole("superadmin"), createSubscription);
-  app.put("/api/subscriptions/:id", requireAuth, requireRole("superadmin"), updateSubscription);
+  app.post("/api/subscriptions", requireAuth, requireRole("superadmin", "manager"), createSubscription);
+  app.put("/api/subscriptions/:id", requireAuth, requireRole("superadmin", "manager"), updateSubscription);
   app.patch("/api/subscriptions/:id/cancel", requireAuth, cancelSubscription);
   app.post("/api/subscriptions/:id/renew", requireAuth, renewSubscription);
   app.patch("/api/subscriptions/:id/auto-renew", requireAuth, toggleAutoRenew);
   app.post("/api/subscriptions/change-plan", requireAuth, changePlan);
-  app.post("/api/subscriptions/check-expired", requireAuth, requireRole("superadmin"), checkExpiredSubscriptions);
+  app.post("/api/subscriptions/check-expired", requireAuth, requireRole("superadmin", "manager"), checkExpiredSubscriptions);
 }

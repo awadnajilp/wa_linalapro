@@ -40,10 +40,12 @@ export const getContacts = asyncHandler(
   async (req: RequestWithChannel, res: Response) => {
     const { search, channelId, isGroup } = req.query;
     const user = (req.session as any)?.user;
+    const isSuperOrManager = user && (user.role === 'superadmin' || user.role === 'manager');
+    const targetUserId = (req.query.userId as string) || (req.query.user_id as string);
 
     let contacts;
     if (channelId && typeof channelId === "string") {
-      if (user && user.role !== 'superadmin') {
+      if (!isSuperOrManager) {
         const ownerId = user.role === 'team' ? user.createdBy : user.id;
         const channels = await storage.getChannelsByUserId(ownerId);
         const channelIds = channels.map((ch: any) => ch.id);
@@ -52,7 +54,20 @@ export const getContacts = asyncHandler(
         }
       }
       contacts = await storage.getContactsByChannel(channelId);
-    } else if (user && user.role === 'superadmin') {
+    } else if (isSuperOrManager && targetUserId && targetUserId !== "all") {
+      const userChannels = await storage.getChannelsByUserId(targetUserId);
+      const userChannelIds = userChannels.map((ch: any) => ch.id);
+      if (userChannelIds.length === 0) {
+        contacts = [];
+      } else {
+        let allContacts: any[] = [];
+        for (const chId of userChannelIds) {
+          const chContacts = await storage.getContactsByChannel(chId);
+          allContacts = allContacts.concat(chContacts);
+        }
+        contacts = allContacts;
+      }
+    } else if (isSuperOrManager) {
       contacts = await storage.getContacts();
     } else {
       const ownerId = user?.role === 'team' ? user.createdBy : user?.id;
@@ -716,7 +731,10 @@ export const getContact = asyncHandler(async (req: Request, res: Response) => {
 
 export const createContact = asyncHandler(
   async (req: RequestWithChannel, res: Response) => {
-    const validatedContact = insertContactSchema.parse(req.body);
+    const validatedContact = insertContactSchema.parse({
+      ...req.body,
+      name: req.body.name?.trim() || req.body.phone || "Unnamed Contact",
+    });
     const createdBy =(req.session as any).user.id;
 
     // Use channelId from query or active channel
@@ -993,7 +1011,7 @@ export const importContacts = asyncHandler(
           await db
             .update(contacts)
             .set({
-              name: contact.name || "Unnamed Contact",
+              name: contact.name?.trim() || existingInfo.variables?.name || contact.phone || "Unnamed Contact",
               email: contact.email || null,
               groups: Array.isArray(contact.groups) ? contact.groups : [],
               tags: Array.isArray(contact.tags) ? contact.tags : [],
@@ -1015,6 +1033,8 @@ export const importContacts = asyncHandler(
       try {
         const validated = insertContactSchema.parse({
           ...contact,
+          name: contact.name?.trim() || contact.phone || "Unnamed Contact",
+          variables: typeof contact.variables === "object" ? contact.variables : {},
           channelId,
           createdBy: userId,
         });

@@ -272,13 +272,13 @@ function ProtectedRoutes() {
             />
           </Route>
           <Route path="/users">
-            <PermissionRoute component={User} requiredRoles={["superadmin"]} />
+            <PermissionRoute component={User} requiredRoles={["superadmin", "manager"]} />
           </Route>
           <Route path="/channels-management">
-            <PermissionRoute component={ChannelsManagement} requiredRoles={["superadmin"]} />
+            <PermissionRoute component={ChannelsManagement} requiredRoles={["superadmin", "manager"]} />
           </Route>
           <Route path="/users/:id">
-            <PermissionRoute component={userDetails} requiredRoles={["superadmin"]} />
+            <PermissionRoute component={userDetails} requiredRoles={["superadmin", "manager"]} />
           </Route>
           <Route path="/campaigns">
             <PermissionRoute
@@ -389,7 +389,7 @@ function ProtectedRoutes() {
             <PermissionRoute component={Segmentation} />
           </Route>
           <Route path="/message-logs">
-            <PermissionRoute component={SuperadminMessageLogs} requiredRoles={["superadmin"]} />
+            <PermissionRoute component={SuperadminMessageLogs} requiredRoles={["superadmin", "manager"]} />
           </Route>
           <Route path="/health-monitor">
             <PermissionRoute component={HealthMonitor} />
@@ -398,13 +398,13 @@ function ProtectedRoutes() {
             <PermissionRoute component={Reports} />
           </Route>
           <Route path="/transactions-logs">
-            <PermissionRoute component={TransactionsPage} requiredRoles={["superadmin"]} />
+            <PermissionRoute component={TransactionsPage} requiredRoles={["superadmin", "manager"]} />
           </Route>
           <Route path="/contacts-management">
-            <PermissionRoute component={ContactsManagements} requiredRoles={["superadmin"]} />
+            <PermissionRoute component={ContactsManagements} requiredRoles={["superadmin", "manager"]} />
           </Route>
           <Route path="/support-tickets">
-            <PermissionRoute component={SupportTicketsNew} requiredRoles={["superadmin"]} />
+            <PermissionRoute component={SupportTicketsNew} requiredRoles={["superadmin", "manager"]} />
           </Route>
           <Route path="/groups">
             <PermissionRoute component={GroupsUI} requiredPermission="groups:view" />
@@ -431,13 +431,13 @@ function ProtectedRoutes() {
             <PermissionRoute component={ChatHub} />
           </Route>
           <Route path="/master-subscriptions">
-            <PermissionRoute component={AllSubscriptionsPage} requiredRoles={["superadmin"]} />
+            <PermissionRoute component={AllSubscriptionsPage} requiredRoles={["superadmin", "manager"]} />
           </Route>
           <Route path="/wallet">
             <PermissionRoute component={WalletPage} requiredRoles={["admin"]} />
           </Route>
           <Route path="/admin/wallets">
-            <PermissionRoute component={AdminWalletsPage} requiredRoles={["superadmin"]} />
+            <PermissionRoute component={AdminWalletsPage} requiredRoles={["superadmin", "manager"]} />
           </Route>
           <Route path="/marketplace">
             <PermissionRoute component={Marketplace} requiredRoles={["admin"]} />
@@ -458,7 +458,7 @@ function ProtectedRoutes() {
             <PermissionRoute component={WhatsAppFlows} requiredRoles={["admin"]} />
           </Route>
           <Route path="/admin/addons">
-            <PermissionRoute component={AdminAddons} requiredRoles={["superadmin"]} />
+            <PermissionRoute component={AdminAddons} requiredRoles={["superadmin", "manager"]} />
           </Route>
           <Route component={NotFound} />
         </Switch>

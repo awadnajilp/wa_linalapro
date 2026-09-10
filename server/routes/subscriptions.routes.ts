@@ -29,13 +29,15 @@ import {
   renewSubscription,
   toggleAutoRenew,
   checkExpiredSubscriptions,
+  sendRenewalReminder,
+  triggerAutoRenewalReminders,
 } from "../controllers/subscriptions.controller";
 import type { Express } from "express";
 
 export function registerSubscriptionsRoutes(app: Express) {
-  app.get("/api/subscriptions", requireAuth, requireRole("superadmin"), getAllSubscriptions);
+  app.get("/api/subscriptions", requireAuth, requireRole("superadmin", "manager"), getAllSubscriptions);
 
-  app.get("/api/admin/subscriptions/:id", requireAuth, requireRole("superadmin"), getSubscriptionById);
+  app.get("/api/admin/subscriptions/:id", requireAuth, requireRole("superadmin", "manager"), getSubscriptionById);
 
   app.get("/api/subscriptions/user/:userId", requireAuth, getSubscriptionsByUserId);
 
@@ -43,9 +45,9 @@ export function registerSubscriptionsRoutes(app: Express) {
 
   app.post("/api/subscriptions", requireAuth, createSubscription);
 
-  app.post("/api/assignSubscription", requireAuth, requireRole("superadmin"), AssignSubscription);
+  app.post("/api/assignSubscription", requireAuth, requireRole("superadmin", "manager"), AssignSubscription);
 
-  app.put("/api/admin/subscriptions/:id", requireAuth, requireRole("superadmin"), updateSubscription);
+  app.put("/api/admin/subscriptions/:id", requireAuth, requireRole("superadmin", "manager"), updateSubscription);
 
   app.delete("/api/subscriptions/:id", requireAuth, cancelSubscription);
 
@@ -53,5 +55,10 @@ export function registerSubscriptionsRoutes(app: Express) {
 
   app.put("/api/subscriptions/toggle-autorenew/:id", requireAuth, toggleAutoRenew);
 
-  app.put("/api/admin/subscriptions/expire", requireAuth, requireRole("superadmin"), checkExpiredSubscriptions);
+  app.put("/api/admin/subscriptions/expire", requireAuth, requireRole("superadmin", "manager"), checkExpiredSubscriptions);
+
+  // Renewal reminder endpoints
+  app.post("/api/subscriptions/:id/send-renewal-reminder", requireAuth, requireRole("superadmin", "manager"), sendRenewalReminder);
+
+  app.post("/api/subscriptions/auto-renewal-reminders", requireAuth, requireRole("superadmin", "manager"), triggerAutoRenewalReminders);
 }

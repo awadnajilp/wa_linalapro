@@ -81,11 +81,13 @@ export const getTemplates = asyncHandler(
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 100;
     const user = (req.session as any)?.user;
+    const isSuperOrManager = user && (user.role === 'superadmin' || user.role === 'manager');
+    const targetUserId = (req.query.userId as string) || (req.query.user_id as string);
 
     let result;
 
     if (channelId) {
-      if (user && user.role !== 'superadmin') {
+      if (!isSuperOrManager) {
         const ownerId = user.role === 'team' ? user.createdBy : user.id;
         const channels = await storage.getChannelsByUserId(ownerId);
         const channelIds = channels.map((ch: any) => ch.id);
@@ -94,7 +96,9 @@ export const getTemplates = asyncHandler(
         }
       }
       result = await storage.getTemplatesByChannel(channelId, page, limit);
-    } else if (user && user.role === 'superadmin') {
+    } else if (isSuperOrManager && targetUserId && targetUserId !== "all") {
+      result = await storage.getTemplatesByUserId(targetUserId, page, limit);
+    } else if (isSuperOrManager) {
       result = await storage.getTemplates(page, limit);
     } else {
       const ownerId = user?.role === 'team' ? user?.createdBy : user?.id;

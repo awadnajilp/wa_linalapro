@@ -76,7 +76,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 
-type Role = "superadmin" | "admin" | "user" | "team";
+type Role = "superadmin" | "manager" | "admin" | "user" | "team";
 
 interface NavItem {
   href: string;
@@ -479,6 +479,7 @@ export default function Sidebar() {
   const { t } = useTranslation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const isSuper = user?.role === "superadmin";
+  const isManager = user?.role === "manager";
   const isAdmin = user?.role === "admin";
   const { toast } = useToast();
 
@@ -492,10 +493,10 @@ export default function Sidebar() {
 
   const { data: tenantAddons } = useQuery<any[]>({
     queryKey: ["/api/tenant/addons"],
-    enabled: !!user && (user.role === "admin" || user.role === "superadmin"),
+    enabled: !!user && (user.role === "admin" || user.role === "superadmin" || user.role === "manager"),
   });
 
-  const isExpenseActive = user?.role === "superadmin" || tenantAddons?.some(
+  const isExpenseActive = user?.role === "superadmin" || user?.role === "manager" || tenantAddons?.some(
     (a) => a.slug === "expense-tracker" && a.subscription?.status === "active"
   );
 
@@ -798,16 +799,23 @@ export default function Sidebar() {
           )}
 
           <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
-            {isSuper
-              ? sidebarItemsCategories.map((item) =>
-                  renderLink(
-                    t(item.name),
-                    item.icon,
-                    item.path,
-                    item.badge,
-                    item.color
+            {isSuper || isManager
+              ? sidebarItemsCategories
+                  .filter((item) => {
+                    if (isManager && !isSuper) {
+                      return !["/gateway", "/languages", "/plans"].includes(item.path);
+                    }
+                    return true;
+                  })
+                  .map((item) =>
+                    renderLink(
+                      t(item.name),
+                      item.icon,
+                      item.path,
+                      item.badge,
+                      item.color
+                    )
                   )
-                )
               : navItems
                   .filter(canView)
                   .filter((item) => !(item.href === "/templates" && selectedChannel?.connectionMethod === "qr_code"))

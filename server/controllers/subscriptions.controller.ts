@@ -19,7 +19,8 @@ import { Request, Response } from "express";
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { db } from "../db";
 import { subscriptions, users, plans, tenantAddons } from "@shared/schema";
-import { eq, and, desc, lt, sql } from "drizzle-orm";
+import { eq, and, or, desc, lt, gte, lte, sql, ilike } from "drizzle-orm";
+import { sendSubscriptionRenewalEmail } from "../services/email.service";
 import {
   cancelStripeSubscription,
   cancelRazorpaySubscription,
@@ -37,20 +38,89 @@ export const getAllSubscriptions = async (req: Request, res: Response) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
     const offset = (page - 1) * limit;
+    const search = req.query.search ? String(req.query.search).trim() : "";
+    const tab = req.query.tab ? String(req.query.tab).trim() : "all";
+    const status = req.query.status ? String(req.query.status).trim() : "";
+    const userId = req.query.userId ? String(req.query.userId).trim() : "";
 
-    const [{ count }] = await db
+    const now = new Date();
+    const sevenDaysLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    const conditions: any[] = [];
+
+    if (userId) {
+      conditions.push(eq(subscriptions.userId, userId));
+    }
+
+    if (search) {
+      conditions.push(
+        or(
+          ilike(users.username, `%${search}%`),
+          ilike(users.email, `%${search}%`),
+          ilike(plans.name, `%${search}%`),
+          ilike(subscriptions.gatewaySubscriptionId, `%${search}%`)
+        )
+      );
+    }
+
+    const effectiveTab = tab || status;
+    if (effectiveTab === "active") {
+      conditions.push(and(eq(subscriptions.status, "active"), gte(subscriptions.endDate, now)));
+    } else if (effectiveTab === "expiring_soon") {
+      conditions.push(
+        and(
+          eq(subscriptions.status, "active"),
+          gte(subscriptions.endDate, now),
+          lte(subscriptions.endDate, sevenDaysLater)
+        )
+      );
+    } else if (effectiveTab === "expired") {
+      conditions.push(
+        or(
+          eq(subscriptions.status, "expired"),
+          lt(subscriptions.endDate, now)
+        )
+      );
+    } else if (effectiveTab === "cancelled") {
+      conditions.push(eq(subscriptions.status, "cancelled"));
+    } else if (status && status !== "all") {
+      conditions.push(eq(subscriptions.status, status));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Count query
+    const countQuery = db
       .select({ count: sql<number>`COUNT(*)` })
-      .from(subscriptions);
+      .from(subscriptions)
+      .leftJoin(users, eq(subscriptions.userId, users.id))
+      .leftJoin(plans, eq(subscriptions.planId, plans.id));
 
+    const [{ count }] = whereClause ? await countQuery.where(whereClause) : await countQuery;
     const total = Number(count);
     const totalPages = Math.ceil(total / limit);
 
-    const paginatedSubscriptions = await db
+    // Fetch tab counts for quick stats
+    const [statsResult] = await db
+      .select({
+        totalCount: sql<number>`COUNT(*)`,
+        activeCount: sql<number>`COUNT(*) FILTER (WHERE ${subscriptions.status} = 'active' AND ${subscriptions.endDate} >= ${now})`,
+        expiringSoonCount: sql<number>`COUNT(*) FILTER (WHERE ${subscriptions.status} = 'active' AND ${subscriptions.endDate} >= ${now} AND ${subscriptions.endDate} <= ${sevenDaysLater})`,
+        expiredCount: sql<number>`COUNT(*) FILTER (WHERE ${subscriptions.status} = 'expired' OR ${subscriptions.endDate} < ${now})`,
+        cancelledCount: sql<number>`COUNT(*) FILTER (WHERE ${subscriptions.status} = 'cancelled')`,
+      })
+      .from(subscriptions);
+
+    const baseQuery = db
       .select({
         subscription: subscriptions,
         user: {
           id: users.id,
           username: users.username,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          phoneNumber: users.phoneNumber,
         },
         plan: {
           id: plans.id,
@@ -70,9 +140,20 @@ export const getAllSubscriptions = async (req: Request, res: Response) => {
       .limit(limit)
       .offset(offset);
 
+    const paginatedSubscriptions = whereClause
+      ? await baseQuery.where(whereClause)
+      : await baseQuery;
+
     res.status(200).json({
       success: true,
       data: paginatedSubscriptions,
+      stats: {
+        total: Number(statsResult?.totalCount || 0),
+        active: Number(statsResult?.activeCount || 0),
+        expiringSoon: Number(statsResult?.expiringSoonCount || 0),
+        expired: Number(statsResult?.expiredCount || 0),
+        cancelled: Number(statsResult?.cancelledCount || 0),
+      },
       pagination: { total, totalPages, page, limit },
     });
   } catch (error) {
@@ -80,7 +161,89 @@ export const getAllSubscriptions = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: "Error fetching subscriptions",
-      error,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const sendRenewalReminder = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const [subRecord] = await db
+      .select({
+        subscription: subscriptions,
+        user: users,
+        plan: plans,
+      })
+      .from(subscriptions)
+      .leftJoin(users, eq(subscriptions.userId, users.id))
+      .leftJoin(plans, eq(subscriptions.planId, plans.id))
+      .where(eq(subscriptions.id, id))
+      .limit(1);
+
+    if (!subRecord || !subRecord.user || !subRecord.subscription) {
+      return res.status(404).json({ success: false, message: "Subscription or user not found" });
+    }
+
+    if (!subRecord.user.email) {
+      return res.status(400).json({ success: false, message: "User does not have an email address configured." });
+    }
+
+    const now = new Date();
+    const endDate = new Date(subRecord.subscription.endDate);
+    const msDiff = endDate.getTime() - now.getTime();
+    const daysLeft = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
+    const isExpired = daysLeft <= 0 || subRecord.subscription.status === "expired";
+
+    const planName = subRecord.plan?.name || (subRecord.subscription.planData as any)?.name || "Plan";
+
+    const emailResult = await sendSubscriptionRenewalEmail({
+      toEmail: subRecord.user.email,
+      username: subRecord.user.username || subRecord.user.firstName || "Customer",
+      planName,
+      endDate: subRecord.subscription.endDate.toISOString(),
+      daysLeft: Math.max(0, daysLeft),
+      isExpired,
+    });
+
+    if (!emailResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send renewal email. Please verify SMTP settings.",
+        error: emailResult.error,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Renewal reminder email sent successfully to ${subRecord.user.email}`,
+    });
+  } catch (error) {
+    console.error("Error sending manual renewal reminder:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error while sending renewal reminder",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+export const triggerAutoRenewalReminders = async (req: Request, res: Response) => {
+  try {
+    const { runSubscriptionRenewalCron } = await import("../cron/subscription-renewal.cron");
+    const result = await runSubscriptionRenewalCron();
+    res.status(200).json({
+      success: true,
+      message: `Auto-renewal reminder check completed. Sent ${result.sentCount} reminders.`,
+      result,
+    });
+  } catch (error) {
+    console.error("Error running auto-renewal reminder check:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to run auto-renewal reminders",
+      error: error instanceof Error ? error.message : "Unknown error",
     });
   }
 };

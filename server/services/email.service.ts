@@ -593,3 +593,109 @@ export async function sendLeadAssignmentEmail(
     return { success: false, error };
   }
 }
+
+export async function sendSubscriptionRenewalEmail({
+  toEmail,
+  username,
+  planName,
+  endDate,
+  daysLeft,
+  isExpired,
+  renewUrl,
+}: {
+  toEmail: string;
+  username: string;
+  planName: string;
+  endDate: string;
+  daysLeft: number;
+  isExpired: boolean;
+  renewUrl?: string;
+}) {
+  const config = await getConfig();
+  const configs = await getPanelConfig();
+  const mailer = await getTransporter();
+
+  const companyName = configs?.name || "LINALA";
+  const fromName = config?.fromName || companyName;
+  const fromEmail = config?.fromEmail || "noreply@linalapro.com";
+  const appUrl = (process.env.APP_URL || "").replace(/\/$/, "");
+  const targetUrl = renewUrl || `${appUrl}/plans`;
+
+  const formattedDate = new Date(endDate).toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const subject = isExpired
+    ? `⚠️ Action Required: Your ${planName} subscription has expired - ${companyName}`
+    : `🔔 Reminder: Your ${planName} subscription expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"} - ${companyName}`;
+
+  const headerColor = isExpired ? "#ef4444" : "#f59e0b";
+  const statusHeadline = isExpired
+    ? "Your Subscription Has Expired"
+    : `Your Subscription Expires in ${daysLeft} Day${daysLeft === 1 ? "" : "s"}`;
+  const statusMessage = isExpired
+    ? `Your subscription for the <strong>${planName}</strong> plan expired on <strong>${formattedDate}</strong>. To continue accessing your WhatsApp channels, CRM automations, and messaging campaigns without interruption, please renew your plan.`
+    : `Your subscription for the <strong>${planName}</strong> plan will expire on <strong>${formattedDate}</strong> (${daysLeft} days left). Please renew your subscription to maintain uninterrupted service.`;
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background-color: #ffffff;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h1 style="color: #9333ea; margin: 0; font-size: 24px; font-weight: 800;">${companyName}</h1>
+      </div>
+
+      <div style="background-color: ${isExpired ? "#fef2f2" : "#fffbeb"}; border: 1px solid ${isExpired ? "#fecaca" : "#fde68a"}; border-radius: 8px; padding: 18px; margin-bottom: 24px; text-align: center;">
+        <h2 style="color: ${headerColor}; margin: 0 0 8px 0; font-size: 18px; font-weight: 700;">${statusHeadline}</h2>
+        <p style="margin: 0; font-size: 14px; color: #4b5563; line-height: 1.5;">${statusMessage}</p>
+      </div>
+
+      <div style="background-color: #f9fafb; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+        <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 6px 0; color: #6b7280;">Account:</td>
+            <td style="padding: 6px 0; font-weight: 600; color: #111827; text-align: right;">${username}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #6b7280;">Plan:</td>
+            <td style="padding: 6px 0; font-weight: 600; color: #9333ea; text-align: right;">${planName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #6b7280;">Expiration Date:</td>
+            <td style="padding: 6px 0; font-weight: 600; color: #111827; text-align: right;">${formattedDate}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="text-align: center; margin-bottom: 28px;">
+        <a href="${targetUrl}" style="display: inline-block; background-color: #9333ea; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(147, 51, 234, 0.2);">
+          ${isExpired ? "Renew Subscription Now" : "Extend / Renew Plan"}
+        </a>
+      </div>
+
+      <p style="font-size: 13px; color: #6b7280; text-align: center; line-height: 1.5;">
+        If you have any questions or need assistance, feel free to contact our support team.
+      </p>
+
+      <hr style="border: 0; border-top: 1px solid #f3f4f6; margin: 24px 0;" />
+      <p style="color: #9ca3af; font-size: 11px; text-align: center; margin: 0;">
+        © ${new Date().getFullYear()} ${companyName}. All rights reserved.
+      </p>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: `"${fromName}" <${fromEmail}>`,
+    to: toEmail,
+    subject,
+    html,
+  };
+
+  try {
+    const info = await mailer.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error("[Email] Failed to send subscription renewal email:", error);
+    return { success: false, error };
+  }
+}

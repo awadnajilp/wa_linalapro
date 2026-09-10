@@ -803,23 +803,64 @@ export default function Contacts() {
       }
 
       const parsedContacts: LocalInsertContact[] = (results.data as any[])
-        .filter((row) => row && Object.keys(row).length > 0)
+        .filter((row) => row && typeof row === "object" && Object.keys(row).length > 0)
         .map((row: any) => {
-          const name = row?.name?.toString().trim() || "";
-          const phone = row?.phone ? String(row.phone).trim() : "";
-          const email = row?.email?.toString().trim() || "";
-          const groups = row?.groups
-            ? row.groups.split(",").map((g: string) => g.trim())
+          // Helper to find a value across various common header aliases
+          const findValue = (aliases: string[]): { key: string; val: string } => {
+            for (const k of Object.keys(row)) {
+              const normalized = k.trim().toLowerCase().replace(/[\s_-]/g, "");
+              if (aliases.includes(normalized)) {
+                return { key: k, val: row[k] ? String(row[k]).trim() : "" };
+              }
+            }
+            return { key: "", val: "" };
+          };
+
+          const nameEntry = findValue(["name", "fullname", "contactname", "firstname", "first_name"]);
+          const emailEntry = findValue(["email", "emailaddress", "mail"]);
+          const groupsEntry = findValue(["groups", "group", "crmgroup"]);
+          const tagsEntry = findValue(["tags", "tag"]);
+
+          let phone = findValue(["phone", "phonenumber", "mobile", "mobilenumber", "cell", "cellphone", "telephone", "tel", "msisdn", "number", "whatsapp", "whatsappnumber"]).val;
+
+          // If no phone header was matched, check if there is a single column or any column that looks like a phone number
+          const rowKeys = Object.keys(row);
+          if (!phone && rowKeys.length === 1) {
+            phone = String(row[rowKeys[0]] || "").trim();
+          } else if (!phone) {
+            for (const k of rowKeys) {
+              const val = String(row[k] || "").trim().replace(/\D/g, "");
+              if (val.length >= 7 && val.length <= 16) {
+                phone = String(row[k]).trim();
+                break;
+              }
+            }
+          }
+
+          const name = nameEntry.val || phone || "Unnamed Contact";
+          const email = emailEntry.val || "";
+          const groups = groupsEntry.val
+            ? groupsEntry.val.split(",").map((g: string) => g.trim()).filter(Boolean)
             : [];
-          const tags = row?.tags
-            ? row.tags.split(",").map((t: string) => t.trim())
+          const tags = tagsEntry.val
+            ? tagsEntry.val.split(",").map((t: string) => t.trim()).filter(Boolean)
             : [];
 
+          // Collect any remaining columns as optional custom variables
           const variables: Record<string, string> = {};
+          const standardNormalizedKeys = [
+            "name", "fullname", "contactname", "firstname", "first_name", "lastname", "last_name",
+            "phone", "phonenumber", "mobile", "mobilenumber", "cell", "cellphone", "telephone", "tel", "msisdn", "number", "whatsapp", "whatsappnumber",
+            "email", "emailaddress", "mail",
+            "groups", "group", "crmgroup",
+            "tags", "tag"
+          ];
+
           Object.entries(row).forEach(([key, val]) => {
-            const cleanKey = key.trim().toLowerCase();
-            if (!["name", "phone", "email", "groups", "tags"].includes(cleanKey)) {
-              variables[cleanKey] = val ? String(val).trim() : "";
+            const cleanKey = key.trim().toLowerCase().replace(/[\s_-]/g, "");
+            if (!standardNormalizedKeys.includes(cleanKey)) {
+              const varKey = key.trim().toLowerCase().replace(/\s+/g, "_");
+              variables[varKey] = val ? String(val).trim() : "";
             }
           });
 
@@ -832,7 +873,7 @@ export default function Contacts() {
             variables,
           };
         })
-        .filter((c) => c.name || c.phone);
+        .filter((c) => c.phone);
 
       if (parsedContacts.length === 0) {
         toast({

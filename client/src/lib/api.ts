@@ -94,6 +94,7 @@ getAllContacts: (
   limit?: number,
   groupFilter?: string,
   statusFilter?: string,
+  userId?: string,
 ) => {
   const params = new URLSearchParams();
 
@@ -102,8 +103,7 @@ getAllContacts: (
   if (limit) params.append("limit", String(limit));
   if (groupFilter) params.append("group", groupFilter);
   if (statusFilter) params.append("status", statusFilter);
-
-  // 🟦 SUPERADMIN → DO NOT SEND createdBy or channelId (ever)
+  if (userId) params.append("userId", userId);
 
   const query = params.toString();
 

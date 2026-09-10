@@ -307,6 +307,20 @@ export default function ContactsManagements() {
   const [currentPage, setCurrentPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const { user } = useAuth();
+  const isPrivilegedRole = user?.role === "superadmin" || user?.role === "manager";
+  const [selectedTenantUserId, setSelectedTenantUserId] = useState<string>("all");
+
+  // Fetch tenant users for superadmin/manager filter
+  const { data: tenantUsersResponse } = useQuery({
+    queryKey: ["/api/admin/users", "contacts-tenant-filter"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/admin/users?limit=100");
+      return await res.json();
+    },
+    enabled: isPrivilegedRole,
+  });
+  const tenantUsers: Array<{ id: string; username: string; email: string }> =
+    tenantUsersResponse?.data || [];
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -348,6 +362,7 @@ export default function ContactsManagements() {
       selectedGroup,
       selectedStatus,
       searchQuery,
+      selectedTenantUserId,
     ],
     queryFn: async () => {
       const response = await api.getAllContacts(
@@ -355,13 +370,13 @@ export default function ContactsManagements() {
         currentPage,
         limit,
         selectedGroup !== "all" && selectedGroup ? selectedGroup : undefined,
-        selectedStatus !== "all" && selectedStatus ? selectedStatus : undefined
+        selectedStatus !== "all" && selectedStatus ? selectedStatus : undefined,
+        isPrivilegedRole && selectedTenantUserId !== "all" ? selectedTenantUserId : undefined,
       );
 
       return (await response.json()) as ContactsResponse;
     },
     placeholderData: (prev) => prev,
-    // enabled: !!activeChannel,
   });
 
   // console.log("check contact", contactsResponse);
@@ -432,7 +447,7 @@ export default function ContactsManagements() {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedGroup, selectedStatus]);
+  }, [searchQuery, selectedGroup, selectedStatus, selectedTenantUserId]);
 
   // Selection handlers - using contacts directly since pagination is server-side
   const allSelected =
@@ -722,6 +737,30 @@ export default function ContactsManagements() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              {isPrivilegedRole && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Tenant:
+                  </span>
+                  <Select
+                    value={selectedTenantUserId}
+                    onValueChange={(val) => setSelectedTenantUserId(val)}
+                  >
+                    <SelectTrigger className="w-[180px] h-10 text-sm bg-white">
+                      <SelectValue placeholder="All Tenants" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Tenants</SelectItem>
+                      {tenantUsers.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.username || u.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <Button
                 variant="outline"
                 onClick={handleExportAllContacts}

@@ -15,8 +15,8 @@
  * ============================================================
  */
 
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { X, FolderPlus } from "lucide-react";
+import { X, FolderPlus, Plus, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -54,6 +54,124 @@ import {
   type InsertContact,
 } from "@shared/schema";
 import { useAuth } from "@/contexts/auth-context";
+
+interface VariableItem {
+  key: string;
+  value: string;
+}
+
+function CustomVariablesEditor({
+  variables,
+  onChange,
+}: {
+  variables: Record<string, string>;
+  onChange: (vars: Record<string, string>) => void;
+}) {
+  const { data: existingVariableKeys = [] } = useQuery<string[]>({
+    queryKey: ["/api/contacts/custom-variables"],
+    queryFn: async () => {
+      const res = await fetch("/api/contacts/custom-variables");
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const [items, setItems] = useState<VariableItem[]>(() =>
+    Object.entries(variables || {}).map(([key, value]) => ({ key, value: String(value ?? "") }))
+  );
+
+  useEffect(() => {
+    setItems(Object.entries(variables || {}).map(([key, value]) => ({ key, value: String(value ?? "") })));
+  }, [variables]);
+
+  const updateItems = (newItems: VariableItem[]) => {
+    setItems(newItems);
+    const obj: Record<string, string> = {};
+    newItems.forEach((it) => {
+      const trimmedKey = it.key.trim().toLowerCase().replace(/\s+/g, "_");
+      if (trimmedKey) {
+        obj[trimmedKey] = it.value.trim();
+      }
+    });
+    onChange(obj);
+  };
+
+  const addRow = () => {
+    updateItems([...items, { key: "", value: "" }]);
+  };
+
+  const removeRow = (index: number) => {
+    const next = items.filter((_, i) => i !== index);
+    updateItems(next);
+  };
+
+  const updateRow = (index: number, field: "key" | "value", val: string) => {
+    const next = [...items];
+    next[index] = { ...next[index], [field]: val };
+    updateItems(next);
+  };
+
+  return (
+    <div className="space-y-2 pt-2 border-t border-gray-100">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+          Custom Variables (Optional)
+        </label>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs text-purple-600 hover:text-purple-700 font-medium p-1"
+          onClick={addRow}
+        >
+          <Plus className="w-3.5 h-3.5 mr-1" /> Add Variable
+        </Button>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="text-xs text-gray-400 italic">No custom variables added yet.</p>
+      ) : (
+        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+          {items.map((item, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <div className="flex-1">
+                <Input
+                  list="existing-custom-vars"
+                  placeholder="Variable Name (e.g. order_id)"
+                  value={item.key}
+                  onChange={(e) => updateRow(idx, "key", e.target.value)}
+                  className="text-xs h-8"
+                />
+              </div>
+              <div className="flex-1">
+                <Input
+                  placeholder="Value"
+                  value={item.value}
+                  onChange={(e) => updateRow(idx, "value", e.target.value)}
+                  className="text-xs h-8"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+                onClick={() => removeRow(idx)}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          ))}
+          <datalist id="existing-custom-vars">
+            {existingVariableKeys.map((k) => (
+              <option key={k} value={k} />
+            ))}
+          </datalist>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function EditContactForm({
   contact,
@@ -68,6 +186,10 @@ function EditContactForm({
 }) {
   const { user } = useAuth();
   const { t } = useTranslation();
+  const [customVariables, setCustomVariables] = useState<Record<string, string>>(
+    (contact.variables as Record<string, string>) || {}
+  );
+
   const form = useForm<InsertContact>({
     resolver: zodResolver(insertContactSchema),
     defaultValues: {
@@ -85,7 +207,10 @@ function EditContactForm({
       const response = await fetch(`/api/contacts/${contact.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          variables: customVariables,
+        }),
       });
       if (!response.ok) throw new Error("Failed to update contact");
       return response.json();
@@ -208,6 +333,11 @@ function EditContactForm({
           )}
         />
 
+        <CustomVariablesEditor
+          variables={customVariables}
+          onChange={setCustomVariables}
+        />
+
         <div className="flex justify-end space-x-2">
           <Button type="button" variant="outline" onClick={onCancel}>
             {t("common.cancel")}
@@ -323,12 +453,16 @@ export function ContactDialogs({
   setGroupDescription,
 }: ContactDialogsProps) {
   const { t } = useTranslation();
+  const [addCustomVariables, setAddCustomVariables] = useState<Record<string, string>>({});
 
   return (
     <>
       {/* Add Contact Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent>
+      <Dialog open={showAddDialog} onOpenChange={(open) => {
+        if (!open) setAddCustomVariables({});
+        setShowAddDialog(open);
+      }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("contacts.addContact.title")}</DialogTitle>
             <DialogDescription>
@@ -337,9 +471,13 @@ export function ContactDialogs({
           </DialogHeader>
           <Form {...form}>
             <form
-              onSubmit={form.handleSubmit((data: InsertContact) =>
-                createContactMutation.mutate(data)
-              )}
+              onSubmit={form.handleSubmit((data: InsertContact) => {
+                createContactMutation.mutate({
+                  ...data,
+                  variables: addCustomVariables,
+                });
+                setAddCustomVariables({});
+              })}
               className="space-y-4"
             >
               <FormField
@@ -401,6 +539,12 @@ export function ContactDialogs({
                   </FormItem>
                 )}
               />
+
+              <CustomVariablesEditor
+                variables={addCustomVariables}
+                onChange={setAddCustomVariables}
+              />
+
               <div className="flex justify-end space-x-2">
                 <Button
                   type="button"

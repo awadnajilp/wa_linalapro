@@ -253,10 +253,11 @@ export function ContactsTable({
                               </div>
                             )}
                             {contact.variables && typeof contact.variables === "object" && Object.keys(contact.variables).length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1.5 max-w-[280px]">
+                              <div className="flex flex-wrap gap-1 mt-1.5 max-w-[320px]">
                                 {Object.entries(contact.variables).map(([key, val]) => (
-                                  <Badge key={key} variant="outline" className="text-[10px] px-1.5 py-0 bg-gray-50 text-gray-600 border-gray-200 truncate">
-                                    {key}: {val}
+                                  <Badge key={key} variant="outline" className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 border-purple-200 max-w-[200px] truncate">
+                                    <span className="font-semibold text-purple-900 mr-1">{key}:</span>
+                                    <span className="truncate">{String(val)}</span>
                                   </Badge>
                                 ))}
                               </div>
@@ -557,10 +558,11 @@ export function ContactsTable({
                           </div>
                         )}
                         {contact.variables && typeof contact.variables === "object" && Object.keys(contact.variables).length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5 max-w-[200px]">
+                          <div className="flex flex-wrap gap-1 mt-1.5 max-w-[220px]">
                             {Object.entries(contact.variables).map(([key, val]) => (
-                              <Badge key={key} variant="outline" className="text-[10px] px-1 px-0.5 bg-gray-50 text-gray-600 border-gray-200 truncate">
-                                {key}: {val}
+                              <Badge key={key} variant="outline" className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 border-purple-200 max-w-[180px] truncate">
+                                <span className="font-semibold text-purple-900 mr-1">{key}:</span>
+                                <span className="truncate">{String(val)}</span>
                               </Badge>
                             ))}
                           </div>

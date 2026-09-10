@@ -26,6 +26,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useChannelContext } from "@/contexts/channel-context";
@@ -46,14 +53,28 @@ export default function Campaigns() {
   const { user } = useAuth();
   const userId = user?.role === "team" ? user?.createdBy : user?.id;
   const userRole = user?.role;
+  const isPrivilegedRole = userRole === "superadmin" || userRole === "manager";
 
   const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [campaignType, setCampaignType] = useState<string>("");
+  const [selectedTenantUserId, setSelectedTenantUserId] = useState<string>("all");
 
   // Pagination state
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+
+  // Fetch tenant users for superadmin/manager filter
+  const { data: tenantUsersResponse } = useQuery({
+    queryKey: ["/api/admin/users", "campaign-tenant-filter"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/admin/users?limit=100");
+      return await res.json();
+    },
+    enabled: isPrivilegedRole,
+  });
+  const tenantUsers: Array<{ id: string; username: string; email: string }> =
+    tenantUsersResponse?.data || [];
 
   const { data: activeChannel } = useQuery({
     queryKey: ["/api/channels/active"],
@@ -68,14 +89,19 @@ export default function Campaigns() {
 
   // Fetch campaigns
   const { data: campaignResponse, isLoading: campaignsLoading } = useQuery({
-    queryKey: ["campaigns", channelId, page],
+    queryKey: ["campaigns", channelId, page, limit, selectedTenantUserId],
     queryFn: async () => {
       const headers: Record<string, string> = {};
       if (channelId) {
         headers["x-channel-id"] = channelId;
       }
 
-      const res = await fetch(`/api/campaigns?page=${page}&limit=${limit}`, {
+      const userParam =
+        isPrivilegedRole && selectedTenantUserId && selectedTenantUserId !== "all"
+          ? `&userId=${selectedTenantUserId}`
+          : "";
+
+      const res = await fetch(`/api/campaigns?page=${page}&limit=${limit}${userParam}`, {
         headers,
         credentials: "include",
       });
@@ -83,7 +109,7 @@ export default function Campaigns() {
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
-    enabled: userRole === "superadmin" || !!channelId,
+    enabled: isPrivilegedRole || !!channelId,
   });
 
   const campaigns = campaignResponse?.data || [];
@@ -334,7 +360,7 @@ export default function Campaigns() {
         title={t("campaigns.title")}
         subtitle={t("campaigns.subtitle")}
         action={
-          userRole !== "superadmin"
+          !isPrivilegedRole
             ? {
                 label: t("campaigns.createCampaign"),
                 onClick: () => setCreateDialogOpen(true),
@@ -349,9 +375,38 @@ export default function Campaigns() {
 
       <div className="px-4 py-4">
         <Card>
-          <CardHeader>
-            <CardTitle>{t("campaigns.allCampaigns")}</CardTitle>
-            <CardDescription>{t("campaigns.listDescription")}</CardDescription>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle>{t("campaigns.allCampaigns")}</CardTitle>
+              <CardDescription>{t("campaigns.listDescription")}</CardDescription>
+            </div>
+
+            {isPrivilegedRole && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Tenant User:
+                </span>
+                <Select
+                  value={selectedTenantUserId}
+                  onValueChange={(val) => {
+                    setSelectedTenantUserId(val);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-[200px] h-9 text-sm bg-white">
+                    <SelectValue placeholder="All Tenants" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Tenants</SelectItem>
+                    {tenantUsers.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.username || u.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <CampaignsTable

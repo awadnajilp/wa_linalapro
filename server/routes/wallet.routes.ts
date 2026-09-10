@@ -53,23 +53,23 @@ export function registerWalletRoutes(app: Express) {
   // ==================== ADMIN WALLET ROUTES ====================
 
   // Get all wallets (for admin)
-  app.get("/api/admin/wallets", requireAuth, requireRole("superadmin"), getAdminWallets);
+  app.get("/api/admin/wallets", requireAuth, requireRole("superadmin", "manager"), getAdminWallets);
 
   // Toggle wallet restriction limit on/off for a tenant/user
-  app.post("/api/admin/wallets/toggle", requireAuth, requireRole("superadmin"), toggleWalletLimit);
+  app.post("/api/admin/wallets/toggle", requireAuth, requireRole("superadmin", "manager"), toggleWalletLimit);
 
   // Directly adjust balance / manual adjustment (admin action)
-  app.post("/api/admin/wallets/recharge-manual", requireAuth, requireRole("superadmin"), adminRechargeWallet);
+  app.post("/api/admin/wallets/recharge-manual", requireAuth, requireRole("superadmin", "manager"), adminRechargeWallet);
 
   // Get all wallet transactions (for admin verification)
-  app.get("/api/admin/wallet-transactions", requireAuth, requireRole("superadmin"), getAdminWalletTransactions);
+  app.get("/api/admin/wallet-transactions", requireAuth, requireRole("superadmin", "manager"), getAdminWalletTransactions);
 
   // Verify / approve / reject a manual transaction (admin action)
-  app.post("/api/admin/wallet-transactions/:transactionId/verify", requireAuth, requireRole("superadmin"), verifyManualTransaction);
+  app.post("/api/admin/wallet-transactions/:transactionId/verify", requireAuth, requireRole("superadmin", "manager"), verifyManualTransaction);
 
   // Get wallet settings (global margins, upi id, bank details, exchange rates)
-  app.get("/api/admin/wallet/settings", requireAuth, requireRole("superadmin"), getWalletSettings);
+  app.get("/api/admin/wallet/settings", requireAuth, requireRole("superadmin", "manager"), getWalletSettings);
 
   // Update wallet settings (global margins, upi id, bank details, exchange rates)
-  app.put("/api/admin/wallet/settings", requireAuth, requireRole("superadmin"), updateWalletSettings);
+  app.put("/api/admin/wallet/settings", requireAuth, requireRole("superadmin", "manager"), updateWalletSettings);
 }

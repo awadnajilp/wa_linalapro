@@ -1172,6 +1172,7 @@ const steps: MigrationStep[] = [
   // Ecommerce Module Updates
   // ────────────────────────────────────────────────────
   addColumnIfNotExists("ecommerce_products", "long_description", "TEXT"),
+  addColumnIfNotExists("ecommerce_products", "product_messages", "JSONB DEFAULT '[]'::jsonb"),
   addColumnIfNotExists("ecommerce_orders", "delivery_fee", "NUMERIC(12, 2) DEFAULT 0"),
   addColumnIfNotExists("ecommerce_configs", "ai_voice_enabled", "BOOLEAN DEFAULT false"),
   addColumnIfNotExists("ecommerce_configs", "voice_profile_id", "VARCHAR REFERENCES voice_profiles (id) ON DELETE SET NULL"),

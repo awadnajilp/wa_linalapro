@@ -2513,6 +2513,7 @@ export const ecommerceProducts = pgTable("ecommerce_products", {
   description: text("description"),
   longDescription: text("long_description"),
   photos: jsonb("photos").default([]),
+  productMessages: jsonb("product_messages").default([]),
   checkoutLink: text("checkout_link"),
   triggerKeyword: text("trigger_keyword"),
   isTriggerEnabled: boolean("is_trigger_enabled").default(false),

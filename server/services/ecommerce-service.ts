@@ -1886,6 +1886,39 @@ export class EcommerceService {
       }
     }
 
+    // Send Product-Specific Messages & Attachments Sequence (if configured)
+    let rawProductMessages = product.productMessages;
+    if (typeof rawProductMessages === "string") {
+      try {
+        rawProductMessages = JSON.parse(rawProductMessages);
+      } catch {
+        rawProductMessages = [];
+      }
+    }
+    const sortedProductMessages = (Array.isArray(rawProductMessages) ? rawProductMessages : [])
+      .map((pMsg: any) => ({
+        text: pMsg.text || "",
+        mediaType: pMsg.mediaType || "none",
+        mediaUrl: pMsg.mediaUrl || "",
+        sortOrder: typeof pMsg.sortOrder === "number" ? pMsg.sortOrder : 0
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    for (const pMsg of sortedProductMessages) {
+      try {
+        if (pMsg.mediaType !== "none" && pMsg.mediaUrl) {
+          await this.sendAndSaveMediaMessage(channelRow, conversationId, contactPhone, pMsg.mediaUrl, pMsg.mediaType as any, pMsg.text || "");
+        } else if (pMsg.text) {
+          await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, pMsg.text);
+        }
+      } catch (pMsgErr: any) {
+        console.warn("[EcommerceService] Product-specific message item send failed:", pMsgErr.message);
+        if (pMsg.text) {
+          await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, pMsg.text).catch(() => {});
+        }
+      }
+    }
+
     let photos: string[] = [];
     try {
       photos = typeof product.photos === "string" ? JSON.parse(product.photos) : (product.photos || []);

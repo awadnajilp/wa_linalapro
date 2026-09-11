@@ -102,7 +102,7 @@ export function registerEcommerceRoutes(app: Express) {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
-      const { id, name, price, description, longDescription, photos, checkoutLink, triggerKeyword, isTriggerEnabled } = req.body;
+      const { id, name, price, description, longDescription, photos, productMessages, checkoutLink, triggerKeyword, isTriggerEnabled } = req.body;
 
       if (!name) {
         return res.status(400).json({ error: "Product name is required" });
@@ -117,6 +117,7 @@ export function registerEcommerceRoutes(app: Express) {
 
       const storeCurrency = tenantConfig?.currency || "INR";
       const parsedPhotos = Array.isArray(photos) ? photos : [];
+      const parsedProductMessages = Array.isArray(productMessages) ? productMessages : [];
 
       if (id) {
         // Edit existing product
@@ -128,6 +129,7 @@ export function registerEcommerceRoutes(app: Express) {
             description: description || null,
             longDescription: longDescription || null,
             photos: parsedPhotos,
+            productMessages: parsedProductMessages,
             checkoutLink: checkoutLink || null,
             triggerKeyword: triggerKeyword || null,
             isTriggerEnabled: isTriggerEnabled !== undefined ? isTriggerEnabled : false,
@@ -157,6 +159,7 @@ export function registerEcommerceRoutes(app: Express) {
             description: description || null,
             longDescription: longDescription || null,
             photos: parsedPhotos,
+            productMessages: parsedProductMessages,
             checkoutLink: checkoutLink || null,
             triggerKeyword: triggerKeyword || null,
             isTriggerEnabled: isTriggerEnabled !== undefined ? isTriggerEnabled : false,

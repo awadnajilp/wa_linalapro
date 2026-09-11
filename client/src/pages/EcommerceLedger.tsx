@@ -32,6 +32,14 @@ You are chatting with a customer regarding this product:
 
 CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (under 150 words). Always try to close the sale by encouraging them to buy and proceed to checkout once their queries are addressed. Inform the user they can type 'checkout' or '1' at any time to buy!`;
 
+interface ProductMessage {
+  id: string;
+  text: string;
+  mediaType: "none" | "image" | "video" | "audio" | "document";
+  mediaUrl: string;
+  sortOrder: number;
+}
+
 interface Product {
   id: string;
   name: string;
@@ -39,9 +47,11 @@ interface Product {
   description: string | null;
   longDescription?: string | null;
   photos: string[] | string;
+  productMessages?: ProductMessage[];
   checkoutLink: string | null;
   triggerKeyword: string | null;
   isTriggerEnabled: boolean;
+  currency?: string;
   createdAt: string;
 }
 
@@ -218,6 +228,7 @@ export default function EcommerceLedger() {
   const [prodCheckoutLink, setProdCheckoutLink] = useState("");
   const [prodTrigger, setProdTrigger] = useState("");
   const [prodTriggerEnabled, setProdTriggerEnabled] = useState(false);
+  const [prodMessages, setProdMessages] = useState<ProductMessage[]>([]);
 
   // Gallery Dialog states
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
@@ -1142,6 +1153,7 @@ export default function EcommerceLedger() {
     setProdDesc("");
     setProdLongDesc("");
     setProdPhotos("");
+    setProdMessages([]);
     setProdCheckoutLink("");
     setProdTrigger("");
     setProdTriggerEnabled(false);
@@ -1160,6 +1172,13 @@ export default function EcommerceLedger() {
         : String(product.photos);
     }
     setProdPhotos(photoUrls);
+    let pMsgs: ProductMessage[] = [];
+    if (product.productMessages) {
+      pMsgs = typeof product.productMessages === "string"
+        ? JSON.parse(product.productMessages)
+        : (Array.isArray(product.productMessages) ? product.productMessages : []);
+    }
+    setProdMessages(pMsgs);
     setProdCheckoutLink(product.checkoutLink || "");
     setProdTrigger(product.triggerKeyword || "");
     setProdTriggerEnabled(product.isTriggerEnabled);
@@ -1176,6 +1195,7 @@ export default function EcommerceLedger() {
       description: prodDesc,
       longDescription: prodLongDesc,
       photos: photosArray,
+      productMessages: prodMessages,
       checkoutLink: prodCheckoutLink,
       triggerKeyword: prodTrigger,
       isTriggerEnabled: prodTriggerEnabled,
@@ -1530,7 +1550,7 @@ export default function EcommerceLedger() {
                 {t("ecommerce.products.addProduct")}
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+            <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingProduct ? t("ecommerce.products.editProduct") : t("ecommerce.products.addProduct")}</DialogTitle>
                 <DialogDescription>
@@ -1641,6 +1661,148 @@ export default function EcommerceLedger() {
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* Product Specific Messages & Media Attachments */}
+              <div className="border border-purple-200 bg-purple-50/40 p-3 rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5 text-purple-600" />
+                      Product Specific Messages & Attachments
+                    </h4>
+                    <p className="text-[11px] text-gray-500">
+                      Sequence of custom messages, audio notes, videos, or documents sent when this product is triggered.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {prodMessages.map((msg, idx) => (
+                    <div key={msg.id || idx} className="border border-purple-100 p-2.5 rounded-md bg-white space-y-2.5 shadow-sm text-xs">
+                      <div className="flex justify-between items-center border-b pb-1">
+                        <span className="font-bold text-purple-700">Message / Attachment #{idx + 1}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 p-1 h-5 text-xs"
+                          onClick={() => {
+                            setProdMessages(prodMessages.filter((_, i) => i !== idx));
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Media Type</Label>
+                          <select
+                            value={msg.mediaType || "none"}
+                            onChange={(e) => {
+                              const updated = [...prodMessages];
+                              updated[idx].mediaType = e.target.value as any;
+                              setProdMessages(updated);
+                            }}
+                            className="w-full border rounded p-1 text-xs bg-white h-8"
+                          >
+                            <option value="none">No Media (Text Only)</option>
+                            <option value="image">Image</option>
+                            <option value="video">Video</option>
+                            <option value="audio">Audio / Voice Note</option>
+                            <option value="document">Document / PDF</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1 md:col-span-2">
+                          <Label className="text-[11px]">Media URL</Label>
+                          <div className="flex gap-1.5">
+                            <Input
+                              value={msg.mediaUrl || ""}
+                              onChange={(e) => {
+                                const updated = [...prodMessages];
+                                updated[idx].mediaUrl = e.target.value;
+                                setProdMessages(updated);
+                              }}
+                              placeholder="https://... or choose from gallery"
+                              className="h-8 text-xs"
+                              disabled={msg.mediaType === "none"}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs px-2.5"
+                              disabled={msg.mediaType === "none"}
+                              onClick={() => {
+                                setGalleryTarget(`prod_msg_${idx}`);
+                                setIsGalleryOpen(true);
+                              }}
+                            >
+                              Gallery
+                            </Button>
+                          </div>
+                          {msg.mediaType === "image" && msg.mediaUrl && (
+                            <div className="mt-1.5 w-12 h-12 border rounded overflow-hidden">
+                              <img src={getPreviewUrl(msg.mediaUrl)} className="w-full h-full object-cover" alt="preview" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                        <div className="space-y-1 md:col-span-3">
+                          <Label className="text-[11px] font-medium">Text Body / Caption</Label>
+                          <Textarea
+                            value={msg.text || ""}
+                            onChange={(e) => {
+                              const updated = [...prodMessages];
+                              updated[idx].text = e.target.value;
+                              setProdMessages(updated);
+                            }}
+                            placeholder="Enter message text or media caption..."
+                            className="text-xs min-h-[45px] py-1"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Seq Weight</Label>
+                          <Input
+                            type="number"
+                            value={msg.sortOrder}
+                            onChange={(e) => {
+                              const updated = [...prodMessages];
+                              updated[idx].sortOrder = parseInt(e.target.value) || 0;
+                              setProdMessages(updated);
+                            }}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-dashed border-purple-300 text-purple-700 hover:bg-purple-100 text-xs h-8"
+                    onClick={() => {
+                      setProdMessages([
+                        ...prodMessages,
+                        {
+                          id: Math.random().toString(36).substring(7),
+                          text: "",
+                          mediaType: "none",
+                          mediaUrl: "",
+                          sortOrder: prodMessages.length + 1
+                        }
+                      ]);
+                    }}
+                  >
+                    + Add Product Message / Attachment
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -2917,7 +3079,8 @@ export default function EcommerceLedger() {
                                   <option value="none">No Media (Text Only)</option>
                                   <option value="image">Image</option>
                                   <option value="video">Video</option>
-                                  <option value="audio">Audio</option>
+                                  <option value="audio">Audio / Voice Note</option>
+                                  <option value="document">Document / PDF</option>
                                 </select>
                               </div>
 
@@ -4626,10 +4789,21 @@ You are chatting with a customer regarding this product:
               updated[idx].mediaUrl = url;
               setWelcomeMessages(updated);
             }
+          } else if (galleryTarget.startsWith("prod_msg_")) {
+            const idx = parseInt(galleryTarget.replace("prod_msg_", ""));
+            if (!isNaN(idx) && idx >= 0 && idx < prodMessages.length) {
+              const updated = [...prodMessages];
+              updated[idx].mediaUrl = url;
+              setProdMessages(updated);
+            }
           }
           setIsGalleryOpen(false);
         }}
-        allowedTypes={["image"]}
+        allowedTypes={
+          galleryTarget === "product" || galleryTarget === "qr_code"
+            ? ["image"]
+            : ["image", "video", "audio", "document"]
+        }
       />
 
       {/* Edit Order Dialog */}

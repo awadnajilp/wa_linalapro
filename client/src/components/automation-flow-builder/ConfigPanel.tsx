@@ -696,14 +696,46 @@ export function ConfigPanel({
                 </div>
 
                 {d.scheduleType === "date" ? (
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <Label className="text-xs font-semibold text-gray-700">Target Date & Time</Label>
                     <Input
                       type="datetime-local"
                       value={(d.scheduleDate as string) || ""}
-                      onChange={(e) => onChange({ scheduleDate: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!val) {
+                          onChange({
+                            scheduleDate: "",
+                            scheduleIso: "",
+                            scheduleTimestamp: undefined,
+                            scheduleTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                          });
+                        } else {
+                          const localDate = new Date(val);
+                          onChange({
+                            scheduleDate: val,
+                            scheduleIso: localDate.toISOString(),
+                            scheduleTimestamp: localDate.getTime(),
+                            scheduleTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                          });
+                        }
+                      }}
                       className="h-9 text-sm rounded-lg bg-white"
                     />
+                    <div className="rounded-md bg-blue-50/70 border border-blue-100 p-2 text-[11px] text-blue-900 flex flex-col gap-0.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-600">Your Timezone:</span>
+                        <span className="font-semibold text-slate-800">{Intl.DateTimeFormat().resolvedOptions().timeZone}</span>
+                      </div>
+                      {d.scheduleDate ? (
+                        <div className="flex items-center justify-between text-blue-700 font-medium">
+                          <span>Scheduled Run:</span>
+                          <span>{new Date(d.scheduleDate as string).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 italic">Select a date and time in your local timezone</span>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-3">

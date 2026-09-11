@@ -202,6 +202,17 @@ export interface BuilderNodeData {
   crmAssigneeId?: string;
   crmAssigneeMode?: "member" | "round_robin";
   excludeUserIds?: string[];
+  scheduleType?: "duration" | "date";
+  scheduleDate?: string;
+  scheduleIso?: string;
+  scheduleTimestamp?: number;
+  scheduleTimezone?: string;
+  scheduleDays?: number;
+  scheduleMinutes?: number;
+  scheduleRecurring?: boolean;
+  scheduleInterval?: "daily" | "weekly" | "monthly";
+  scheduleRepeatTimes?: number;
+
   [key: string]: unknown;
 }
 

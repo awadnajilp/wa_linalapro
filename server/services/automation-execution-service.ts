@@ -125,6 +125,7 @@ interface PendingExecution {
 
 export class AutomationExecutionService {
   private pendingExecutions = new Map<string, PendingExecution>();
+  private activeTimeGapTimers = new Set<string>();
 
   constructor() {
     setInterval(() => {
@@ -2762,7 +2763,9 @@ private async sendInteractiveMessage(
       })
       .where(eq(automationExecutions.id, context.executionId));
 
+    this.activeTimeGapTimers.add(context.executionId);
     const continueAfterDelay = async () => {
+      this.activeTimeGapTimers.delete(context.executionId);
       try {
         console.log(`⏰ Delay completed for execution ${context.executionId}, continuing`);
 
@@ -2803,14 +2806,18 @@ private async sendInteractiveMessage(
     let delaySeconds = 0;
 
     if (type === 'date') {
-      const dateStr = node.data?.scheduleDate;
-      if (dateStr) {
-        resumeAt = new Date(dateStr);
-        delaySeconds = Math.max(0, Math.round((resumeAt.getTime() - Date.now()) / 1000));
+      if (node.data?.scheduleIso) {
+        resumeAt = new Date(node.data.scheduleIso);
+      } else if (node.data?.scheduleTimestamp) {
+        resumeAt = new Date(Number(node.data.scheduleTimestamp));
+      } else if (node.data?.scheduleDate) {
+        resumeAt = new Date(node.data.scheduleDate);
       } else {
-        delaySeconds = 10;
-        resumeAt = new Date(Date.now() + 10 * 1000);
+        resumeAt = new Date();
       }
+
+      const diffMs = resumeAt.getTime() - Date.now();
+      delaySeconds = Math.max(0, Math.round(diffMs / 1000));
     } else {
       const days = Number(node.data?.scheduleDays || 0);
       const minutes = Number(node.data?.scheduleMinutes || 10);
@@ -2821,7 +2828,7 @@ private async sendInteractiveMessage(
     const recurring = !!node.data?.scheduleRecurring;
     const interval = node.data?.scheduleInterval || 'daily';
 
-    console.log(`⏰ [Scheduler] Node ${node.nodeId}: Scheduling execution to run in ${delaySeconds}s (until ${resumeAt.toISOString()}). Recurring: ${recurring}`);
+    console.log(`⏰ [Scheduler] Node ${node.nodeId}: Scheduling execution ${context.executionId} to run in ${delaySeconds}s (until ${resumeAt.toISOString()}). Recurring: ${recurring}`);
 
     const varsPatch: Record<string, any> = {
       _timeGap_waitingUntil: resumeAt.toISOString(),
@@ -2840,7 +2847,28 @@ private async sendInteractiveMessage(
       })
       .where(eq(automationExecutions.id, context.executionId));
 
+    if (delaySeconds <= 0) {
+      console.log(`⏰ [Scheduler] Target time already reached for execution ${context.executionId} — resuming immediately`);
+      void (async () => {
+        try {
+          const freshAutomation = await this.getAutomationWithFlow(context.automationId);
+          await this.resumeScheduler(context.executionId, node, freshAutomation, context);
+        } catch (error) {
+          console.error('Error continuing after schedule:', error);
+          await this.completeExecution(context.executionId, 'failed', `Schedule continuation failed: ${(error as Error).message}`);
+        }
+      })();
+      return {
+        action: 'schedule_started',
+        delaySeconds: 0,
+        scheduledFor: resumeAt,
+      };
+    }
+
+    this.activeTimeGapTimers.add(context.executionId);
+
     const continueAfterSchedule = async () => {
+      this.activeTimeGapTimers.delete(context.executionId);
       try {
         console.log(`⏰ [Scheduler] Time reached for execution ${context.executionId}`);
         const freshAutomation = await this.getAutomationWithFlow(context.automationId);
@@ -2889,7 +2917,13 @@ private async sendInteractiveMessage(
       if (runCount < maxRepeatTimes) {
         let nextResumeAt = new Date();
         if (type === 'date') {
-          const baseDate = node.data?.scheduleDate ? new Date(node.data.scheduleDate) : new Date();
+          const baseDate = node.data?.scheduleIso 
+            ? new Date(node.data.scheduleIso) 
+            : node.data?.scheduleTimestamp 
+              ? new Date(Number(node.data.scheduleTimestamp)) 
+              : node.data?.scheduleDate 
+                ? new Date(node.data.scheduleDate) 
+                : new Date();
           let occurrence = new Date(baseDate);
           while (occurrence.getTime() <= Date.now()) {
             if (interval === 'daily') {
@@ -2955,7 +2989,9 @@ private async sendInteractiveMessage(
           .where(eq(automationExecutions.id, executionId));
 
         const remainingMs = Math.max(1000, nextResumeAt.getTime() - Date.now());
+        this.activeTimeGapTimers.add(executionId);
         setTimeout(async () => {
+          this.activeTimeGapTimers.delete(executionId);
           const freshAutomation = await this.getAutomationWithFlow(context.automationId);
           const updatedContext = {
             ...context,
@@ -3007,8 +3043,6 @@ private async sendInteractiveMessage(
 
       if (timeGapExecs.length === 0) return;
 
-      console.log(`[time_gap recovery] Found ${timeGapExecs.length} paused time_gap execution(s) — scheduling resumption`);
-
       for (const exec of timeGapExecs) {
         const vars = (exec.variables as Record<string, any>) || {};
         const waitingUntil = vars._timeGap_waitingUntil as string;
@@ -3018,6 +3052,11 @@ private async sendInteractiveMessage(
 
         const resumeAt = new Date(waitingUntil);
         const remainingMs = Math.max(0, resumeAt.getTime() - Date.now());
+
+        // If execution is already scheduled in an active in-memory timer and not yet due, skip
+        if (this.activeTimeGapTimers.has(exec.id) && remainingMs > 0) {
+          continue;
+        }
 
         const cleanVars = { ...vars };
         delete cleanVars._timeGap_waitingUntil;
@@ -3034,6 +3073,7 @@ private async sendInteractiveMessage(
         };
 
         const resume = async () => {
+          this.activeTimeGapTimers.delete(exec.id);
           try {
             console.log(`⏰ [time_gap recovery] Resuming execution ${exec.id}`);
 
@@ -3053,7 +3093,7 @@ private async sendInteractiveMessage(
               await this.resumeScheduler(exec.id, currentNode, automation, context);
             } else {
               // Run continuation first — markers stay in DB until success.
-              // If server crashes here, next boot recovery re-schedules safely.
+              // If server crashes here, next recovery re-schedules safely.
               await this.continueToNextNode(currentNode, automation, context);
 
               // Continuation succeeded — remove time_gap markers from DB variables.
@@ -3068,15 +3108,18 @@ private async sendInteractiveMessage(
         };
 
         if (remainingMs === 0) {
+          this.activeTimeGapTimers.delete(exec.id);
           console.log(`[time_gap recovery] Execution ${exec.id} is past-due — resuming immediately`);
           void resume();
         } else {
+          // Track and schedule in-memory timer
+          this.activeTimeGapTimers.add(exec.id);
           console.log(`[time_gap recovery] Execution ${exec.id} resumes in ${Math.round(remainingMs / 1000)}s`);
           setTimeout(resume, remainingMs);
         }
       }
     } catch (err) {
-      console.error('[time_gap recovery] Error during startup recovery:', err);
+      console.error('[time_gap recovery] Error during recovery:', err);
     }
   }
 

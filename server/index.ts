@@ -768,6 +768,15 @@ app.use((req, res, next) => {
           diployLogger.error(`[Startup] Failed to recover user_reply executions: ${err}`);
         }
 
+        // Periodically check and resume due scheduler and time_gap executions (every 15s)
+        setInterval(async () => {
+          try {
+            await executionService.recoverTimeGapExecutions();
+          } catch (err) {
+            diployLogger.error(`[Scheduler Poller] Error recovering scheduled executions: ${err}`);
+          }
+        }, 15000);
+
         try {
           const activeChannels = await storage.getChannels();
           const activeOnes = activeChannels.filter((c: any) => c.isActive && c.whatsappBusinessAccountId && c.accessToken);

@@ -1992,6 +1992,10 @@ export class EcommerceService {
     // Delete any active sessions for this conversation first
     await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
 
+    const productPhoto = Array.isArray(product.photos)
+      ? product.photos[0]
+      : (typeof product.photos === "string" ? product.photos.split(",")[0] : null);
+
     // WhatsApp Flow Form checkout check
     if (config.useWhatsappFlowForm && config.whatsappFlowId && channelRow.connectionMethod !== "qr_code") {
       const [flowRecord] = await db
@@ -2069,10 +2073,6 @@ export class EcommerceService {
         variable: f.variable || "custom_field" 
       };
     });
-
-    const productPhoto = Array.isArray(product.photos)
-      ? product.photos[0]
-      : (typeof product.photos === "string" ? product.photos.split(",")[0] : null);
 
     if (askQuantity) {
       // Create session waiting for quantity

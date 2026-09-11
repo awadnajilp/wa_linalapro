@@ -89,6 +89,9 @@ interface EcommerceConfig {
   autoAssignMode?: "permanent" | "round_robin";
   autoAssignUserId?: string | null;
   autoAssignExcludedUserIds?: string[];
+  useWhatsappFlowForm?: boolean;
+  whatsappFlowId?: string | null;
+  whatsappFlowCtaText?: string;
   isActive: boolean;
 }
 
@@ -420,6 +423,22 @@ export default function EcommerceLedger() {
     enabled: !!channelId,
   });
 
+  // 1c. Fetch WhatsApp Flows for Form Checkout
+  const { data: flowsResponse } = useQuery<{ data: any[] }>({
+    queryKey: ["/api/whatsapp-flows", channelId],
+    queryFn: async () => {
+      if (!channelId) return { data: [] };
+      const res = await fetch(`/api/whatsapp-flows?channelId=${channelId}`);
+      if (!res.ok) return { data: [] };
+      return res.json();
+    },
+    enabled: !!channelId,
+  });
+
+  const availableFlows = useMemo(() => {
+    return Array.isArray(flowsResponse?.data) ? flowsResponse.data : [];
+  }, [flowsResponse]);
+
   // Populate config form when loaded
   React.useEffect(() => {
     if (config) {
@@ -480,6 +499,9 @@ export default function EcommerceLedger() {
       setAbandonedCartDiscountPercent((config as any).abandonedCartDiscountPercent ? String((config as any).abandonedCartDiscountPercent) : "10");
       setAbandonedCartMessage1((config as any).abandonedCartMessage1 || "");
       setAbandonedCartMessage2((config as any).abandonedCartMessage2 || "");
+      setUseWhatsappFlowForm((config as any).useWhatsappFlowForm !== undefined ? (config as any).useWhatsappFlowForm : false);
+      setWhatsappFlowId((config as any).whatsappFlowId || "");
+      setWhatsappFlowCtaText((config as any).whatsappFlowCtaText || "Complete Checkout 🛍️");
 
       // Standardize loaded checkoutFields Q&A objects
       if (Array.isArray(config.checkoutFields)) {
@@ -986,6 +1008,57 @@ export default function EcommerceLedger() {
     },
   });
 
+  // 3b. Sync WhatsApp Checkout Flow with Meta
+  const syncCheckoutFlowMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/ecommerce/sync-checkout-flow", {
+        channelId,
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to generate WhatsApp checkout flow");
+      }
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp-flows", channelId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/config", channelId] });
+      if (data?.data?.flowId) {
+        setWhatsappFlowId(data.data.flowId);
+      }
+      toast({
+        title: "Flow Form Synced",
+        description: data.message || "WhatsApp Checkout Flow successfully generated and synced!",
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Sync Failed",
+        description: err.message || "Failed to generate WhatsApp checkout flow",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSyncCheckoutFlow = async () => {
+    if (!channelId) {
+      toast({
+        title: "No Channel Selected",
+        description: "Please select a channel first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsSyncingFlow(true);
+    try {
+      await syncCheckoutFlowMutation.mutateAsync();
+    } catch (e) {
+      // Handled in onError
+    } finally {
+      setIsSyncingFlow(false);
+    }
+  };
+
   // 4. Update Order Status
   const updateOrderStatusMutation = useMutation({
     mutationFn: async ({ id, status, paymentStatus }: { id: string; status?: string; paymentStatus?: string }) => {
@@ -1232,6 +1305,9 @@ export default function EcommerceLedger() {
       aiAskButtonEnabled,
       aiSystemPrompt,
       askQuantity,
+      useWhatsappFlowForm,
+      whatsappFlowId: whatsappFlowId || null,
+      whatsappFlowCtaText: whatsappFlowCtaText || "Complete Checkout 🛍️",
       welcomeMessages,
       storeName,
       storeAddress,

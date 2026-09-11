@@ -224,7 +224,7 @@ export async function subscribeChannelToWebhook(channel: {
   }
   try {
     const res = await fetch(
-      `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${wabaId}/subscribed_apps?access_token=${channel.accessToken}`,
+      `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${wabaId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,message_echoes,message_template_status_update,smb_message_echoes,account_alerts,account_update&access_token=${channel.accessToken}`,
       { method: "POST" }
     );
     const data: any = await res.json();

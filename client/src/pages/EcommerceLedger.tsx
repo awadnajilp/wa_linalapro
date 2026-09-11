@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -287,7 +287,6 @@ export default function EcommerceLedger() {
   const [useWhatsappFlowForm, setUseWhatsappFlowForm] = useState(false);
   const [whatsappFlowId, setWhatsappFlowId] = useState<string>("");
   const [whatsappFlowCtaText, setWhatsappFlowCtaText] = useState("Complete Checkout 🛍️");
-  const [availableFlows, setAvailableFlows] = useState<any[]>([]);
   const [isSyncingFlow, setIsSyncingFlow] = useState(false);
   const [configVoiceProfileId, setConfigVoiceProfileId] = useState<string>("");
   const [configAiVoiceLanguageMode, setConfigAiVoiceLanguageMode] = useState<string>("profile");
@@ -2977,23 +2976,23 @@ export default function EcommerceLedger() {
                               Replaces step-by-step text questions with a single native WhatsApp form. When a customer reaches checkout, WhatsApp opens an interactive form to fill delivery details & choose payment at once.
                             </span>
                           </div>
-                          <Switch checked={useWhatsappFlowForm} onCheckedChange={setUseWhatsappFlowForm} />
+                          <Switch checked={!!useWhatsappFlowForm} onCheckedChange={(val) => setUseWhatsappFlowForm(val)} />
                         </div>
 
-                        {useWhatsappFlowForm && (
+                        {!!useWhatsappFlowForm && (
                           <div className="pt-3 border-t border-indigo-100 space-y-3">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               <div className="space-y-1">
                                 <Label className="text-xs font-semibold text-gray-700">Select WhatsApp Form</Label>
                                 <select
-                                  value={whatsappFlowId}
+                                  value={whatsappFlowId || ""}
                                   onChange={(e) => setWhatsappFlowId(e.target.value)}
                                   className="w-full border rounded h-9 text-xs p-2 bg-white"
                                 >
                                   <option value="">-- Choose an existing Form --</option>
-                                  {availableFlows.map((fl: any) => (
-                                    <option key={fl.id} value={fl.id}>
-                                      {fl.name} ({fl.status || "DRAFT"})
+                                  {(availableFlows || []).map((fl: any) => (
+                                    <option key={fl?.id || Math.random()} value={fl?.id || ""}>
+                                      {fl?.name || "Untitled Flow"} ({fl?.status || "DRAFT"})
                                     </option>
                                   ))}
                                 </select>
@@ -3002,7 +3001,7 @@ export default function EcommerceLedger() {
                               <div className="space-y-1">
                                 <Label className="text-xs font-semibold text-gray-700">Form CTA Button Label</Label>
                                 <Input
-                                  value={whatsappFlowCtaText}
+                                  value={whatsappFlowCtaText || ""}
                                   onChange={(e) => setWhatsappFlowCtaText(e.target.value)}
                                   placeholder="Complete Checkout 🛍️"
                                   className="text-xs h-9 bg-white"

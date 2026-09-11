@@ -894,7 +894,7 @@ export class WhatsappFlowsService {
       };
     }
 
-    const res = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+    let res = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${accessToken}`,
@@ -903,7 +903,44 @@ export class WhatsappFlowsService {
       body: JSON.stringify(payload),
     });
 
-    const data = await res.json();
+    let data = await res.json();
+    if (!res.ok || data.error) {
+      const details = data.error?.error_data?.details || data.error?.error_user_msg || data.error?.message || "";
+      console.warn("[WhatsappFlowsService] Meta Flow Send initial response:", JSON.stringify(data, null, 2));
+
+      // Handle screen mismatch error from Meta (e.g. "Allowed screen name is: SCREEN_CHECKOUT")
+      const screenMatch = details.match(/Allowed screen name is:?\s*([A-Za-z0-9_]+)/i);
+      if (screenMatch && screenMatch[1]) {
+        const correctScreen = screenMatch[1];
+        console.log(`[WhatsappFlowsService] Correcting flow screen to "${correctScreen}" and retrying...`);
+        actionPayload.screen = correctScreen;
+        payload.interactive.action.parameters.flow_action_payload = actionPayload;
+
+        res = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+        data = await res.json();
+
+        // Also update local flow JSON if needed
+        if (flow.id) {
+          try {
+            const rawJson = typeof flow.flowJson === "object" ? flow.flowJson : (flow.flowJson ? JSON.parse(flow.flowJson) : null);
+            if (rawJson && rawJson.screens && rawJson.screens.length > 0) {
+              rawJson.screens[0].id = correctScreen;
+              await db.update(whatsappFlows).set({ flowJson: rawJson, updatedAt: new Date() }).where(eq(whatsappFlows.id, flow.id));
+            }
+          } catch (e: any) {
+            console.warn("[WhatsappFlowsService] Failed to auto-update flowJson in DB:", e.message);
+          }
+        }
+      }
+    }
+
     if (!res.ok || data.error) {
       console.error("[WhatsappFlowsService] Meta Flow Send Error:", JSON.stringify(data, null, 2));
       const details = data.error?.error_data?.details || data.error?.error_user_msg || data.error?.message || JSON.stringify(data);

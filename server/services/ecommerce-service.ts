@@ -979,17 +979,16 @@ export class EcommerceService {
 
       const listReplyIdCheck = message.interactive?.list_reply?.id || (message as any)?.interactive?.listReply?.id;
 
-      // Only check global catalog/product keywords if NOT clicking an in-session button or if NO active checkout session
-      const isCheckoutAction = buttonReplyIdCheck === "confirm_checkout" || 
-                               buttonReplyIdCheck === "edit_checkout" || 
-                               buttonReplyIdCheck === "cod" || 
-                               buttonReplyIdCheck === "upi_direct" || 
-                               buttonReplyIdCheck === "qr_pay" || 
-                               buttonReplyIdCheck === "gateway" || 
-                               (existingSession && (existingSession.currentStep.startsWith("waiting_for_") || existingSession.currentStep === "ai_chat"));
+      const isButtonReplyAction = buttonReplyIdCheck === "confirm_checkout" || 
+                                  buttonReplyIdCheck === "edit_checkout" || 
+                                  buttonReplyIdCheck === "cod" || 
+                                  buttonReplyIdCheck === "upi_direct" || 
+                                  buttonReplyIdCheck === "qr_pay" || 
+                                  buttonReplyIdCheck === "gateway";
 
-      if (!isCheckoutAction) {
-        // 1. Check store catalogue trigger (Exact, Phrase, or FB/IG Ad greeting)
+      // 1. If not an explicit in-session button click, ALWAYS check for matching product/catalog triggers first!
+      if (!isButtonReplyAction) {
+        // Check store catalogue trigger (Exact, Phrase, or FB/IG Ad greeting)
         const isCatalogTrigger = this.isStoreCatalogTrigger(config, content, message);
 
         if (isCatalogTrigger) {
@@ -1005,7 +1004,7 @@ export class EcommerceService {
           return true;
         }
 
-        // 2. Check individual product triggers
+        // Check individual product triggers
         const products = await db
           .select()
           .from(schema.ecommerceProducts)
@@ -1301,6 +1300,20 @@ export class EcommerceService {
             await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, "⚠️ Please reply with the product number to purchase (e.g. *1*), or reply *cancel* to exit.");
             return true;
           }
+        } else if (session.currentStep === "waiting_for_flow_form") {
+          if (cleanContent === "cancel" || cleanContent === "exit" || cleanContent === "reset") {
+            await this.markCartCancelled(conversationId);
+            await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
+            await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, "❌ *Checkout cancelled.* Type *store* to browse products again.");
+            return true;
+          }
+          await this.sendAndSaveTextMessage(
+            channelRow,
+            conversationId,
+            contactPhone,
+            `🛍️ *Complete Your Order*\n\nPlease tap the *${config.whatsappFlowCtaText || "Complete Checkout 🛍️"}* button on the message above to enter your details, or reply *cancel* to exit.`
+          );
+          return true;
         } else {
           // Process active session response (checkout steps, ai chat)
           await this.processSessionInput(channelRow, config, session, (content || "").trim(), message);
@@ -1838,23 +1851,37 @@ export class EcommerceService {
 
     if (sortedWelcomes.length === 0) {
       if (config.welcomeHeaderUrl && config.welcomeHeaderType !== "none") {
-        await this.sendAndSaveMediaMessage(
-          channelRow,
-          conversationId,
-          contactPhone,
-          config.welcomeHeaderUrl,
-          config.welcomeHeaderType as "image" | "video",
-          config.welcomeMessage || "Welcome to our store!"
-        );
+        try {
+          await this.sendAndSaveMediaMessage(
+            channelRow,
+            conversationId,
+            contactPhone,
+            config.welcomeHeaderUrl,
+            config.welcomeHeaderType as "image" | "video",
+            config.welcomeMessage || "Welcome to our store!"
+          );
+        } catch (mErr: any) {
+          console.warn("[EcommerceService] Welcome header media send failed:", mErr.message);
+          if (config.welcomeMessage) {
+            await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, config.welcomeMessage).catch(() => {});
+          }
+        }
       } else if (config.welcomeMessage) {
-        await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, config.welcomeMessage);
+        await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, config.welcomeMessage).catch(() => {});
       }
     } else {
       for (const msg of sortedWelcomes) {
-        if (msg.mediaType !== "none" && msg.mediaUrl) {
-          await this.sendAndSaveMediaMessage(channelRow, conversationId, contactPhone, msg.mediaUrl, msg.mediaType as any, msg.text || "");
-        } else if (msg.text) {
-          await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, msg.text);
+        try {
+          if (msg.mediaType !== "none" && msg.mediaUrl) {
+            await this.sendAndSaveMediaMessage(channelRow, conversationId, contactPhone, msg.mediaUrl, msg.mediaType as any, msg.text || "");
+          } else if (msg.text) {
+            await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, msg.text);
+          }
+        } catch (wErr: any) {
+          console.warn("[EcommerceService] Welcome message sequence item send failed:", wErr.message);
+          if (msg.text) {
+            await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, msg.text).catch(() => {});
+          }
         }
       }
     }
@@ -1868,7 +1895,11 @@ export class EcommerceService {
 
     // Send product photos one-by-one with product name as caption
     for (const photo of photos) {
-      await this.sendAndSaveMediaMessage(channelRow, conversationId, contactPhone, photo, "image", product.name);
+      try {
+        await this.sendAndSaveMediaMessage(channelRow, conversationId, contactPhone, photo, "image", product.name);
+      } catch (pErr: any) {
+        console.warn("[EcommerceService] Product photo send failed:", pErr.message);
+      }
     }
 
     const isQr = channelRow.connectionMethod === "qr_code";
@@ -1892,7 +1923,16 @@ export class EcommerceService {
       if (showAiButton && buttons.length < 3) {
         buttons.push({ id: `ai_ask_${product.id}`, title: "Talk to Agent" });
       }
-      await this.sendCloudApiButtonMessage(channelRow, conversationId, contactPhone, descText, null, buttons);
+      try {
+        await this.sendCloudApiButtonMessage(channelRow, conversationId, contactPhone, descText, null, buttons);
+      } catch (bErr: any) {
+        console.warn("[EcommerceService] Cloud API button message failed, falling back to text:", bErr.message);
+        let promptMsg = `${descText}\n\nReply *1* to Buy Now!\nReply *2* for Product Info & Details`;
+        if (showAiButton) {
+          promptMsg += `\nReply *3* to Talk to Agent!`;
+        }
+        await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, promptMsg);
+      }
     }
 
     // Create product selection session to capture reply/button click
@@ -4216,10 +4256,11 @@ CRITICAL DIRECTIVES:
     headerImageUrl: string | null,
     buttons: { id: string; title: string }[]
   ) {
+    const cleanTo = (to || "").replace(/[^0-9]/g, "");
     const payload: any = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
-      to,
+      to: cleanTo,
       type: "interactive",
       interactive: {
         type: "button",
@@ -4309,10 +4350,11 @@ CRITICAL DIRECTIVES:
     buttonText: string,
     sections: { title: string; rows: { id: string; title: string; description?: string }[] }[]
   ) {
+    const cleanTo = (to || "").replace(/[^0-9]/g, "");
     const payload = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
-      to,
+      to: cleanTo,
       type: "interactive",
       interactive: {
         type: "list",

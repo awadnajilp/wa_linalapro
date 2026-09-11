@@ -945,11 +945,8 @@ export class EcommerceService {
               await this.processSessionInput(
                 channelRow,
                 config,
-                conversationId,
-                contactPhone,
-                selectedMethod,
                 activeFlowSession,
-                product,
+                selectedMethod,
                 { ...message, interactive: { button_reply: { id: selectedMethod } } }
               );
             } else {

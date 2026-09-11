@@ -33,6 +33,7 @@ import { ExpenseAIService } from "./expense-ai-service";
 import { TicketAIService } from "./ticket-ai-service";
 import { getTransporter, getSystemFromAddress } from "./email.service";
 import { EcommerceService } from "./ecommerce-service";
+import { ServiceBookingService } from "./service-booking-service";
 import { AiBillingService } from "./ai-billing-service";
 import { WhatsappFlowsService } from "./whatsapp-flows.service";
 
@@ -2722,6 +2723,19 @@ if (channelId && conversation.length > 0 && !isGroupMessage) {
           isGroupMessage,
           channel[0]
         );
+      }
+
+      // ==================== SERVICE BOOKING INTERCEPTOR ====================
+      if (!automationHandled && !isGroupMessage) {
+        try {
+          automationHandled = await ServiceBookingService.handleIncomingMessage(
+            channel[0],
+            message,
+            conversation[0].id
+          );
+        } catch (sbErr: any) {
+          console.error("[WebhookHandler] Error in ServiceBookingService interceptor:", sbErr.message);
+        }
       }
 
       // 8.5 Automations (run first — takes priority over AI)

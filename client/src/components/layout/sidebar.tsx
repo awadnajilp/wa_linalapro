@@ -48,6 +48,7 @@ import {
   Coins,
   LifeBuoy,
   ShoppingCart,
+  Clock,
   Workflow,
   ShieldCheck,
 } from "lucide-react";
@@ -236,6 +237,13 @@ function getNavItems(role: string): NavItem[] {
         icon: ShoppingCart,
         labelKey: "navigation.ecommerce",
         color: "text-emerald-500",
+        allowedRoles: ["admin"],
+      },
+      {
+        href: "/service-booking",
+        icon: Clock,
+        labelKey: "navigation.service_booking",
+        color: "text-blue-600",
         allowedRoles: ["admin"],
       },
       {

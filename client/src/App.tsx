@@ -107,6 +107,7 @@ import AdminAddons from "./pages/AdminAddons";
 import ExpenseLedger from "./pages/ExpenseLedger";
 import SupportTicketsLedger from "./pages/SupportTicketsLedger";
 import EcommerceLedger from "./pages/EcommerceLedger";
+import ServiceBookingLedger from "./pages/ServiceBookingLedger";
 import RemindersLedger from "./pages/RemindersLedger";
 import WhatsAppFlows from "./pages/WhatsAppFlows";
 import FeaturesPage from "./pages/FeaturesPage";
@@ -451,6 +452,9 @@ function ProtectedRoutes() {
           </Route>
           <Route path="/ecommerce">
             <PermissionRoute component={EcommerceLedger} requiredRoles={["admin"]} />
+          </Route>
+          <Route path="/service-booking">
+            <PermissionRoute component={ServiceBookingLedger} requiredRoles={["admin"]} />
           </Route>
           <Route path="/reminders">
             <PermissionRoute component={RemindersLedger} requiredRoles={["admin"]} />

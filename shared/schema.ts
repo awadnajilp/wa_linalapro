@@ -2834,3 +2834,189 @@ export const aiUsageLogs = pgTable(
 export const insertAiUsageLogSchema = createInsertSchema(aiUsageLogs);
 export type AiUsageLog = typeof aiUsageLogs.$inferSelect;
 export type InsertAiUsageLog = typeof aiUsageLogs.$inferInsert;
+
+// ==========================================
+// Service Booking & Appointments Module Schema
+// ==========================================
+
+export const serviceCategories = pgTable("service_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const services = pgTable("services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  categoryId: varchar("category_id").references(() => serviceCategories.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  price: numeric("price", { precision: 12, scale: 2 }).default("0").notNull(),
+  durationMinutes: integer("duration_minutes").default(30).notNull(),
+  description: text("description"),
+  longDescription: text("long_description"),
+  photos: jsonb("photos").default([]),
+  serviceMessages: jsonb("service_messages").default([]),
+  triggerKeyword: text("trigger_keyword"),
+  isTriggerEnabled: boolean("is_trigger_enabled").default(false),
+  currency: text("currency").default("INR"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const serviceMasters = pgTable("service_masters", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  title: text("title").default("Specialist"), // e.g. "Senior Stylist", "Doctor", "Consultant"
+  bio: text("bio"),
+  photoUrl: text("photo_url"),
+  serviceIds: jsonb("service_ids").$type<string[]>().default([]), // UUIDs of services assigned to this master
+  workingHours: jsonb("working_hours").$type<{
+    days?: number[]; // [0, 1, 2, 3, 4, 5, 6] 0 = Sun, 1 = Mon ...
+    startTime?: string; // "09:00"
+    endTime?: string; // "18:00"
+    breakStartTime?: string; // "13:00"
+    breakEndTime?: string; // "14:00"
+  }>().default({
+    days: [1, 2, 3, 4, 5, 6],
+    startTime: "09:00",
+    endTime: "18:00",
+    breakStartTime: "13:00",
+    breakEndTime: "14:00",
+  }),
+  slotIntervalMinutes: integer("slot_interval_minutes").default(30),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const serviceConfigs = pgTable("service_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  activeServiceId: varchar("active_service_id").references(() => services.id, { onDelete: "set null" }),
+  bookingTriggerKeyword: text("booking_trigger_keyword").default("book"),
+  isBookingFlowActive: boolean("is_booking_flow_active").default(true),
+  welcomeMessage: text("welcome_message").default("Welcome to our service booking system! Please choose a service to get started:"),
+  welcomeHeaderUrl: text("welcome_header_url"),
+  welcomeHeaderType: text("welcome_header_type").default("image"), // "image", "video", "none"
+  welcomeMessages: jsonb("welcome_messages").default([]),
+  requireMasterSelection: boolean("require_master_selection").default(true),
+  defaultWorkingHours: jsonb("default_working_hours").$type<{
+    days?: number[];
+    startTime?: string;
+    endTime?: string;
+    breakStartTime?: string;
+    breakEndTime?: string;
+  }>().default({
+    days: [1, 2, 3, 4, 5, 6],
+    startTime: "09:00",
+    endTime: "18:00",
+    breakStartTime: "13:00",
+    breakEndTime: "14:00",
+  }),
+  defaultSlotIntervalMinutes: integer("default_slot_interval_minutes").default(30),
+  maxDaysInAdvance: integer("max_days_in_advance").default(14),
+  checkoutFields: jsonb("checkout_fields").default(["name", "phone", "notes"]),
+  qrCodeUrl: text("qr_code_url"),
+  upiId: text("upi_id"),
+  upiMerchantName: text("upi_merchant_name"),
+  instamojoApiKey: text("instamojo_api_key"),
+  instamojoAuthToken: text("instamojo_auth_token"),
+  instamojoSandbox: boolean("instamojo_sandbox").default(true),
+  razorpayKeyId: text("razorpay_key_id"),
+  razorpayKeySecret: text("razorpay_key_secret"),
+  currency: text("currency").default("INR"),
+  labelCod: text("label_cod").default("Pay at Venue (Cash/Card)"),
+  labelUpiDirect: text("label_upi_direct").default("GPay/PhonePe(UPI)"),
+  labelQrPay: text("label_qr_pay").default("Acc. Info(QR Code)"),
+  labelGateway: text("label_gateway").default("Online Payment"),
+  autoAssignEnabled: boolean("auto_assign_enabled").default(false),
+  autoAssignMode: text("auto_assign_mode").default("permanent"),
+  autoAssignUserId: varchar("auto_assign_user_id").references(() => users.id, { onDelete: "set null" }),
+  autoAssignExcludedUserIds: jsonb("auto_assign_excluded_user_ids").$type<string[]>().default([]),
+  dailyReportWaEnabled: boolean("daily_report_wa_enabled").default(false),
+  dailyReportWaNumbers: jsonb("daily_report_wa_numbers").$type<string[]>().default([]),
+  dailyReportWaChannelId: varchar("daily_report_wa_channel_id").references(() => channels.id, { onDelete: "set null" }),
+  aiEnabled: boolean("ai_enabled").default(false),
+  aiTakeoverEnabled: boolean("ai_takeover_enabled").default(false),
+  aiSystemPrompt: text("ai_system_prompt"),
+  businessName: text("business_name"),
+  businessAddress: text("business_address"),
+  businessWebsite: text("business_website"),
+  businessLogo: text("business_logo"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const serviceBookings = pgTable("service_bookings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bookingNumber: text("booking_number").notNull().unique(),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "set null" }),
+  conversationId: varchar("conversation_id").references(() => conversations.id, { onDelete: "set null" }),
+  customerPhone: text("customer_phone").notNull(),
+  customerName: text("customer_name"),
+  customerData: jsonb("customer_data").default({}),
+  serviceId: varchar("service_id").references(() => services.id, { onDelete: "set null" }),
+  serviceName: text("service_name").notNull(),
+  masterId: varchar("master_id").references(() => serviceMasters.id, { onDelete: "set null" }),
+  masterName: text("master_name"),
+  bookingDate: text("booking_date").notNull(), // "YYYY-MM-DD"
+  startTime: text("start_time").notNull(), // "HH:mm"
+  endTime: text("end_time").notNull(), // "HH:mm"
+  durationMinutes: integer("duration_minutes").default(30),
+  price: numeric("price", { precision: 12, scale: 2 }).default("0").notNull(),
+  totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).default("0").notNull(),
+  currency: text("currency").default("INR"),
+  paymentMethod: text("payment_method").notNull(), // "cod", "upi_direct", "qr_pay", "gateway"
+  paymentStatus: text("payment_status").default("pending"), // "pending", "paid", "failed", "pending_verification"
+  paymentGateway: text("payment_gateway"),
+  paymentGatewayOrderId: text("payment_gateway_order_id"),
+  receiptUrl: text("receipt_url"),
+  status: text("status").default("confirmed"), // "pending", "confirmed", "completed", "cancelled", "no_show"
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const serviceSessions = pgTable("service_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().unique().references(() => conversations.id, { onDelete: "cascade" }),
+  serviceId: varchar("service_id").references(() => services.id, { onDelete: "cascade" }),
+  masterId: varchar("master_id").references(() => serviceMasters.id, { onDelete: "set null" }),
+  bookingDate: text("booking_date"),
+  selectedSlot: text("selected_slot"), // "10:00 - 10:30"
+  currentStep: text("current_step").notNull(), // "waiting_for_service", "waiting_for_master", "waiting_for_date", "waiting_for_slot", "waiting_for_field:<field>", "waiting_for_payment_method", "waiting_for_qr_receipt"
+  customerData: jsonb("customer_data").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Zod schemas
+export const insertServiceCategorySchema = createInsertSchema(serviceCategories);
+export const insertServiceSchema = createInsertSchema(services);
+export const insertServiceMasterSchema = createInsertSchema(serviceMasters);
+export const insertServiceConfigSchema = createInsertSchema(serviceConfigs);
+export const insertServiceBookingSchema = createInsertSchema(serviceBookings);
+export const insertServiceSessionSchema = createInsertSchema(serviceSessions);
+
+// TypeScript types
+export type ServiceCategory = typeof serviceCategories.$inferSelect;
+export type InsertServiceCategory = typeof serviceCategories.$inferInsert;
+export type Service = typeof services.$inferSelect;
+export type InsertService = typeof services.$inferInsert;
+export type ServiceMaster = typeof serviceMasters.$inferSelect;
+export type InsertServiceMaster = typeof serviceMasters.$inferInsert;
+export type ServiceConfig = typeof serviceConfigs.$inferSelect;
+export type InsertServiceConfig = typeof serviceConfigs.$inferInsert;
+export type ServiceBooking = typeof serviceBookings.$inferSelect;
+export type InsertServiceBooking = typeof serviceBookings.$inferInsert;
+export type ServiceSession = typeof serviceSessions.$inferSelect;
+export type InsertServiceSession = typeof serviceSessions.$inferInsert;

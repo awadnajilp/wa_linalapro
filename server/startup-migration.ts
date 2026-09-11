@@ -1247,9 +1247,179 @@ const steps: MigrationStep[] = [
         updated_at TIMESTAMP DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS ecommerce_abandoned_tenant_idx ON ecommerce_abandoned_carts (tenant_id);
-      CREATE INDEX IF NOT EXISTS ecommerce_abandoned_channel_idx ON ecommerce_abandoned_carts (channel_id);
       CREATE INDEX IF NOT EXISTS ecommerce_abandoned_status_idx ON ecommerce_abandoned_carts (status);
       CREATE INDEX IF NOT EXISTS ecommerce_abandoned_last_activity_idx ON ecommerce_abandoned_carts (last_activity_at);
+    `,
+  },
+  // ────────────────────────────────────────────────────
+  // Service Booking Module Tables
+  // ────────────────────────────────────────────────────
+  {
+    description: "Create table service_categories (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS service_categories (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS service_categories_tenant_idx ON service_categories (tenant_id);
+    `,
+  },
+  {
+    description: "Create table services (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS services (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        category_id VARCHAR REFERENCES service_categories (id) ON DELETE SET NULL,
+        name TEXT NOT NULL,
+        price NUMERIC(12, 2) DEFAULT 0 NOT NULL,
+        duration_minutes INTEGER DEFAULT 30 NOT NULL,
+        description TEXT,
+        long_description TEXT,
+        photos JSONB DEFAULT '[]'::jsonb,
+        service_messages JSONB DEFAULT '[]'::jsonb,
+        trigger_keyword TEXT,
+        is_trigger_enabled BOOLEAN DEFAULT false,
+        currency TEXT DEFAULT 'INR',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS services_tenant_idx ON services (tenant_id);
+    `,
+  },
+  {
+    description: "Create table service_masters (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS service_masters (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        title TEXT DEFAULT 'Specialist',
+        bio TEXT,
+        photo_url TEXT,
+        service_ids JSONB DEFAULT '[]'::jsonb,
+        working_hours JSONB DEFAULT '{"days":[1,2,3,4,5,6],"startTime":"09:00","endTime":"18:00","breakStartTime":"13:00","breakEndTime":"14:00"}'::jsonb,
+        slot_interval_minutes INTEGER DEFAULT 30,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS service_masters_tenant_idx ON service_masters (tenant_id);
+    `,
+  },
+  {
+    description: "Create table service_configs (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS service_configs (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        channel_id VARCHAR REFERENCES channels (id) ON DELETE CASCADE,
+        active_service_id VARCHAR REFERENCES services (id) ON DELETE SET NULL,
+        booking_trigger_keyword TEXT DEFAULT 'book',
+        is_booking_flow_active BOOLEAN DEFAULT true,
+        welcome_message TEXT DEFAULT 'Welcome to our service booking system! Please choose a service to get started:',
+        welcome_header_url TEXT,
+        welcome_header_type TEXT DEFAULT 'image',
+        welcome_messages JSONB DEFAULT '[]'::jsonb,
+        require_master_selection BOOLEAN DEFAULT true,
+        default_working_hours JSONB DEFAULT '{"days":[1,2,3,4,5,6],"startTime":"09:00","endTime":"18:00","breakStartTime":"13:00","breakEndTime":"14:00"}'::jsonb,
+        default_slot_interval_minutes INTEGER DEFAULT 30,
+        max_days_in_advance INTEGER DEFAULT 14,
+        checkout_fields JSONB DEFAULT '["name","phone","notes"]'::jsonb,
+        qr_code_url TEXT,
+        upi_id TEXT,
+        upi_merchant_name TEXT,
+        instamojo_api_key TEXT,
+        instamojo_auth_token TEXT,
+        instamojo_sandbox BOOLEAN DEFAULT true,
+        razorpay_key_id TEXT,
+        razorpay_key_secret TEXT,
+        currency TEXT DEFAULT 'INR',
+        label_cod TEXT DEFAULT 'Pay at Venue (Cash/Card)',
+        label_upi_direct TEXT DEFAULT 'GPay/PhonePe(UPI)',
+        label_qr_pay TEXT DEFAULT 'Acc. Info(QR Code)',
+        label_gateway TEXT DEFAULT 'Online Payment',
+        auto_assign_enabled BOOLEAN DEFAULT false,
+        auto_assign_mode TEXT DEFAULT 'permanent',
+        auto_assign_user_id VARCHAR REFERENCES users (id) ON DELETE SET NULL,
+        auto_assign_excluded_user_ids JSONB DEFAULT '[]'::jsonb,
+        daily_report_wa_enabled BOOLEAN DEFAULT false,
+        daily_report_wa_numbers JSONB DEFAULT '[]'::jsonb,
+        daily_report_wa_channel_id VARCHAR REFERENCES channels (id) ON DELETE SET NULL,
+        ai_enabled BOOLEAN DEFAULT false,
+        ai_takeover_enabled BOOLEAN DEFAULT false,
+        ai_system_prompt TEXT,
+        business_name TEXT,
+        business_address TEXT,
+        business_website TEXT,
+        business_logo TEXT,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS service_configs_tenant_channel_idx ON service_configs (tenant_id, channel_id);
+    `,
+  },
+  {
+    description: "Create table service_bookings (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS service_bookings (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        booking_number TEXT NOT NULL UNIQUE,
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        channel_id VARCHAR REFERENCES channels (id) ON DELETE SET NULL,
+        conversation_id VARCHAR REFERENCES conversations (id) ON DELETE SET NULL,
+        customer_phone TEXT NOT NULL,
+        customer_name TEXT,
+        customer_data JSONB DEFAULT '{}'::jsonb,
+        service_id VARCHAR REFERENCES services (id) ON DELETE SET NULL,
+        service_name TEXT NOT NULL,
+        master_id VARCHAR REFERENCES service_masters (id) ON DELETE SET NULL,
+        master_name TEXT,
+        booking_date TEXT NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        duration_minutes INTEGER DEFAULT 30,
+        price NUMERIC(12, 2) DEFAULT 0 NOT NULL,
+        total_amount NUMERIC(12, 2) DEFAULT 0 NOT NULL,
+        currency TEXT DEFAULT 'INR',
+        payment_method TEXT NOT NULL,
+        payment_status TEXT DEFAULT 'pending',
+        payment_gateway TEXT,
+        payment_gateway_order_id TEXT,
+        receipt_url TEXT,
+        status TEXT DEFAULT 'confirmed',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS service_bookings_tenant_idx ON service_bookings (tenant_id);
+      CREATE INDEX IF NOT EXISTS service_bookings_date_master_idx ON service_bookings (booking_date, master_id);
+      CREATE INDEX IF NOT EXISTS service_bookings_status_idx ON service_bookings (status);
+    `,
+  },
+  {
+    description: "Create table service_sessions (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS service_sessions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        conversation_id VARCHAR NOT NULL UNIQUE REFERENCES conversations (id) ON DELETE CASCADE,
+        service_id VARCHAR REFERENCES services (id) ON DELETE CASCADE,
+        master_id VARCHAR REFERENCES service_masters (id) ON DELETE SET NULL,
+        booking_date TEXT,
+        selected_slot TEXT,
+        current_step TEXT NOT NULL,
+        customer_data JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS service_sessions_conv_idx ON service_sessions (conversation_id);
     `,
   },
 ];

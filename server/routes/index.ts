@@ -69,6 +69,7 @@ import { registerRestApiV1Routes } from "./rest-api-v1.routes";
 import { registerTagsRoutes } from "./tags.routes";
 import { registerAddonsRoutes } from "./addons.routes";
 import { registerEcommerceRoutes } from "./ecommerce.routes";
+import { registerServiceBookingRoutes } from "./service-booking.routes";
 import { registerRemindersRoutes } from "./reminders.routes";
 import { registerWhatsappFlowsRoutes } from "./whatsapp-flows.routes";
 
@@ -119,6 +120,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   registerWalletRoutes(app);
   registerAddonsRoutes(app);
   registerEcommerceRoutes(app);
+  registerServiceBookingRoutes(app);
   registerRemindersRoutes(app);
   registerWhatsappFlowsRoutes(app);
   registerPublicLeadsRoutes(app);

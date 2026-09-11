@@ -84,7 +84,15 @@ export default function LoginPage() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: z.infer<typeof loginSchema>) => {
-      const response = await apiRequest("POST", "/api/auth/login", data);
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: data.username.trim(),
+          password: data.password,
+        }),
+        credentials: "include",
+      });
 
       let json: any;
       try {
@@ -94,16 +102,20 @@ export default function LoginPage() {
       }
 
       if (!response.ok) {
-        throw new Error(json?.error || "Login failed. Please check your credentials.");
+        throw new Error(json?.error || json?.message || "Invalid username or password");
       }
 
       return json;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       try {
         sessionStorage.setItem("fromLogin", "true");
       } catch (e) {
         console.error("Failed to set sessionStorage:", e);
+      }
+
+      if (data?.user) {
+        queryClient.setQueryData(["/api/auth/me"], data.user);
       }
 
       window.location.href = "/dashboard";
@@ -111,9 +123,11 @@ export default function LoginPage() {
     onError: (error: any) => {
       let errorMessage = error?.message || "Login failed. Please try again.";
 
-      if (error.message.includes("401")) {
+      if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
+        errorMessage = "Connection error. Please check your network and try again.";
+      } else if (errorMessage.includes("401")) {
         errorMessage = "Invalid username or password";
-      } else if (error.message.includes("403")) {
+      } else if (errorMessage.includes("403")) {
         errorMessage = "Account is inactive. Please contact administrator.";
       }
 

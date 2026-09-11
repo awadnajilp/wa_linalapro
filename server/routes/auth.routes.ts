@@ -19,7 +19,7 @@ import { Request, Response, Router } from "express";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
 import { db } from "../db";
 import { users, userActivityLogs } from "@shared/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, or } from "drizzle-orm";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { validateRequest } from "../middlewares/validateRequest.middleware";
@@ -45,11 +45,18 @@ router.post("/login", validateRequest(loginSchema), async (req, res) => {
 
     // console.log("Login request body:", req.body);
 
-    // Find user by username
+    const cleanUsername = (username || "").trim();
+
+    // Find user by username OR email
     const results = await db
       .select()
       .from(users)
-      .where(eq(users.username, username));
+      .where(
+        or(
+          eq(users.username, cleanUsername),
+          eq(users.email, cleanUsername)
+        )
+      );
 
       console.log(results)
 

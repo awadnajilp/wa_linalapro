@@ -921,14 +921,20 @@ export class EcommerceService {
               if (!isNaN(q) && q > 0) activeFlowSession.quantity = q;
             }
 
-            const deliveryFee = this.calculateDeliveryFee(config, customerData);
-            customerData.deliveryFee = String(deliveryFee);
+            const pincode = String(parsedPayload.pin || parsedPayload.pincode || parsedPayload.zip || customerData.pin || customerData.pincode || "");
+            const { fee, state } = await this.calculateDeliveryFee(config, pincode);
+            if (state) customerData.resolvedState = state;
+            customerData.deliveryFee = String(fee);
+
+            activeFlowSession.currentStep = "waiting_for_payment_method";
+            activeFlowSession.customerData = customerData;
 
             await db
               .update(schema.ecommerceSessions)
               .set({
                 quantity: activeFlowSession.quantity,
                 customerData,
+                currentStep: "waiting_for_payment_method",
                 updatedAt: new Date()
               })
               .where(eq(schema.ecommerceSessions.id, activeFlowSession.id));
@@ -947,16 +953,61 @@ export class EcommerceService {
                 { ...message, interactive: { button_reply: { id: selectedMethod } } }
               );
             } else {
-              await this.processSessionInput(
-                channelRow,
-                config,
-                conversationId,
-                contactPhone,
-                "",
-                activeFlowSession,
-                product,
-                message
-              );
+              // Present the payment options to complete the order
+              const paymentOptions = [];
+              paymentOptions.push({ id: "cod", title: config.labelCod || "Cash On Delvry(COD)" });
+              if (config.upiId) {
+                paymentOptions.push({ id: "upi_direct", title: config.labelUpiDirect || "GPay/PhonePe(UPI)" });
+              }
+              if (config.qrCodeUrl) {
+                paymentOptions.push({ id: "qr_pay", title: config.labelQrPay || "Acc. Info(QR Code)" });
+              }
+              if (
+                (config.razorpayKeyId && config.razorpayKeySecret) ||
+                (config.instamojoApiKey && config.instamojoAuthToken)
+              ) {
+                paymentOptions.push({ id: "gateway", title: config.labelGateway || "Online Payment" });
+              }
+
+              const deliveryFeeNum = parseFloat(customerData.deliveryFee || "0");
+              const baseTotal = parseFloat(product.price || "0") * activeFlowSession.quantity;
+              const grandTotal = baseTotal + deliveryFeeNum;
+              const currency = (product as any).currency || config.currency || 'INR';
+
+              let summaryText = `📋 *Order Summary:*\n` +
+                `• Product: *${product.name}*\n` +
+                `• Quantity: *${activeFlowSession.quantity}*\n` +
+                `• Price: *${currency} ${product.price}*\n` +
+                (deliveryFeeNum > 0 ? `• Delivery Fee: *${currency} ${deliveryFeeNum.toFixed(2)}*\n` : "") +
+                `• *Total Amount: ${currency} ${grandTotal.toFixed(2)}*\n\n` +
+                `Please select your payment method to complete your order:`;
+
+              if (channelRow.connectionMethod === "qr_code" || paymentOptions.length > 3) {
+                if (channelRow.connectionMethod === "qr_code") {
+                  const listOpts = summaryText + "\n\n" + paymentOptions.map((opt, idx) => `${idx + 1}. ${opt.title}`).join("\n") + "\n\nReply with option number (e.g. 1):";
+                  await this.sendAndSaveTextMessage(channelRow, conversationId, contactPhone, listOpts);
+                } else {
+                  await this.sendCloudApiListMessage(
+                    channelRow,
+                    conversationId,
+                    contactPhone,
+                    "Payment Options",
+                    summaryText,
+                    "Select Payment",
+                    [
+                      {
+                        title: "Available Options",
+                        rows: paymentOptions.map(opt => ({
+                          id: opt.id,
+                          title: opt.title.substring(0, 24)
+                        }))
+                      }
+                    ]
+                  );
+                }
+              } else {
+                await this.sendCloudApiButtonMessage(channelRow, conversationId, contactPhone, summaryText, null, paymentOptions);
+              }
             }
             return true;
           }

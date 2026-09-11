@@ -1286,26 +1286,32 @@ if (io) {
         });
 
         // Auto-save form fields to Contact Variables
-        if (matchedFlow?.autoSaveContactFields !== false && contact) {
-          const currentVars = (contact.variables || {}) as Record<string, any>;
-          const cleanVars = { ...parsedPayload };
-          delete cleanVars.flow_token;
-          const updatedVars = { ...currentVars, ...cleanVars };
+        if (matchedFlow?.autoSaveContactFields !== false && contact?.id) {
+          try {
+            const currentVars = (contact.variables && typeof contact.variables === "object") ? { ...contact.variables } : {};
+            const cleanVars = { ...parsedPayload };
+            delete cleanVars.flow_token;
+            const updatedVars = { ...currentVars, ...cleanVars };
 
-          const contactUpdate: any = {
-            variables: updatedVars,
-            updatedAt: new Date(),
-          };
+            const contactUpdate: any = {
+              variables: updatedVars,
+              updatedAt: new Date(),
+            };
 
-          if (parsedPayload.full_name && typeof parsedPayload.full_name === "string") {
-            contactUpdate.name = parsedPayload.full_name.trim();
+            if (parsedPayload.full_name && typeof parsedPayload.full_name === "string") {
+              contactUpdate.name = parsedPayload.full_name.trim();
+            } else if (parsedPayload.name && typeof parsedPayload.name === "string") {
+              contactUpdate.name = parsedPayload.name.trim();
+            }
+            if (parsedPayload.work_email || parsedPayload.email) {
+              const emailVal = parsedPayload.work_email || parsedPayload.email;
+              if (typeof emailVal === "string") contactUpdate.email = emailVal.trim();
+            }
+
+            await db.update(contacts).set(contactUpdate).where(eq(contacts.id, contact.id));
+          } catch (cErr: any) {
+            console.warn("[Webhook Cloud] Failed to update contact variables from Flow:", cErr?.message);
           }
-          if (parsedPayload.work_email || parsedPayload.email) {
-            const emailVal = parsedPayload.work_email || parsedPayload.email;
-            if (typeof emailVal === "string") contactUpdate.email = emailVal.trim();
-          }
-
-          await db.update(contacts).set(contactUpdate).where(eq(contacts.id, contact.id));
         }
       } catch (flowRespErr: any) {
         console.error("❌ [Webhook Cloud] Failed to record WhatsApp Flow response:", flowRespErr);

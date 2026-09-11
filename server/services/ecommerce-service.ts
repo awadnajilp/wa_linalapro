@@ -3316,6 +3316,7 @@ CRITICAL DIRECTIVES:
         if (order) {
           await this.markCartRecovered(conversationId, order.id);
           await this.sendOrderEmail(order);
+          await this.sendMerchantOrderAlert(order, config, channelRow);
         }
         return;
       }
@@ -3454,12 +3455,15 @@ CRITICAL DIRECTIVES:
 
       await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
 
+      const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+
       if (selectedMethod === "cod") {
         await this.markCartRecovered(conversationId, order.id);
         await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, session.id));
 
         await this.sendCustomerOrderAlert(order, channelRow);
         await this.sendOrderEmail(order);
+        await this.sendMerchantOrderAlert(order, config, channelRow);
       }
       else if (selectedMethod === "upi_direct") {
         await this.trackAbandonedCart({
@@ -3489,13 +3493,22 @@ CRITICAL DIRECTIVES:
           .where(eq(schema.ecommerceSessions.id, session.id));
 
         const redirectUrl = `https://wa.linalapro.com/api/ecommerce/checkout/pay?orderId=${order.id}`;
+        const msgText = `📱 *UPI Mobile Direct Pay*\n\nOrder Number: *${orderNumber}*\nTo pay *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) directly using GPay / PhonePe / Paytm:\n\n👉 *Click here to Pay:* ${redirectUrl}\n\nOnce paid, *please send the receipt/payment screenshot here* to verify and complete your order.`;
 
-        await this.sendAndSaveTextMessage(
-          channelRow,
-          conversationId,
-          to,
-          `📱 *UPI Mobile Direct Pay*\n\nOrder Number: *${orderNumber}*\nTo pay *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) directly using GPay / PhonePe / Paytm:\n\n👉 *Click here to Pay:* ${redirectUrl}\n\nOnce paid, *please send the receipt/payment screenshot here* to verify and complete your order.\n\nReply *cod* to switch to Cash on Delivery, or *edit* to update details.`
-        );
+        if (isCloudApi) {
+          const buttons = [
+            { id: "cod", title: "Switch to COD" },
+            { id: "edit_checkout", title: "Edit Details" }
+          ];
+          await this.sendCloudApiButtonMessage(channelRow, conversationId, to, msgText, null, buttons);
+        } else {
+          await this.sendAndSaveTextMessage(
+            channelRow,
+            conversationId,
+            to,
+            `${msgText}\n\nReply *cod* to switch to Cash on Delivery, or *edit* to update details.`
+          );
+        }
       }
       else if (selectedMethod === "qr_pay") {
         await this.trackAbandonedCart({
@@ -3534,12 +3547,23 @@ CRITICAL DIRECTIVES:
         } else {
           await this.sendAndSaveTextMessage(channelRow, conversationId, to, `⚠️ No store QR code is uploaded. Please proceed using the instructions below.`);
         }
-        await this.sendAndSaveTextMessage(
-          channelRow,
-          conversationId,
-          to,
-          `Please scan the QR code to pay a total of *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) via GPAY / PhonePe.\n\nOrder Number: *${orderNumber}*\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.\n\nReply *cod* to switch to Cash on Delivery, or *edit* to update details.`
-        );
+
+        const msgText = `Please scan the QR code to pay a total of *${config.currency || "INR"} ${totalAmount}* (includes delivery fee: *${config.currency || "INR"} ${deliveryFee}*) via GPAY / PhonePe.\n\nOrder Number: *${orderNumber}*\n\nAfter completing your payment, *please send/upload your payment receipt/screenshot here* to complete your order.`;
+
+        if (isCloudApi) {
+          const buttons = [
+            { id: "cod", title: "Switch to COD" },
+            { id: "edit_checkout", title: "Edit Details" }
+          ];
+          await this.sendCloudApiButtonMessage(channelRow, conversationId, to, msgText, null, buttons);
+        } else {
+          await this.sendAndSaveTextMessage(
+            channelRow,
+            conversationId,
+            to,
+            `${msgText}\n\nReply *cod* to switch to Cash on Delivery, or *edit* to update details.`
+          );
+        }
       }
       else if (selectedMethod === "gateway") {
         try {
@@ -3567,6 +3591,7 @@ CRITICAL DIRECTIVES:
           );
 
           await this.sendOrderEmail(updatedGatewayOrder || order);
+          await this.sendMerchantOrderAlert(updatedGatewayOrder || order, config, channelRow);
         } catch (err: any) {
           await this.sendAndSaveTextMessage(channelRow, conversationId, to, `Error generating payment link: ${err.message}. Please try again later or select Cash on Delivery.`);
         }
@@ -3933,7 +3958,30 @@ CRITICAL DIRECTIVES:
   }
 
   /**
-   * Email Store Owner on Completion
+   * Helper to read media buffer from URL or local filesystem path
+   */
+  public static async readMediaBuffer(urlOrPath: string): Promise<Buffer | null> {
+    try {
+      if (!urlOrPath) return null;
+      if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
+        const response = await axios.get(urlOrPath, { responseType: "arraybuffer", timeout: 15000 });
+        return Buffer.from(response.data);
+      }
+      const localPath = urlOrPath.startsWith("/")
+        ? urlOrPath
+        : path.resolve(process.cwd(), urlOrPath.replace(/^\//, ""));
+      if (fs.existsSync(localPath)) {
+        return await fs.promises.readFile(localPath);
+      }
+      return null;
+    } catch (err: any) {
+      console.error(`[EcommerceService] Failed to read media buffer from ${urlOrPath}:`, err.message);
+      return null;
+    }
+  }
+
+  /**
+   * Email Store Owner on Completion (includes PDF invoice and payment receipt if uploaded)
    */
   public static async sendOrderEmail(order: any) {
     try {
@@ -3957,6 +4005,29 @@ CRITICAL DIRECTIVES:
         : "";
 
       const { from: fromHeader } = await getSystemFromAddress(order.productName ? `${order.productName} Store` : "Store Orders");
+
+      const attachments: any[] = [
+        {
+          filename: `order_${order.orderNumber}.pdf`,
+          content: pdfBuffer,
+          contentType: "application/pdf"
+        }
+      ];
+
+      if (order.receiptUrl) {
+        try {
+          const receiptBuf = await this.readMediaBuffer(order.receiptUrl);
+          if (receiptBuf) {
+            attachments.push({
+              filename: `payment_receipt_${order.orderNumber}.jpg`,
+              content: receiptBuf,
+              contentType: "image/jpeg"
+            });
+          }
+        } catch (rErr: any) {
+          console.error("[EcommerceService] Failed to attach receipt to order email:", rErr.message);
+        }
+      }
 
       const mailOptions = {
         from: fromHeader,
@@ -4001,16 +4072,10 @@ CRITICAL DIRECTIVES:
               ${customerDetails}
             </ul>
 
-            <p style="margin-top: 20px;">The customer invoice/order summary has been generated and attached to this email as a PDF document.</p>
+            <p style="margin-top: 20px;">The customer invoice/order summary has been generated and attached to this email as a PDF document.${order.receiptUrl ? " Customer payment receipt is also attached." : ""}</p>
           </div>
         `,
-        attachments: [
-          {
-            filename: `order_${order.orderNumber}.pdf`,
-            content: pdfBuffer,
-            contentType: "application/pdf"
-          }
-        ]
+        attachments
       };
 
       await transporter.sendMail(mailOptions);
@@ -4021,7 +4086,7 @@ CRITICAL DIRECTIVES:
   }
 
   /**
-   * Send Customer Order Alert using ecom_order_alert template (Meta Cloud API) or formatted text (QR Code)
+   * Send Customer Order Alert using ecom_order_alert template (Meta Cloud API) or structured formatted text (QR Code / Fallback) + PDF Invoice
    */
   public static async sendCustomerOrderAlert(order: any, customChannelRow?: any): Promise<void> {
     try {
@@ -4065,6 +4130,7 @@ CRITICAL DIRECTIVES:
 
       const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
 
+      let sentViaTemplate = false;
       // Check if ecom_order_alert template is available and approved
       if (isCloudApi) {
         const [tpl] = await db
@@ -4100,28 +4166,158 @@ CRITICAL DIRECTIVES:
               false
             );
             console.log(`[EcommerceService] Sent ecom_order_alert template to ${to} for ${orderNumber}`);
-            return;
+            sentViaTemplate = true;
           } catch (tplErr: any) {
-            console.warn(`[EcommerceService] Cloud API template send failed, falling back to text:`, tplErr.message);
+            console.warn(`[EcommerceService] Cloud API template send failed, falling back to formatted text:`, tplErr.message);
           }
         }
       }
 
-      // QR Code or fallback plain text format (No buttons for QR)
-      const qrText = formatEcomTemplateForQR("ecom_order_alert", {
-        customer_name: customerName,
-        order_number: orderNumber,
-        product_name: productName,
-        quantity,
-        total_amount: totalAmount,
-        payment_method: paymentMethod,
-        delivery_address: address
-      });
+      if (!sentViaTemplate) {
+        // Nicely formatted WhatsApp text message with emojis and bold line breaks
+        const formattedText = `🛍️ *Order Confirmed!*\n\n` +
+          `Dear *${customerName}*, thank you for your order!\n\n` +
+          `📦 *Order Details:*\n` +
+          `• *Order #:* *${orderNumber}*\n` +
+          `• *Product:* ${productName}\n` +
+          `• *Quantity:* ${quantity}\n` +
+          `• *Total Amount:* *${totalAmount}*\n` +
+          `• *Payment Mode:* ${paymentMethod}\n\n` +
+          `📍 *Delivery Address:*\n${address}\n\n` +
+          `🚚 We are preparing your order and will notify you as soon as it ships!`;
 
-      await this.sendAndSaveTextMessage(channelRow, convId, to, qrText);
-      console.log(`[EcommerceService] Sent formatted order alert to ${to} for ${orderNumber}`);
+        await this.sendAndSaveTextMessage(channelRow, convId, to, formattedText);
+        console.log(`[EcommerceService] Sent formatted order alert to ${to} for ${orderNumber}`);
+      }
+
+      // Also send invoice PDF to customer
+      try {
+        await this.sendInvoiceToCustomer(order.id);
+      } catch (invErr: any) {
+        console.error(`[EcommerceService] Failed to send invoice PDF to customer ${to}:`, invErr.message);
+      }
     } catch (err: any) {
       console.error(`[EcommerceService] Failed to send customer order alert:`, err.message);
+    }
+  }
+
+  /**
+   * Send instant WhatsApp alert to merchant configured WhatsApp numbers with order summary, invoice PDF, and receipt image (if available).
+   */
+  public static async sendMerchantOrderAlert(
+    order: any,
+    customConfig?: any,
+    customChannelRow?: any
+  ): Promise<void> {
+    try {
+      if (!order) return;
+
+      const config = customConfig || (await db
+        .select()
+        .from(schema.ecommerceConfigs)
+        .where(
+          and(
+            eq(schema.ecommerceConfigs.tenantId, order.tenantId),
+            eq(schema.ecommerceConfigs.channelId, order.channelId)
+          )
+        )
+        .limit(1)
+        .then(rows => rows[0]));
+
+      if (!config) return;
+
+      const numbers: string[] = (Array.isArray(config.dailyReportWaNumbers) ? config.dailyReportWaNumbers : [])
+        .filter((n: any) => typeof n === "string" && n.trim().length > 0);
+
+      if (numbers.length === 0) {
+        console.log(`[EcommerceService] No merchant WhatsApp numbers configured for instant order alerts.`);
+        return;
+      }
+
+      const channelId = config.dailyReportWaChannelId || config.channelId || order.channelId;
+      const channelRow = customChannelRow || (await db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, channelId))
+        .limit(1)
+        .then(rows => rows[0]));
+
+      if (!channelRow) {
+        console.error(`[EcommerceService] Channel not found for merchant order alert: ${channelId}`);
+        return;
+      }
+
+      const customerName = order.customerName || "Customer";
+      const orderNumber = order.orderNumber || "Order";
+      const productName = order.productName || "Item";
+      const quantity = String(order.quantity || 1);
+      const currency = order.currency || "INR";
+      const totalAmount = `${currency} ${Number(order.totalAmount || 0).toFixed(2)}`;
+      const paymentMethod = order.paymentMethod ? (
+        order.paymentMethod === "cod" ? "Cash on Delivery" :
+        order.paymentMethod === "upi_direct" ? "UPI Direct" :
+        order.paymentMethod === "qr_pay" ? "QR Code Payment" :
+        order.paymentMethod === "gateway" ? "Online Payment" : order.paymentMethod.toUpperCase()
+      ) : "Cash on Delivery";
+
+      const address = order.customerData?.address 
+        ? `${order.customerData.address}${order.customerData.pin ? `, PIN: ${order.customerData.pin}` : ""}`
+        : (order.customerData?.pin ? `PIN: ${order.customerData.pin}` : "N/A");
+
+      const alertText = `🔔 *NEW STORE ORDER RECEIVED!*\n\n` +
+        `• *Order #:* *${orderNumber}*\n` +
+        `• *Customer:* ${customerName} (${order.customerPhone})\n` +
+        `• *Product:* ${productName} (Qty: ${quantity})\n` +
+        `• *Total Amount:* *${totalAmount}*\n` +
+        `• *Payment Method:* ${paymentMethod}\n` +
+        `• *Payment Status:* ${order.paymentStatus?.toUpperCase() || "PENDING"}\n\n` +
+        `📍 *Delivery Address:*\n${address}`;
+
+      let pdfBuffer: Buffer | null = null;
+      try {
+        pdfBuffer = await this.generateOrderPdf(order);
+      } catch (pdfErr: any) {
+        console.error("[EcommerceService] Failed to generate PDF for merchant alert:", pdfErr.message);
+      }
+
+      for (const rawPhone of numbers) {
+        const merchantPhone = rawPhone.trim().replace(/[^\d]/g, "");
+        if (!merchantPhone) continue;
+
+        try {
+          // 1. Send text order summary
+          await this.sendAndSaveTextMessage(channelRow, null, merchantPhone, alertText);
+
+          // 2. Send PDF invoice attachment
+          if (pdfBuffer) {
+            await this.sendAndSaveDocumentBuffer(
+              channelRow,
+              null,
+              merchantPhone,
+              pdfBuffer,
+              `Invoice_${orderNumber}.pdf`,
+              `📄 Invoice for Order *${orderNumber}*`
+            );
+          }
+
+          // 3. Send payment receipt if uploaded
+          if (order.receiptUrl) {
+            await this.sendAndSaveMediaMessage(
+              channelRow,
+              null,
+              merchantPhone,
+              order.receiptUrl,
+              "image",
+              `💳 *Payment Receipt* for Order *${orderNumber}*`
+            );
+          }
+          console.log(`[EcommerceService] Instant merchant WhatsApp order alert sent to ${merchantPhone} for ${orderNumber}`);
+        } catch (phoneErr: any) {
+          console.error(`[EcommerceService] Failed to send merchant alert to ${merchantPhone}:`, phoneErr.message);
+        }
+      }
+    } catch (err: any) {
+      console.error("[EcommerceService] Error sending merchant order alert:", err.message);
     }
   }
 

@@ -327,7 +327,15 @@ export function ConfigPanel({
   };
 
   const addButton = () => {
-    onChange({ buttons: [...(d.buttons || []), { id: uid(), text: "New Button", action: "next" as const }] });
+    if ((d.buttons || []).length >= 3) {
+      toast({
+        title: "Button limit reached",
+        description: "WhatsApp supports a maximum of 3 quick reply buttons per message.",
+        variant: "destructive",
+      });
+      return;
+    }
+    onChange({ buttons: [...(d.buttons || []), { id: uid(), text: `Button ${(d.buttons || []).length + 1}`, action: "next" as const }] });
   };
 
   const updateButton = (buttonId: string, updates: Partial<NonNullable<typeof d.buttons>[0]>) => {
@@ -603,17 +611,36 @@ export function ConfigPanel({
                     ) : (
                       <>
                         <div className="flex items-center justify-between">
-                          <div className="text-[10px] text-gray-500">Supports {'{{variables}}'} (max 20 chars)</div>
-                          <Button size="sm" variant="outline" onClick={addButton} className="h-7 text-[10px] font-semibold rounded-lg">
-                            <Plus className="w-3 h-3 mr-1" /> Add Button
+                          <div className="text-[10px] text-gray-500">Max 3 buttons • 20 chars max (Meta limit)</div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={addButton}
+                            disabled={(d.buttons || []).length >= 3}
+                            className="h-7 text-[10px] font-semibold rounded-lg"
+                          >
+                            <Plus className="w-3 h-3 mr-1" /> {(d.buttons || []).length >= 3 ? "Max 3 Reached" : "Add Button"}
                           </Button>
                         </div>
-                        {d.buttons?.map((btn) => (
-                          <div key={btn.id} className="flex items-center gap-2">
-                            <Input value={btn.text} onChange={(e) => updateButton(btn.id, { text: e.target.value })} placeholder="e.g. Order #{{order_id}}" className="h-8 text-sm rounded-lg" />
-                            <Button size="sm" variant="ghost" onClick={() => removeButton(btn.id)} className="h-8 w-8 p-0 text-red-400 rounded-lg">
-                              <X className="w-3.5 h-3.5" />
-                            </Button>
+                        {d.buttons?.map((btn, idx) => (
+                          <div key={btn.id} className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <div className="relative flex-1">
+                                <Input
+                                  value={btn.text}
+                                  maxLength={20}
+                                  onChange={(e) => updateButton(btn.id, { text: e.target.value })}
+                                  placeholder={`Button ${idx + 1} title`}
+                                  className="h-8 text-sm rounded-lg pr-12"
+                                />
+                                <span className={`absolute right-2 top-2 text-[10px] font-mono ${(btn.text?.length || 0) >= 20 ? "text-amber-600 font-bold" : "text-gray-400"}`}>
+                                  {btn.text?.length || 0}/20
+                                </span>
+                              </div>
+                              <Button size="sm" variant="ghost" onClick={() => removeButton(btn.id)} className="h-8 w-8 p-0 text-red-400 rounded-lg">
+                                <X className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </>
@@ -643,17 +670,37 @@ export function ConfigPanel({
                 <>
                   <SectionHeader>Answer Options</SectionHeader>
                   <div className="space-y-2">
-                    <div className="flex justify-end">
-                      <Button size="sm" variant="outline" onClick={addButton} className="h-7 text-[10px] font-semibold rounded-lg">
-                        <Plus className="w-3 h-3 mr-1" /> Add Option
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] text-gray-500">Max 3 options • 20 chars max (Meta limit)</div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={addButton}
+                        disabled={(d.buttons || []).length >= 3}
+                        className="h-7 text-[10px] font-semibold rounded-lg"
+                      >
+                        <Plus className="w-3 h-3 mr-1" /> {(d.buttons || []).length >= 3 ? "Max 3 Reached" : "Add Option"}
                       </Button>
                     </div>
-                    {d.buttons?.map((btn) => (
-                      <div key={btn.id} className="flex items-center gap-2">
-                        <Input value={btn.text} onChange={(e) => updateButton(btn.id, { text: e.target.value })} className="h-8 text-sm rounded-lg" />
-                        <Button size="sm" variant="ghost" onClick={() => removeButton(btn.id)} className="h-8 w-8 p-0 text-red-400 rounded-lg">
-                          <X className="w-3.5 h-3.5" />
-                        </Button>
+                    {d.buttons?.map((btn, idx) => (
+                      <div key={btn.id} className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <Input
+                              value={btn.text}
+                              maxLength={20}
+                              onChange={(e) => updateButton(btn.id, { text: e.target.value })}
+                              placeholder={`Option ${idx + 1} title`}
+                              className="h-8 text-sm rounded-lg pr-12"
+                            />
+                            <span className={`absolute right-2 top-2 text-[10px] font-mono ${btn.text?.length >= 20 ? "text-amber-600 font-bold" : "text-gray-400"}`}>
+                              {btn.text?.length || 0}/20
+                            </span>
+                          </div>
+                          <Button size="sm" variant="ghost" onClick={() => removeButton(btn.id)} className="h-8 w-8 p-0 text-red-400 rounded-lg">
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>

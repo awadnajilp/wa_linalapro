@@ -351,7 +351,7 @@ export function transformAutomationToFlow(automation: any): {
 
       if (!source || !target) return;
 
-      const edgeKey = `${source}-${target}`;
+      const edgeKey = `${source}-${edge.sourceHandle || ""}-${target}`;
 
       if (!edgeSet.has(edgeKey)) {
         edgeSet.add(edgeKey);

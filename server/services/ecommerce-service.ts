@@ -648,42 +648,66 @@ export class EcommerceService {
       const contactPhone = conversation[0].contactPhone;
       const cleanContent = (content || "").trim().toLowerCase();
 
-      // 1. Check store catalogue trigger (Exact, Phrase, or FB/IG Ad greeting)
-      const isCatalogTrigger = this.isStoreCatalogTrigger(config, content, message);
-
-      if (isCatalogTrigger) {
-        await this.autoAssignConversation(config, channelRow, conversationId);
-        // Delete any active sessions first
-        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
-        // Create session
-        await db.insert(schema.ecommerceSessions).values({
-          conversationId,
-          quantity: 1,
-          currentStep: "waiting_for_product_selection",
-          customerData: {}
-        });
-        await this.sendStoreCatalog(channelRow, config, conversationId, contactPhone);
-        return true;
-      }
-
-      // 2. Check individual product triggers (Supports manual messages & FB/IG Click-to-WhatsApp Ads greetings/referrals)
-      const products = await db
+      // 0. Check if there is an active ecommerce session OR an interactive button/list reply first!
+      const [existingSession] = await db
         .select()
-        .from(schema.ecommerceProducts)
-        .where(
-          and(
-            eq(schema.ecommerceProducts.tenantId, tenantId)
-          )
-        );
+        .from(schema.ecommerceSessions)
+        .where(eq(schema.ecommerceSessions.conversationId, conversationId))
+        .limit(1);
 
-      const matchedProduct = this.findMatchingProduct(products, content, message);
+      const buttonReplyIdCheck = message.interactive?.button_reply?.id 
+        || (message as any)?.button?.payload 
+        || (message as any)?.interactive?.buttonReply?.id
+        || (message as any)?.metadata?.buttonReplyId
+        || (message as any)?.button_reply?.id
+        || (message as any)?.selectedButtonId;
 
-      if (matchedProduct) {
-        await this.autoAssignConversation(config, channelRow, conversationId);
-        // Delete any active sessions first
-        await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
-        await this.startIndividualProductFlow(channelRow, config, conversationId, contactPhone, matchedProduct);
-        return true;
+      const listReplyIdCheck = message.interactive?.list_reply?.id || (message as any)?.interactive?.listReply?.id;
+
+      // Only check global catalog/product keywords if NOT clicking an in-session button or if NO active checkout session
+      const isCheckoutAction = buttonReplyIdCheck === "confirm_checkout" || 
+                               buttonReplyIdCheck === "edit_checkout" || 
+                               buttonReplyIdCheck === "cod" || 
+                               buttonReplyIdCheck === "upi_direct" || 
+                               buttonReplyIdCheck === "qr_pay" || 
+                               buttonReplyIdCheck === "gateway" || 
+                               (existingSession && (existingSession.currentStep.startsWith("waiting_for_") || existingSession.currentStep === "ai_chat"));
+
+      if (!isCheckoutAction) {
+        // 1. Check store catalogue trigger (Exact, Phrase, or FB/IG Ad greeting)
+        const isCatalogTrigger = this.isStoreCatalogTrigger(config, content, message);
+
+        if (isCatalogTrigger) {
+          await this.autoAssignConversation(config, channelRow, conversationId);
+          await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+          await db.insert(schema.ecommerceSessions).values({
+            conversationId,
+            quantity: 1,
+            currentStep: "waiting_for_product_selection",
+            customerData: {}
+          });
+          await this.sendStoreCatalog(channelRow, config, conversationId, contactPhone);
+          return true;
+        }
+
+        // 2. Check individual product triggers
+        const products = await db
+          .select()
+          .from(schema.ecommerceProducts)
+          .where(
+            and(
+              eq(schema.ecommerceProducts.tenantId, tenantId)
+            )
+          );
+
+        const matchedProduct = this.findMatchingProduct(products, content, message);
+
+        if (matchedProduct) {
+          await this.autoAssignConversation(config, channelRow, conversationId);
+          await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+          await this.startIndividualProductFlow(channelRow, config, conversationId, contactPhone, matchedProduct);
+          return true;
+        }
       }
 
       // Check interactive button clicks FIRST (always high priority)
@@ -1142,6 +1166,10 @@ export class EcommerceService {
     message: any
   ): any | null {
     if (!products || products.length === 0) return null;
+    // Do not match interactive button clicks or list clicks against raw product triggers
+    if (message?.type === "interactive" || message?.interactive || message?.button || (message as any)?.selectedButtonId) {
+      return null;
+    }
 
     const cleanContent = (content || "").trim().toLowerCase();
     const referral = message?.referral 

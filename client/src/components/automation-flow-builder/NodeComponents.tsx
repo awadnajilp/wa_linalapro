@@ -154,7 +154,8 @@ export function ConditionsNode({ data, selected }: { data: BuilderNodeData; sele
 }
 
 export function CustomReplyNode({ data, selected }: { data: BuilderNodeData; selected?: boolean }) {
-  const hasButtons = data.buttons && data.buttons.length > 0;
+  const buttons = (data.buttons || []).slice(0, 3);
+  const hasButtons = buttons.length > 0;
   return (
     <div className="relative">
       <Handle type="target" position={Position.Top} className="!bg-blue-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
@@ -198,25 +199,45 @@ export function CustomReplyNode({ data, selected }: { data: BuilderNodeData; sel
         </div>
 
         {hasButtons && (
-          <div className="flex justify-around gap-2 pt-2 border-t border-gray-100 relative">
-            {data.buttons!.map((btn) => (
-              <div key={btn.id} className="relative flex flex-col items-center pb-1">
-                <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded font-medium border border-blue-100">
-                  {btn.text}
-                </span>
-                <Handle
-                  type="source"
-                  position={Position.Bottom}
-                  id={btn.id}
-                  className="!bg-blue-500 !w-2.5 !h-2.5 !border-2 !border-white !shadow-sm"
-                  style={{ bottom: '-15px' }}
-                />
-              </div>
-            ))}
+          <div className="space-y-1.5 pt-2 border-t border-gray-100">
+            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Button Options ({buttons.length}/3)</div>
+            <div className="space-y-1">
+              {buttons.map((btn, idx) => (
+                <div key={btn.id || `btn_${idx}`} className="flex items-center justify-between bg-blue-50/80 border border-blue-200/80 rounded-md px-2 py-1 text-[11px] font-medium text-blue-800">
+                  <span className="truncate max-w-[170px]">{btn.text || `Button ${idx + 1}`}</span>
+                  <span className="text-[9px] font-bold bg-blue-200/60 text-blue-900 rounded px-1.5 py-0.2 shrink-0">#{idx + 1}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </NodeShell>
-      {!hasButtons && (
+
+      {hasButtons ? (
+        <>
+          {buttons.map((btn, idx) => {
+            const count = buttons.length;
+            const leftPercent = count === 1 ? 50 : count === 2 ? (idx === 0 ? 30 : 70) : (idx === 0 ? 20 : idx === 1 ? 50 : 80);
+            return (
+              <Handle
+                key={btn.id || `btn_${idx}`}
+                type="source"
+                position={Position.Bottom}
+                id={btn.id}
+                className="!bg-blue-600 !w-3.5 !h-3.5 !border-2 !border-white !shadow-md !-bottom-1.5 hover:!scale-125 transition-transform cursor-crosshair"
+                style={{ left: `${leftPercent}%` }}
+              />
+            );
+          })}
+          <div className="flex justify-between px-2 pt-1 text-[8px] font-bold text-blue-600 uppercase tracking-tight">
+            {buttons.map((btn, idx) => (
+              <span key={btn.id || `btn_${idx}`} className="truncate max-w-[70px] text-center">
+                #{idx + 1}: {btn.text?.slice(0, 10)}
+              </span>
+            ))}
+          </div>
+        </>
+      ) : (
         <Handle type="source" position={Position.Bottom} className="!bg-blue-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
       )}
     </div>
@@ -224,7 +245,8 @@ export function CustomReplyNode({ data, selected }: { data: BuilderNodeData; sel
 }
 
 export function UserReplyNode({ data, selected }: { data: BuilderNodeData; selected?: boolean }) {
-  const hasButtons = data.buttons && data.buttons.length > 0;
+  const buttons = (data.buttons || []).slice(0, 3);
+  const hasButtons = buttons.length > 0;
   return (
     <div className="relative">
       <Handle type="target" position={Position.Top} className="!bg-amber-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-top-1.5" />
@@ -249,25 +271,45 @@ export function UserReplyNode({ data, selected }: { data: BuilderNodeData; selec
           </div>
         )}
         {hasButtons && (
-          <div className="flex justify-around gap-2 pt-2 border-t border-gray-100 relative">
-            {data.buttons!.map((btn) => (
-              <div key={btn.id} className="relative flex flex-col items-center pb-1">
-                <span className="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded font-medium border border-amber-200">
-                  {btn.text}
-                </span>
-                <Handle
-                  type="source"
-                  position={Position.Bottom}
-                  id={btn.id}
-                  className="!bg-amber-500 !w-2.5 !h-2.5 !border-2 !border-white !shadow-sm"
-                  style={{ bottom: '-15px' }}
-                />
-              </div>
-            ))}
+          <div className="space-y-1.5 pt-2 border-t border-gray-100">
+            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Button Options ({buttons.length}/3)</div>
+            <div className="space-y-1">
+              {buttons.map((btn, idx) => (
+                <div key={btn.id || `btn_${idx}`} className="flex items-center justify-between bg-amber-50/80 border border-amber-200/80 rounded-md px-2 py-1 text-[11px] font-medium text-amber-800">
+                  <span className="truncate max-w-[170px]">{btn.text || `Option ${idx + 1}`}</span>
+                  <span className="text-[9px] font-bold bg-amber-200/60 text-amber-900 rounded px-1.5 py-0.2 shrink-0">#{idx + 1}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </NodeShell>
-      {!hasButtons && (
+
+      {hasButtons ? (
+        <>
+          {buttons.map((btn, idx) => {
+            const count = buttons.length;
+            const leftPercent = count === 1 ? 50 : count === 2 ? (idx === 0 ? 30 : 70) : (idx === 0 ? 20 : idx === 1 ? 50 : 80);
+            return (
+              <Handle
+                key={btn.id || `btn_${idx}`}
+                type="source"
+                position={Position.Bottom}
+                id={btn.id}
+                className="!bg-amber-500 !w-3.5 !h-3.5 !border-2 !border-white !shadow-md !-bottom-1.5 hover:!scale-125 transition-transform cursor-crosshair"
+                style={{ left: `${leftPercent}%` }}
+              />
+            );
+          })}
+          <div className="flex justify-between px-2 pt-1 text-[8px] font-bold text-amber-600 uppercase tracking-tight">
+            {buttons.map((btn, idx) => (
+              <span key={btn.id || `btn_${idx}`} className="truncate max-w-[70px] text-center">
+                #{idx + 1}: {btn.text?.slice(0, 10)}
+              </span>
+            ))}
+          </div>
+        </>
+      ) : (
         <Handle type="source" position={Position.Bottom} className="!bg-amber-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
       )}
     </div>

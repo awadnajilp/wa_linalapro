@@ -1210,6 +1210,9 @@ const steps: MigrationStep[] = [
   addColumnIfNotExists("ecommerce_configs", "abandoned_cart_message_2", "TEXT"),
   addColumnIfNotExists("ecommerce_configs", "ai_takeover_enabled", "BOOLEAN DEFAULT false"),
   addColumnIfNotExists("ecommerce_configs", "ask_quantity", "BOOLEAN DEFAULT true"),
+  addColumnIfNotExists("ecommerce_configs", "use_whatsapp_flow_form", "BOOLEAN DEFAULT false"),
+  addColumnIfNotExists("ecommerce_configs", "whatsapp_flow_id", "VARCHAR REFERENCES whatsapp_flows (id) ON DELETE SET NULL"),
+  addColumnIfNotExists("ecommerce_configs", "whatsapp_flow_cta_text", "TEXT DEFAULT 'Complete Checkout 🛍️'"),
   addColumnIfNotExists("ecommerce_configs", "active_product_id", "VARCHAR REFERENCES ecommerce_products (id) ON DELETE SET NULL"),
 
   // ────────────────────────────────────────────────────

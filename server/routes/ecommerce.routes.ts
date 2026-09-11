@@ -293,6 +293,9 @@ export function registerEcommerceRoutes(app: Express) {
         welcomeMessages,
         aiSystemPrompt,
         askQuantity,
+        useWhatsappFlowForm,
+        whatsappFlowId,
+        whatsappFlowCtaText,
         storeName,
         storeAddress,
         storeWebsite,
@@ -374,6 +377,12 @@ export function registerEcommerceRoutes(app: Express) {
             aiAskButtonEnabled: aiAskButtonEnabled !== undefined ? aiAskButtonEnabled : true,
             aiSystemPrompt: aiSystemPrompt !== undefined ? aiSystemPrompt : null,
             askQuantity: askQuantity !== undefined ? askQuantity : true,
+            useWhatsappFlowForm: useWhatsappFlowForm !== undefined ? useWhatsappFlowForm : false,
+            whatsappFlowId: whatsappFlowId || null,
+            whatsappFlowCtaText: whatsappFlowCtaText || "Complete Checkout 🛍️",
+            useWhatsappFlowForm: useWhatsappFlowForm !== undefined ? useWhatsappFlowForm : false,
+            whatsappFlowId: whatsappFlowId || null,
+            whatsappFlowCtaText: whatsappFlowCtaText || "Complete Checkout 🛍️",
             welcomeMessages: parseWelcomes,
             storeName: storeName || null,
             storeAddress: storeAddress || null,
@@ -1242,4 +1251,54 @@ export function registerEcommerceRoutes(app: Express) {
       res.status(500).json({ error: err.message });
     }
   });
+
+  // Auto-generate or sync standard WhatsApp Flow Form for Ecommerce Checkout
+  app.post("/api/ecommerce/sync-checkout-flow", async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user?.role === "team" ? user.createdBy : user?.id;
+      const { channelId } = req.body;
+
+      if (!channelId) {
+        return res.status(400).json({ error: "ChannelId is required" });
+      }
+
+      const [config] = await db
+        .select()
+        .from(schema.ecommerceConfigs)
+        .where(
+          and(
+            eq(schema.ecommerceConfigs.tenantId, tenantId),
+            eq(schema.ecommerceConfigs.channelId, String(channelId))
+          )
+        )
+        .limit(1);
+
+      if (!config) {
+        return res.status(404).json({ error: "Ecommerce configuration not found for this channel." });
+      }
+
+      const [channelRow] = await db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, String(channelId)))
+        .limit(1);
+
+      if (!channelRow) {
+        return res.status(404).json({ error: "Channel not found." });
+      }
+
+      const result = await EcommerceService.generateAndSyncCheckoutFlow(config, channelRow);
+
+      res.json({
+        success: true,
+        message: "WhatsApp Checkout Flow successfully generated and synced!",
+        data: result
+      });
+    } catch (err: any) {
+      console.error("[EcommerceRoutes] sync-checkout-flow error:", err);
+      res.status(500).json({ error: err.message || "Failed to generate WhatsApp checkout flow" });
+    }
+  });
+
 }

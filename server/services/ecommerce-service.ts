@@ -7,6 +7,7 @@ import * as path from "path";
 import * as fs from "fs";
 import { AddonManager } from "./addon-manager";
 import { WhatsAppApiService } from "./whatsapp-api";
+import { WhatsappFlowsService } from "./whatsapp-flows.service";
 import { getTransporter, getSystemFromAddress } from "./email.service";
 import { getSMTPConfig } from "../controllers/smtp.controller";
 import ExcelJS from "exceljs";
@@ -567,6 +568,233 @@ export class EcommerceService {
    * Generate sequential store/tenant based order numbers in format ORD-<prefix>-1001
    * Ensures global uniqueness against the database unique constraint
    */
+
+  /**
+   * Auto-generate or sync standard WhatsApp Flow Form for Ecommerce Checkout
+   */
+  public static async generateAndSyncCheckoutFlow(config: any, channelRow: any): Promise<any> {
+    const rawFields = config.checkoutFields || ["name", "phone", "address", "pin"];
+    const fields = rawFields.map((f: any) => {
+      if (typeof f === "string") {
+        return { text: this.getFieldLabel(f), variable: f };
+      }
+      return {
+        text: f.text ? f.text.replace(/Please enter your\s*|\*|:/gi, "").trim() : this.getFieldLabel(f.variable),
+        variable: f.variable || "custom_field"
+      };
+    });
+
+    const storeTitle = config.storeName || "Order Checkout";
+    const flowName = `${config.storeName || "Store"} Checkout Form`;
+
+    const children: any[] = [
+      {
+        type: "TextHeading",
+        text: `${storeTitle}`
+      },
+      {
+        type: "TextCaption",
+        text: "Please provide your delivery & payment information below to complete your order."
+      }
+    ];
+
+    const payloadObj: Record<string, string> = {};
+
+    for (const f of fields) {
+      const v = f.variable;
+      const label = f.text || this.getFieldLabel(v);
+      payloadObj[v] = "${form." + v + "}";
+
+      if (v === "address") {
+        children.push({
+          type: "TextArea",
+          name: v,
+          label: label,
+          required: true
+        });
+      } else if (v === "pin" || v === "pincode" || v === "postal_code") {
+        children.push({
+          type: "TextInput",
+          name: v,
+          label: label,
+          required: true,
+          "input-type": "number"
+        });
+      } else if (v === "phone" || v === "mobile" || v === "contact") {
+        children.push({
+          type: "TextInput",
+          name: v,
+          label: label,
+          required: true,
+          "input-type": "phone"
+        });
+      } else if (v === "email") {
+        children.push({
+          type: "TextInput",
+          name: v,
+          label: label,
+          required: false,
+          "input-type": "email"
+        });
+      } else {
+        children.push({
+          type: "TextInput",
+          name: v,
+          label: label,
+          required: true
+        });
+      }
+    }
+
+    const paymentDataSource = [];
+    paymentDataSource.push({ id: "cod", title: config.labelCod || "Cash on Delivery (COD)" });
+    if (config.upiId) {
+      paymentDataSource.push({ id: "upi_direct", title: config.labelUpiDirect || "GPay / PhonePe (UPI)" });
+    }
+    if (config.qrCodeUrl) {
+      paymentDataSource.push({ id: "qr_pay", title: config.labelQrPay || "Acc. Info (QR Code)" });
+    }
+    if (
+      (config.razorpayKeyId && config.razorpayKeySecret) ||
+      (config.instamojoApiKey && config.instamojoAuthToken)
+    ) {
+      paymentDataSource.push({ id: "gateway", title: config.labelGateway || "Online Payment" });
+    }
+
+    payloadObj["payment_method"] = "${form.payment_method}";
+
+    children.push({
+      type: "RadioButtonsGroup",
+      name: "payment_method",
+      label: "Select Payment Option",
+      required: true,
+      "data-source": paymentDataSource
+    });
+
+    children.push({
+      type: "Footer",
+      label: "Confirm & Place Order",
+      "on-click-action": {
+        name: "complete",
+        payload: payloadObj
+      }
+    });
+
+    const flowJson = {
+      version: "6.0",
+      screens: [
+        {
+          id: "SCREEN_CHECKOUT",
+          title: "Order & Delivery Details",
+          terminal: true,
+          data: {},
+          layout: {
+            type: "SingleColumnLayout",
+            children
+          }
+        }
+      ]
+    };
+
+    let targetFlow: any = null;
+
+    if (config.whatsappFlowId) {
+      const [existingFlow] = await db
+        .select()
+        .from(schema.whatsappFlows)
+        .where(eq(schema.whatsappFlows.id, config.whatsappFlowId))
+        .limit(1);
+      targetFlow = existingFlow;
+    }
+
+    if (targetFlow) {
+      const [updatedFlow] = await db
+        .update(schema.whatsappFlows)
+        .set({
+          name: flowName,
+          flowJson,
+          headerText: `🛍️ ${config.storeName || "Store"} Checkout`,
+          bodyText: "Please fill in your delivery and payment details to complete your order:",
+          footerText: "Fast & Secure WhatsApp Checkout",
+          ctaButtonText: config.whatsappFlowCtaText || "Complete Checkout 🛍️",
+          updatedAt: new Date()
+        })
+        .where(eq(schema.whatsappFlows.id, targetFlow.id))
+        .returning();
+
+      targetFlow = updatedFlow;
+
+      if (channelRow.connectionMethod !== "qr_code" && targetFlow.flowId) {
+        try {
+          await WhatsappFlowsService.updateFlowJsonOnMeta(channelRow.id, targetFlow.flowId, flowJson);
+        } catch (mErr: any) {
+          console.warn("[EcommerceService] Meta Flow JSON sync notice:", mErr.message);
+        }
+      }
+    } else {
+      const [newFlow] = await db
+        .insert(schema.whatsappFlows)
+        .values({
+          tenantId: config.tenantId,
+          channelId: channelRow.id,
+          name: flowName,
+          categories: ["OTHER"],
+          status: "DRAFT",
+          flowJson,
+          headerText: `🛍️ ${config.storeName || "Store"} Checkout`,
+          bodyText: "Please fill in your delivery and payment details to complete your order:",
+          footerText: "Fast & Secure WhatsApp Checkout",
+          ctaButtonText: config.whatsappFlowCtaText || "Complete Checkout 🛍️",
+          autoSaveContactFields: true,
+          isSample: false
+        })
+        .returning();
+
+      targetFlow = newFlow;
+
+      if (channelRow.connectionMethod !== "qr_code") {
+        try {
+          const metaRes = await WhatsappFlowsService.createFlowOnMeta(channelRow.id, {
+            name: flowName,
+            categories: ["OTHER"]
+          });
+          if (metaRes?.flowId) {
+            await WhatsappFlowsService.updateFlowJsonOnMeta(channelRow.id, metaRes.flowId, flowJson);
+            try {
+              await WhatsappFlowsService.publishFlowOnMeta(channelRow.id, metaRes.flowId);
+            } catch (pErr: any) {
+              console.warn("[EcommerceService] Meta publish notice:", pErr.message);
+            }
+
+            const [publishedFlow] = await db
+              .update(schema.whatsappFlows)
+              .set({
+                flowId: metaRes.flowId,
+                status: "PUBLISHED",
+                updatedAt: new Date()
+              })
+              .where(eq(schema.whatsappFlows.id, targetFlow.id))
+              .returning();
+            targetFlow = publishedFlow;
+          }
+        } catch (cErr: any) {
+          console.warn("[EcommerceService] Auto Meta Flow registration notice:", cErr.message);
+        }
+      }
+
+      await db
+        .update(schema.ecommerceConfigs)
+        .set({
+          useWhatsappFlowForm: true,
+          whatsappFlowId: targetFlow.id,
+          updatedAt: new Date()
+        })
+        .where(eq(schema.ecommerceConfigs.id, config.id));
+    }
+
+    return targetFlow;
+  }
+
   public static async generateNextOrderNumber(tenantId?: string): Promise<string> {
     const prefix = this.getTenantOrderPrefix(tenantId);
     try {
@@ -647,6 +875,93 @@ export class EcommerceService {
       const conversationId = conversation[0].id;
       const contactPhone = conversation[0].contactPhone;
       const cleanContent = (content || "").trim().toLowerCase();
+
+      // Handle WhatsApp Flow Form checkout submissions (nfm_reply)
+      const isNfmReply = message.type === "interactive" && (
+        (message as any).interactive?.type === "nfm_reply" ||
+        (message as any)?.metadata?.type === "nfm_reply"
+      );
+
+      if (isNfmReply) {
+        const rawJson = message.interactive?.nfm_reply?.response_json ||
+          (message as any)?.metadata?.flowResponse ||
+          (message as any)?.flowResponse;
+
+        let parsedPayload: Record<string, any> = (message as any)?.parsedPayload || {};
+        try {
+          if (rawJson && typeof rawJson === "string") {
+            parsedPayload = JSON.parse(rawJson);
+          } else if (rawJson && typeof rawJson === "object") {
+            parsedPayload = rawJson;
+          }
+        } catch (e) {}
+
+        const [activeFlowSession] = await db
+          .select()
+          .from(schema.ecommerceSessions)
+          .where(eq(schema.ecommerceSessions.conversationId, conversationId))
+          .limit(1);
+
+        if (activeFlowSession) {
+          console.log("[EcommerceService] Processing WhatsApp Flow Form checkout submission for session:", activeFlowSession.id);
+          const [product] = await db
+            .select()
+            .from(schema.ecommerceProducts)
+            .where(eq(schema.ecommerceProducts.id, activeFlowSession.productId))
+            .limit(1);
+
+          if (product) {
+            const customerData = {
+              ...(activeFlowSession.customerData || {}),
+              ...parsedPayload
+            };
+
+            if (parsedPayload.quantity) {
+              const q = parseInt(String(parsedPayload.quantity), 10);
+              if (!isNaN(q) && q > 0) activeFlowSession.quantity = q;
+            }
+
+            const deliveryFee = this.calculateDeliveryFee(config, customerData);
+            customerData.deliveryFee = String(deliveryFee);
+
+            await db
+              .update(schema.ecommerceSessions)
+              .set({
+                quantity: activeFlowSession.quantity,
+                customerData,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.ecommerceSessions.id, activeFlowSession.id));
+
+            const selectedMethod = parsedPayload.payment_method || parsedPayload.payment || parsedPayload.paymentMethod;
+
+            if (selectedMethod) {
+              await this.processSessionInput(
+                channelRow,
+                config,
+                conversationId,
+                contactPhone,
+                selectedMethod,
+                activeFlowSession,
+                product,
+                { ...message, interactive: { button_reply: { id: selectedMethod } } }
+              );
+            } else {
+              await this.processSessionInput(
+                channelRow,
+                config,
+                conversationId,
+                contactPhone,
+                "",
+                activeFlowSession,
+                product,
+                message
+              );
+            }
+            return true;
+          }
+        }
+      }
 
       // 0. Check if there is an active ecommerce session OR an interactive button/list reply first!
       const [existingSession] = await db
@@ -1603,6 +1918,71 @@ export class EcommerceService {
   ) {
     // Delete any active sessions for this conversation first
     await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+
+    // WhatsApp Flow Form checkout check
+    if (config.useWhatsappFlowForm && config.whatsappFlowId && channelRow.connectionMethod !== "qr_code") {
+      const [flowRecord] = await db
+        .select()
+        .from(schema.whatsappFlows)
+        .where(eq(schema.whatsappFlows.id, config.whatsappFlowId))
+        .limit(1);
+
+      if (flowRecord && (flowRecord.status === "PUBLISHED" || flowRecord.flowId)) {
+        await db.insert(schema.ecommerceSessions).values({
+          conversationId,
+          productId: product.id,
+          quantity: 1,
+          currentStep: "waiting_for_flow_form",
+          customerData: {
+            productName: product.name,
+            productPrice: product.price,
+            productId: product.id
+          }
+        });
+
+        await this.trackAbandonedCart({
+          tenantId: config.tenantId,
+          channelId: config.channelId || channelRow?.id,
+          conversationId,
+          customerPhone: contactPhone,
+          productId: product.id,
+          productName: product.name,
+          productPrice: product.price ? String(product.price) : "0",
+          productPhoto: productPhoto || null,
+          quantity: 1,
+          customerData: {},
+          currentStep: "waiting_for_flow_form"
+        });
+
+        const header = flowRecord.headerText || `🛍️ ${product.name}`;
+        const body = flowRecord.bodyText || `Please complete your delivery details for *${product.name}* (Price: ${config.currency || "INR"} ${product.price}).`;
+        const cta = config.whatsappFlowCtaText || flowRecord.ctaButtonText || "Complete Checkout 🛍️";
+
+        try {
+          await WhatsappFlowsService.sendFlowMessage(
+            channelRow.id,
+            contactPhone,
+            {
+              ...flowRecord,
+              headerText: header,
+              bodyText: body,
+              ctaButtonText: cta
+            },
+            {
+              token: `ecom_${conversationId.replace(/-/g, "").substring(0, 16)}`,
+              initialData: {
+                product_name: product.name,
+                product_price: String(product.price)
+              }
+            }
+          );
+          return true;
+        } catch (flowSendErr: any) {
+          console.error("[EcommerceService] Failed to send WhatsApp Flow Form, falling back to standard Q&A:", flowSendErr.message);
+          await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.conversationId, conversationId));
+        }
+      }
+    }
 
     const askQuantity = config.askQuantity !== false;
 

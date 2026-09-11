@@ -284,6 +284,11 @@ export default function EcommerceLedger() {
   const [aiTakeoverEnabled, setAiTakeoverEnabled] = useState(false);
   const [aiVoiceEnabled, setAiVoiceEnabled] = useState(false);
   const [askQuantity, setAskQuantity] = useState(true);
+  const [useWhatsappFlowForm, setUseWhatsappFlowForm] = useState(false);
+  const [whatsappFlowId, setWhatsappFlowId] = useState<string>("");
+  const [whatsappFlowCtaText, setWhatsappFlowCtaText] = useState("Complete Checkout 🛍️");
+  const [availableFlows, setAvailableFlows] = useState<any[]>([]);
+  const [isSyncingFlow, setIsSyncingFlow] = useState(false);
   const [configVoiceProfileId, setConfigVoiceProfileId] = useState<string>("");
   const [configAiVoiceLanguageMode, setConfigAiVoiceLanguageMode] = useState<string>("profile");
   const [aiTimeoutMinutes, setAiTimeoutMinutes] = useState(30);
@@ -2958,6 +2963,83 @@ export default function EcommerceLedger() {
                         </div>
                         <Switch checked={askQuantity} onCheckedChange={setAskQuantity} />
                       </div>
+
+                      {/* WhatsApp Flow Form Checkout (Meta Native Forms) */}
+                      <div className="border border-indigo-200 rounded-lg p-4 bg-gradient-to-r from-indigo-50/50 via-purple-50/30 to-white space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="font-bold text-gray-800 flex items-center gap-1.5 text-xs">
+                              <FileText className="w-4 h-4 text-indigo-600" />
+                              WhatsApp Flow Form Checkout (Meta Native Form)
+                              <span className="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded font-medium ml-1">Meta Cloud API</span>
+                            </Label>
+                            <span className="text-[11px] text-gray-500 block leading-tight">
+                              Replaces step-by-step text questions with a single native WhatsApp form. When a customer reaches checkout, WhatsApp opens an interactive form to fill delivery details & choose payment at once.
+                            </span>
+                          </div>
+                          <Switch checked={useWhatsappFlowForm} onCheckedChange={setUseWhatsappFlowForm} />
+                        </div>
+
+                        {useWhatsappFlowForm && (
+                          <div className="pt-3 border-t border-indigo-100 space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-xs font-semibold text-gray-700">Select WhatsApp Form</Label>
+                                <select
+                                  value={whatsappFlowId}
+                                  onChange={(e) => setWhatsappFlowId(e.target.value)}
+                                  className="w-full border rounded h-9 text-xs p-2 bg-white"
+                                >
+                                  <option value="">-- Choose an existing Form --</option>
+                                  {availableFlows.map((fl: any) => (
+                                    <option key={fl.id} value={fl.id}>
+                                      {fl.name} ({fl.status || "DRAFT"})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-xs font-semibold text-gray-700">Form CTA Button Label</Label>
+                                <Input
+                                  value={whatsappFlowCtaText}
+                                  onChange={(e) => setWhatsappFlowCtaText(e.target.value)}
+                                  placeholder="Complete Checkout 🛍️"
+                                  className="text-xs h-9 bg-white"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-1">
+                              <span className="text-[11px] text-gray-500 italic">
+                                {selectedChannel?.connectionMethod === "qr_code"
+                                  ? "⚠️ This channel is connected via QR code. WhatsApp Flows require Cloud API and will seamlessly use standard text questions as fallback."
+                                  : "✨ Clicking Auto-Generate will build, publish, and sync a Meta Form matching your Checkout Fields below."}
+                              </span>
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={isSyncingFlow}
+                                onClick={handleSyncCheckoutFlow}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 px-3 flex items-center gap-1.5 self-end sm:self-auto shrink-0 shadow-sm"
+                              >
+                                {isSyncingFlow ? (
+                                  <>
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    Syncing with Meta...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    Auto-Generate & Sync Form
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
 
                       <div className="space-y-3">
                         <Label className="font-semibold text-gray-700 block">Checkout Fields (Q&A List)</Label>

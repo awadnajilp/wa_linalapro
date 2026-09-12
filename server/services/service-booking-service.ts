@@ -514,39 +514,36 @@ export class ServiceBookingService {
       .from(schema.serviceMasters)
       .where(and(eq(schema.serviceMasters.tenantId, config.tenantId), eq(schema.serviceMasters.isActive, true)));
 
-    if (config.requireMasterSelection && allMasters.length > 0) {
-      const masterDataSource = allMasters.map(m => ({
-        id: m.id,
-        title: `${m.name} (${m.title || "Specialist"})`
-      }));
-      masterDataSource.push({ id: "any", title: "Any Available Specialist" });
+    const hasMasters = config.requireMasterSelection && allMasters.length > 0;
 
+    if (hasMasters) {
       payloadObj["master_id"] = "${form.master_id}";
       children.push({
         type: "Dropdown",
         name: "master_id",
         label: "Preferred Specialist",
         required: true,
-        "data-source": masterDataSource
+        "data-source": "${data.available_masters}"
       });
     }
 
-    // 2. Booking Date & Time Slot
+    // 2. Dynamic Booking Date & Time Slot Dropdowns
     payloadObj["booking_date"] = "${form.booking_date}";
     children.push({
-      type: "TextInput",
+      type: "Dropdown",
       name: "booking_date",
-      label: "Appointment Date (YYYY-MM-DD)",
+      label: "Select Appointment Date",
       required: true,
-      helper_text: "e.g. 2026-09-15"
+      "data-source": "${data.available_dates}"
     });
 
     payloadObj["booking_slot"] = "${form.booking_slot}";
     children.push({
-      type: "TextInput",
+      type: "Dropdown",
       name: "booking_slot",
-      label: "Preferred Time (e.g. 10:00 AM or 02:30 PM)",
-      required: true
+      label: "Select Available Time Slot",
+      required: true,
+      "data-source": "${data.available_slots}"
     });
 
     // 3. Dynamic Customer Fields
@@ -619,6 +616,54 @@ export class ServiceBookingService {
       }
     });
 
+    const screenData: Record<string, any> = {
+      available_dates: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            title: { type: "string" }
+          }
+        },
+        __example__: [
+          { id: "2026-09-12", title: "Today (2026-09-12)" },
+          { id: "2026-09-13", title: "Tomorrow (2026-09-13)" }
+        ]
+      },
+      available_slots: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            title: { type: "string" }
+          }
+        },
+        __example__: [
+          { id: "10:00 AM - 10:30 AM", title: "10:00 AM - 10:30 AM" },
+          { id: "10:30 AM - 11:00 AM", title: "10:30 AM - 11:00 AM" },
+          { id: "11:00 AM - 11:30 AM", title: "11:00 AM - 11:30 AM" }
+        ]
+      }
+    };
+
+    if (hasMasters) {
+      screenData.available_masters = {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            title: { type: "string" }
+          }
+        },
+        __example__: [
+          { id: "any", title: "Any Available Specialist" }
+        ]
+      };
+    }
+
     const flowJson = {
       version: "6.0",
       screens: [
@@ -626,7 +671,7 @@ export class ServiceBookingService {
           id: "SCREEN_BOOKING",
           title: "Book Appointment",
           terminal: true,
-          data: {},
+          data: screenData,
           layout: {
             type: "SingleColumnLayout",
             children
@@ -1822,6 +1867,59 @@ export class ServiceBookingService {
         const body = flowRecord.bodyText || `Please complete your specialist, date & time details for *${service.name}* (Price: ${service.currency || config.currency || "INR"} ${service.price}).`;
         const cta = config.whatsappFlowCtaText || flowRecord.ctaButtonText || "Book Appointment 📅";
 
+        // Generate dynamic available dates for next 7 days
+        const now = new Date();
+        const availableDates: { id: string; title: string }[] = [];
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+          const dStr = d.toISOString().split("T")[0];
+          const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+          const monthDay = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+          const tag = i === 0 ? "Today" : (i === 1 ? "Tomorrow" : `${dayName}, ${monthDay}`);
+          availableDates.push({ id: dStr, title: `${tag} (${dStr})` });
+        }
+
+        // Generate dynamic available slots for initial date
+        const primaryDateStr = availableDates[0]?.id || now.toISOString().split("T")[0];
+        const { availableSlots } = await this.getAvailableSlots({
+          tenantId: config.tenantId,
+          serviceId: service.id,
+          masterId: null,
+          date: primaryDateStr,
+          channelId: channelRow.id
+        });
+
+        let dynamicSlots: { id: string; title: string }[] = [];
+        if (availableSlots && availableSlots.length > 0) {
+          dynamicSlots = availableSlots.map(s => ({ id: s.label, title: s.label }));
+        } else {
+          dynamicSlots = [
+            { id: "09:00 AM - 10:00 AM", title: "09:00 AM - 10:00 AM" },
+            { id: "10:00 AM - 11:00 AM", title: "10:00 AM - 11:00 AM" },
+            { id: "11:00 AM - 12:00 PM", title: "11:00 AM - 12:00 PM" },
+            { id: "02:00 PM - 03:00 PM", title: "02:00 PM - 03:00 PM" },
+            { id: "03:00 PM - 04:00 PM", title: "03:00 PM - 04:00 PM" },
+            { id: "04:00 PM - 05:00 PM", title: "04:00 PM - 05:00 PM" },
+            { id: "05:00 PM - 06:00 PM", title: "05:00 PM - 06:00 PM" }
+          ];
+        }
+
+        const allMasters = await db
+          .select()
+          .from(schema.serviceMasters)
+          .where(and(eq(schema.serviceMasters.tenantId, config.tenantId), eq(schema.serviceMasters.isActive, true)));
+
+        const assignedMasters = allMasters.filter(m => {
+          const sIds = Array.isArray(m.serviceIds) ? m.serviceIds : [];
+          return sIds.includes(service.id) || sIds.length === 0;
+        });
+
+        const availableMasters = assignedMasters.map(m => ({
+          id: m.id,
+          title: `${m.name} (${m.title || "Specialist"})`
+        }));
+        availableMasters.push({ id: "any", title: "Any Available Specialist" });
+
         try {
           await WhatsappFlowsService.sendFlowMessage(
             channelRow.id,
@@ -1836,7 +1934,10 @@ export class ServiceBookingService {
               token: `sb_${conversationId.replace(/-/g, "").substring(0, 16)}`,
               initialData: {
                 service_name: service.name,
-                service_price: String(service.price)
+                service_price: String(service.price),
+                available_dates: availableDates,
+                available_slots: dynamicSlots,
+                available_masters: availableMasters
               }
             }
           );
@@ -1915,13 +2016,26 @@ export class ServiceBookingService {
   ) {
     const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
 
+    const now = new Date();
+    const upcomingDates: { dateStr: string; label: string; fullLabel: string }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+      const dStr = d.toISOString().split("T")[0];
+      const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+      const monthDay = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const tag = i === 0 ? "Today" : (i === 1 ? "Tomorrow" : `${dayName}, ${monthDay}`);
+      upcomingDates.push({ dateStr: dStr, label: tag, fullLabel: `${tag} (${dStr})` });
+    }
+
     await db.delete(schema.serviceSessions).where(eq(schema.serviceSessions.conversationId, conversationId));
     await db.insert(schema.serviceSessions).values({
       conversationId,
       serviceId,
       masterId: masterId || null,
       currentStep: "waiting_for_date",
-      customerData: {}
+      customerData: {
+        upcomingDatesCache: upcomingDates
+      }
     });
 
     await this.trackAbandonedBooking({
@@ -1934,25 +2048,20 @@ export class ServiceBookingService {
       currentStep: "waiting_for_date"
     });
 
-    const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split("T")[0];
-
     const promptText = `📅 *Select Appointment Date*\n\nPlease select or type your preferred booking date:`;
 
     if (isCloudApi) {
       const buttons = [
-        { id: `date_${todayStr}`, title: `Today (${todayStr.slice(5)})` },
-        { id: `date_${tomorrowStr}`, title: `Tomorrow (${tomorrowStr.slice(5)})` }
+        { id: `date_${upcomingDates[0].dateStr}`, title: `Today (${upcomingDates[0].dateStr.slice(5)})` },
+        { id: `date_${upcomingDates[1].dateStr}`, title: `Tomorrow (${upcomingDates[1].dateStr.slice(5)})` }
       ];
       await this.sendCloudApiButtonMessage(channelRow, conversationId, to, promptText, null, buttons);
     } else {
-      const listText = `${promptText}\n\n` +
-        `👉 Reply *1* for *Today* (${todayStr})\n` +
-        `👉 Reply *2* for *Tomorrow* (${tomorrowStr})\n` +
-        `👉 Or type any date in *YYYY-MM-DD* format (e.g. ${tomorrowStr})\n\n` +
+      let listText = `${promptText}\n\n`;
+      upcomingDates.forEach((ud, idx) => {
+        listText += `👉 Reply *${idx + 1}* for *${ud.fullLabel}*\n`;
+      });
+      listText += `👉 Or type any custom date in *YYYY-MM-DD* format\n\n` +
         `Reply *cancel* anytime to exit.`;
       await this.sendAndSaveTextMessage(channelRow, conversationId, to, listText);
     }
@@ -2019,7 +2128,7 @@ export class ServiceBookingService {
       await this.sendCloudApiButtonMessage(channelRow, session.conversationId, to, promptText, null, buttons);
     } else {
       let listText = `${promptText}\n\n`;
-      availableSlots.slice(0, 10).forEach((s, idx) => {
+      availableSlots.slice(0, 25).forEach((s, idx) => {
         listText += `👉 Reply *${idx + 1}* for *${s.label}*\n`;
       });
       listText += `\nReply *cancel* to exit.`;
@@ -2108,6 +2217,7 @@ export class ServiceBookingService {
     // STEP 3: WAITING FOR DATE
     if (session.currentStep === "waiting_for_date") {
       let chosenDate = "";
+      const cachedDates: { dateStr: string; label: string; fullLabel: string }[] = (session.customerData as any)?.upcomingDatesCache || [];
       const now = new Date();
       const todayStr = now.toISOString().split("T")[0];
       const tomorrow = new Date(now);
@@ -2116,19 +2226,24 @@ export class ServiceBookingService {
 
       if (buttonReplyId?.startsWith("date_")) {
         chosenDate = buttonReplyId.replace("date_", "");
-      } else if (cleanInput === "1" || cleanInput.includes("today")) {
-        chosenDate = todayStr;
-      } else if (cleanInput === "2" || cleanInput.includes("tomorrow")) {
-        chosenDate = tomorrowStr;
       } else {
-        const dateMatch = cleanInput.match(/\d{4}-\d{2}-\d{2}/);
-        if (dateMatch) {
-          chosenDate = dateMatch[0];
+        const num = parseInt(cleanInput, 10);
+        if (!isNaN(num) && num >= 1 && num <= cachedDates.length) {
+          chosenDate = cachedDates[num - 1].dateStr;
+        } else if (cleanInput === "1" || cleanInput.includes("today")) {
+          chosenDate = todayStr;
+        } else if (cleanInput === "2" || cleanInput.includes("tomorrow")) {
+          chosenDate = tomorrowStr;
+        } else {
+          const dateMatch = cleanInput.match(/\d{4}-\d{2}-\d{2}/);
+          if (dateMatch) {
+            chosenDate = dateMatch[0];
+          }
         }
       }
 
       if (!chosenDate) {
-        await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Please enter a valid date in *YYYY-MM-DD* format (e.g. 2026-09-15), or reply *1* for Today, *2* for Tomorrow.");
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Please enter a valid date in *YYYY-MM-DD* format (e.g. 2026-09-15), or reply with the option number from the list above.");
         return;
       }
 

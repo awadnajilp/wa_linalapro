@@ -523,6 +523,10 @@ export default function Sidebar() {
     (a) => a.slug === "ecommerce" && a.subscription?.status === "active"
   );
 
+  const isServiceBookingActive = user?.role === "superadmin" || user?.role === "manager" || tenantAddons?.some(
+    (a) => (a.slug === "service-booking" || a.slug === "service_booking") && a.subscription?.status === "active"
+  );
+
   const isRemindersActive = user?.role === "superadmin" || tenantAddons?.some(
     (a) => a.slug === "reminders-module" && a.subscription?.status === "active"
   );
@@ -848,6 +852,7 @@ export default function Sidebar() {
                   .filter((item) => !(item.href === "/expenses" && !isExpenseActive))
                   .filter((item) => !(item.href === "/tickets" && !isTicketsActive))
                   .filter((item) => !(item.href === "/ecommerce" && !isEcommerceActive))
+                  .filter((item) => !(item.href === "/service-booking" && !isServiceBookingActive))
                   .filter((item) => !(item.href === "/reminders" && !isRemindersActive))
                   .filter((item) => !(item.href === "/whatsapp-flows" && !isFlowsActive))
                   .map((item) =>

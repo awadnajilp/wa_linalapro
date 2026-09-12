@@ -10,6 +10,8 @@ import PDFDocument from "pdfkit";
 import axios from "axios";
 import Razorpay from "razorpay";
 
+import { AddonManager } from "./addon-manager";
+
 export interface AvailableSlot {
   startTime: string; // "10:00"
   endTime: string;   // "10:30"
@@ -18,6 +20,12 @@ export interface AvailableSlot {
 }
 
 export class ServiceBookingService {
+  /**
+   * Check if service booking addon is active for tenant
+   */
+  public static async isServiceBookingActive(tenantId: string): Promise<boolean> {
+    return await AddonManager.isAddonActive(tenantId, "service-booking");
+  }
   /**
    * Helper to format 24h time to 12h AM/PM label
    */
@@ -753,6 +761,11 @@ export class ServiceBookingService {
     try {
       const tenantId = channelRow.createdBy;
       if (!tenantId) return false;
+
+      const isPluginActive = await this.isServiceBookingActive(tenantId);
+      if (!isPluginActive) {
+        return false;
+      }
 
       // 1. Fetch channel config
       const [config] = await db

@@ -1,14 +1,19 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Calendar as CalendarIcon, Clock, Users, Settings, Plus, Trash, Edit, RefreshCw, FileText, CheckCircle, ExternalLink, Download, FileSpreadsheet, Sparkles, UserCheck, Shield, Phone, Mail, Image as ImageIcon, Briefcase, ChevronRight, Check } from "lucide-react";
+import { 
+  Calendar as CalendarIcon, Clock, Users, Settings, Plus, Trash, Edit, RefreshCw, 
+  FileText, CheckCircle, ExternalLink, Download, FileSpreadsheet, Sparkles, 
+  UserCheck, Shield, Phone, Mail, Image as ImageIcon, Briefcase, ChevronRight, 
+  Check, CreditCard, MessageSquare, Bot, UserPlus, Shuffle, Bell
+} from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -88,12 +93,23 @@ interface ServiceBooking {
   createdAt: string;
 }
 
+const DEFAULT_DAYS = [
+  { day: 1, label: "Mon" },
+  { day: 2, label: "Tue" },
+  { day: 3, label: "Wed" },
+  { day: 4, label: "Thu" },
+  { day: 5, label: "Fri" },
+  { day: 6, label: "Sat" },
+  { day: 0, label: "Sun" },
+];
+
 export default function ServiceBookingLedger() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { activeChannel } = useChannelContext();
 
   const [activeTab, setActiveTab] = useState("bookings");
+  const [configSubTab, setConfigSubTab] = useState("general");
 
   // Filter States
   const [statusFilter, setStatusFilter] = useState("all");
@@ -142,12 +158,29 @@ export default function ServiceBookingLedger() {
   const [editingCategory, setEditingCategory] = useState<ServiceCategory | null>(null);
   const [categoryForm, setCategoryForm] = useState({ name: "", description: "", sortOrder: 0 });
 
-  // Config State
+  // Comprehensive Config Form State
   const [configForm, setConfigForm] = useState<any>({
+    businessName: "",
+    businessAddress: "",
+    businessWebsite: "",
+    businessLogo: "",
     bookingTriggerKeyword: "book",
     isBookingFlowActive: true,
-    welcomeMessage: "Welcome to our booking system! Please choose a service:",
+    welcomeMessage: "Welcome to our service booking system! Please choose a service to get started:",
+    welcomeHeaderUrl: "",
+    welcomeHeaderType: "image",
+    welcomeMessages: [] as any[],
     requireMasterSelection: true,
+    defaultWorkingHours: {
+      days: [1, 2, 3, 4, 5, 6],
+      startTime: "09:00",
+      endTime: "18:00",
+      breakStartTime: "13:00",
+      breakEndTime: "14:00"
+    },
+    defaultSlotIntervalMinutes: 30,
+    maxDaysInAdvance: 14,
+    checkoutFields: ["name", "phone", "notes"],
     currency: "INR",
     labelCod: "Pay at Venue (Cash/Card)",
     labelUpiDirect: "GPay/PhonePe(UPI)",
@@ -156,12 +189,25 @@ export default function ServiceBookingLedger() {
     upiId: "",
     upiMerchantName: "",
     qrCodeUrl: "",
+    razorpayKeyId: "",
+    razorpayKeySecret: "",
+    instamojoApiKey: "",
+    instamojoAuthToken: "",
+    instamojoSandbox: true,
+    autoAssignEnabled: false,
+    autoAssignMode: "permanent",
+    autoAssignUserId: "",
+    autoAssignExcludedUserIds: [] as string[],
     dailyReportWaEnabled: false,
-    dailyReportWaNumbers: [] as string[]
+    dailyReportWaNumbers: [] as string[],
+    aiEnabled: false,
+    aiTakeoverEnabled: false,
+    aiSystemPrompt: ""
   });
 
   // Media Gallery Picker States
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [galleryTargetField, setGalleryTargetField] = useState<string | null>(null);
   const [galleryTargetMsgIdx, setGalleryTargetMsgIdx] = useState<number | null>(null);
 
   // Queries
@@ -196,9 +242,20 @@ export default function ServiceBookingLedger() {
     queryFn: () => apiRequest("GET", `/api/service-booking/config?channelId=${activeChannel?.id || ""}`).then(r => r.json())
   });
 
-  React.useEffect(() => {
+  const { data: teamMembers } = useQuery<any[]>({
+    queryKey: ["/api/team"],
+    queryFn: () => apiRequest("GET", "/api/team").then(r => r.json()).catch(() => [])
+  });
+
+  useEffect(() => {
     if (configData?.config) {
-      setConfigForm({ ...configData.config });
+      setConfigForm((prev: any) => ({
+        ...prev,
+        ...configData.config,
+        defaultWorkingHours: configData.config.defaultWorkingHours || prev.defaultWorkingHours,
+        checkoutFields: Array.isArray(configData.config.checkoutFields) ? configData.config.checkoutFields : prev.checkoutFields,
+        dailyReportWaNumbers: Array.isArray(configData.config.dailyReportWaNumbers) ? configData.config.dailyReportWaNumbers : prev.dailyReportWaNumbers
+      }));
     }
   }, [configData]);
 
@@ -267,11 +324,10 @@ export default function ServiceBookingLedger() {
 
   const saveConfigMutation = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/service-booking/config", data).then(r => r.json()),
-    onSuccess: () => toast({ title: "Saved", description: "Service booking settings updated." }),
+    onSuccess: () => toast({ title: "Saved", description: "All Service Booking settings updated successfully." }),
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" })
   });
 
-  // Open Service Edit/Add Modal
   const openServiceModal = (service?: Service) => {
     if (service) {
       setEditingService(service);
@@ -307,7 +363,6 @@ export default function ServiceBookingLedger() {
     setIsServiceModalOpen(true);
   };
 
-  // Open Master Edit/Add Modal
   const openMasterModal = (master?: ServiceMaster) => {
     if (master) {
       setEditingMaster(master);
@@ -360,11 +415,11 @@ export default function ServiceBookingLedger() {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Clock className="w-7 h-7 text-indigo-600" />
+            <Clock className="w-7 h-7 text-blue-600" />
             Service Bookings & Appointments
           </h1>
           <p className="text-muted-foreground text-sm">
-            Manage your service catalog, specialists, dynamic time slots, and WhatsApp automated booking flows.
+            Manage your service catalog, staff specialists, dynamic real-time slot scheduling, and WhatsApp automated booking flows.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -372,7 +427,7 @@ export default function ServiceBookingLedger() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="bg-muted/60 p-1">
           <TabsTrigger value="bookings" className="flex items-center gap-2">
@@ -468,6 +523,7 @@ export default function ServiceBookingLedger() {
                         <TableHead>Specialist</TableHead>
                         <TableHead>Date & Time</TableHead>
                         <TableHead>Amount</TableHead>
+                        <TableHead>Payment</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -475,7 +531,7 @@ export default function ServiceBookingLedger() {
                     <TableBody>
                       {bookings.map(b => (
                         <TableRow key={b.id}>
-                          <TableCell className="font-semibold text-indigo-600">{b.bookingNumber}</TableCell>
+                          <TableCell className="font-semibold text-blue-600">{b.bookingNumber}</TableCell>
                           <TableCell>
                             <div className="font-medium">{b.customerName || "Customer"}</div>
                             <div className="text-xs text-muted-foreground">{b.customerPhone}</div>
@@ -491,6 +547,11 @@ export default function ServiceBookingLedger() {
                           </TableCell>
                           <TableCell className="font-medium text-emerald-600">
                             {b.currency} {b.totalAmount}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-xs font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-700 uppercase">
+                              {b.paymentMethod} ({b.paymentStatus})
+                            </span>
                           </TableCell>
                           <TableCell>
                             <Select
@@ -558,8 +619,8 @@ export default function ServiceBookingLedger() {
                     <p className="text-muted-foreground text-xs line-clamp-2">{s.description}</p>
                   )}
                   {s.triggerKeyword && s.isTriggerEnabled && (
-                    <div className="text-xs bg-indigo-50 text-indigo-700 rounded px-2 py-1 flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5" /> Trigger: *{s.triggerKeyword}*
+                    <div className="text-xs bg-blue-50 text-blue-700 rounded px-2 py-1 flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5" /> Direct Trigger: *{s.triggerKeyword}*
                     </div>
                   )}
                   <div className="flex items-center justify-between pt-2 border-t">
@@ -602,7 +663,7 @@ export default function ServiceBookingLedger() {
                       <CardTitle className="text-base">{m.name}</CardTitle>
                       <CardDescription className="text-xs">{m.title || "Specialist"}</CardDescription>
                     </div>
-                    <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
                       {m.slotIntervalMinutes || 30}m slots
                     </span>
                   </div>
@@ -700,117 +761,622 @@ export default function ServiceBookingLedger() {
           </div>
         </TabsContent>
 
-        {/* TAB 5: SETTINGS */}
+        {/* TAB 5: COMPREHENSIVE SETTINGS */}
         <TabsContent value="settings" className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle>General Booking Flow Settings</CardTitle>
-              <CardDescription>Configure trigger keywords, welcome messages, and specialist selection rules.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
+            <CardHeader className="pb-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <Label className="font-semibold">Enable Automated Booking Flow</Label>
-                  <p className="text-xs text-muted-foreground">Automatically respond when customers message your trigger keyword.</p>
+                  <CardTitle className="text-xl font-bold flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-blue-600" />
+                    Service Booking & Flow Settings
+                  </CardTitle>
+                  <CardDescription>
+                    Configure business identity, payments, working hours, auto-assignment, and instant WhatsApp alerts.
+                  </CardDescription>
                 </div>
-                <Switch
-                  checked={configForm.isBookingFlowActive}
-                  onCheckedChange={v => setConfigForm({ ...configForm, isBookingFlowActive: v })}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Global Booking Trigger Keyword</Label>
-                  <Input
-                    value={configForm.bookingTriggerKeyword}
-                    onChange={e => setConfigForm({ ...configForm, bookingTriggerKeyword: e.target.value })}
-                    placeholder="e.g. book, appointment, salon"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Currency</Label>
-                  <Input
-                    value={configForm.currency}
-                    onChange={e => setConfigForm({ ...configForm, currency: e.target.value })}
-                    placeholder="e.g. INR, SAR, USD"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Welcome Message</Label>
-                <Textarea
-                  value={configForm.welcomeMessage}
-                  onChange={e => setConfigForm({ ...configForm, welcomeMessage: e.target.value })}
-                  placeholder="Welcome! Please choose a service to get started:"
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-2">
-                <div>
-                  <Label className="font-semibold">Require Specialist / Master Selection</Label>
-                  <p className="text-xs text-muted-foreground">If enabled, asks customers to choose a specialist before selecting date/time slot.</p>
-                </div>
-                <Switch
-                  checked={configForm.requireMasterSelection}
-                  onCheckedChange={v => setConfigForm({ ...configForm, requireMasterSelection: v })}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Payment & Merchant Notification Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment & WhatsApp Alerts</CardTitle>
-              <CardDescription>Configure payment methods and instant WhatsApp alerts sent to merchant numbers.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Pay at Venue / COD Label</Label>
-                  <Input
-                    value={configForm.labelCod}
-                    onChange={e => setConfigForm({ ...configForm, labelCod: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>UPI Direct Pay ID</Label>
-                  <Input
-                    value={configForm.upiId || ""}
-                    onChange={e => setConfigForm({ ...configForm, upiId: e.target.value })}
-                    placeholder="merchant@upi"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Merchant Instant WhatsApp Alert Numbers</Label>
-                <Input
-                  value={Array.isArray(configForm.dailyReportWaNumbers) ? configForm.dailyReportWaNumbers.join(", ") : ""}
-                  onChange={e => setConfigForm({
-                    ...configForm,
-                    dailyReportWaNumbers: e.target.value.split(",").map(n => n.trim()).filter(Boolean)
-                  })}
-                  placeholder="e.g. 919876543210, 966564359373"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Individual bookings will be sent instantly to these WhatsApp numbers with the PDF booking slip and payment receipt.
-                </p>
-              </div>
-
-              <div className="pt-2">
                 <Button
                   onClick={() => saveConfigMutation.mutate({
                     ...configForm,
                     channelId: activeChannel?.id
                   })}
                   disabled={saveConfigMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  Save Settings
+                  {saveConfigMutation.isPending ? "Saving..." : "Save All Settings"}
                 </Button>
               </div>
+            </CardHeader>
+            <CardContent>
+              <Tabs value={configSubTab} onValueChange={setConfigSubTab} className="w-full">
+                <TabsList className="grid grid-cols-2 md:grid-cols-5 h-auto p-1 bg-slate-100 rounded-xl mb-6 gap-1">
+                  <TabsTrigger value="general" className="flex items-center gap-1.5 py-2 text-xs font-semibold">
+                    <Settings className="w-3.5 h-3.5 text-blue-600" /> General
+                  </TabsTrigger>
+                  <TabsTrigger value="checkout" className="flex items-center gap-1.5 py-2 text-xs font-semibold">
+                    <CreditCard className="w-3.5 h-3.5 text-emerald-600" /> Checkout & Payments
+                  </TabsTrigger>
+                  <TabsTrigger value="schedule" className="flex items-center gap-1.5 py-2 text-xs font-semibold">
+                    <Clock className="w-3.5 h-3.5 text-amber-600" /> Working Hours & Slots
+                  </TabsTrigger>
+                  <TabsTrigger value="reports" className="flex items-center gap-1.5 py-2 text-xs font-semibold">
+                    <Bell className="w-3.5 h-3.5 text-purple-600" /> WhatsApp & Alerts
+                  </TabsTrigger>
+                  <TabsTrigger value="ai_team" className="flex items-center gap-1.5 py-2 text-xs font-semibold">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> AI & Team Routing
+                  </TabsTrigger>
+                </TabsList>
+
+                {/* Sub-Tab 1: General Settings */}
+                <TabsContent value="general" className="space-y-6">
+                  {/* Business Identity */}
+                  <div className="p-4 border rounded-lg bg-slate-50/50 space-y-4">
+                    <h3 className="font-bold text-sm text-slate-800 border-b pb-2 flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-blue-600" />
+                      Business Identity (Displayed on Booking Slips & Invoices)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-1.5">
+                        <Label>Business / Salon Name</Label>
+                        <Input
+                          value={configForm.businessName || ""}
+                          onChange={e => setConfigForm({ ...configForm, businessName: e.target.value })}
+                          placeholder="e.g. Apex Wellness & Spa"
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Business Website</Label>
+                        <Input
+                          value={configForm.businessWebsite || ""}
+                          onChange={e => setConfigForm({ ...configForm, businessWebsite: e.target.value })}
+                          placeholder="e.g. www.apexwellness.com"
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Business Logo URL</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            value={configForm.businessLogo || ""}
+                            onChange={e => setConfigForm({ ...configForm, businessLogo: e.target.value })}
+                            placeholder="https://.../logo.png"
+                            className="h-9 text-xs flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setGalleryTargetField("businessLogo");
+                              setIsGalleryOpen(true);
+                            }}
+                            className="h-9 px-2"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Business Address / Venue</Label>
+                      <Input
+                        value={configForm.businessAddress || ""}
+                        onChange={e => setConfigForm({ ...configForm, businessAddress: e.target.value })}
+                        placeholder="e.g. 101 MG Road, Suite 4B, Bangalore"
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Flow Triggers & Welcome */}
+                  <div className="p-4 border rounded-lg space-y-4">
+                    <h3 className="font-bold text-sm text-slate-800 border-b pb-2 flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-blue-600" />
+                      Flow Triggers & Welcome Messages
+                    </h3>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="font-semibold text-sm">Enable Automated Booking Flow</Label>
+                        <p className="text-xs text-muted-foreground">Automatically trigger booking dialogs when customers message your trigger keyword.</p>
+                      </div>
+                      <Switch
+                        checked={configForm.isBookingFlowActive}
+                        onCheckedChange={v => setConfigForm({ ...configForm, isBookingFlowActive: v })}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label>Global Booking Trigger Keyword</Label>
+                        <Input
+                          value={configForm.bookingTriggerKeyword || "book"}
+                          onChange={e => setConfigForm({ ...configForm, bookingTriggerKeyword: e.target.value })}
+                          placeholder="e.g. book, appointment, services"
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Currency Symbol/Code</Label>
+                        <Input
+                          value={configForm.currency || "INR"}
+                          onChange={e => setConfigForm({ ...configForm, currency: e.target.value })}
+                          placeholder="e.g. INR, SAR, USD"
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label>Welcome Message Body</Label>
+                      <Textarea
+                        value={configForm.welcomeMessage || ""}
+                        onChange={e => setConfigForm({ ...configForm, welcomeMessage: e.target.value })}
+                        placeholder="Welcome! Please choose a service to get started:"
+                        rows={3}
+                        className="text-xs"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label>Welcome Header Media Type</Label>
+                        <Select
+                          value={configForm.welcomeHeaderType || "none"}
+                          onValueChange={v => setConfigForm({ ...configForm, welcomeHeaderType: v })}
+                        >
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            <SelectItem value="image">Image Banner</SelectItem>
+                            <SelectItem value="video">Video</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {configForm.welcomeHeaderType !== "none" && (
+                        <div className="space-y-1.5">
+                          <Label>Header Media URL</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              value={configForm.welcomeHeaderUrl || ""}
+                              onChange={e => setConfigForm({ ...configForm, welcomeHeaderUrl: e.target.value })}
+                              placeholder="https://.../banner.jpg"
+                              className="h-9 text-xs flex-1"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setGalleryTargetField("welcomeHeaderUrl");
+                                setIsGalleryOpen(true);
+                              }}
+                              className="h-9 px-2"
+                            >
+                              <ImageIcon className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Sub-Tab 2: Checkout & Payments */}
+                <TabsContent value="checkout" className="space-y-6">
+                  {/* Checkout Fields */}
+                  <div className="p-4 border rounded-lg space-y-3">
+                    <h3 className="font-bold text-sm text-slate-800 border-b pb-2">
+                      Customer Checkout Fields to Collect
+                    </h3>
+                    <div className="flex flex-wrap gap-4 text-xs">
+                      {["name", "phone", "notes", "address", "email"].map(f => {
+                        const isChecked = Array.isArray(configForm.checkoutFields) && configForm.checkoutFields.includes(f);
+                        return (
+                          <label key={f} className="flex items-center gap-2 cursor-pointer bg-slate-50 border p-2 rounded-md">
+                            <Checkbox
+                              checked={isChecked}
+                              onCheckedChange={checked => {
+                                const current = Array.isArray(configForm.checkoutFields) ? configForm.checkoutFields : [];
+                                const updated = checked ? [...current, f] : current.filter((c: string) => c !== f);
+                                setConfigForm({ ...configForm, checkoutFields: updated });
+                              }}
+                            />
+                            <span className="capitalize font-medium">{f}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Payment Methods */}
+                  <div className="p-4 border rounded-lg space-y-4">
+                    <h3 className="font-bold text-sm text-slate-800 border-b pb-2 flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-emerald-600" />
+                      Payment Methods & Gateways
+                    </h3>
+
+                    {/* Pay at Venue */}
+                    <div className="space-y-2 border-b pb-4">
+                      <Label className="font-semibold">Pay at Venue / Cash on Delivery</Label>
+                      <Input
+                        value={configForm.labelCod || "Pay at Venue (Cash/Card)"}
+                        onChange={e => setConfigForm({ ...configForm, labelCod: e.target.value })}
+                        placeholder="Pay at Venue (Cash/Card)"
+                        className="h-9 text-xs"
+                      />
+                    </div>
+
+                    {/* UPI Direct */}
+                    <div className="space-y-3 border-b pb-4">
+                      <Label className="font-semibold text-sm">UPI Direct Pay (GPay / PhonePe / Paytm)</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <Input
+                          placeholder="UPI ID (e.g. name@upi)"
+                          value={configForm.upiId || ""}
+                          onChange={e => setConfigForm({ ...configForm, upiId: e.target.value })}
+                          className="h-9 text-xs"
+                        />
+                        <Input
+                          placeholder="UPI Merchant / Business Name"
+                          value={configForm.upiMerchantName || ""}
+                          onChange={e => setConfigForm({ ...configForm, upiMerchantName: e.target.value })}
+                          className="h-9 text-xs"
+                        />
+                        <Input
+                          placeholder="Custom Label in WhatsApp"
+                          value={configForm.labelUpiDirect || "GPay/PhonePe(UPI)"}
+                          onChange={e => setConfigForm({ ...configForm, labelUpiDirect: e.target.value })}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* QR Code Pay */}
+                    <div className="space-y-3 border-b pb-4">
+                      <Label className="font-semibold text-sm">QR Code / Account Info Pay</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Store QR Code Image URL"
+                            value={configForm.qrCodeUrl || ""}
+                            onChange={e => setConfigForm({ ...configForm, qrCodeUrl: e.target.value })}
+                            className="h-9 text-xs flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setGalleryTargetField("qrCodeUrl");
+                              setIsGalleryOpen(true);
+                            }}
+                            className="h-9 px-2"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                        <Input
+                          placeholder="Custom Label in WhatsApp"
+                          value={configForm.labelQrPay || "Acc. Info(QR Code)"}
+                          onChange={e => setConfigForm({ ...configForm, labelQrPay: e.target.value })}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Razorpay Gateway */}
+                    <div className="space-y-3 border-b pb-4">
+                      <Label className="font-semibold text-sm">Razorpay Payment Gateway</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <Input
+                          placeholder="Razorpay Key ID"
+                          value={configForm.razorpayKeyId || ""}
+                          onChange={e => setConfigForm({ ...configForm, razorpayKeyId: e.target.value })}
+                          className="h-9 text-xs"
+                        />
+                        <Input
+                          placeholder="Razorpay Key Secret"
+                          type="password"
+                          value={configForm.razorpayKeySecret || ""}
+                          onChange={e => setConfigForm({ ...configForm, razorpayKeySecret: e.target.value })}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Instamojo Gateway */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="font-semibold text-sm">Instamojo Gateway</Label>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={configForm.instamojoSandbox}
+                            onCheckedChange={v => setConfigForm({ ...configForm, instamojoSandbox: !!v })}
+                          />
+                          <span className="text-xs text-muted-foreground">Sandbox / Test Mode</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <Input
+                          placeholder="Instamojo API Key"
+                          value={configForm.instamojoApiKey || ""}
+                          onChange={e => setConfigForm({ ...configForm, instamojoApiKey: e.target.value })}
+                          className="h-9 text-xs"
+                        />
+                        <Input
+                          placeholder="Instamojo Auth Token"
+                          type="password"
+                          value={configForm.instamojoAuthToken || ""}
+                          onChange={e => setConfigForm({ ...configForm, instamojoAuthToken: e.target.value })}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Sub-Tab 3: Working Hours & Slots */}
+                <TabsContent value="schedule" className="space-y-6">
+                  <div className="p-4 border rounded-lg space-y-4">
+                    <h3 className="font-bold text-sm text-slate-800 border-b pb-2 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-amber-600" />
+                      Default Business Schedule & Time Slot Rules
+                    </h3>
+
+                    {/* Working Days */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold">Operating Days of the Week</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {DEFAULT_DAYS.map(d => {
+                          const activeDays: number[] = configForm.defaultWorkingHours?.days || [1, 2, 3, 4, 5, 6];
+                          const isChecked = activeDays.includes(d.day);
+                          return (
+                            <label
+                              key={d.day}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
+                                isChecked ? "bg-blue-50 border-blue-200 text-blue-800 font-bold" : "bg-slate-50 border-slate-200 text-slate-500"
+                              }`}
+                            >
+                              <Checkbox
+                                checked={isChecked}
+                                onCheckedChange={checked => {
+                                  const updated = checked
+                                    ? [...activeDays, d.day]
+                                    : activeDays.filter((val: number) => val !== d.day);
+                                  setConfigForm({
+                                    ...configForm,
+                                    defaultWorkingHours: { ...configForm.defaultWorkingHours, days: updated }
+                                  });
+                                }}
+                              />
+                              <span>{d.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Hours & Breaks */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Business Opening Time (24h)</Label>
+                        <Input
+                          type="time"
+                          value={configForm.defaultWorkingHours?.startTime || "09:00"}
+                          onChange={e => setConfigForm({
+                            ...configForm,
+                            defaultWorkingHours: { ...configForm.defaultWorkingHours, startTime: e.target.value }
+                          })}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Business Closing Time (24h)</Label>
+                        <Input
+                          type="time"
+                          value={configForm.defaultWorkingHours?.endTime || "18:00"}
+                          onChange={e => setConfigForm({
+                            ...configForm,
+                            defaultWorkingHours: { ...configForm.defaultWorkingHours, endTime: e.target.value }
+                          })}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Lunch / Break Start (24h)</Label>
+                        <Input
+                          type="time"
+                          value={configForm.defaultWorkingHours?.breakStartTime || "13:00"}
+                          onChange={e => setConfigForm({
+                            ...configForm,
+                            defaultWorkingHours: { ...configForm.defaultWorkingHours, breakStartTime: e.target.value }
+                          })}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Lunch / Break End (24h)</Label>
+                        <Input
+                          type="time"
+                          value={configForm.defaultWorkingHours?.breakEndTime || "14:00"}
+                          onChange={e => setConfigForm({
+                            ...configForm,
+                            defaultWorkingHours: { ...configForm.defaultWorkingHours, breakEndTime: e.target.value }
+                          })}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Slot Intervals & Advances */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Default Slot Step Interval (Minutes)</Label>
+                        <Input
+                          type="number"
+                          value={configForm.defaultSlotIntervalMinutes || 30}
+                          onChange={e => setConfigForm({ ...configForm, defaultSlotIntervalMinutes: parseInt(e.target.value, 10) || 30 })}
+                          className="h-9 text-xs"
+                        />
+                        <p className="text-xs text-muted-foreground">e.g. 15, 30, 45, or 60 minutes between available slots.</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Max Days in Advance for Booking</Label>
+                        <Input
+                          type="number"
+                          value={configForm.maxDaysInAdvance || 14}
+                          onChange={e => setConfigForm({ ...configForm, maxDaysInAdvance: parseInt(e.target.value, 10) || 14 })}
+                          className="h-9 text-xs"
+                        />
+                        <p className="text-xs text-muted-foreground">e.g. Customers can book up to 14 days ahead.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t">
+                      <div>
+                        <Label className="font-semibold text-sm">Require Specialist / Staff Selection</Label>
+                        <p className="text-xs text-muted-foreground">Prompt customers to pick a specialist before selecting a date and slot.</p>
+                      </div>
+                      <Switch
+                        checked={configForm.requireMasterSelection}
+                        onCheckedChange={v => setConfigForm({ ...configForm, requireMasterSelection: v })}
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Sub-Tab 4: WhatsApp & Instant Alerts */}
+                <TabsContent value="reports" className="space-y-6">
+                  <div className="p-4 border rounded-lg space-y-4">
+                    <h3 className="font-bold text-sm text-slate-800 border-b pb-2 flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-purple-600" />
+                      Merchant Instant Alerts & Summaries
+                    </h3>
+
+                    <div className="space-y-2">
+                      <Label className="font-semibold text-sm">Instant WhatsApp Notification Numbers</Label>
+                      <Input
+                        value={Array.isArray(configForm.dailyReportWaNumbers) ? configForm.dailyReportWaNumbers.join(", ") : ""}
+                        onChange={e => setConfigForm({
+                          ...configForm,
+                          dailyReportWaNumbers: e.target.value.split(",").map(n => n.trim()).filter(Boolean)
+                        })}
+                        placeholder="e.g. 919876543210, 966564359373"
+                        className="h-9 text-xs"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Whenever an appointment is booked or a payment receipt is received, instant WhatsApp alerts with PDF booking slips will be forwarded to these numbers.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t">
+                      <div>
+                        <Label className="font-semibold text-sm">Daily WhatsApp Booking Summary</Label>
+                        <p className="text-xs text-muted-foreground">Send a daily consolidated summary report of all appointments.</p>
+                      </div>
+                      <Switch
+                        checked={configForm.dailyReportWaEnabled}
+                        onCheckedChange={v => setConfigForm({ ...configForm, dailyReportWaEnabled: v })}
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Sub-Tab 5: AI & Team Routing */}
+                <TabsContent value="ai_team" className="space-y-6">
+                  {/* AI Assistant */}
+                  <div className="p-4 border rounded-lg space-y-4">
+                    <h3 className="font-bold text-sm text-slate-800 border-b pb-2 flex items-center gap-2">
+                      <Bot className="w-4 h-4 text-indigo-600" />
+                      AI Assistant & Auto-Answers
+                    </h3>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="font-semibold text-sm">Enable AI Service Booking Assistant</Label>
+                        <p className="text-xs text-muted-foreground">Allows AI to answer questions regarding services, pricing, and guide customers into booking.</p>
+                      </div>
+                      <Switch
+                        checked={configForm.aiEnabled}
+                        onCheckedChange={v => setConfigForm({ ...configForm, aiEnabled: v })}
+                      />
+                    </div>
+
+                    {configForm.aiEnabled && (
+                      <div className="space-y-1.5 pt-2">
+                        <Label className="text-xs font-semibold">Custom AI System Prompt</Label>
+                        <Textarea
+                          value={configForm.aiSystemPrompt || ""}
+                          onChange={e => setConfigForm({ ...configForm, aiSystemPrompt: e.target.value })}
+                          placeholder="You are an appointment booking assistant for our clinic/salon. Answer client questions professionally and encourage them to complete their booking."
+                          rows={4}
+                          className="text-xs"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Team Auto-Assignment */}
+                  <div className="p-4 border rounded-lg space-y-4">
+                    <h3 className="font-bold text-sm text-slate-800 border-b pb-2 flex items-center gap-2">
+                      <UserCheck className="w-4 h-4 text-indigo-600" />
+                      Team Auto-Assignment
+                    </h3>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="font-semibold text-sm">Auto-Assign Conversations to Staff</Label>
+                        <p className="text-xs text-muted-foreground">Automatically assign incoming customer chats to team members.</p>
+                      </div>
+                      <Switch
+                        checked={configForm.autoAssignEnabled}
+                        onCheckedChange={v => setConfigForm({ ...configForm, autoAssignEnabled: v })}
+                      />
+                    </div>
+
+                    {configForm.autoAssignEnabled && (
+                      <div className="space-y-3 pt-2">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Assignment Mode</Label>
+                          <Select
+                            value={configForm.autoAssignMode || "permanent"}
+                            onValueChange={v => setConfigForm({ ...configForm, autoAssignMode: v })}
+                          >
+                            <SelectTrigger className="h-9 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="permanent">Permanent Agent</SelectItem>
+                              <SelectItem value="round_robin">Round Robin (Rotates among staff)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {configForm.autoAssignMode === "permanent" && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Select Assigned Team Member</Label>
+                            <Select
+                              value={configForm.autoAssignUserId || "none"}
+                              onValueChange={v => setConfigForm({ ...configForm, autoAssignUserId: v === "none" ? null : v })}
+                            >
+                              <SelectTrigger className="h-9 text-xs">
+                                <SelectValue placeholder="Select Team Member" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">None</SelectItem>
+                                {Array.isArray(teamMembers) && teamMembers.map(tm => (
+                                  <SelectItem key={tm.id} value={tm.id}>{tm.name || tm.username} ({tm.email})</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
         </TabsContent>
@@ -985,6 +1551,7 @@ export default function ServiceBookingLedger() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
+                            setGalleryTargetField("serviceMessage");
                             setGalleryTargetMsgIdx(idx);
                             setIsGalleryOpen(true);
                           }}
@@ -1184,12 +1751,21 @@ export default function ServiceBookingLedger() {
         open={isGalleryOpen}
         onOpenChange={setIsGalleryOpen}
         onSelectMedia={media => {
-          if (galleryTargetMsgIdx !== null && serviceForm.serviceMessages[galleryTargetMsgIdx]) {
+          if (galleryTargetField === "businessLogo") {
+            setConfigForm((prev: any) => ({ ...prev, businessLogo: media.url }));
+          } else if (galleryTargetField === "welcomeHeaderUrl") {
+            setConfigForm((prev: any) => ({ ...prev, welcomeHeaderUrl: media.url }));
+          } else if (galleryTargetField === "qrCodeUrl") {
+            setConfigForm((prev: any) => ({ ...prev, qrCodeUrl: media.url }));
+          } else if (galleryTargetField === "serviceMessage" && galleryTargetMsgIdx !== null) {
             const updated = [...serviceForm.serviceMessages];
-            updated[galleryTargetMsgIdx].mediaUrl = media.url;
-            setServiceForm({ ...serviceForm, serviceMessages: updated });
+            if (updated[galleryTargetMsgIdx]) {
+              updated[galleryTargetMsgIdx].mediaUrl = media.url;
+              setServiceForm({ ...serviceForm, serviceMessages: updated });
+            }
           }
           setIsGalleryOpen(false);
+          setGalleryTargetField(null);
           setGalleryTargetMsgIdx(null);
         }}
       />

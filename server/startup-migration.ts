@@ -917,6 +917,26 @@ const steps: MigrationStep[] = [
     `,
   },
   {
+    description: "Insert default Service Booking Module addon (if not exists)",
+    sql: `
+      INSERT INTO addons (id, slug, name, description, price, billing_cycle, ai_key_type, default_credits, is_active)
+      VALUES (
+        'addon-service-booking-uuid', 
+        'service-booking', 
+        'Service Booking & Appointments', 
+        'Enable an automated service booking and appointment scheduling system directly inside WhatsApp with multi-specialist assignment, real-time dynamic time slots, working hours/breaks, PDF booking slips, and instant WhatsApp merchant notifications.', 
+        24.99, 
+        'monthly', 
+        'tenant',
+        0,
+        true
+      )
+      ON CONFLICT (slug) DO UPDATE
+      SET name = EXCLUDED.name,
+          description = EXCLUDED.description;
+    `,
+  },
+  {
     description: "Create table ecommerce_products (if not exists)",
     sql: `
       CREATE TABLE IF NOT EXISTS ecommerce_products (

@@ -1229,7 +1229,7 @@ export class EcommerceService {
         .limit(1);
       
       if (sbConfig && sbConfig.isBookingFlowActive) {
-        const sbKw = (sbConfig.bookingTriggerKeyword || book).toLowerCase().trim();
+        const sbKw = (sbConfig.bookingTriggerKeyword || "book").toLowerCase().trim();
         if (cleanContent === sbKw || cleanContent.startsWith(sbKw + " ")) {
           const [activeEcom] = await db
             .select()

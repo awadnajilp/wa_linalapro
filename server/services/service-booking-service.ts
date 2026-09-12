@@ -1333,7 +1333,7 @@ export class ServiceBookingService {
     let whatsappMsgId: string | null = null;
     if (isCloudApi) {
       const waApi = new WhatsAppApiService(channelRow);
-      const res = await waApi.sendMediaMessage(cleanPhone, mediaType, mediaUrl, caption);
+      const res = await waApi.sendMediaMessageByUrl(cleanPhone, mediaUrl, mediaType, caption);
       whatsappMsgId = res?.messages?.[0]?.id || null;
     } else {
       const { baileysManager } = await import("./baileys-manager");
@@ -1374,24 +1374,56 @@ export class ServiceBookingService {
     const cleanPhone = to.replace(/[^0-9]/g, "");
 
     if (isCloudApi && buttons.length <= 3) {
-      const waApi = new WhatsAppApiService(channelRow);
-      const res = await waApi.sendInteractiveButtonsMessage(cleanPhone, bodyText, buttons, headerText || undefined);
-      await storage.createMessage({
-        conversationId,
-        sender: "system",
-        content: bodyText,
-        messageType: "interactive",
-        status: "delivered",
-        whatsappMessageId: res?.messages?.[0]?.id || null,
-        metadata: { source: "service_booking", buttons }
-      });
-    } else {
-      let text = `${bodyText}\n\n`;
-      buttons.forEach((b, idx) => {
-        text += `👉 Reply *${idx + 1}* for *${b.title}*\n`;
-      });
-      await this.sendAndSaveTextMessage(channelRow, conversationId, to, text);
+      try {
+        const payload: any = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: cleanPhone,
+          type: "interactive",
+          interactive: {
+            type: "button",
+            body: { text: bodyText },
+            action: {
+              buttons: buttons.slice(0, 3).map((btn) => ({
+                type: "reply",
+                reply: { id: btn.id, title: btn.title.substring(0, 20) }
+              }))
+            }
+          }
+        };
+
+        if (headerText) {
+          payload.interactive.header = {
+            type: "text",
+            text: headerText
+          };
+        }
+
+        const waApi = new WhatsAppApiService(channelRow);
+        const res = await waApi.sendMessage(cleanPhone, payload);
+        await storage.createMessage({
+          conversationId,
+          sender: "system",
+          content: bodyText,
+          messageType: "interactive",
+          status: "delivered",
+          whatsappMessageId: res?.messages?.[0]?.id || null,
+          metadata: { source: "service_booking", buttons }
+        });
+        return;
+      } catch (err: any) {
+        console.warn("[ServiceBookingService] Cloud API button message failed, falling back to text:", err.message);
+      }
     }
+
+    let text = `${bodyText}
+
+`;
+    buttons.forEach((b, idx) => {
+      text += `👉 Reply *${idx + 1}* for *${b.title}*
+`;
+    });
+    await this.sendAndSaveTextMessage(channelRow, conversationId, to, text);
   }
 
   /**
@@ -1610,13 +1642,22 @@ export class ServiceBookingService {
     conversationId: string
   ): Promise<boolean> {
     try {
-      const tenantId = channelRow.createdBy;
-      if (!tenantId) return false;
+      const tenantId = channelRow?.createdBy || channelRow?.created_by || channelRow?.userId;
+      const textContent = (
+        message.text?.body ||
+        message.body ||
+        message.conversation ||
+        message.extendedTextMessage?.text ||
+        message.interactive?.button_reply?.title ||
+        message.interactive?.list_reply?.title ||
+        ""
+      ).trim();
 
-      const isPluginActive = await this.isServiceBookingActive(tenantId);
-      if (!isPluginActive) {
-        return false;
-      }
+      const buttonReplyId = message.interactive?.button_reply?.id || (message as any)?.button?.payload || (message as any)?.interactive?.buttonReply?.id;
+      const listReplyId = message.interactive?.list_reply?.id || (message as any)?.interactive?.listReply?.id;
+      const cleanInput = (buttonReplyId || listReplyId || textContent).toLowerCase().trim();
+
+      const isPluginActive = tenantId ? await this.isServiceBookingActive(tenantId) : false;
 
       // 1. Fetch channel config (by channelId or tenantId)
       let [config] = await db
@@ -1639,24 +1680,17 @@ export class ServiceBookingService {
         config = fallback;
       }
 
+      console.log(`🔍 [ServiceBooking Interceptor] msg="${textContent}", cleanInput="${cleanInput}", channel=${channelRow?.id}, tenant=${tenantId}, pluginActive=${isPluginActive}, configFound=${Boolean(config)}, flowActive=${config?.isBookingFlowActive}`);
+
+      if (!tenantId || !isPluginActive) {
+        return false;
+      }
+
       if (!config || !config.isBookingFlowActive) {
         return false;
       }
 
       const to = message.from || message.key?.remoteJid?.replace("@s.whatsapp.net", "") || "";
-      const textContent = (
-        message.text?.body ||
-        message.body ||
-        message.conversation ||
-        message.extendedTextMessage?.text ||
-        message.interactive?.button_reply?.title ||
-        message.interactive?.list_reply?.title ||
-        ""
-      ).trim();
-
-      const buttonReplyId = message.interactive?.button_reply?.id || (message as any)?.button?.payload || (message as any)?.interactive?.buttonReply?.id;
-      const listReplyId = message.interactive?.list_reply?.id || (message as any)?.interactive?.listReply?.id;
-      const cleanInput = (buttonReplyId || listReplyId || textContent).toLowerCase().trim();
 
       // Auto-assign conversation if routing enabled
       await this.assignConversationIfNeeded(channelRow, config, conversationId);
@@ -2068,6 +2102,69 @@ export class ServiceBookingService {
 
     // Skip master selection, go straight to Date Selection
     await this.promptDateSelection(channelRow, config, conversationId, to, service.id, null);
+  }
+
+  /**
+   * Prompt Master / Specialist Selection
+   */
+  private static async promptMasterSelection(
+    channelRow: any,
+    config: schema.ServiceConfig,
+    conversationId: string,
+    to: string,
+    service: schema.Service,
+    assignedMasters: schema.ServiceMaster[]
+  ) {
+    const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
+
+    await db.delete(schema.serviceSessions).where(eq(schema.serviceSessions.conversationId, conversationId));
+    await db.insert(schema.serviceSessions).values({
+      conversationId,
+      serviceId: service.id,
+      currentStep: "waiting_for_master",
+      customerData: {
+        serviceName: service.name,
+        servicePrice: service.price,
+        serviceId: service.id
+      }
+    });
+
+    await this.trackAbandonedBooking({
+      tenantId: config.tenantId,
+      channelId: channelRow.id,
+      conversationId,
+      customerPhone: to,
+      serviceId: service.id,
+      serviceName: service.name,
+      servicePrice: String(service.price || "0"),
+      currentStep: "waiting_for_master"
+    });
+
+    const promptText = `👤 *Choose Specialist / Staff*
+
+Please select your preferred specialist for *${service.name}*:`;
+
+    if (isCloudApi && assignedMasters.length <= 2) {
+      const buttons = assignedMasters.map(m => ({
+        id: `mst_${m.id}`,
+        title: (m.name || "Specialist").substring(0, 20)
+      }));
+      buttons.push({ id: "mst_any", title: "Any Specialist" });
+      await this.sendCloudApiButtonMessage(channelRow, conversationId, to, promptText, null, buttons);
+    } else {
+      let listText = `${promptText}
+
+`;
+      assignedMasters.forEach((m, idx) => {
+        listText += `👉 Reply *${idx + 1}* for *${m.name}* (${m.title || "Specialist"})
+`;
+      });
+      listText += `👉 Reply *${assignedMasters.length + 1}* for *Any Available Specialist*
+
+` +
+        `Reply *cancel* anytime to exit.`;
+      await this.sendAndSaveTextMessage(channelRow, conversationId, to, listText);
+    }
   }
 
   /**

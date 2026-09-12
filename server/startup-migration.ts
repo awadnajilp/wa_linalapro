@@ -1442,6 +1442,65 @@ const steps: MigrationStep[] = [
       CREATE INDEX IF NOT EXISTS service_sessions_conv_idx ON service_sessions (conversation_id);
     `,
   },
+  {
+    description: "Create table service_abandoned_bookings (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS service_abandoned_bookings (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        channel_id VARCHAR REFERENCES channels (id) ON DELETE CASCADE,
+        conversation_id VARCHAR NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
+        customer_phone TEXT NOT NULL,
+        customer_name TEXT,
+        service_id VARCHAR REFERENCES services (id) ON DELETE SET NULL,
+        service_name TEXT,
+        service_price NUMERIC(12, 2) DEFAULT 0,
+        master_id VARCHAR REFERENCES service_masters (id) ON DELETE SET NULL,
+        master_name TEXT,
+        booking_date TEXT,
+        selected_slot TEXT,
+        customer_data JSONB DEFAULT '{}'::jsonb,
+        current_step TEXT NOT NULL,
+        status TEXT DEFAULT 'abandoned',
+        followup1_sent_at TIMESTAMP,
+        followup2_sent_at TIMESTAMP,
+        followup_count INTEGER DEFAULT 0,
+        recovered_at TIMESTAMP,
+        recovered_booking_id VARCHAR REFERENCES service_bookings (id) ON DELETE SET NULL,
+        last_activity_at TIMESTAMP DEFAULT NOW(),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS service_abandoned_bookings_tenant_idx ON service_abandoned_bookings (tenant_id, channel_id);
+      CREATE INDEX IF NOT EXISTS service_abandoned_bookings_status_idx ON service_abandoned_bookings (status);
+    `,
+  },
+  {
+    description: "Alter table service_configs with full settings columns",
+    sql: `
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS use_whatsapp_flow_form BOOLEAN DEFAULT false;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS whatsapp_flow_id VARCHAR REFERENCES whatsapp_flows (id) ON DELETE SET NULL;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS whatsapp_flow_cta_text TEXT DEFAULT 'Book Appointment 📅';
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS api_key_source TEXT DEFAULT 'own_key';
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS ai_voice_enabled BOOLEAN DEFAULT false;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS voice_profile_id VARCHAR REFERENCES voice_profiles (id) ON DELETE SET NULL;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS ai_voice_language_mode TEXT DEFAULT 'profile';
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS ai_timeout_minutes INTEGER DEFAULT 30;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS ai_ask_button_enabled BOOLEAN DEFAULT true;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS daily_report_enabled BOOLEAN DEFAULT false;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS daily_report_emails JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS daily_report_time TEXT DEFAULT '21:00';
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS daily_report_last_sent_at TIMESTAMP;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS merchant_alert_emails JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_recovery_enabled BOOLEAN DEFAULT false;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_delay_1_minutes INTEGER DEFAULT 60;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_delay_2_hours INTEGER DEFAULT 18;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_discount_code TEXT;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_discount_percent NUMERIC(5, 2) DEFAULT 0;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_message_1 TEXT;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_message_2 TEXT;
+    `,
+  },
 ];
 
 /**

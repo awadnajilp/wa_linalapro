@@ -62,6 +62,7 @@ import { runStartupMigration } from "./startup-migration";
 import { initExpenseReportCron } from "./services/expense-report-cron";
 import { initTicketReportCron } from "./services/ticket-report-cron";
 import { startEcommerceReportsCron } from "./cron/ecommerce-reports.cron";
+import { startServiceBookingCron } from "./cron/service-booking.cron";
 
 const app = express();
 const httpServer = createServer(app);
@@ -709,6 +710,7 @@ app.use((req, res, next) => {
       initExpenseReportCron();
       initTicketReportCron();
       startEcommerceReportsCron();
+      startServiceBookingCron();
 
       const messageStatusUpdater = new MessageStatusUpdater();
       messageStatusUpdater.startCronJob(60);

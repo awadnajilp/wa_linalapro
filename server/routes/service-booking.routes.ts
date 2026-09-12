@@ -4,6 +4,11 @@ import * as schema from "@shared/schema";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { ServiceBookingService } from "../services/service-booking-service";
+import {
+  SERVICE_BOOKING_TEMPLATES_DEFINITIONS,
+  provisionServiceTemplatesForChannel,
+  submitServiceTemplateToMeta
+} from "../services/service-booking-templates";
 import ExcelJS from "exceljs";
 
 export function registerServiceBookingRoutes(app: Express) {
@@ -211,22 +216,37 @@ export function registerServiceBookingRoutes(app: Express) {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
-      const { id, name, description, sortOrder } = req.body;
+      const { id, name, description, icon, sortOrder } = req.body;
 
-      if (!name) return res.status(400).json({ error: "Category name is required" });
+      if (!name) {
+        return res.status(400).json({ error: "Category name is required" });
+      }
 
       if (id) {
         const [updated] = await db
           .update(schema.serviceCategories)
-          .set({ name, description, sortOrder: sortOrder || 0, updatedAt: new Date() })
+          .set({
+            name,
+            description: description || null,
+            icon: icon || null,
+            sortOrder: sortOrder || 0,
+            updatedAt: new Date()
+          })
           .where(and(eq(schema.serviceCategories.id, id), eq(schema.serviceCategories.tenantId, tenantId)))
           .returning();
+
         return res.json({ category: updated });
       }
 
       const [created] = await db
         .insert(schema.serviceCategories)
-        .values({ tenantId, name, description, sortOrder: sortOrder || 0 })
+        .values({
+          tenantId,
+          name,
+          description: description || null,
+          icon: icon || null,
+          sortOrder: sortOrder || 0
+        })
         .returning();
 
       res.json({ category: created });
@@ -252,7 +272,7 @@ export function registerServiceBookingRoutes(app: Express) {
   });
 
   // ============================================================
-  // SERVICE MASTERS / SPECIALISTS CRUD
+  // MASTERS / SPECIALISTS CRUD
   // ============================================================
   app.get("/api/service-booking/masters", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -275,9 +295,21 @@ export function registerServiceBookingRoutes(app: Express) {
     try {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
-      const { id, name, title, bio, photoUrl, serviceIds, workingHours, slotIntervalMinutes, isActive } = req.body;
+      const {
+        id,
+        name,
+        title,
+        bio,
+        photoUrl,
+        serviceIds,
+        workingHours,
+        slotIntervalMinutes,
+        isActive
+      } = req.body;
 
-      if (!name) return res.status(400).json({ error: "Master/Specialist name is required" });
+      if (!name) {
+        return res.status(400).json({ error: "Master name is required" });
+      }
 
       if (id) {
         const [updated] = await db
@@ -295,6 +327,7 @@ export function registerServiceBookingRoutes(app: Express) {
           })
           .where(and(eq(schema.serviceMasters.id, id), eq(schema.serviceMasters.tenantId, tenantId)))
           .returning();
+
         return res.json({ master: updated });
       }
 
@@ -336,7 +369,7 @@ export function registerServiceBookingRoutes(app: Express) {
   });
 
   // ============================================================
-  // CONFIGURATION
+  // SERVICE CONFIGURATION
   // ============================================================
   app.get("/api/service-booking/config", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -349,7 +382,7 @@ export function registerServiceBookingRoutes(app: Express) {
         const [c] = await db
           .select()
           .from(schema.serviceConfigs)
-          .where(and(eq(schema.serviceConfigs.tenantId, tenantId), eq(schema.serviceConfigs.channelId, channelId as string)))
+          .where(and(eq(schema.serviceConfigs.tenantId, tenantId), eq(schema.serviceConfigs.channelId, String(channelId))))
           .limit(1);
         config = c || null;
       }
@@ -374,22 +407,25 @@ export function registerServiceBookingRoutes(app: Express) {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
       const body = req.body;
+      const channelId = body.channelId;
 
       let existing = null;
-      if (body.id) {
+      if (channelId) {
         const [c] = await db
           .select()
           .from(schema.serviceConfigs)
-          .where(eq(schema.serviceConfigs.id, body.id))
+          .where(and(eq(schema.serviceConfigs.tenantId, tenantId), eq(schema.serviceConfigs.channelId, String(channelId))))
           .limit(1);
-        existing = c || null;
-      } else if (body.channelId) {
+        existing = c;
+      }
+
+      if (!existing && body.id) {
         const [c] = await db
           .select()
           .from(schema.serviceConfigs)
-          .where(and(eq(schema.serviceConfigs.tenantId, tenantId), eq(schema.serviceConfigs.channelId, body.channelId)))
+          .where(and(eq(schema.serviceConfigs.id, body.id), eq(schema.serviceConfigs.tenantId, tenantId)))
           .limit(1);
-        existing = c || null;
+        existing = c;
       }
 
       if (existing) {
@@ -414,6 +450,337 @@ export function registerServiceBookingRoutes(app: Express) {
         .returning();
 
       res.json({ config: created });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Auto-generate or Sync Meta WhatsApp Flow Form for Service Booking
+  app.post("/api/service-booking/sync-booking-flow", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user?.role === "team" ? user.createdBy : user?.id;
+      const { channelId } = req.body;
+
+      if (!channelId) {
+        return res.status(400).json({ error: "ChannelId is required" });
+      }
+
+      const [config] = await db
+        .select()
+        .from(schema.serviceConfigs)
+        .where(
+          and(
+            eq(schema.serviceConfigs.tenantId, tenantId),
+            eq(schema.serviceConfigs.channelId, String(channelId))
+          )
+        )
+        .limit(1);
+
+      if (!config) {
+        return res.status(404).json({ error: "Service Booking configuration not found for this channel." });
+      }
+
+      const [channelRow] = await db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, String(channelId)))
+        .limit(1);
+
+      if (!channelRow) {
+        return res.status(404).json({ error: "Channel not found." });
+      }
+
+      const result = await ServiceBookingService.generateAndSyncBookingFlow(config, channelRow);
+
+      res.json({
+        success: true,
+        message: "WhatsApp Booking Flow successfully generated and synced!",
+        data: result
+      });
+    } catch (err: any) {
+      console.error("[ServiceBookingRoutes] sync-booking-flow error:", err);
+      res.status(500).json({ error: err.message || "Failed to generate WhatsApp booking flow" });
+    }
+  });
+
+  // ============================================================
+  // WHATSAPP TEMPLATES MANAGEMENT
+  // ============================================================
+  app.get("/api/service-booking/templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { channelId } = req.query;
+      if (!channelId) {
+        return res.status(400).json({ error: "channelId is required" });
+      }
+
+      const [channel] = await db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, String(channelId)))
+        .limit(1);
+
+      if (!channel) {
+        return res.status(404).json({ error: "Channel not found" });
+      }
+
+      const dbTemplates = await db
+        .select()
+        .from(schema.templates)
+        .where(eq(schema.templates.channelId, String(channelId)));
+
+      const dbMap = new Map(dbTemplates.map(t => [t.name, t]));
+
+      const items = Object.values(SERVICE_BOOKING_TEMPLATES_DEFINITIONS).map(def => {
+        const found = dbMap.get(def.name);
+        return {
+          key: def.key,
+          name: def.name,
+          title: def.title,
+          description: def.description,
+          category: def.category,
+          language: def.language,
+          variables: def.variables,
+          defaultHeader: def.defaultHeader,
+          defaultBody: def.defaultBody,
+          defaultFooter: def.defaultFooter,
+          status: found?.status || "NOT_SUBMITTED",
+          header: found?.header || def.defaultHeader || "",
+          body: found?.body || def.defaultBody || "",
+          footer: found?.footer || def.defaultFooter || "",
+          whatsappTemplateId: found?.whatsappTemplateId || null,
+          dbId: found?.id || null,
+          mediaType: found?.mediaType || def.localData.mediaType || "text"
+        };
+      });
+
+      res.json({
+        templates: items,
+        channelConnectionMethod: channel.connectionMethod || "embedded"
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/service-booking/templates/provision", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const { channelId } = req.body;
+      if (!channelId) {
+        return res.status(400).json({ error: "channelId is required" });
+      }
+
+      const result = await provisionServiceTemplatesForChannel(String(channelId), user.id);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/service-booking/templates/submit", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const { channelId, templateName, body, header, footer } = req.body;
+
+      if (!channelId || !templateName || !body) {
+        return res.status(400).json({ error: "channelId, templateName, and body are required" });
+      }
+
+      const result = await submitServiceTemplateToMeta(
+        String(channelId),
+        user.id,
+        templateName,
+        body,
+        header,
+        footer
+      );
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ============================================================
+  // ABANDONED BOOKINGS RECOVERY
+  // ============================================================
+  app.get("/api/service-booking/abandoned-bookings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { status, search, channelId, page = "1", limit = "10" } = req.query;
+
+      const pageNum = parseInt(String(page), 10) || 1;
+      const limitNum = parseInt(String(limit), 10) || 10;
+      const offset = (pageNum - 1) * limitNum;
+
+      const conditions = [eq(schema.serviceAbandonedBookings.tenantId, tenantId)];
+
+      if (status && status !== "all") {
+        conditions.push(eq(schema.serviceAbandonedBookings.status, String(status)));
+      }
+      if (channelId && channelId !== "all") {
+        conditions.push(eq(schema.serviceAbandonedBookings.channelId, String(channelId)));
+      }
+      if (search) {
+        conditions.push(
+          sql`(${schema.serviceAbandonedBookings.customerPhone} ILIKE ${`%${search}%`} OR ${schema.serviceAbandonedBookings.customerName} ILIKE ${`%${search}%`} OR ${schema.serviceAbandonedBookings.serviceName} ILIKE ${`%${search}%`})`
+        );
+      }
+
+      const [countResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(schema.serviceAbandonedBookings)
+        .where(and(...conditions));
+
+      const total = Number(countResult?.count || 0);
+
+      const items = await db
+        .select()
+        .from(schema.serviceAbandonedBookings)
+        .where(and(...conditions))
+        .orderBy(desc(schema.serviceAbandonedBookings.createdAt))
+        .limit(limitNum)
+        .offset(offset);
+
+      res.json({
+        abandonedBookings: items,
+        total,
+        page: pageNum,
+        totalPages: Math.ceil(total / limitNum)
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/service-booking/abandoned-bookings/:id/recover", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { id } = req.params;
+      const { customMessage } = req.body;
+
+      const [cart] = await db
+        .select()
+        .from(schema.serviceAbandonedBookings)
+        .where(
+          and(
+            eq(schema.serviceAbandonedBookings.id, id),
+            eq(schema.serviceAbandonedBookings.tenantId, tenantId)
+          )
+        )
+        .limit(1);
+
+      if (!cart) {
+        return res.status(404).json({ error: "Abandoned booking session not found" });
+      }
+
+      const [config] = await db
+        .select()
+        .from(schema.serviceConfigs)
+        .where(eq(schema.serviceConfigs.channelId, cart.channelId))
+        .limit(1);
+
+      const [channelRow] = await db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, cart.channelId))
+        .limit(1);
+
+      if (!channelRow) {
+        return res.status(404).json({ error: "Channel not found" });
+      }
+
+      if (customMessage) {
+        await ServiceBookingService.sendAndSaveTextMessage(
+          channelRow,
+          cart.conversationId,
+          cart.customerPhone,
+          customMessage
+        );
+      } else if (config) {
+        await ServiceBookingService.sendAbandonedBookingRecoveryMessage(cart, config, 1);
+      }
+
+      await db
+        .update(schema.serviceAbandonedBookings)
+        .set({
+          followupCount: (cart.followupCount || 0) + 1,
+          updatedAt: new Date()
+        })
+        .where(eq(schema.serviceAbandonedBookings.id, id));
+
+      res.json({ success: true, message: "Recovery message dispatched successfully" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ============================================================
+  // TEST REPORT NOTIFICATIONS
+  // ============================================================
+  app.post("/api/service-booking/reports/send-test-email", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { channelId, targetEmails } = req.body;
+
+      let [config] = await db
+        .select()
+        .from(schema.serviceConfigs)
+        .where(
+          and(
+            eq(schema.serviceConfigs.tenantId, tenantId),
+            channelId ? eq(schema.serviceConfigs.channelId, String(channelId)) : sql`1=1`
+          )
+        )
+        .limit(1);
+
+      if (!config) {
+        return res.status(404).json({ error: "Service config not found" });
+      }
+
+      const result = await ServiceBookingService.sendDailyBookingsReport(config, {
+        isManualTest: true,
+        targetEmails: targetEmails && targetEmails.length > 0 ? targetEmails : undefined
+      });
+
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/service-booking/reports/send-test-wa", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = (req.session as any)?.user;
+      const tenantId = user.role === "team" ? user.createdBy : user.id;
+      const { channelId, targetNumbers } = req.body;
+
+      let [config] = await db
+        .select()
+        .from(schema.serviceConfigs)
+        .where(
+          and(
+            eq(schema.serviceConfigs.tenantId, tenantId),
+            channelId ? eq(schema.serviceConfigs.channelId, String(channelId)) : sql`1=1`
+          )
+        )
+        .limit(1);
+
+      if (!config) {
+        return res.status(404).json({ error: "Service config not found" });
+      }
+
+      const result = await ServiceBookingService.sendDailyBookingsWaReport(config, {
+        isManualTest: true,
+        targetNumbers: targetNumbers && targetNumbers.length > 0 ? targetNumbers : undefined,
+        targetChannelId: channelId
+      });
+
+      res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -519,7 +886,13 @@ export function registerServiceBookingRoutes(app: Express) {
 
       if (!booking) return res.status(404).send("Booking not found");
 
-      const pdfBuffer = await ServiceBookingService.generateBookingPdf(booking);
+      const [config] = await db
+        .select()
+        .from(schema.serviceConfigs)
+        .where(eq(schema.serviceConfigs.tenantId, tenantId))
+        .limit(1);
+
+      const pdfBuffer = await ServiceBookingService.generateBookingPdf(booking, config);
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="Booking_${booking.bookingNumber}.pdf"`);
       res.send(pdfBuffer);
@@ -556,6 +929,7 @@ export function registerServiceBookingRoutes(app: Express) {
         { header: "Payment Mode", key: "paymentMethod", width: 16 },
         { header: "Payment Status", key: "paymentStatus", width: 16 },
         { header: "Booking Status", key: "status", width: 16 },
+        { header: "Notes", key: "notes", width: 25 },
         { header: "Created At", key: "createdAt", width: 20 }
       ];
 
@@ -573,6 +947,7 @@ export function registerServiceBookingRoutes(app: Express) {
           paymentMethod: b.paymentMethod?.toUpperCase(),
           paymentStatus: b.paymentStatus?.toUpperCase(),
           status: b.status?.toUpperCase(),
+          notes: b.notes || "",
           createdAt: b.createdAt ? new Date(b.createdAt).toLocaleString() : ""
         });
       });

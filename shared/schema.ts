@@ -2922,7 +2922,14 @@ export const serviceConfigs = pgTable("service_configs", {
   }),
   defaultSlotIntervalMinutes: integer("default_slot_interval_minutes").default(30),
   maxDaysInAdvance: integer("max_days_in_advance").default(14),
-  checkoutFields: jsonb("checkout_fields").default(["name", "phone", "notes"]),
+  checkoutFields: jsonb("checkout_fields").default([
+    { text: "Please enter your full name:", variable: "name" },
+    { text: "Please enter your contact phone number:", variable: "phone" },
+    { text: "Any special requests or customer notes:", variable: "notes" }
+  ]),
+  useWhatsappFlowForm: boolean("use_whatsapp_flow_form").default(false),
+  whatsappFlowId: varchar("whatsapp_flow_id").references(() => whatsappFlows.id, { onDelete: "set null" }),
+  whatsappFlowCtaText: text("whatsapp_flow_cta_text").default("Book Appointment 📅"),
   qrCodeUrl: text("qr_code_url"),
   upiId: text("upi_id"),
   upiMerchantName: text("upi_merchant_name"),
@@ -2940,12 +2947,30 @@ export const serviceConfigs = pgTable("service_configs", {
   autoAssignMode: text("auto_assign_mode").default("permanent"),
   autoAssignUserId: varchar("auto_assign_user_id").references(() => users.id, { onDelete: "set null" }),
   autoAssignExcludedUserIds: jsonb("auto_assign_excluded_user_ids").$type<string[]>().default([]),
+  dailyReportEnabled: boolean("daily_report_enabled").default(false),
+  dailyReportEmails: jsonb("daily_report_emails").$type<string[]>().default([]),
+  dailyReportTime: text("daily_report_time").default("21:00"),
+  dailyReportLastSentAt: timestamp("daily_report_last_sent_at"),
+  merchantAlertEmails: jsonb("merchant_alert_emails").$type<string[]>().default([]),
   dailyReportWaEnabled: boolean("daily_report_wa_enabled").default(false),
   dailyReportWaNumbers: jsonb("daily_report_wa_numbers").$type<string[]>().default([]),
   dailyReportWaChannelId: varchar("daily_report_wa_channel_id").references(() => channels.id, { onDelete: "set null" }),
+  apiKeySource: text("api_key_source").default("own_key"),
   aiEnabled: boolean("ai_enabled").default(false),
   aiTakeoverEnabled: boolean("ai_takeover_enabled").default(false),
+  aiVoiceEnabled: boolean("ai_voice_enabled").default(false),
+  voiceProfileId: varchar("voice_profile_id").references(() => voiceProfiles.id, { onDelete: "set null" }),
+  aiVoiceLanguageMode: text("ai_voice_language_mode").default("profile"),
+  aiTimeoutMinutes: integer("ai_timeout_minutes").default(30),
+  aiAskButtonEnabled: boolean("ai_ask_button_enabled").default(true),
   aiSystemPrompt: text("ai_system_prompt"),
+  abandonedBookingRecoveryEnabled: boolean("abandoned_booking_recovery_enabled").default(false),
+  abandonedBookingDelay1Minutes: integer("abandoned_booking_delay_1_minutes").default(60),
+  abandonedBookingDelay2Hours: integer("abandoned_booking_delay_2_hours").default(18),
+  abandonedBookingDiscountCode: text("abandoned_booking_discount_code"),
+  abandonedBookingDiscountPercent: numeric("abandoned_booking_discount_percent", { precision: 5, scale: 2 }).default("0"),
+  abandonedBookingMessage1: text("abandoned_booking_message_1"),
+  abandonedBookingMessage2: text("abandoned_booking_message_2"),
   businessName: text("business_name"),
   businessAddress: text("business_address"),
   businessWebsite: text("business_website"),
@@ -2993,8 +3018,35 @@ export const serviceSessions = pgTable("service_sessions", {
   masterId: varchar("master_id").references(() => serviceMasters.id, { onDelete: "set null" }),
   bookingDate: text("booking_date"),
   selectedSlot: text("selected_slot"), // "10:00 - 10:30"
-  currentStep: text("current_step").notNull(), // "waiting_for_service", "waiting_for_master", "waiting_for_date", "waiting_for_slot", "waiting_for_field:<field>", "waiting_for_payment_method", "waiting_for_qr_receipt"
+  currentStep: text("current_step").notNull(), // "waiting_for_service", "waiting_for_master", "waiting_for_date", "waiting_for_slot", "waiting_for_flow_form", "waiting_for_field:<field>", "waiting_for_payment_method", "waiting_for_qr_receipt"
   customerData: jsonb("customer_data").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const serviceAbandonedBookings = pgTable("service_abandoned_bookings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channelId: varchar("channel_id").references(() => channels.id, { onDelete: "cascade" }),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  customerPhone: text("customer_phone").notNull(),
+  customerName: text("customer_name"),
+  serviceId: varchar("service_id").references(() => services.id, { onDelete: "set null" }),
+  serviceName: text("service_name"),
+  servicePrice: numeric("service_price", { precision: 12, scale: 2 }).default("0"),
+  masterId: varchar("master_id").references(() => serviceMasters.id, { onDelete: "set null" }),
+  masterName: text("master_name"),
+  bookingDate: text("booking_date"),
+  selectedSlot: text("selected_slot"),
+  customerData: jsonb("customer_data").default({}),
+  currentStep: text("current_step").notNull(),
+  status: text("status").default("abandoned"), // "abandoned", "recovered", "cancelled"
+  followup1SentAt: timestamp("followup1_sent_at"),
+  followup2SentAt: timestamp("followup2_sent_at"),
+  followupCount: integer("followup_count").default(0),
+  recoveredAt: timestamp("recovered_at"),
+  recoveredBookingId: varchar("recovered_booking_id").references(() => serviceBookings.id, { onDelete: "set null" }),
+  lastActivityAt: timestamp("last_activity_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -3006,6 +3058,7 @@ export const insertServiceMasterSchema = createInsertSchema(serviceMasters);
 export const insertServiceConfigSchema = createInsertSchema(serviceConfigs);
 export const insertServiceBookingSchema = createInsertSchema(serviceBookings);
 export const insertServiceSessionSchema = createInsertSchema(serviceSessions);
+export const insertServiceAbandonedBookingSchema = createInsertSchema(serviceAbandonedBookings);
 
 // TypeScript types
 export type ServiceCategory = typeof serviceCategories.$inferSelect;
@@ -3020,3 +3073,5 @@ export type ServiceBooking = typeof serviceBookings.$inferSelect;
 export type InsertServiceBooking = typeof serviceBookings.$inferInsert;
 export type ServiceSession = typeof serviceSessions.$inferSelect;
 export type InsertServiceSession = typeof serviceSessions.$inferInsert;
+export type ServiceAbandonedBooking = typeof serviceAbandonedBookings.$inferSelect;
+export type InsertServiceAbandonedBooking = typeof serviceAbandonedBookings.$inferInsert;

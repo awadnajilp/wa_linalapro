@@ -304,6 +304,7 @@ export function registerServiceBookingRoutes(app: Express) {
         serviceIds,
         workingHours,
         slotIntervalMinutes,
+        timezone,
         isActive
       } = req.body;
 
@@ -319,9 +320,10 @@ export function registerServiceBookingRoutes(app: Express) {
             title: title || "Specialist",
             bio: bio || null,
             photoUrl: photoUrl || null,
-            serviceIds: serviceIds || [],
+            serviceIds: Array.isArray(serviceIds) ? serviceIds : [],
             workingHours: workingHours || undefined,
             slotIntervalMinutes: parseInt(slotIntervalMinutes, 10) || 30,
+            timezone: timezone ? String(timezone).trim() || null : null,
             isActive: isActive ?? true,
             updatedAt: new Date()
           })
@@ -339,9 +341,10 @@ export function registerServiceBookingRoutes(app: Express) {
           title: title || "Specialist",
           bio: bio || null,
           photoUrl: photoUrl || null,
-          serviceIds: serviceIds || [],
+          serviceIds: Array.isArray(serviceIds) ? serviceIds : [],
           workingHours: workingHours || undefined,
           slotIntervalMinutes: parseInt(slotIntervalMinutes, 10) || 30,
+          timezone: timezone ? String(timezone).trim() || null : null,
           isActive: isActive ?? true
         })
         .returning();
@@ -369,7 +372,7 @@ export function registerServiceBookingRoutes(app: Express) {
   });
 
   // ============================================================
-  // SERVICE CONFIGURATION
+  // CONFIG MANAGEMENT
   // ============================================================
   app.get("/api/service-booking/config", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -384,7 +387,7 @@ export function registerServiceBookingRoutes(app: Express) {
           .from(schema.serviceConfigs)
           .where(and(eq(schema.serviceConfigs.tenantId, tenantId), eq(schema.serviceConfigs.channelId, String(channelId))))
           .limit(1);
-        config = c || null;
+        config = c;
       }
 
       if (!config) {
@@ -393,10 +396,10 @@ export function registerServiceBookingRoutes(app: Express) {
           .from(schema.serviceConfigs)
           .where(eq(schema.serviceConfigs.tenantId, tenantId))
           .limit(1);
-        config = c || null;
+        config = c;
       }
 
-      res.json({ config });
+      res.json({ config: config || null });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -407,14 +410,14 @@ export function registerServiceBookingRoutes(app: Express) {
       const user = (req.session as any)?.user;
       const tenantId = user.role === "team" ? user.createdBy : user.id;
       const body = req.body;
-      const channelId = body.channelId;
+      const channelId = body.channelId ? String(body.channelId).trim() || null : null;
 
       let existing = null;
       if (channelId) {
         const [c] = await db
           .select()
           .from(schema.serviceConfigs)
-          .where(and(eq(schema.serviceConfigs.tenantId, tenantId), eq(schema.serviceConfigs.channelId, String(channelId))))
+          .where(and(eq(schema.serviceConfigs.tenantId, tenantId), eq(schema.serviceConfigs.channelId, channelId)))
           .limit(1);
         existing = c;
       }
@@ -428,12 +431,32 @@ export function registerServiceBookingRoutes(app: Express) {
         existing = c;
       }
 
+      // Sanitize payload to prevent foreign key errors on empty strings
+      const cleanData: any = {
+        ...body,
+        tenantId,
+        channelId: channelId,
+        activeServiceId: body.activeServiceId ? String(body.activeServiceId).trim() || null : null,
+        whatsappFlowId: body.whatsappFlowId ? String(body.whatsappFlowId).trim() || null : null,
+        voiceProfileId: body.voiceProfileId ? String(body.voiceProfileId).trim() || null : null,
+        autoAssignUserId: body.autoAssignUserId ? String(body.autoAssignUserId).trim() || null : null,
+        dailyReportWaChannelId: body.dailyReportWaChannelId ? String(body.dailyReportWaChannelId).trim() || null : null,
+        timezone: body.timezone ? String(body.timezone).trim() || "Asia/Kolkata" : "Asia/Kolkata",
+        dailyReportEmails: Array.isArray(body.dailyReportEmails) ? body.dailyReportEmails : [],
+        merchantAlertEmails: Array.isArray(body.merchantAlertEmails) ? body.merchantAlertEmails : [],
+        dailyReportWaNumbers: Array.isArray(body.dailyReportWaNumbers) ? body.dailyReportWaNumbers : [],
+        autoAssignExcludedUserIds: Array.isArray(body.autoAssignExcludedUserIds) ? body.autoAssignExcludedUserIds : [],
+        welcomeMessages: Array.isArray(body.welcomeMessages) ? body.welcomeMessages : [],
+        checkoutFields: Array.isArray(body.checkoutFields) ? body.checkoutFields : [],
+        abandonedBookingDiscountPercent: body.abandonedBookingDiscountPercent ? String(body.abandonedBookingDiscountPercent) : "0",
+      };
+      delete cleanData.id;
+
       if (existing) {
         const [updated] = await db
           .update(schema.serviceConfigs)
           .set({
-            ...body,
-            tenantId,
+            ...cleanData,
             updatedAt: new Date()
           })
           .where(eq(schema.serviceConfigs.id, existing.id))
@@ -443,14 +466,12 @@ export function registerServiceBookingRoutes(app: Express) {
 
       const [created] = await db
         .insert(schema.serviceConfigs)
-        .values({
-          ...body,
-          tenantId
-        })
+        .values(cleanData)
         .returning();
 
       res.json({ config: created });
     } catch (err: any) {
+      console.error("[ServiceBookingRoutes] Error saving config:", err);
       res.status(500).json({ error: err.message });
     }
   });

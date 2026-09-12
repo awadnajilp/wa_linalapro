@@ -1493,6 +1493,7 @@ const steps: MigrationStep[] = [
       ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS daily_report_time TEXT DEFAULT '21:00';
       ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS daily_report_last_sent_at TIMESTAMP;
       ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS merchant_alert_emails JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS timezone TEXT DEFAULT 'Asia/Kolkata';
       ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_recovery_enabled BOOLEAN DEFAULT false;
       ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_delay_1_minutes INTEGER DEFAULT 60;
       ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_delay_2_hours INTEGER DEFAULT 18;
@@ -1500,6 +1501,7 @@ const steps: MigrationStep[] = [
       ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_discount_percent NUMERIC(5, 2) DEFAULT 0;
       ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_message_1 TEXT;
       ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_message_2 TEXT;
+      ALTER TABLE service_masters ADD COLUMN IF NOT EXISTS timezone TEXT;
     `,
   },
   {

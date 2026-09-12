@@ -123,7 +123,81 @@ export class ServiceBookingService {
   }
 
   /**
-   * Calculate Dynamic Available Slots for a given service, master, and date.
+   * Helper to get current Date, YYYY-MM-DD date string, and current minutes in target timezone
+   */
+  public static getNowInTimezone(timezone?: string): { now: Date; todayStr: string; currentMinutes: number; timezone: string } {
+    const tz = timezone || "Asia/Kolkata";
+    try {
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      });
+      const parts = formatter.formatToParts(now);
+      const partMap: Record<string, string> = {};
+      for (const p of parts) {
+        partMap[p.type] = p.value;
+      }
+      const year = partMap["year"] || String(now.getUTCFullYear());
+      const month = partMap["month"] || String(now.getUTCMonth() + 1).padStart(2, "0");
+      const day = partMap["day"] || String(now.getUTCDate()).padStart(2, "0");
+      let hour = parseInt(partMap["hour"] || "0", 10);
+      if (hour === 24) hour = 0;
+      const minute = parseInt(partMap["minute"] || "0", 10);
+
+      const todayStr = `${year}-${month}-${day}`;
+      const currentMinutes = hour * 60 + minute;
+      return { now, todayStr, currentMinutes, timezone: tz };
+    } catch (e) {
+      const now = new Date();
+      const todayStr = now.toISOString().split("T")[0];
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      return { now, todayStr, currentMinutes, timezone: tz };
+    }
+  }
+
+  /**
+   * Get upcoming N booking dates formatted relative to the target timezone
+   */
+  public static getUpcomingDates(timezone?: string, count: number = 7): { dateStr: string; label: string; fullLabel: string }[] {
+    const tz = timezone || "Asia/Kolkata";
+    const { todayStr } = this.getNowInTimezone(tz);
+    const [y, m, d] = todayStr.split("-").map(Number);
+    const baseDate = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+
+    const upcoming: { dateStr: string; label: string; fullLabel: string }[] = [];
+    for (let i = 0; i < count; i++) {
+      const cur = new Date(baseDate.getTime() + i * 24 * 60 * 60 * 1000);
+      const curY = cur.getUTCFullYear();
+      const curM = String(cur.getUTCMonth() + 1).padStart(2, "0");
+      const curD = String(cur.getUTCDate()).padStart(2, "0");
+      const dStr = `${curY}-${curM}-${curD}`;
+
+      const dayName = cur.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+      const monthDay = cur.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+      const tag = i === 0 ? "Today" : (i === 1 ? "Tomorrow" : `${dayName}, ${monthDay}`);
+      upcoming.push({ dateStr: dStr, label: tag, fullLabel: `${tag} (${dStr})` });
+    }
+    return upcoming;
+  }
+
+  /**
+   * Accurately get day of week (0=Sunday, 1=Monday... 6=Saturday) for a YYYY-MM-DD date
+   */
+  public static getDayOfWeekInDate(dateStr: string): number {
+    const [y, m, d] = (dateStr || "").split("-").map(Number);
+    if (!y || !m || !d) return new Date().getDay();
+    const dt = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+    return dt.getUTCDay();
+  }
+
+  /**
+   * Calculate Dynamic Available Slots for a given service, master, and date with Timezone awareness.
    */
   public static async getAvailableSlots(params: {
     tenantId: string;
@@ -158,7 +232,7 @@ export class ServiceBookingService {
       master = m || null;
     }
 
-    // 3. Fetch config for fallback working hours
+    // 3. Fetch config for fallback working hours & timezone
     let config: schema.ServiceConfig | null = null;
     if (channelId) {
       const [c] = await db
@@ -177,7 +251,7 @@ export class ServiceBookingService {
       config = c || null;
     }
 
-    // Working hours logic
+    // Working hours & Timezone logic
     const workingHours = master?.workingHours || config?.defaultWorkingHours || {
       days: [1, 2, 3, 4, 5, 6],
       startTime: "09:00",
@@ -187,10 +261,10 @@ export class ServiceBookingService {
     };
 
     const slotInterval = master?.slotIntervalMinutes || config?.defaultSlotIntervalMinutes || duration || 30;
+    const activeTz = master?.timezone || config?.timezone || "Asia/Kolkata";
 
-    // Check day of week
-    const targetDate = new Date(date + "T00:00:00");
-    const dayOfWeek = targetDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    // Check day of week accurately
+    const dayOfWeek = this.getDayOfWeekInDate(date);
 
     const activeDays = Array.isArray(workingHours.days) ? workingHours.days : [1, 2, 3, 4, 5, 6];
     if (!activeDays.includes(dayOfWeek)) {
@@ -225,9 +299,10 @@ export class ServiceBookingService {
     const availableSlots: AvailableSlot[] = [];
     let currentMin = dayStartMin;
 
-    const now = new Date();
-    const isToday = now.toISOString().split("T")[0] === date;
-    const currentMinutesNow = now.getHours() * 60 + now.getMinutes() + 15; // 15 mins advance buffer
+    // Determine current time in the active business/master timezone
+    const { todayStr, currentMinutes } = this.getNowInTimezone(activeTz);
+    const isToday = todayStr === date;
+    const currentMinutesNow = currentMinutes + 15; // 15 mins advance buffer
 
     while (currentMin + duration <= dayEndMin) {
       const slotStartH = Math.floor(currentMin / 60);
@@ -247,7 +322,7 @@ export class ServiceBookingService {
         }
       }
 
-      // Check if slot is in past (if booking for today)
+      // Check if slot is in past (if booking for today in target timezone)
       let inPast = false;
       if (isToday && currentMin < currentMinutesNow) {
         inPast = true;
@@ -1867,20 +1942,13 @@ export class ServiceBookingService {
         const body = flowRecord.bodyText || `Please complete your specialist, date & time details for *${service.name}* (Price: ${service.currency || config.currency || "INR"} ${service.price}).`;
         const cta = config.whatsappFlowCtaText || flowRecord.ctaButtonText || "Book Appointment 📅";
 
-        // Generate dynamic available dates for next 7 days
-        const now = new Date();
-        const availableDates: { id: string; title: string }[] = [];
-        for (let i = 0; i < 7; i++) {
-          const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-          const dStr = d.toISOString().split("T")[0];
-          const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
-          const monthDay = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-          const tag = i === 0 ? "Today" : (i === 1 ? "Tomorrow" : `${dayName}, ${monthDay}`);
-          availableDates.push({ id: dStr, title: `${tag} (${dStr})` });
-        }
+        // Generate dynamic available dates for configured maxDaysInAdvance (default 7 days) in business timezone
+        const activeTz = config.timezone || "Asia/Kolkata";
+        const upcomingDateObjects = this.getUpcomingDates(activeTz, config.maxDaysInAdvance || 7);
+        const availableDates = upcomingDateObjects.map(d => ({ id: d.dateStr, title: d.fullLabel }));
 
         // Generate dynamic available slots for initial date
-        const primaryDateStr = availableDates[0]?.id || now.toISOString().split("T")[0];
+        const primaryDateStr = availableDates[0]?.id || this.getNowInTimezone(activeTz).todayStr;
         const { availableSlots } = await this.getAvailableSlots({
           tenantId: config.tenantId,
           serviceId: service.id,
@@ -1949,62 +2017,29 @@ export class ServiceBookingService {
       }
     }
 
-    // Fetch specialists / masters assigned to this service
-    const allMasters = await db
-      .select()
-      .from(schema.serviceMasters)
-      .where(and(eq(schema.serviceMasters.tenantId, config.tenantId), eq(schema.serviceMasters.isActive, true)));
+    if (config.requireMasterSelection) {
+      const allMasters = await db
+        .select()
+        .from(schema.serviceMasters)
+        .where(and(eq(schema.serviceMasters.tenantId, config.tenantId), eq(schema.serviceMasters.isActive, true)));
 
-    const assignedMasters = allMasters.filter(m => {
-      const sIds = Array.isArray(m.serviceIds) ? m.serviceIds : [];
-      return sIds.includes(service.id) || sIds.length === 0;
-    });
-
-    if (config.requireMasterSelection && assignedMasters.length > 0) {
-      await db.insert(schema.serviceSessions).values({
-        conversationId,
-        serviceId: service.id,
-        currentStep: "waiting_for_master",
-        customerData: {}
+      const assignedMasters = allMasters.filter(m => {
+        const sIds = Array.isArray(m.serviceIds) ? m.serviceIds : [];
+        return sIds.includes(service.id) || sIds.length === 0;
       });
 
-      await this.trackAbandonedBooking({
-        tenantId: config.tenantId,
-        channelId: channelRow.id,
-        conversationId,
-        customerPhone: to,
-        serviceId: service.id,
-        serviceName: service.name,
-        servicePrice: String(service.price || "0"),
-        currentStep: "waiting_for_master"
-      });
-
-      const promptText = `✨ You selected *${service.name}* (${service.currency || "INR"} ${service.price} - ${service.durationMinutes} mins).\n\nPlease choose your preferred specialist:`;
-
-      if (isCloudApi && assignedMasters.length <= 2) {
-        const buttons = assignedMasters.map(m => ({
-          id: `mst_${m.id}`,
-          title: m.name.substring(0, 20)
-        }));
-        buttons.push({ id: "mst_any", title: "Any Specialist" });
-        await this.sendCloudApiButtonMessage(channelRow, conversationId, to, promptText, null, buttons);
-      } else {
-        let listText = `${promptText}\n\n`;
-        assignedMasters.forEach((m, idx) => {
-          listText += `👉 Reply *${idx + 1}* for *${m.name}* (${m.title || "Specialist"})\n`;
-        });
-        listText += `👉 Reply *${assignedMasters.length + 1}* for *Any Specialist (Next Available)*\n`;
-        listText += `\nReply *cancel* anytime to exit.`;
-        await this.sendAndSaveTextMessage(channelRow, conversationId, to, listText);
+      if (assignedMasters.length > 0) {
+        await this.promptMasterSelection(channelRow, config, conversationId, to, service, assignedMasters);
+        return;
       }
-    } else {
-      // Skip master selection, go straight to Date Selection
-      await this.promptDateSelection(channelRow, config, conversationId, to, service.id, null);
     }
+
+    // Skip master selection, go straight to Date Selection
+    await this.promptDateSelection(channelRow, config, conversationId, to, service.id, null);
   }
 
   /**
-   * Prompt Date Selection: Suggest Today, Tomorrow, or custom date
+   * Prompt Date Selection: Suggest Today, Tomorrow, or custom date in business/master timezone
    */
   private static async promptDateSelection(
     channelRow: any,
@@ -2016,16 +2051,19 @@ export class ServiceBookingService {
   ) {
     const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
 
-    const now = new Date();
-    const upcomingDates: { dateStr: string; label: string; fullLabel: string }[] = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
-      const dStr = d.toISOString().split("T")[0];
-      const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
-      const monthDay = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      const tag = i === 0 ? "Today" : (i === 1 ? "Tomorrow" : `${dayName}, ${monthDay}`);
-      upcomingDates.push({ dateStr: dStr, label: tag, fullLabel: `${tag} (${dStr})` });
+    // Fetch master if selected to determine timezone
+    let master: schema.ServiceMaster | null = null;
+    if (masterId && masterId !== "any") {
+      const [m] = await db
+        .select()
+        .from(schema.serviceMasters)
+        .where(eq(schema.serviceMasters.id, masterId))
+        .limit(1);
+      master = m || null;
     }
+
+    const activeTz = master?.timezone || config.timezone || "Asia/Kolkata";
+    const upcomingDates = this.getUpcomingDates(activeTz, config.maxDaysInAdvance || 7);
 
     await db.delete(schema.serviceSessions).where(eq(schema.serviceSessions.conversationId, conversationId));
     await db.insert(schema.serviceSessions).values({
@@ -2218,11 +2256,10 @@ export class ServiceBookingService {
     if (session.currentStep === "waiting_for_date") {
       let chosenDate = "";
       const cachedDates: { dateStr: string; label: string; fullLabel: string }[] = (session.customerData as any)?.upcomingDatesCache || [];
-      const now = new Date();
-      const todayStr = now.toISOString().split("T")[0];
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowStr = tomorrow.toISOString().split("T")[0];
+      const activeTz = config.timezone || "Asia/Kolkata";
+      const { todayStr } = this.getNowInTimezone(activeTz);
+      const upcoming = this.getUpcomingDates(activeTz, 2);
+      const tomorrowStr = upcoming[1]?.dateStr || todayStr;
 
       if (buttonReplyId?.startsWith("date_")) {
         chosenDate = buttonReplyId.replace("date_", "");

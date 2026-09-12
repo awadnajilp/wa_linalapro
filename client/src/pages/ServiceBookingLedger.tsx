@@ -13,7 +13,7 @@ import {
   FileText, CheckCircle, ExternalLink, Download, FileSpreadsheet, Sparkles, 
   UserCheck, Shield, Phone, Mail, Image as ImageIcon, Briefcase, ChevronRight, 
   Check, CreditCard, MessageSquare, Bot, UserPlus, Shuffle, Bell, RotateCcw,
-  Percent, Flame, AlertCircle, PhoneCall, Key, Mic, Volume2, Send, Activity
+  Percent, Flame, AlertCircle, PhoneCall, Key, Mic, Volume2, Send, Activity, Globe
 } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
 import { Switch } from "@/components/ui/switch";
@@ -23,6 +23,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MediaGalleryDialog } from "@/components/media/MediaGalleryDialog";
 import { ChannelSwitcher } from "@/components/channel-switcher";
+
+export const COMMON_TIMEZONES = [
+  { value: "Asia/Kolkata", label: "India Standard Time (IST, UTC+5:30)" },
+  { value: "Asia/Riyadh", label: "Saudi Arabia (AST, UTC+3:00)" },
+  { value: "Asia/Dubai", label: "UAE / Gulf (GST, UTC+4:00)" },
+  { value: "Asia/Kuwait", label: "Kuwait (AST, UTC+3:00)" },
+  { value: "Asia/Qatar", label: "Qatar (AST, UTC+3:00)" },
+  { value: "Asia/Bahrain", label: "Bahrain (AST, UTC+3:00)" },
+  { value: "Asia/Muscat", label: "Oman (GST, UTC+4:00)" },
+  { value: "Africa/Cairo", label: "Egypt (EEST, UTC+3:00)" },
+  { value: "Europe/London", label: "London / UK (GMT/BST)" },
+  { value: "Europe/Paris", label: "Central European Time (CET/CEST, UTC+1/2)" },
+  { value: "America/New_York", label: "US Eastern Time (EST/EDT, UTC-5/4)" },
+  { value: "America/Chicago", label: "US Central Time (CST/CDT, UTC-6/5)" },
+  { value: "America/Denver", label: "US Mountain Time (MST/MDT, UTC-7/6)" },
+  { value: "America/Los_Angeles", label: "US Pacific Time (PST/PDT, UTC-8/7)" },
+  { value: "Asia/Singapore", label: "Singapore (SGT, UTC+8:00)" },
+  { value: "Asia/Tokyo", label: "Japan (JST, UTC+9:00)" },
+  { value: "Australia/Sydney", label: "Sydney (AEST, UTC+10:00)" },
+  { value: "UTC", label: "UTC (Coordinated Universal Time)" },
+];
 
 interface ServiceMessage {
   id: string;
@@ -71,6 +92,7 @@ interface ServiceMaster {
     breakEndTime?: string;
   };
   slotIntervalMinutes: number;
+  timezone?: string | null;
   isActive: boolean;
 }
 
@@ -170,6 +192,7 @@ export default function ServiceBookingLedger() {
     photoUrl: "",
     serviceIds: [] as string[],
     slotIntervalMinutes: 30,
+    timezone: "",
     workingHours: {
       days: [1, 2, 3, 4, 5, 6],
       startTime: "09:00",
@@ -216,6 +239,7 @@ export default function ServiceBookingLedger() {
     whatsappFlowId: "",
     whatsappFlowCtaText: "Book Appointment 📅",
     currency: "INR",
+    timezone: "Asia/Kolkata",
     labelCod: "Pay at Venue (Cash/Card)",
     labelUpiDirect: "GPay/PhonePe(UPI)",
     labelQrPay: "Acc. Info(QR Code)",
@@ -392,14 +416,26 @@ export default function ServiceBookingLedger() {
         dailyReportEmails: Array.isArray(cfg.dailyReportEmails) ? cfg.dailyReportEmails : [],
         merchantAlertEmails: Array.isArray(cfg.merchantAlertEmails) ? cfg.merchantAlertEmails : [],
         dailyReportWaNumbers: Array.isArray(cfg.dailyReportWaNumbers) ? cfg.dailyReportWaNumbers : [],
-        autoAssignExcludedUserIds: Array.isArray(cfg.autoAssignExcludedUserIds) ? cfg.autoAssignExcludedUserIds : []
+        autoAssignExcludedUserIds: Array.isArray(cfg.autoAssignExcludedUserIds) ? cfg.autoAssignExcludedUserIds : [],
+        timezone: cfg.timezone || "Asia/Kolkata"
       });
     }
   }, [configData]);
 
   // Mutations
   const saveConfigMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/service-booking/config", { ...data, channelId }),
+    mutationFn: (data: any) => {
+      const sanitized = {
+        ...data,
+        channelId: channelId || null,
+        whatsappFlowId: data.whatsappFlowId || null,
+        voiceProfileId: data.voiceProfileId || null,
+        autoAssignUserId: data.autoAssignUserId || null,
+        dailyReportWaChannelId: data.dailyReportWaChannelId || null,
+        activeServiceId: data.activeServiceId || null,
+      };
+      return apiRequest("POST", "/api/service-booking/config", sanitized);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/service-booking/config"] });
       toast({ title: "Saved", description: "Service Booking configuration updated successfully." });
@@ -898,6 +934,7 @@ export default function ServiceBookingLedger() {
                   photoUrl: "",
                   serviceIds: [],
                   slotIntervalMinutes: 30,
+                  timezone: "",
                   workingHours: {
                     days: [1, 2, 3, 4, 5, 6],
                     startTime: "09:00",
@@ -935,6 +972,12 @@ export default function ServiceBookingLedger() {
                     <span>{m.workingHours?.startTime || "09:00"} - {m.workingHours?.endTime || "18:00"}</span>
                     <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded">Slot: {m.slotIntervalMinutes}m</span>
                   </div>
+                  {m.timezone && (
+                    <div className="flex items-center gap-1 text-[11px] text-blue-700 bg-blue-50/70 px-2 py-0.5 rounded w-fit">
+                      <Globe className="w-3 h-3 text-blue-600" />
+                      <span>{m.timezone}</span>
+                    </div>
+                  )}
                   <p className="text-[11px] text-muted-foreground line-clamp-2">{m.bio || "No biography added."}</p>
                   <div className="flex justify-end gap-2 border-t pt-3">
                     <Button
@@ -950,6 +993,7 @@ export default function ServiceBookingLedger() {
                           photoUrl: m.photoUrl || "",
                           serviceIds: m.serviceIds || [],
                           slotIntervalMinutes: m.slotIntervalMinutes || 30,
+                          timezone: m.timezone || "",
                           workingHours: m.workingHours || {
                             days: [1, 2, 3, 4, 5, 6],
                             startTime: "09:00",
@@ -1303,7 +1347,7 @@ export default function ServiceBookingLedger() {
                         onCheckedChange={v => setConfigForm({ ...configForm, isBookingFlowActive: v })}
                       />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                       <div className="space-y-1.5">
                         <Label className="text-xs">Trigger Keyword</Label>
                         <Input
@@ -1333,6 +1377,27 @@ export default function ServiceBookingLedger() {
                             <SelectItem value="OMR">OMR (OMR)</SelectItem>
                             <SelectItem value="KWD">KWD (KWD)</SelectItem>
                             <SelectItem value="BHD">BHD (BHD)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs flex items-center gap-1">
+                          <Globe className="w-3.5 h-3.5 text-blue-600" />
+                          Business Timezone
+                        </Label>
+                        <Select
+                          value={configForm.timezone || "Asia/Kolkata"}
+                          onValueChange={v => setConfigForm({ ...configForm, timezone: v })}
+                        >
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-56">
+                            {COMMON_TIMEZONES.map(tz => (
+                              <SelectItem key={tz.value} value={tz.value} className="text-xs">
+                                {tz.label}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -3059,6 +3124,32 @@ export default function ServiceBookingLedger() {
                   className="h-8 text-xs"
                 />
               </div>
+            </div>
+
+            <div className="space-y-1 pt-1">
+              <Label className="text-xs flex items-center gap-1">
+                <Globe className="w-3.5 h-3.5 text-blue-600" />
+                Specialist Timezone (Optional Override)
+              </Label>
+              <Select
+                value={masterForm.timezone || "default"}
+                onValueChange={v => setMasterForm({ ...masterForm, timezone: v === "default" ? "" : v })}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-56">
+                  <SelectItem value="default" className="text-xs font-semibold text-blue-600">
+                    Use Business Timezone ({configForm.timezone || "Asia/Kolkata"})
+                  </SelectItem>
+                  {COMMON_TIMEZONES.map(tz => (
+                    <SelectItem key={tz.value} value={tz.value} className="text-xs">
+                      {tz.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">Override if this specialist operates in a different timezone than the business.</p>
             </div>
           </div>
           <DialogFooter>

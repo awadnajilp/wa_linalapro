@@ -2904,6 +2904,7 @@ export const serviceMasters = pgTable("service_masters", {
     breakEndTime: "14:00",
   }),
   slotIntervalMinutes: integer("slot_interval_minutes").default(30),
+  timezone: text("timezone"), // Optional specialist timezone override (e.g. "Asia/Kolkata", "Asia/Riyadh")
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -2953,6 +2954,7 @@ export const serviceConfigs = pgTable("service_configs", {
   razorpayKeyId: text("razorpay_key_id"),
   razorpayKeySecret: text("razorpay_key_secret"),
   currency: text("currency").default("INR"),
+  timezone: text("timezone").default("Asia/Kolkata"), // Primary Business timezone (e.g. "Asia/Kolkata", "Asia/Riyadh", "Asia/Dubai", "UTC")
   labelCod: text("label_cod").default("Pay at Venue (Cash/Card)"),
   labelUpiDirect: text("label_upi_direct").default("GPay/PhonePe(UPI)"),
   labelQrPay: text("label_qr_pay").default("Acc. Info(QR Code)"),

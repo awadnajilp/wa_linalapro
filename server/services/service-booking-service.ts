@@ -1618,12 +1618,26 @@ export class ServiceBookingService {
         return false;
       }
 
-      // 1. Fetch channel config
-      const [config] = await db
+      // 1. Fetch channel config (by channelId or tenantId)
+      let [config] = await db
         .select()
         .from(schema.serviceConfigs)
-        .where(eq(schema.serviceConfigs.channelId, channelRow.id))
+        .where(
+          and(
+            eq(schema.serviceConfigs.tenantId, tenantId),
+            eq(schema.serviceConfigs.channelId, channelRow.id)
+          )
+        )
         .limit(1);
+
+      if (!config) {
+        const [fallback] = await db
+          .select()
+          .from(schema.serviceConfigs)
+          .where(eq(schema.serviceConfigs.tenantId, tenantId))
+          .limit(1);
+        config = fallback;
+      }
 
       if (!config || !config.isBookingFlowActive) {
         return false;

@@ -1221,6 +1221,50 @@ export class EcommerceService {
         return true;
       }
 
+      // Check if message is a service booking keyword trigger to avoid session hijacking
+      const [sbConfig] = await db
+        .select()
+        .from(schema.serviceConfigs)
+        .where(eq(schema.serviceConfigs.tenantId, tenantId))
+        .limit(1);
+      
+      if (sbConfig && sbConfig.isBookingFlowActive) {
+        const sbKw = (sbConfig.bookingTriggerKeyword || book).toLowerCase().trim();
+        if (cleanContent === sbKw || cleanContent.startsWith(sbKw + " ")) {
+          const [activeEcom] = await db
+            .select()
+            .from(schema.ecommerceSessions)
+            .where(eq(schema.ecommerceSessions.conversationId, conversationId))
+            .limit(1);
+          if (activeEcom) {
+            await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, activeEcom.id));
+          }
+          return false;
+        }
+
+        const activeServices = await db
+          .select()
+          .from(schema.services)
+          .where(and(eq(schema.services.tenantId, tenantId), eq(schema.services.isActive, true)));
+
+        for (const s of activeServices) {
+          if (s.triggerKeyword && s.triggerKeyword.trim()) {
+            const kw = s.triggerKeyword.toLowerCase().trim();
+            if (cleanContent === kw || cleanContent.startsWith(kw + " ")) {
+              const [activeEcom] = await db
+                .select()
+                .from(schema.ecommerceSessions)
+                .where(eq(schema.ecommerceSessions.conversationId, conversationId))
+                .limit(1);
+              if (activeEcom) {
+                await db.delete(schema.ecommerceSessions).where(eq(schema.ecommerceSessions.id, activeEcom.id));
+              }
+              return false;
+            }
+          }
+        }
+      }
+
       // Check if there is an active ecommerce session
       const [session] = await db
         .select()

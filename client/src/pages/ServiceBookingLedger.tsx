@@ -3231,18 +3231,19 @@ export default function ServiceBookingLedger() {
       <MediaGalleryDialog
         open={isGalleryOpen}
         onOpenChange={setIsGalleryOpen}
-        onSelectMedia={media => {
+        onSelect={(rawUrl: any) => {
+          const url = typeof rawUrl === "string" ? rawUrl : rawUrl?.url || "";
           if (galleryTargetField === "businessLogo") {
-            setConfigForm((prev: any) => ({ ...prev, businessLogo: media.url }));
+            setConfigForm((prev: any) => ({ ...prev, businessLogo: url }));
           } else if (galleryTargetField === "welcomeHeaderUrl") {
-            setConfigForm((prev: any) => ({ ...prev, welcomeHeaderUrl: media.url }));
+            setConfigForm((prev: any) => ({ ...prev, welcomeHeaderUrl: url }));
           } else if (galleryTargetField === "qrCodeUrl") {
-            setConfigForm((prev: any) => ({ ...prev, qrCodeUrl: media.url }));
+            setConfigForm((prev: any) => ({ ...prev, qrCodeUrl: url }));
           } else if (galleryTargetField?.startsWith("welcome_seq_")) {
             const idx = parseInt(galleryTargetField.replace("welcome_seq_", ""), 10);
-            if (!isNaN(idx) && configForm.welcomeMessages[idx]) {
+            if (!isNaN(idx) && configForm.welcomeMessages?.[idx]) {
               const updated = [...configForm.welcomeMessages];
-              updated[idx].mediaUrl = media.url;
+              updated[idx].mediaUrl = url;
               setConfigForm((prev: any) => ({ ...prev, welcomeMessages: updated }));
             }
           }

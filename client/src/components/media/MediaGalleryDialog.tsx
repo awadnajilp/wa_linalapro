@@ -36,7 +36,8 @@ interface MediaAsset {
 interface MediaGalleryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (url: string, name: string, mimeType?: string) => void;
+  onSelect?: (url: string, name: string, mimeType?: string) => void;
+  onSelectMedia?: (media: { url: string; fileName?: string; name?: string; mimeType?: string }) => void;
   allowedTypes?: ("image" | "video" | "audio" | "document")[];
 }
 
@@ -44,12 +45,23 @@ export function MediaGalleryDialog({
   open,
   onOpenChange,
   onSelect,
+  onSelectMedia,
   allowedTypes,
 }: MediaGalleryDialogProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<string>("all");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const handleMediaChosen = (url: string, fileName: string, mimeType?: string) => {
+    if (typeof onSelect === "function") {
+      onSelect(url, fileName, mimeType);
+    }
+    if (typeof onSelectMedia === "function") {
+      onSelectMedia({ url, fileName, name: fileName, mimeType });
+    }
+    onOpenChange(false);
+  };
 
   const { data: mediaItems, isLoading } = useQuery<MediaAsset[]>({
     queryKey: ["/api/media-library"],
@@ -77,8 +89,7 @@ export function MediaGalleryDialog({
         description: "File uploaded successfully and saved to Media Library.",
       });
       if (data.url) {
-        onSelect(data.url, data.fileName || "Uploaded File", data.mimeType);
-        onOpenChange(false);
+        handleMediaChosen(data.url, data.fileName || "Uploaded File", data.mimeType);
       }
     },
     onError: (err: any) => {
@@ -271,8 +282,7 @@ export function MediaGalleryDialog({
                   key={item.id}
                   className="group relative bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex flex-col h-40 cursor-pointer"
                   onClick={() => {
-                    onSelect(item.url, item.fileName, item.mimeType);
-                    onOpenChange(false);
+                    handleMediaChosen(item.url, item.fileName, item.mimeType);
                   }}
                 >
                   {/* File preview block */}

@@ -32,6 +32,17 @@ You are chatting with a customer regarding this product:
 
 CRITICAL DIRECTIVE: Keep responses concise and conversational for WhatsApp (under 150 words). Always try to close the sale by encouraging them to buy and proceed to checkout once their queries are addressed. Inform the user they can type 'checkout' or '1' at any time to buy!`;
 
+export const DEFAULT_THANK_YOU_MESSAGE = `🛍️ *Order Confirmed!*\n\n` +
+  `Dear *{{customerName}}*, thank you for your order!\n\n` +
+  `📦 *Order Details:*\n` +
+  `• *Order #:* *{{orderNumber}}*\n` +
+  `• *Product:* {{productName}}\n` +
+  `• *Quantity:* {{quantity}}\n` +
+  `• *Total Amount:* *{{totalAmount}}*\n` +
+  `• *Payment Mode:* {{paymentMethod}}\n\n` +
+  `📍 *Delivery Address:*\n{{address}}\n\n` +
+  `🚚 We are preparing your order and will notify you as soon as it ships!`;
+
 interface ProductMessage {
   id: string;
   text: string;
@@ -58,25 +69,32 @@ interface Product {
 interface Order {
   id: string;
   orderNumber: string;
+  customerName: string;
   customerPhone: string;
-  customerName: string | null;
-  customerData: Record<string, any>;
-  productId: string | null;
-  productName: string | null;
-  price: string;
+  customerData: any;
+  productName: string;
   quantity: number;
   totalAmount: string;
+  deliveryFee?: string;
   paymentMethod: string;
   paymentStatus: string;
-  receiptUrl: string | null;
   status: string;
+  notes: string | null;
+  source: string;
+  trackingNumber: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 interface Customer {
+  id: string;
+  name: string;
   phone: string;
-  name: string | null;
-  lastOrderDate: string;
+  email: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
   totalOrders: string;
   totalSpent: string;
 }
@@ -102,6 +120,7 @@ interface EcommerceConfig {
   useWhatsappFlowForm?: boolean;
   whatsappFlowId?: string | null;
   whatsappFlowCtaText?: string;
+  thankYouMessage?: string | null;
   isActive: boolean;
 }
 
@@ -308,6 +327,7 @@ export default function EcommerceLedger() {
   const [aiAskButtonEnabled, setAiAskButtonEnabled] = useState(true);
   const [aiSystemPrompt, setAiSystemPrompt] = useState("");
   const [welcomeMessages, setWelcomeMessages] = useState<{ id: string; text: string; mediaType: "none" | "image" | "video" | "audio"; mediaUrl: string; sortOrder: number }[]>([]);
+  const [thankYouMessage, setThankYouMessage] = useState<string>(DEFAULT_THANK_YOU_MESSAGE);
 
   // Store Identity Profile
   const [storeName, setStoreName] = useState("");
@@ -513,6 +533,7 @@ export default function EcommerceLedger() {
       setUseWhatsappFlowForm((config as any).useWhatsappFlowForm !== undefined ? (config as any).useWhatsappFlowForm : false);
       setWhatsappFlowId((config as any).whatsappFlowId || "");
       setWhatsappFlowCtaText((config as any).whatsappFlowCtaText || "Complete Checkout 🛍️");
+      setThankYouMessage((config as any).thankYouMessage || DEFAULT_THANK_YOU_MESSAGE);
 
       // Standardize loaded checkoutFields Q&A objects
       if (Array.isArray(config.checkoutFields)) {
@@ -1359,6 +1380,7 @@ export default function EcommerceLedger() {
       abandonedCartDiscountPercent,
       abandonedCartMessage1,
       abandonedCartMessage2,
+      thankYouMessage,
       isActive: configActive,
     };
 
@@ -3652,6 +3674,75 @@ export default function EcommerceLedger() {
                               placeholder="Key Secret"
                             />
                           </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Order Confirmation / Thank You Message */}
+                    <div className="space-y-4 border p-4 rounded-lg bg-white shadow-sm">
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-600" />
+                          <h3 className="font-bold text-gray-800 text-sm">
+                            Order Confirmation / Thank You Message
+                          </h3>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setThankYouMessage(DEFAULT_THANK_YOU_MESSAGE)}
+                          className="text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 h-7 px-2"
+                        >
+                          <RotateCcw className="w-3 h-3 mr-1" />
+                          Reset to Default
+                        </Button>
+                      </div>
+
+                      <p className="text-xs text-gray-500">
+                        This message is sent automatically to the customer on WhatsApp immediately after order confirmation. You can edit the text and placeholders below.
+                      </p>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-semibold text-gray-700">Message Content (supports WhatsApp markdown *bold*, _italic_)</Label>
+                        </div>
+                        <Textarea
+                          rows={10}
+                          value={thankYouMessage}
+                          onChange={(e) => setThankYouMessage(e.target.value)}
+                          placeholder={DEFAULT_THANK_YOU_MESSAGE}
+                          className="text-xs font-mono bg-gray-50/50 border-gray-200 focus:bg-white leading-relaxed"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5 pt-1">
+                        <Label className="text-[11px] font-semibold text-gray-600 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-emerald-600" />
+                          Click placeholder to append:
+                        </Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            { tag: "{{customerName}}", label: "Customer Name" },
+                            { tag: "{{orderNumber}}", label: "Order #" },
+                            { tag: "{{productName}}", label: "Product" },
+                            { tag: "{{quantity}}", label: "Quantity" },
+                            { tag: "{{totalAmount}}", label: "Total Amount" },
+                            { tag: "{{paymentMethod}}", label: "Payment Mode" },
+                            { tag: "{{address}}", label: "Address" },
+                            { tag: "{{storeName}}", label: "Store Name" },
+                            { tag: "{{currency}}", label: "Currency" },
+                          ].map((p) => (
+                            <button
+                              key={p.tag}
+                              type="button"
+                              onClick={() => setThankYouMessage((prev) => prev + " " + p.tag)}
+                              className="text-[10px] bg-gray-100 hover:bg-emerald-100 text-gray-700 hover:text-emerald-800 font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer"
+                              title={`Insert ${p.label}`}
+                            >
+                              {p.tag}
+                            </button>
+                          ))}
                         </div>
                       </div>
                     </div>

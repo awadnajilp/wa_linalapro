@@ -2589,10 +2589,22 @@ export const ecommerceConfigs = pgTable("ecommerce_configs", {
   abandonedCartDiscountPercent: numeric("abandoned_cart_discount_percent", { precision: 5, scale: 2 }).default("0"),
   abandonedCartMessage1: text("abandoned_cart_message_1"),
   abandonedCartMessage2: text("abandoned_cart_message_2"),
+  thankYouMessage: text("thank_you_message"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export const DEFAULT_ECOM_THANK_YOU_MESSAGE = `🛍️ *Order Confirmed!*\n\n` +
+  `Dear *{{customerName}}*, thank you for your order!\n\n` +
+  `📦 *Order Details:*\n` +
+  `• *Order #:* *{{orderNumber}}*\n` +
+  `• *Product:* {{productName}}\n` +
+  `• *Quantity:* {{quantity}}\n` +
+  `• *Total Amount:* *{{totalAmount}}*\n` +
+  `• *Payment Mode:* {{paymentMethod}}\n\n` +
+  `📍 *Delivery Address:*\n{{address}}\n\n` +
+  `🚚 We are preparing your order and will notify you as soon as it ships!`;
 
 export const ecommerceOrders = pgTable("ecommerce_orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

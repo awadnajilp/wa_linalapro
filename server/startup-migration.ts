@@ -1235,6 +1235,7 @@ const steps: MigrationStep[] = [
   addColumnIfNotExists("ecommerce_configs", "whatsapp_flow_id", "VARCHAR REFERENCES whatsapp_flows (id) ON DELETE SET NULL"),
   addColumnIfNotExists("ecommerce_configs", "whatsapp_flow_cta_text", "TEXT DEFAULT 'Complete Checkout 🛍️'"),
   addColumnIfNotExists("ecommerce_configs", "active_product_id", "VARCHAR REFERENCES ecommerce_products (id) ON DELETE SET NULL"),
+  addColumnIfNotExists("ecommerce_configs", "thank_you_message", "TEXT"),
 
   // ────────────────────────────────────────────────────
   // Ecommerce Abandoned Carts Table

@@ -4088,7 +4088,7 @@ CRITICAL DIRECTIVES:
   /**
    * Send Customer Order Alert using ecom_order_alert template (Meta Cloud API) or structured formatted text (QR Code / Fallback) + PDF Invoice
    */
-  public static async sendCustomerOrderAlert(order: any, customChannelRow?: any): Promise<void> {
+  public static async sendCustomerOrderAlert(order: any, customChannelRow?: any, customConfig?: any): Promise<void> {
     try {
       if (!order) return;
       const channelRow = customChannelRow || (await db
@@ -4100,11 +4100,23 @@ CRITICAL DIRECTIVES:
 
       if (!channelRow) return;
 
+      const config = customConfig || (await db
+        .select()
+        .from(schema.ecommerceConfigs)
+        .where(
+          and(
+            eq(schema.ecommerceConfigs.tenantId, order.tenantId),
+            eq(schema.ecommerceConfigs.channelId, order.channelId)
+          )
+        )
+        .limit(1)
+        .then(rows => rows[0]));
+
       const customerName = order.customerName || "Customer";
       const orderNumber = order.orderNumber || "Order";
       const productName = order.productName || "Item";
       const quantity = String(order.quantity || 1);
-      const currency = order.currency || "INR";
+      const currency = order.currency || config?.currency || "INR";
       const totalAmount = `${currency} ${Number(order.totalAmount || 0).toFixed(2)}`;
       const paymentMethod = order.paymentMethod ? (
         order.paymentMethod === "cod" ? "Cash on Delivery" :
@@ -4116,6 +4128,8 @@ CRITICAL DIRECTIVES:
       const address = order.customerData?.address 
         ? `${order.customerData.address}${order.customerData.pin ? `, PIN: ${order.customerData.pin}` : ""}`
         : (order.customerData?.pin ? `PIN: ${order.customerData.pin}` : "Provided during checkout");
+
+      const storeName = config?.storeName || "Our Store";
 
       const to = order.customerPhone;
       let convId = order.conversationId || null;
@@ -4132,7 +4146,11 @@ CRITICAL DIRECTIVES:
 
       let sentViaTemplate = false;
       // Check if ecom_order_alert template is available and approved
-      if (isCloudApi) {
+      // If user customized thankYouMessage, we prioritize that custom formatted text
+      const hasCustomThankYouMessage = !!(config?.thankYouMessage && config.thankYouMessage.trim().length > 0);
+      const useTemplate = isCloudApi && !hasCustomThankYouMessage;
+
+      if (useTemplate) {
         const [tpl] = await db
           .select()
           .from(schema.templates)
@@ -4174,17 +4192,41 @@ CRITICAL DIRECTIVES:
       }
 
       if (!sentViaTemplate) {
-        // Nicely formatted WhatsApp text message with emojis and bold line breaks
-        const formattedText = `🛍️ *Order Confirmed!*\n\n` +
-          `Dear *${customerName}*, thank you for your order!\n\n` +
-          `📦 *Order Details:*\n` +
-          `• *Order #:* *${orderNumber}*\n` +
-          `• *Product:* ${productName}\n` +
-          `• *Quantity:* ${quantity}\n` +
-          `• *Total Amount:* *${totalAmount}*\n` +
-          `• *Payment Mode:* ${paymentMethod}\n\n` +
-          `📍 *Delivery Address:*\n${address}\n\n` +
-          `🚚 We are preparing your order and will notify you as soon as it ships!`;
+        // Variable interpolation on custom or default Thank You message
+        const rawMessage = hasCustomThankYouMessage
+          ? config.thankYouMessage
+          : schema.DEFAULT_ECOM_THANK_YOU_MESSAGE;
+
+        const replacements: Record<string, string> = {
+          customerName,
+          name: customerName,
+          "1": customerName,
+          orderNumber,
+          "2": orderNumber,
+          productName,
+          item: productName,
+          "3": productName,
+          quantity,
+          qty: quantity,
+          "4": quantity,
+          totalAmount,
+          amount: totalAmount,
+          "5": totalAmount,
+          paymentMethod,
+          paymentMode: paymentMethod,
+          "6": paymentMethod,
+          address,
+          deliveryAddress: address,
+          "7": address,
+          currency,
+          storeName
+        };
+
+        let formattedText = rawMessage;
+        for (const [key, val] of Object.entries(replacements)) {
+          const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "gi");
+          formattedText = formattedText.replace(regex, val);
+        }
 
         await this.sendAndSaveTextMessage(channelRow, convId, to, formattedText);
         console.log(`[EcommerceService] Sent formatted order alert to ${to} for ${orderNumber}`);

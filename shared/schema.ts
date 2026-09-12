@@ -1961,6 +1961,7 @@ export const aiProfiles = pgTable("ai_profiles", {
   groqApiKey: text("groq_api_key"),
   elevenlabsApiKey: text("elevenlabs_api_key"),
   sarvamApiKey: text("sarvam_api_key"),
+  apiKeySource: text("api_key_source").default("own_key"), // "own_key" | "admin_key"
   analyzeInboxHistory: boolean("analyze_inbox_history").default(false),
   ignorePersonalConversations: boolean("ignore_personal_conversations").default(true),
   personalKeywords: jsonb("personal_keywords").$type<string[]>().default(["family", "personal", "private", "brother", "sister", "mom", "dad", "wife", "husband"]),
@@ -1989,6 +1990,7 @@ export const insertAiProfileSchema = z.object({
   groqApiKey: z.string().optional().nullable(),
   elevenlabsApiKey: z.string().optional().nullable(),
   sarvamApiKey: z.string().optional().nullable(),
+  apiKeySource: z.string().optional(),
   analyzeInboxHistory: z.boolean().optional(),
   ignorePersonalConversations: z.boolean().optional(),
   personalKeywords: z.array(z.string()).optional(),

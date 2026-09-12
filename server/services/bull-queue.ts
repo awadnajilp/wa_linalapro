@@ -1,12 +1,13 @@
 import { Queue, Worker, Job, QueueEvents } from "bullmq";
 import { isRedisAvailable, getRedisClient } from "./redis";
 import { db } from "../db";
-import { messageQueue, channels, campaigns } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { messageQueue, channels, campaigns, templates } from "@shared/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { WhatsAppApiService } from "./whatsapp-api";
 import { cacheGet, CACHE_KEYS, CACHE_TTL } from "./cache";
 import { BaileysManager } from "./baileys-manager";
 import { storage } from "../storage";
+import { processWalletCharge, refundWalletCharge } from "./wallet-service";
 
 const QUEUE_NAME = "whatsapp-messages";
 
@@ -180,94 +181,159 @@ async function processMessageJob(job: Job) {
 
     const isMarketing = messageType === "marketing";
 
+    // ─── Wallet Balance Check & Charge ───
+    let walletCharged = false;
+    let resolvedCategory = "service";
+
+    if (channel.createdBy) {
+      if (channel.connectionMethod === "qr_code") {
+        resolvedCategory = "qr_code";
+      } else if (templateName) {
+        let [tmplRow] = await db
+          .select({ category: templates.category })
+          .from(templates)
+          .where(and(eq(templates.name, templateName), eq(templates.channelId, channel.id)))
+          .limit(1);
+        if (!tmplRow) {
+          [tmplRow] = await db
+            .select({ category: templates.category })
+            .from(templates)
+            .where(eq(templates.name, templateName))
+            .limit(1);
+        }
+        if (tmplRow?.category) {
+          resolvedCategory = tmplRow.category;
+        } else if (isMarketing) {
+          resolvedCategory = "marketing";
+        }
+      }
+
+      try {
+        const chargeRes = await processWalletCharge(
+          channel.createdBy,
+          recipientPhone,
+          resolvedCategory,
+          channel.connectionMethod || "embedded",
+          campaignId ? `Debit for Campaign message (${resolvedCategory})` : `Debit for Queue message (${resolvedCategory})`
+        );
+        walletCharged = chargeRes.charged;
+      } catch (walletErr: any) {
+        console.warn(`[BullMQ] Insufficient wallet balance for message ${messageId}:`, walletErr.message);
+        await db
+          .update(messageQueue)
+          .set({
+            status: "failed",
+            attempts: (attempts || 0) + 1,
+            errorCode: "INSUFFICIENT_WALLET_BALANCE",
+            errorMessage: walletErr.message,
+          })
+          .where(eq(messageQueue.id, messageId));
+        return;
+      }
+    }
+
     let response;
-    if (templateName) {
-      response = await WhatsAppApiService.sendTemplateMessage(
-        channel,
-        recipientPhone,
-        templateName,
-        templateParams || [],
-        "en_US",
-        isMarketing
-      );
-    } else if (isQrCode && campaignId) {
-      const campaign = await storage.getCampaign(campaignId);
-      if (!campaign) {
-        throw new Error(`Campaign not found: ${campaignId}`);
-      }
-
-      const isWarmer = templateParams && (templateParams as any).isWarmer;
-      let text = "";
-      let mediaUrl = campaign.mediaUrl;
-      let mediaMimeType = campaign.mediaMimeType;
-      let mediaName = campaign.mediaName;
-
-      if (isWarmer) {
-        text = (templateParams as any).customMessage || "";
-        mediaUrl = null;
-      } else {
-        text = campaign.customMessage || "";
-      }
-
-      // Interpolate variables in customMessage (e.g. {{name}}, {{phone}}, etc.)
-      let contact = await storage.getContactByPhoneAndChannel(recipientPhone, channel.id);
-      let contactName = contact ? contact.name : recipientPhone;
-
-      text = text.replace(/\{\{\s*name\s*\}\}/gi, contactName);
-      text = text.replace(/\{\{\s*phone\s*\}\}/gi, recipientPhone);
-      text = text.replace(/\{\{\s*email\s*\}\}/gi, contact?.email || "");
-
-      // Replace other custom variables from contact.variables
-      if (contact && contact.variables && typeof contact.variables === "object") {
-        Object.entries(contact.variables as Record<string, string>).forEach(([key, val]) => {
-          const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-          const regex = new RegExp(`\\{\\{\\s*${escapedKey}\\s*\\}\\}`, "gi");
-          text = text.replace(regex, val || "");
-        });
-      }
-
-      // Strip HTML tags from WYSIWYG editor if needed, or send as is.
-      text = text
-        .replace(/<br\s*\/?>/gi, "\n")
-        .replace(/<\/p>/gi, "\n")
-        .replace(/<p>/gi, "")
-        .replace(/<b>(.*?)<\/b>/gi, "*$1*")
-        .replace(/<strong>(.*?)<\/strong>/gi, "*$1*")
-        .replace(/<i>(.*?)<\/i>/gi, "_$1_")
-        .replace(/<em>(.*?)<\/em>/gi, "_$1_")
-        .replace(/<del>(.*?)<\/del>/gi, "~$1~")
-        .replace(/<code[^>]*>(.*?)<\/code>/gi, "```$1```")
-        .replace(/<[^>]*>/g, ""); // Strip remaining HTML tags
-
-      // Decoded HTML entities
-      text = text
-        .replace(/&nbsp;/gi, " ")
-        .replace(/&amp;/gi, "&")
-        .replace(/&lt;/gi, "<")
-        .replace(/&gt;/gi, ">")
-        .replace(/&quot;/gi, '"');
-
-      if (mediaUrl) {
-        const mediaData = {
-          url: mediaUrl,
-          mimeType: mediaMimeType || "application/octet-stream",
-          filename: mediaName || "file"
-        };
-        response = await BaileysManager.sendMediaMessage(
-          channel.id,
+    try {
+      if (templateName) {
+        response = await WhatsAppApiService.sendTemplateMessage(
+          channel,
           recipientPhone,
-          mediaData,
-          text || undefined
+          templateName,
+          templateParams || [],
+          "en_US",
+          isMarketing
         );
+      } else if (isQrCode && campaignId) {
+        const campaign = await storage.getCampaign(campaignId);
+        if (!campaign) {
+          throw new Error(`Campaign not found: ${campaignId}`);
+        }
+
+        const isWarmer = templateParams && (templateParams as any).isWarmer;
+        let text = "";
+        let mediaUrl = campaign.mediaUrl;
+        let mediaMimeType = campaign.mediaMimeType;
+        let mediaName = campaign.mediaName;
+
+        if (isWarmer) {
+          text = (templateParams as any).customMessage || "";
+          mediaUrl = null;
+        } else {
+          text = campaign.customMessage || "";
+        }
+
+        // Interpolate variables in customMessage (e.g. {{name}}, {{phone}}, etc.)
+        let contact = await storage.getContactByPhoneAndChannel(recipientPhone, channel.id);
+        let contactName = contact ? contact.name : recipientPhone;
+
+        text = text.replace(/\{\{\s*name\s*\}\}/gi, contactName);
+        text = text.replace(/\{\{\s*phone\s*\}\}/gi, recipientPhone);
+        text = text.replace(/\{\{\s*email\s*\}\}/gi, contact?.email || "");
+
+        // Replace other custom variables from contact.variables
+        if (contact && contact.variables && typeof contact.variables === "object") {
+          Object.entries(contact.variables as Record<string, string>).forEach(([key, val]) => {
+            const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            const regex = new RegExp(`\\{\\{\\s*${escapedKey}\\s*\\}\\}`, "gi");
+            text = text.replace(regex, val || "");
+          });
+        }
+
+        // Strip HTML tags from WYSIWYG editor if needed, or send as is.
+        text = text
+          .replace(/<br\s*\/?>/gi, "\n")
+          .replace(/<\/p>/gi, "\n")
+          .replace(/<p>/gi, "")
+          .replace(/<b>(.*?)<\/b>/gi, "*$1*")
+          .replace(/<strong>(.*?)<\/strong>/gi, "*$1*")
+          .replace(/<i>(.*?)<\/i>/gi, "_$1_")
+          .replace(/<em>(.*?)<\/em>/gi, "_$1_")
+          .replace(/<del>(.*?)<\/del>/gi, "~$1~")
+          .replace(/<code[^>]*>(.*?)<\/code>/gi, "```$1```")
+          .replace(/<[^>]*>/g, ""); // Strip remaining HTML tags
+
+        // Decoded HTML entities
+        text = text
+          .replace(/&nbsp;/gi, " ")
+          .replace(/&amp;/gi, "&")
+          .replace(/&lt;/gi, "<")
+          .replace(/&gt;/gi, ">")
+          .replace(/&quot;/gi, '"');
+
+        if (mediaUrl) {
+          const mediaData = {
+            url: mediaUrl,
+            mimeType: mediaMimeType || "application/octet-stream",
+            filename: mediaName || "file"
+          };
+          response = await BaileysManager.sendMediaMessage(
+            channel.id,
+            recipientPhone,
+            mediaData,
+            text || undefined
+          );
+        } else {
+          response = await BaileysManager.sendMessage(
+            channel.id,
+            recipientPhone,
+            text
+          );
+        }
       } else {
-        response = await BaileysManager.sendMessage(
-          channel.id,
+        throw new Error("Non-template messages not yet implemented");
+      }
+    } catch (sendErr: any) {
+      // Refund wallet charge on actual send failure
+      if (walletCharged && channel.createdBy) {
+        await refundWalletCharge(
+          channel.createdBy,
           recipientPhone,
-          text
+          resolvedCategory,
+          channel.connectionMethod || "embedded",
+          `Refund for failed queue message (${resolvedCategory})`
         );
       }
-    } else {
-      throw new Error("Non-template messages not yet implemented");
+      throw sendErr;
     }
 
     const waMessageId = response.messages?.[0]?.id;

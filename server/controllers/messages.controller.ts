@@ -24,6 +24,7 @@ import { AppError, asyncHandler } from '../middlewares/error.middleware';
 import { WhatsAppApiService } from '../services/whatsapp-api';
 import type { RequestWithChannel } from '../middlewares/channel.middleware';
 import { triggerService } from "../services/automation-execution-service";
+import { processWalletCharge, refundWalletCharge } from "../services/wallet-service";
 import path from 'path';
 import fs from 'fs';
 
@@ -1418,6 +1419,26 @@ export const sendMessage = asyncHandler(async (req: RequestWithChannel, res: Res
 
     messageType = "template";
 
+    const templateCategory = templateMatch?.category || "utility";
+    const chargeCategory = channel.connectionMethod === "qr_code" ? "qr_code" : templateCategory;
+    let walletCharged = false;
+
+    // Check & debit user wallet if wallet is enabled for tenant
+    if (channel.createdBy) {
+      try {
+        const chargeRes = await processWalletCharge(
+          channel.createdBy,
+          to,
+          chargeCategory,
+          channel.connectionMethod || "embedded",
+          `Inbox Template: ${templateName} (${chargeCategory})`
+        );
+        walletCharged = chargeRes.charged;
+      } catch (walletErr: any) {
+        throw new AppError(400, walletErr.message || "Insufficient wallet balance to send template message");
+      }
+    }
+
     try {
       result = await whatsappApi.sendMessage(
         to,
@@ -1434,6 +1455,17 @@ export const sendMessage = asyncHandler(async (req: RequestWithChannel, res: Res
       console.log("✅ Template sent with params:", resolvedParams);
     } catch (err: any) {
       console.error("❌ Template send failed:", err.message);
+
+      // Refund deducted wallet balance on send failure
+      if (walletCharged && channel.createdBy) {
+        await refundWalletCharge(
+          channel.createdBy,
+          to,
+          chargeCategory,
+          channel.connectionMethod || "embedded",
+          `Refund for failed Inbox Template: ${templateName}`
+        );
+      }
 
       const errorInfo: any = {
         title: err.metaErrorTitle || "Template send failed",

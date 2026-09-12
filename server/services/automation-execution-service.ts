@@ -56,6 +56,7 @@ import { getTransporter } from "./email.service";
 import { ExpenseAIService } from "./expense-ai-service";
 import { searchTrainingData } from "./training.service";
 import { VoiceManager } from "./voice";
+import { AiBillingService } from "./ai-billing-service";
 import { eq, and, or, asc, desc } from "drizzle-orm";
 import { sendBusinessMessage } from "../services/messageService";
 import { WhatsAppApiService } from "./whatsapp-api";
@@ -5074,6 +5075,20 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       effectiveChannelId = automationRow?.channelId ?? null;
     }
 
+    let tenantId = getContact.createdBy;
+    if (!tenantId && effectiveChannelId) {
+      const [chan] = await db.select({ createdBy: channels.createdBy }).from(channels).where(eq(channels.id, effectiveChannelId)).limit(1);
+      tenantId = chan?.createdBy ?? null;
+    }
+
+    const apiKeySource = nodeData.apiKeySource || "own_key";
+    if (tenantId && apiKeySource === "admin_key") {
+      const walletStatus = await AiBillingService.checkTenantWallet(tenantId);
+      if (!walletStatus.hasBalance) {
+        throw new Error(`Insufficient wallet balance (${walletStatus.balance} ${walletStatus.currency}) to execute AI answer using platform keys.`);
+      }
+    }
+
     let finalApiKey = aiApiKey;
     let finalBaseURL = "https://api.openai.com/v1";
     let finalModel = aiModel;
@@ -5106,6 +5121,11 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         finalBaseURL = activeAI.endpoint || "https://api.openai.com/v1";
         finalModel = activeAI.model || aiModel;
       }
+    }
+
+    if (!finalApiKey && tenantId && apiKeySource === "admin_key") {
+      const resolvedCreds = await AiBillingService.resolveAiCredentials(tenantId, apiKeySource);
+      finalApiKey = resolvedCreds.openaiApiKey;
     }
 
     if (!finalApiKey) {
@@ -5172,6 +5192,25 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
 
     const responseText = completion.choices[0]?.message?.content || "";
     console.log(`[AI Node] Received response from AI: "${responseText.substring(0, 100)}..."`);
+
+    // Record & Bill LLM Usage
+    if (tenantId) {
+      const promptTokens = completion.usage?.prompt_tokens || Math.ceil(systemPrompt.length / 4);
+      const completionTokens = completion.usage?.completion_tokens || Math.ceil(responseText.length / 4);
+      AiBillingService.recordAndBillUsage({
+        tenantId,
+        channelId: effectiveChannelId,
+        conversationId: context.conversationId || null,
+        source: "flow_builder_ai_answer",
+        serviceType: "llm",
+        provider: "openai",
+        model: finalModel,
+        inputUnits: promptTokens,
+        outputUnits: completionTokens,
+        apiKeySource,
+        metadata: { nodeId: node.nodeId, automationId: context.automationId }
+      }).catch(err => console.error("[AI Answer Billing Error]", err.message));
+    }
 
     context.variables[aiOutputVariable] = responseText;
 
@@ -5296,14 +5335,33 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
       effectiveChannelId = automationRow?.channelId ?? null;
     }
 
+    const freshAutomation = automation || await this.getAutomationWithFlow(context.automationId);
+    let tenantId = freshAutomation?.createdBy || getContact.createdBy;
+    if (!tenantId && effectiveChannelId) {
+      const [chan] = await db.select({ createdBy: channels.createdBy }).from(channels).where(eq(channels.id, effectiveChannelId)).limit(1);
+      tenantId = chan?.createdBy ?? null;
+    }
+
+    const apiKeySource = nodeData.apiKeySource || "own_key";
+    if (tenantId && apiKeySource === "admin_key") {
+      const walletStatus = await AiBillingService.checkTenantWallet(tenantId);
+      if (!walletStatus.hasBalance) {
+        throw new Error(`Insufficient wallet balance (${walletStatus.balance} ${walletStatus.currency}) to run AI agent using platform keys.`);
+      }
+    }
+
     const isGroqLlm = nodeData.aiLlmProvider === "groq";
     let finalApiKey = aiApiKey;
     let finalBaseURL = isGroqLlm ? "https://api.groq.com/openai/v1" : "https://api.openai.com/v1";
     let finalModel = aiModel || (isGroqLlm ? "llama-3.3-70b-versatile" : "gpt-4o");
 
-    if (aiConfigUseSettings && effectiveChannelId) {
+    if (tenantId && apiKeySource === "admin_key") {
+      const resolvedCreds = await AiBillingService.resolveAiCredentials(tenantId, apiKeySource);
+      finalApiKey = isGroqLlm ? resolvedCreds.groqApiKey : resolvedCreds.openaiApiKey;
+    }
+
+    if (!finalApiKey && aiConfigUseSettings && effectiveChannelId) {
       if (isGroqLlm) {
-        const freshAutomation = await this.getAutomationWithFlow(context.automationId);
         let userKey = "";
         if (freshAutomation?.createdBy) {
           const ownerUser = await db.query.users.findFirst({
@@ -5571,6 +5629,25 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     const responseText = responseMessage?.content || "";
     const toolCalls = responseMessage?.tool_calls;
 
+    // Record & Bill LLM Usage
+    if (tenantId) {
+      const promptTokens = completion.usage?.prompt_tokens || Math.ceil(systemPrompt.length / 4);
+      const completionTokens = completion.usage?.completion_tokens || Math.ceil((responseText || "").length / 4);
+      AiBillingService.recordAndBillUsage({
+        tenantId,
+        channelId: effectiveChannelId,
+        conversationId: context.conversationId || null,
+        source: "flow_builder_ai_agent",
+        serviceType: "llm",
+        provider: nodeData.aiLlmProvider || "openai",
+        model: finalModel,
+        inputUnits: promptTokens,
+        outputUnits: completionTokens,
+        apiKeySource: nodeData.apiKeySource || "own_key",
+        metadata: { nodeId: node.nodeId, automationId: context.automationId }
+      }).catch(err => console.error("[AI Agent Billing Error - LLM]", err.message));
+    }
+
     // Check if tool/function is called by LLM
     if (toolCalls && toolCalls.length > 0) {
       const toolCall = toolCalls[0];
@@ -5695,40 +5772,57 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
     if (shouldSendAudio && voiceProfile) {
       try {
         const freshAutomation = automation || await this.getAutomationWithFlow(context.automationId);
+        let tenantId = freshAutomation?.createdBy || getContact.createdBy;
+        if (!tenantId && effectiveChannelId) {
+          const [chan] = await db.select({ createdBy: channels.createdBy }).from(channels).where(eq(channels.id, effectiveChannelId)).limit(1);
+          tenantId = chan?.createdBy ?? null;
+        }
+
+        const apiKeySource = nodeData.apiKeySource || "own_key";
         let activeApiKey = "";
         const providerName = voiceProfile.provider || "sarvam";
 
-        const getApiKey = (u: any) => {
-          if (providerName === "groq") return u?.groqApiKey || "";
-          if (providerName === "elevenlabs") return u?.elevenlabsApiKey || "";
-          return u?.sarvamApiKey || "";
-        };
-        const getEnvKey = () => {
-          if (providerName === "groq") return process.env.GROQ_API_KEY || "";
-          if (providerName === "elevenlabs") return process.env.ELEVENLABS_API_KEY || "";
-          return process.env.SARVAM_API_KEY || "";
-        };
+        if (tenantId && apiKeySource === "admin_key") {
+          const resolvedCreds = await AiBillingService.resolveAiCredentials(tenantId, apiKeySource);
+          if (providerName === "groq") activeApiKey = resolvedCreds.groqApiKey;
+          else if (providerName === "elevenlabs") activeApiKey = resolvedCreds.elevenlabsApiKey;
+          else if (providerName === "openai") activeApiKey = resolvedCreds.openaiApiKey;
+          else activeApiKey = resolvedCreds.sarvamApiKey;
+        } else {
+          const getApiKey = (u: any) => {
+            if (providerName === "groq") return u?.groqApiKey || "";
+            if (providerName === "elevenlabs") return u?.elevenlabsApiKey || "";
+            if (providerName === "openai") return u?.openaiApiKey || "";
+            return u?.sarvamApiKey || "";
+          };
+          const getEnvKey = () => {
+            if (providerName === "groq") return process.env.GROQ_API_KEY || "";
+            if (providerName === "elevenlabs") return process.env.ELEVENLABS_API_KEY || "";
+            if (providerName === "openai") return process.env.OPENAI_API_KEY || "";
+            return process.env.SARVAM_API_KEY || "";
+          };
 
-        if (freshAutomation?.createdBy) {
-          const ownerUser = await db.query.users.findFirst({
-            where: eq(users.id, freshAutomation.createdBy),
-          });
-          activeApiKey = getApiKey(ownerUser);
-        }
-        if (!activeApiKey) {
-          const [defaultUser] = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, "awadnajilp@gmail.com"))
-            .limit(1);
-          activeApiKey = getApiKey(defaultUser);
-        }
-        if (!activeApiKey) {
-          activeApiKey = getEnvKey();
+          if (freshAutomation?.createdBy) {
+            const ownerUser = await db.query.users.findFirst({
+              where: eq(users.id, freshAutomation.createdBy),
+            });
+            activeApiKey = getApiKey(ownerUser);
+          }
+          if (!activeApiKey) {
+            const [defaultUser] = await db
+              .select()
+              .from(users)
+              .where(eq(users.email, "awadnajilp@gmail.com"))
+              .limit(1);
+            activeApiKey = getApiKey(defaultUser);
+          }
+          if (!activeApiKey) {
+            activeApiKey = getEnvKey();
+          }
         }
 
         if (activeApiKey) {
-          console.log(`[AI Agent Voice] Synthesizing speech via ${voiceProfile.provider} for voice ${voiceProfile.name}...`);
+          console.log(`[AI Agent Voice] Synthesizing speech via ${voiceProfile.provider} for voice ${voiceProfile.name} [Source: ${apiKeySource}]...`);
           const provider = VoiceManager.getProvider(voiceProfile.provider);
           const audioBuffer = await provider.synthesize(
             responseText,
@@ -5736,6 +5830,22 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
             nodeData.voiceLanguage || voiceProfile.languageCode || "en-IN",
             { apiKey: activeApiKey }
           );
+
+          if (tenantId && audioBuffer) {
+            AiBillingService.recordAndBillUsage({
+              tenantId,
+              channelId: effectiveChannelId,
+              conversationId: context.conversationId || null,
+              source: "flow_builder_ai_voice",
+              serviceType: "tts",
+              provider: providerName,
+              model: voiceProfile.voiceId || voiceProfile.name,
+              inputUnits: responseText.length,
+              outputUnits: 0,
+              apiKeySource,
+              metadata: { voiceProfileId: voiceProfile.id }
+            }).catch(err => console.error("[AI Voice Billing Error - TTS]", err.message));
+          }
 
           const isGroq = providerName === "groq";
           const isElevenLabs = providerName === "elevenlabs";
@@ -6387,6 +6497,17 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         : (convSettings.voiceLanguage || chanSettings.voiceLanguage || "en-US");
       const aiLocalStyle = convSettings.localStyle || chanSettings.localStyle || "code_mixed";
 
+      const tenantId = channel.createdBy;
+      const apiKeySource = (activeProfile as any)?.apiKeySource || "own_key";
+
+      if (tenantId && apiKeySource === "admin_key") {
+        const walletStatus = await AiBillingService.checkTenantWallet(tenantId);
+        if (!walletStatus.hasBalance) {
+          console.warn(`[Inbox AI Takeover] Tenant ${tenantId} has zero or negative wallet balance (${walletStatus.balance} ${walletStatus.currency}). Halting AI inbox takeover.`);
+          return false;
+        }
+      }
+
       const nodeData = {
         aiLlmProvider: isGroqLlm ? "groq" : isElevenLabsLlm ? "elevenlabs" : isSarvamLlm ? "sarvam" : "openai",
         aiApiKey,
@@ -6397,6 +6518,7 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         voiceProfileId,
         voiceLanguage,
         aiLocalStyle,
+        apiKeySource,
         aiResponseLength: convSettings.responseLength || chanSettings.responseLength || "detailed",
       };
 
@@ -6407,6 +6529,14 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
         ? "https://api.sarvam.ai/v1"
         : "https://api.openai.com/v1";
       let finalModel = aiModel || (isGroqLlm ? "llama-3.3-70b-versatile" : isSarvamLlm ? "sarvam-105b-conversations" : isElevenLabsLlm ? "conversational-ai" : "gpt-4o");
+
+      if (tenantId && apiKeySource === "admin_key") {
+        const resolvedCreds = await AiBillingService.resolveAiCredentials(tenantId, apiKeySource);
+        if (isElevenLabsLlm) finalApiKey = resolvedCreds.elevenlabsApiKey;
+        else if (isGroqLlm) finalApiKey = resolvedCreds.groqApiKey;
+        else if (isSarvamLlm) finalApiKey = resolvedCreds.sarvamApiKey;
+        else finalApiKey = resolvedCreds.openaiApiKey;
+      }
 
       if (isElevenLabsLlm) {
         let userKey = "";
@@ -6674,6 +6804,26 @@ private async executeSendTemplate(node: any, context: ExecutionContext) {
 
         responseText = completion.choices[0]?.message?.content || "";
       }
+
+      if (responseText && tenantId) {
+        const promptTokens = Math.ceil(systemPrompt.length / 4);
+        const completionTokens = Math.ceil(responseText.length / 4);
+
+        AiBillingService.recordAndBillUsage({
+          tenantId,
+          channelId,
+          conversationId,
+          source: "inbox_ai_takeover",
+          serviceType: "llm",
+          provider: nodeData.aiLlmProvider || "openai",
+          model: finalModel,
+          inputUnits: promptTokens,
+          outputUnits: completionTokens,
+          apiKeySource,
+          metadata: { profileId: activeProfile?.id }
+        }).catch((err) => console.error("[Inbox AI Takeover Billing Error - LLM]", err.message));
+      }
+
       if (responseText) {
         const mockContext: ExecutionContext = {
           executionId: `inbox_${conversationId}`,

@@ -5,6 +5,7 @@ import OpenAI from "openai";
 import { triggerService } from "./automation-execution-service";
 import { WhatsAppApiService } from "./whatsapp-api";
 import { VoiceManager } from "./voice";
+import { AiBillingService } from "./ai-billing-service";
 import path from "path";
 import fs from "fs";
 
@@ -266,7 +267,18 @@ export class AiAssistantProfileService {
         });
       }
 
-      // 7. Call LLM (using unified keys from active settings / ownerUser)
+      // 7. Resolve API credentials & Check Wallet (if using Admin Keys)
+      const apiKeySource = (profile as any).apiKeySource || "own_key";
+      const resolvedCreds = await AiBillingService.resolveAiCredentials(creatorId, apiKeySource);
+
+      if (apiKeySource === "admin_key") {
+        const walletStatus = await AiBillingService.checkTenantWallet(creatorId);
+        if (!walletStatus.hasBalance) {
+          console.warn(`[AI Assistant Profile] Tenant ${creatorId} has zero or negative wallet balance (${walletStatus.balance} ${walletStatus.currency}). Halting AI assistant response.`);
+          return false;
+        }
+      }
+
       let finalApiKey = "";
       const isGroq = profile.llmProvider === "groq";
       const isElevenLabs = profile.llmProvider === "elevenlabs";
@@ -276,49 +288,58 @@ export class AiAssistantProfileService {
         where: eq(users.id, creatorId),
       });
 
-      if (isElevenLabs) {
-        finalApiKey = profile.elevenlabsApiKey || ownerUser?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || "";
-      } else if (isGroq) {
-        finalApiKey = profile.groqApiKey || ownerUser?.groqApiKey || process.env.GROQ_API_KEY || "";
-      } else if (isSarvam) {
-        finalApiKey = profile.sarvamApiKey || ownerUser?.sarvamApiKey || process.env.SARVAM_API_KEY || "";
+      if (apiKeySource === "admin_key") {
+        if (isElevenLabs) finalApiKey = resolvedCreds.elevenlabsApiKey;
+        else if (isGroq) finalApiKey = resolvedCreds.groqApiKey;
+        else if (isSarvam) finalApiKey = resolvedCreds.sarvamApiKey;
+        else finalApiKey = resolvedCreds.openaiApiKey;
       } else {
-        if (profile.openaiApiKey) {
-          finalApiKey = profile.openaiApiKey;
+        if (isElevenLabs) {
+          finalApiKey = profile.elevenlabsApiKey || ownerUser?.elevenlabsApiKey || resolvedCreds.elevenlabsApiKey || "";
+        } else if (isGroq) {
+          finalApiKey = profile.groqApiKey || ownerUser?.groqApiKey || resolvedCreds.groqApiKey || "";
+        } else if (isSarvam) {
+          finalApiKey = profile.sarvamApiKey || ownerUser?.sarvamApiKey || resolvedCreds.sarvamApiKey || "";
         } else {
-          // Fetch OpenAI API Key from active aiSettings table
-          let aiSetting = await db
-            .select()
-            .from(aiSettings)
-            .where(and(eq(aiSettings.channelId, channelId), eq(aiSettings.isActive, true)))
-            .limit(1);
-
-          if (aiSetting.length === 0) {
-            aiSetting = await db
+          if (profile.openaiApiKey) {
+            finalApiKey = profile.openaiApiKey;
+          } else {
+            // Fetch OpenAI API Key from active aiSettings table
+            let aiSetting = await db
               .select()
               .from(aiSettings)
-              .where(eq(aiSettings.channelId, channelId))
+              .where(and(eq(aiSettings.channelId, channelId), eq(aiSettings.isActive, true)))
               .limit(1);
-          }
 
-          if (aiSetting.length === 0) {
-            aiSetting = await db
-              .select()
-              .from(aiSettings)
-              .where(eq(aiSettings.isActive, true))
-              .limit(1);
-          }
+            if (aiSetting.length === 0) {
+              aiSetting = await db
+                .select()
+                .from(aiSettings)
+                .where(eq(aiSettings.channelId, channelId))
+                .limit(1);
+            }
 
-          if (aiSetting.length === 0) {
-            aiSetting = await db
-              .select()
-              .from(aiSettings)
-              .limit(1);
-          }
+            if (aiSetting.length === 0) {
+              aiSetting = await db
+                .select()
+                .from(aiSettings)
+                .where(eq(aiSettings.isActive, true))
+                .limit(1);
+            }
 
-          const activeAI = aiSetting?.[0];
-          if (activeAI && activeAI.apiKey) {
-            finalApiKey = activeAI.apiKey;
+            if (aiSetting.length === 0) {
+              aiSetting = await db
+                .select()
+                .from(aiSettings)
+                .limit(1);
+            }
+
+            const activeAI = aiSetting?.[0];
+            if (activeAI && activeAI.apiKey) {
+              finalApiKey = activeAI.apiKey;
+            } else {
+              finalApiKey = ownerUser?.openaiApiKey || resolvedCreds.openaiApiKey || "";
+            }
           }
         }
       }
@@ -349,6 +370,21 @@ export class AiAssistantProfileService {
         if (vProf && vProf.provider === "elevenlabs") {
           const { getElevenLabsAgentResponse } = triggerService.getExecutionService() as any;
           responseText = await getElevenLabsAgentResponse(vProf.voiceId, finalApiKey, cleanLastMsg);
+
+          // Record usage for ElevenLabs Conversational AI
+          AiBillingService.recordAndBillUsage({
+            tenantId: creatorId,
+            channelId,
+            conversationId,
+            source: "ai_assistant_profile",
+            serviceType: "llm",
+            provider: "elevenlabs",
+            model: "conversational-ai",
+            inputUnits: Math.ceil(cleanLastMsg.length / 4),
+            outputUnits: Math.ceil((responseText || "").length / 4),
+            apiKeySource,
+            metadata: { profileId: profile.id, profileName: profile.name }
+          }).catch((err) => console.error("[AI Assistant Profile Billing Error - ElevenLabs]", err.message));
         }
       } else {
         const aiClient = new OpenAI({
@@ -375,6 +411,24 @@ export class AiAssistantProfileService {
 
         const choice = completion.choices[0]?.message;
         if (!choice) return false;
+
+        // Record & Bill LLM Usage
+        const promptTokens = completion.usage?.prompt_tokens || Math.ceil(systemPrompt.length / 4);
+        const completionTokens = completion.usage?.completion_tokens || Math.ceil((choice.content || "").length / 4);
+
+        AiBillingService.recordAndBillUsage({
+          tenantId: creatorId,
+          channelId,
+          conversationId,
+          source: "ai_assistant_profile",
+          serviceType: "llm",
+          provider: profile.llmProvider || "openai",
+          model: finalModel,
+          inputUnits: promptTokens,
+          outputUnits: completionTokens,
+          apiKeySource,
+          metadata: { profileId: profile.id, profileName: profile.name }
+        }).catch((err) => console.error("[AI Assistant Profile Billing Error - LLM]", err.message));
 
         // Check for function calls
         if (choice.tool_calls && choice.tool_calls.length > 0) {
@@ -411,14 +465,21 @@ export class AiAssistantProfileService {
           const trySynthesize = async (provName: string, vId?: string, lang?: string) => {
             try {
               let sKey = "";
-              if (provName === "elevenlabs") {
-                sKey = profile.elevenlabsApiKey || ownerUser?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || "";
-              } else if (provName === "sarvam") {
-                sKey = profile.sarvamApiKey || ownerUser?.sarvamApiKey || process.env.SARVAM_API_KEY || "";
-              } else if (provName === "groq") {
-                sKey = profile.groqApiKey || ownerUser?.groqApiKey || process.env.GROQ_API_KEY || "";
-              } else if (provName === "openai") {
-                sKey = profile.openaiApiKey || ownerUser?.openaiApiKey || process.env.OPENAI_API_KEY || "";
+              if (apiKeySource === "admin_key") {
+                if (provName === "elevenlabs") sKey = resolvedCreds.elevenlabsApiKey;
+                else if (provName === "sarvam") sKey = resolvedCreds.sarvamApiKey;
+                else if (provName === "groq") sKey = resolvedCreds.groqApiKey;
+                else if (provName === "openai") sKey = resolvedCreds.openaiApiKey;
+              } else {
+                if (provName === "elevenlabs") {
+                  sKey = profile.elevenlabsApiKey || ownerUser?.elevenlabsApiKey || resolvedCreds.elevenlabsApiKey || "";
+                } else if (provName === "sarvam") {
+                  sKey = profile.sarvamApiKey || ownerUser?.sarvamApiKey || resolvedCreds.sarvamApiKey || "";
+                } else if (provName === "groq") {
+                  sKey = profile.groqApiKey || ownerUser?.groqApiKey || resolvedCreds.groqApiKey || "";
+                } else if (provName === "openai") {
+                  sKey = profile.openaiApiKey || ownerUser?.openaiApiKey || resolvedCreds.openaiApiKey || "";
+                }
               }
               if (!sKey) return null;
 
@@ -428,7 +489,7 @@ export class AiAssistantProfileService {
               const pInstance = VoiceManager.getProvider(provName);
               const speakerId = vId || defaultSpeaker;
               const targetLang = lang || targetLangCode;
-              console.log(`🎙️ [AI Assistant Profile] Synthesizing speech via ${provName} (lang: ${targetLang}, speaker: ${speakerId})...`);
+              console.log(`🎙️ [AI Assistant Profile] Synthesizing speech via ${provName} (lang: ${targetLang}, speaker: ${speakerId}) [Source: ${apiKeySource}]...`);
 
               const audioBufferRes = await pInstance.synthesize(
                 responseText,
@@ -469,6 +530,21 @@ export class AiAssistantProfileService {
           if (audioBuffer) {
             const filename = `ai_profile_voice_${Date.now()}.ogg`;
             voiceMediaUrl = await this.uploadAudioBuffer(audioBuffer, filename, "audio/ogg");
+
+            // Record & Bill TTS Usage
+            AiBillingService.recordAndBillUsage({
+              tenantId: creatorId,
+              channelId,
+              conversationId,
+              source: "ai_assistant_profile",
+              serviceType: "tts",
+              provider: primaryProvider,
+              model: voiceProfile?.voiceId || "default",
+              inputUnits: responseText.length,
+              outputUnits: 0,
+              apiKeySource,
+              metadata: { profileId: profile.id, voiceProfileId: voiceProfile?.id }
+            }).catch((err) => console.error("[AI Assistant Profile Billing Error - TTS]", err.message));
           }
         } catch (vErr) {
           console.error("❌ [AI Assistant Profile] Voice synthesis failed:", vErr);

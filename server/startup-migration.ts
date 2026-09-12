@@ -1501,6 +1501,12 @@ const steps: MigrationStep[] = [
       ALTER TABLE service_configs ADD COLUMN IF NOT EXISTS abandoned_booking_message_2 TEXT;
     `,
   },
+  {
+    description: "Add api_key_source column to ai_profiles",
+    sql: `
+      ALTER TABLE ai_profiles ADD COLUMN IF NOT EXISTS api_key_source TEXT DEFAULT 'own_key';
+    `,
+  },
 ];
 
 /**

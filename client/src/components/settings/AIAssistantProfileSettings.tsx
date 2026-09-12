@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { Loading } from "@/components/ui/loading";
-import { Brain, Volume2, Globe, FileText, Settings, Play, ShieldAlert, Sparkles, HelpCircle, Plus, Trash2, CheckCircle2 } from "lucide-react";
+import { Brain, Volume2, Globe, FileText, Settings, Play, ShieldAlert, Sparkles, HelpCircle, Plus, Trash2, CheckCircle2, Wallet, Key, ExternalLink } from "lucide-react";
 import { useChannelContext } from "@/contexts/channel-context";
+import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 
 export default function AIAssistantProfileSettings() {
@@ -26,6 +27,7 @@ export default function AIAssistantProfileSettings() {
   // State variables matching database schema
   const [enabled, setEnabled] = useState(false);
   const [name, setName] = useState("My AI Assistant");
+  const [apiKeySource, setApiKeySource] = useState<"own_key" | "admin_key">("own_key");
   const [llmProvider, setLlmProvider] = useState("openai");
   const [model, setModel] = useState("gpt-4o");
   const [systemPrompt, setSystemPrompt] = useState("");
@@ -53,6 +55,15 @@ export default function AIAssistantProfileSettings() {
   const [groqApiKey, setGroqApiKey] = useState("");
   const [elevenlabsApiKey, setElevenlabsApiKey] = useState("");
   const [sarvamApiKey, setSarvamApiKey] = useState("");
+
+  // Fetch Wallet Data
+  const { data: walletData } = useQuery<any>({
+    queryKey: ["/api/wallet"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/wallet");
+      return res.json();
+    },
+  });
 
   // Fetch all AI Assistant Profiles for this channel
   const { data: profiles = [], isLoading: isLoadingProfiles, refetch: refetchProfiles } = useQuery<any[]>({
@@ -143,6 +154,7 @@ export default function AIAssistantProfileSettings() {
       setGroqApiKey(currentProfile.groqApiKey || "");
       setElevenlabsApiKey(currentProfile.elevenlabsApiKey || "");
       setSarvamApiKey(currentProfile.sarvamApiKey || "");
+      setApiKeySource((currentProfile.apiKeySource as any) || "own_key");
     }
   }, [currentProfile]);
 
@@ -164,6 +176,7 @@ export default function AIAssistantProfileSettings() {
         channelId,
         name: `AI Profile ${profiles.length + 1}`,
         enabled: false,
+        apiKeySource: "own_key",
         llmProvider: "openai",
         model: "gpt-4o",
         temperature: 0.7,
@@ -252,6 +265,7 @@ export default function AIAssistantProfileSettings() {
       channelId,
       enabled,
       name,
+      apiKeySource,
       llmProvider,
       model,
       systemPrompt,
@@ -484,59 +498,159 @@ export default function AIAssistantProfileSettings() {
                     </div>
                   </div>
 
-                  {/* Profile-specific API Keys */}
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-4">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Profile API Key Override</h4>
-                    {llmProvider === "openai" && (
-                      <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-700">OpenAI API Key</Label>
-                        <Input
-                          type="password"
-                          value={openaiApiKey}
-                          onChange={(e) => setOpenaiApiKey(e.target.value)}
-                          placeholder="sk-proj-..."
-                          className="border-gray-200 bg-white"
-                        />
-                        <p className="text-[10px] text-slate-400">If left blank, falls back to unified system OpenAI keys.</p>
+                  {/* API Key Source Selection & Wallet Integration */}
+                  <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-4 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
+                      <div>
+                        <Label className="font-semibold text-gray-800 text-sm flex items-center gap-1.5">
+                          <Key className="w-4 h-4 text-indigo-600" />
+                          AI Provider Keys & Billing Mode
+                        </Label>
+                        <span className="text-xs text-gray-500 block mt-0.5">
+                          Choose whether to use your own API keys or Platform Admin keys with pay-as-you-go wallet billing.
+                        </span>
                       </div>
-                    )}
-                    {llmProvider === "groq" && (
-                      <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-700">Groq API Key</Label>
-                        <Input
-                          type="password"
-                          value={groqApiKey}
-                          onChange={(e) => setGroqApiKey(e.target.value)}
-                          placeholder="gsk_..."
-                          className="border-gray-200 bg-white"
-                        />
-                        <p className="text-[10px] text-slate-400">If left blank, falls back to unified system Groq keys.</p>
+                      <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <span className={cn(
+                          "text-[11px] font-semibold px-2.5 py-0.5 rounded-full border",
+                          apiKeySource === "admin_key" 
+                            ? "bg-purple-100 text-purple-800 border-purple-300" 
+                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        )}>
+                          {apiKeySource === "admin_key" ? "Platform Admin Keys" : "Own API Keys (Free)"}
+                        </span>
                       </div>
-                    )}
-                    {llmProvider === "elevenlabs" && (
-                      <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-700">ElevenLabs API Key</Label>
-                        <Input
-                          type="password"
-                          value={elevenlabsApiKey}
-                          onChange={(e) => setElevenlabsApiKey(e.target.value)}
-                          placeholder="Enter ElevenLabs API Key"
-                          className="border-gray-200 bg-white"
-                        />
-                        <p className="text-[10px] text-slate-400">If left blank, falls back to unified system ElevenLabs keys.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Option 1: Own Keys */}
+                      <div
+                        onClick={() => setApiKeySource("own_key")}
+                        className={cn(
+                          "cursor-pointer rounded-xl p-3.5 border transition-all flex flex-col justify-between",
+                          apiKeySource === "own_key"
+                            ? "border-indigo-600 bg-indigo-50/50 ring-2 ring-indigo-600/20 shadow-sm"
+                            : "border-slate-200 hover:border-slate-300 bg-white"
+                        )}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="apiKeySource"
+                              checked={apiKeySource === "own_key"}
+                              onChange={() => setApiKeySource("own_key")}
+                              className="text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span className="font-semibold text-xs text-gray-900">Use My Own API Keys</span>
+                          </div>
+                          <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
+                            Bring your own OpenAI, Groq, Sarvam, or ElevenLabs API keys. <strong>Zero platform wallet deductions</strong>.
+                          </p>
+                        </div>
                       </div>
-                    )}
-                    {llmProvider === "sarvam" && (
-                      <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-700">Sarvam API Key</Label>
-                        <Input
-                          type="password"
-                          value={sarvamApiKey}
-                          onChange={(e) => setSarvamApiKey(e.target.value)}
-                          placeholder="Enter Sarvam.ai API Key"
-                          className="border-gray-200 bg-white"
-                        />
-                        <p className="text-[10px] text-slate-400">If left blank, falls back to unified system Sarvam keys.</p>
+
+                      {/* Option 2: Platform Keys */}
+                      <div
+                        onClick={() => setApiKeySource("admin_key")}
+                        className={cn(
+                          "cursor-pointer rounded-xl p-3.5 border transition-all flex flex-col justify-between",
+                          apiKeySource === "admin_key"
+                            ? "border-purple-600 bg-purple-50/50 ring-2 ring-purple-600/20 shadow-sm"
+                            : "border-slate-200 hover:border-slate-300 bg-white"
+                        )}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="apiKeySource"
+                              checked={apiKeySource === "admin_key"}
+                              onChange={() => setApiKeySource("admin_key")}
+                              className="text-purple-600 focus:ring-purple-500"
+                            />
+                            <span className="font-semibold text-xs text-gray-900">Use Platform Admin Keys</span>
+                          </div>
+                          <p className="text-[11px] text-gray-500 mt-1.5 pl-5 leading-relaxed">
+                            Zero key setup needed. Token and voice synthesis usage is automatically deducted from your account wallet balance.
+                          </p>
+                        </div>
+                        {walletData && (
+                          <div className="mt-2.5 pt-2 border-t border-purple-100 flex items-center justify-between text-[11px] text-purple-900 font-medium pl-5">
+                            <span className="flex items-center gap-1">
+                              <Wallet className="w-3.5 h-3.5 text-purple-600" />
+                              Balance: {walletData.wallet?.currency || "INR"} {parseFloat(walletData.wallet?.balance || "0").toFixed(2)}
+                            </span>
+                            <Link href="/wallet" className="text-purple-700 hover:text-purple-900 underline flex items-center gap-0.5 font-semibold">
+                              Top Up <ExternalLink className="w-3 h-3" />
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Own API Key Inputs (if own_key selected) */}
+                    {apiKeySource === "own_key" ? (
+                      <div className="pt-2 space-y-3">
+                        {llmProvider === "openai" && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-slate-700">OpenAI API Key (Optional Override)</Label>
+                            <Input
+                              type="password"
+                              value={openaiApiKey}
+                              onChange={(e) => setOpenaiApiKey(e.target.value)}
+                              placeholder="sk-proj-..."
+                              className="border-gray-200 bg-white text-xs font-mono"
+                            />
+                            <p className="text-[10px] text-slate-400">If left blank, falls back to your user profile's OpenAI key.</p>
+                          </div>
+                        )}
+                        {llmProvider === "groq" && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-slate-700">Groq API Key (Optional Override)</Label>
+                            <Input
+                              type="password"
+                              value={groqApiKey}
+                              onChange={(e) => setGroqApiKey(e.target.value)}
+                              placeholder="gsk_..."
+                              className="border-gray-200 bg-white text-xs font-mono"
+                            />
+                            <p className="text-[10px] text-slate-400">If left blank, falls back to your user profile's Groq key.</p>
+                          </div>
+                        )}
+                        {llmProvider === "elevenlabs" && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-slate-700">ElevenLabs API Key (Optional Override)</Label>
+                            <Input
+                              type="password"
+                              value={elevenlabsApiKey}
+                              onChange={(e) => setElevenlabsApiKey(e.target.value)}
+                              placeholder="Enter ElevenLabs API Key"
+                              className="border-gray-200 bg-white text-xs font-mono"
+                            />
+                            <p className="text-[10px] text-slate-400">If left blank, falls back to your user profile's ElevenLabs key.</p>
+                          </div>
+                        )}
+                        {llmProvider === "sarvam" && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-slate-700">Sarvam.ai API Key (Optional Override)</Label>
+                            <Input
+                              type="password"
+                              value={sarvamApiKey}
+                              onChange={(e) => setSarvamApiKey(e.target.value)}
+                              placeholder="Enter Sarvam.ai API Key"
+                              className="border-gray-200 bg-white text-xs font-mono"
+                            />
+                            <p className="text-[10px] text-slate-400">If left blank, falls back to your user profile's Sarvam key.</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-purple-50/80 border border-purple-200 rounded-lg p-3 text-xs text-purple-800 flex items-start gap-2">
+                        <Sparkles className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-semibold">Platform Keys Active:</span> All AI conversations and voice syntheses will run using high-speed platform AI infrastructure. Usage will be billed seamlessly to your wallet at standard platform rates.
+                        </div>
                       </div>
                     )}
                   </div>

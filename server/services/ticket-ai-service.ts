@@ -3,6 +3,7 @@ import { db } from "../db";
 import * as schema from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { AddonManager } from "./addon-manager";
+import { AiBillingService } from "./ai-billing-service";
 
 export class TicketAIService {
   /**
@@ -157,6 +158,23 @@ Input text: "${text}"`;
       }
 
       const parsed = JSON.parse(cleanJsonText);
+
+      // Record & Bill LLM Usage
+      const promptTokens = completion.usage?.prompt_tokens || Math.ceil(prompt.length / 4);
+      const completionTokens = completion.usage?.completion_tokens || Math.ceil(responseText.length / 4);
+      AiBillingService.recordAndBillUsage({
+        tenantId,
+        channelId,
+        source: "support_tickets",
+        serviceType: "llm",
+        provider: baseURL.includes("groq") ? "groq" : "openai",
+        model,
+        inputUnits: promptTokens,
+        outputUnits: completionTokens,
+        apiKeySource: apiKeySource || "own_key",
+        metadata: { action: "parseTicket" }
+      }).catch((err) => console.error("[Ticket AI Billing Error - LLM]", err.message));
+
       if (parsed.error) {
         return { subject: "", category: "General", priority: "Medium", description: text, error: parsed.error };
       }
@@ -309,6 +327,23 @@ Example output:
       }
 
       const parsed = JSON.parse(cleanJsonText);
+
+      // Record & Bill LLM Vision Usage
+      const promptTokens = completion.usage?.prompt_tokens || Math.ceil(prompt.length / 4);
+      const completionTokens = completion.usage?.completion_tokens || Math.ceil(responseText.length / 4);
+      AiBillingService.recordAndBillUsage({
+        tenantId,
+        channelId,
+        source: "support_tickets",
+        serviceType: "llm",
+        provider: "openai",
+        model: "gpt-4o-mini",
+        inputUnits: promptTokens,
+        outputUnits: completionTokens,
+        apiKeySource: apiKeySource || "own_key",
+        metadata: { action: "parseScreenshotImage" }
+      }).catch((err) => console.error("[Ticket AI Billing Error - Vision LLM]", err.message));
+
       return {
         subject: String(parsed.subject || "Screenshot Support Request"),
         category: String(parsed.category || "General"),

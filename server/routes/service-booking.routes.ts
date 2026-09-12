@@ -140,7 +140,7 @@ export function registerServiceBookingRoutes(app: Express) {
             photos: photos || [],
             serviceMessages: serviceMessages || [],
             triggerKeyword: triggerKeyword || null,
-            isTriggerEnabled: isTriggerEnabled ?? false,
+            isTriggerEnabled: isTriggerEnabled !== undefined ? Boolean(isTriggerEnabled) : Boolean(triggerKeyword && String(triggerKeyword).trim()),
             currency: currency || "INR",
             isActive: isActive ?? true,
             updatedAt: new Date()
@@ -164,7 +164,7 @@ export function registerServiceBookingRoutes(app: Express) {
           photos: photos || [],
           serviceMessages: serviceMessages || [],
           triggerKeyword: triggerKeyword || null,
-          isTriggerEnabled: isTriggerEnabled ?? false,
+          isTriggerEnabled: isTriggerEnabled !== undefined ? Boolean(isTriggerEnabled) : Boolean(triggerKeyword && String(triggerKeyword).trim()),
           currency: currency || "INR",
           isActive: isActive ?? true
         })

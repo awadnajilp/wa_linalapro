@@ -23,6 +23,22 @@ export interface AvailableSlot {
 
 export class ServiceBookingService {
   /**
+   * Helper to check if channel is Meta Cloud API (supports manual, embedded, waba)
+   */
+  public static isCloudApiChannel(channelRow: any): boolean {
+    if (!channelRow) return false;
+    if (channelRow.connectionMethod === "qr" || channelRow.connectionMethod === "qr_code" || channelRow.channelType === "qr") {
+      return false;
+    }
+    return Boolean(
+      (channelRow.phoneNumberId && channelRow.accessToken) ||
+      channelRow.connectionMethod === "embedded" ||
+      channelRow.connectionMethod === "manual" ||
+      channelRow.connectionMethod === "waba" ||
+      !channelRow.connectionMethod
+    );
+  }
+  /**
    * Check if service booking addon is active for tenant
    */
   public static async isServiceBookingActive(tenantId: string): Promise<boolean> {
@@ -1223,7 +1239,7 @@ export class ServiceBookingService {
 
       const excelBuffer = await this.generateDailyBookingsExcelBuffer(bookings, config, businessName, dateStr);
 
-      const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+      const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
       let sentCount = 0;
 
       for (const phone of numbers) {
@@ -1274,7 +1290,7 @@ export class ServiceBookingService {
     to: string,
     text: string
   ): Promise<void> {
-    const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+    const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
     const cleanPhone = to.replace(/[^0-9]/g, "");
 
     let whatsappMsgId: string | null = null;
@@ -1311,7 +1327,7 @@ export class ServiceBookingService {
     mediaType: "image" | "video" | "audio" | "document",
     caption?: string
   ): Promise<void> {
-    const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+    const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
     const cleanPhone = to.replace(/[^0-9]/g, "");
 
     let whatsappMsgId: string | null = null;
@@ -1354,7 +1370,7 @@ export class ServiceBookingService {
     headerText: string | null,
     buttons: { id: string; title: string }[]
   ): Promise<void> {
-    const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+    const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
     const cleanPhone = to.replace(/[^0-9]/g, "");
 
     if (isCloudApi && buttons.length <= 3) {
@@ -1386,7 +1402,7 @@ export class ServiceBookingService {
     channelRow: any
   ): Promise<void> {
     try {
-      const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+      const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
       const cleanPhone = booking.customerPhone.replace(/[^0-9]/g, "");
       const [config] = await db
         .select()
@@ -1454,7 +1470,7 @@ export class ServiceBookingService {
       // 1. WhatsApp Forwarding to Merchant / Staff numbers
       const merchantNumbers = Array.isArray(config.dailyReportWaNumbers) ? config.dailyReportWaNumbers : [];
       if (merchantNumbers.length > 0) {
-        const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+        const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
         const alertMsg = `🔔 *New Appointment Booking Alert!*\n\n` +
           `Ref: *#${booking.bookingNumber}*\n` +
           `Customer: *${booking.customerName || "Customer"}* (${booking.customerPhone})\n` +
@@ -1739,11 +1755,13 @@ export class ServiceBookingService {
           .where(and(eq(schema.services.tenantId, tenantId), eq(schema.services.isActive, true)));
 
         for (const s of allServices) {
-          if (s.isTriggerEnabled && s.triggerKeyword) {
-            const kw = s.triggerKeyword.toLowerCase().trim();
-            if (cleanInput === kw || cleanInput.startsWith(kw + " ")) {
-              matchedServiceTrigger = s;
-              break;
+          if (s.triggerKeyword && s.triggerKeyword.trim()) {
+            if (s.isTriggerEnabled !== false) {
+              const kw = s.triggerKeyword.toLowerCase().trim();
+              if (kw && (cleanInput === kw || cleanInput.startsWith(kw + " "))) {
+                matchedServiceTrigger = s;
+                break;
+              }
             }
           }
         }
@@ -1786,7 +1804,7 @@ export class ServiceBookingService {
     to: string,
     specificService: schema.Service | null
   ) {
-    const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+    const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
 
     // Repeating Welcome Messages Sequence (Multi-Message Sequence)
     const welcomeMessagesSeq = Array.isArray(config.welcomeMessages) ? config.welcomeMessages : [];
@@ -1889,7 +1907,7 @@ export class ServiceBookingService {
     to: string,
     service: schema.Service
   ) {
-    const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+    const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
 
     // Send service messages (attachments/photos) if configured
     if (Array.isArray(service.serviceMessages) && service.serviceMessages.length > 0) {
@@ -2049,7 +2067,7 @@ export class ServiceBookingService {
     serviceId: string,
     masterId: string | null
   ) {
-    const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+    const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
 
     // Fetch master if selected to determine timezone
     let master: schema.ServiceMaster | null = null;
@@ -2115,7 +2133,7 @@ export class ServiceBookingService {
     to: string,
     dateStr: string
   ) {
-    const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+    const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
 
     const { availableSlots, message, isOffDay } = await this.getAvailableSlots({
       tenantId: config.tenantId,
@@ -2189,7 +2207,7 @@ export class ServiceBookingService {
     buttonReplyId?: string,
     listReplyId?: string
   ) {
-    const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+    const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
 
     // STEP 1: WAITING FOR SERVICE
     if (session.currentStep === "waiting_for_service") {
@@ -2606,7 +2624,7 @@ export class ServiceBookingService {
     session: schema.ServiceSession,
     to: string
   ) {
-    const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+    const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
 
     const paymentOptions: { id: string; title: string }[] = [];
     paymentOptions.push({ id: "cod", title: config.labelCod || "Pay at Venue (Cash/Card)" });
@@ -2677,7 +2695,7 @@ export class ServiceBookingService {
           .replace(/{discount_info}/g, discountInfo);
       }
 
-      const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+      const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
       const cleanPhone = cart.customerPhone.replace(/[^0-9]/g, "");
 
       if (isCloudApi) {

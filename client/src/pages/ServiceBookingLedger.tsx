@@ -3005,11 +3005,31 @@ export default function ServiceBookingLedger() {
                 <Label className="text-xs">Trigger Keyword (Optional)</Label>
                 <Input
                   value={serviceForm.triggerKeyword || ""}
-                  onChange={e => setServiceForm({ ...serviceForm, triggerKeyword: e.target.value })}
+                  onChange={e => {
+                    const kw = e.target.value;
+                    setServiceForm({
+                      ...serviceForm,
+                      triggerKeyword: kw,
+                      isTriggerEnabled: kw.trim().length > 0 ? true : serviceForm.isTriggerEnabled
+                    });
+                  }}
                   placeholder="e.g. hair, facial"
                   className="h-9 text-xs"
                 />
               </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 border rounded-lg bg-gray-50/50">
+              <div className="space-y-0.5">
+                <Label className="text-xs font-semibold">Enable Keyword Direct Trigger</Label>
+                <p className="text-[10px] text-gray-500">
+                  Allow customers to jump directly into booking this service by typing &quot;{serviceForm.triggerKeyword || keyword}&quot;
+                </p>
+              </div>
+              <Switch
+                checked={Boolean(serviceForm.isTriggerEnabled)}
+                onCheckedChange={checked => setServiceForm({ ...serviceForm, isTriggerEnabled: checked })}
+              />
             </div>
 
             <div className="space-y-1">

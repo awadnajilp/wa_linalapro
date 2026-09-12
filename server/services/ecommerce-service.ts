@@ -25,6 +25,22 @@ import {
 
 export class EcommerceService {
   /**
+   * Helper to check if channel is Meta Cloud API (supports manual, embedded, waba)
+   */
+  public static isCloudApiChannel(channelRow: any): boolean {
+    if (!channelRow) return false;
+    if (channelRow.connectionMethod === "qr" || channelRow.connectionMethod === "qr_code" || channelRow.channelType === "qr") {
+      return false;
+    }
+    return Boolean(
+      (channelRow.phoneNumberId && channelRow.accessToken) ||
+      channelRow.connectionMethod === "embedded" ||
+      channelRow.connectionMethod === "manual" ||
+      channelRow.connectionMethod === "waba" ||
+      !channelRow.connectionMethod
+    );
+  }
+  /**
    * Check if ecommerce addon is active for tenant
    */
   public static async isEcommerceActive(tenantId: string): Promise<boolean> {
@@ -3455,7 +3471,7 @@ CRITICAL DIRECTIVES:
 
       await this.addContactToCustomersGroup(config.channelId, to, session.customerData?.name, config.tenantId);
 
-      const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+      const isCloudApi = EcommerceService.isCloudApiChannel(channelRow);
 
       if (selectedMethod === "cod") {
         await this.markCartRecovered(conversationId, order.id);
@@ -4142,7 +4158,7 @@ CRITICAL DIRECTIVES:
         convId = conv?.id || null;
       }
 
-      const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+      const isCloudApi = EcommerceService.isCloudApiChannel(channelRow);
 
       let sentViaTemplate = false;
       // Check if ecom_order_alert template is available and approved
@@ -4408,7 +4424,7 @@ CRITICAL DIRECTIVES:
         convId = conv?.id || null;
       }
 
-      const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+      const isCloudApi = EcommerceService.isCloudApiChannel(channelRow);
 
       if (isCloudApi) {
         const [tpl] = await db
@@ -5338,7 +5354,7 @@ CRITICAL DIRECTIVES:
         console.warn("[Ecommerce Daily Report WA] Excel generation for WA failed:", excelErr.message);
       }
 
-      const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+      const isCloudApi = EcommerceService.isCloudApiChannel(channelRow);
       let summaryTemplate: any = null;
 
       if (isCloudApi) {
@@ -5643,7 +5659,7 @@ CRITICAL DIRECTIVES:
 
       const to = cart.customerPhone;
       const conversationId = cart.conversationId;
-      const isCloudApi = channelRow.connectionMethod === "embedded" || channelRow.connectionMethod === "waba" || !channelRow.connectionMethod;
+      const isCloudApi = EcommerceService.isCloudApiChannel(channelRow);
       const tplName = followupNum === 1 ? "ecom_abandoned_cart_1" : "ecom_abandoned_cart_2";
 
       let approvedTemplate: any = null;

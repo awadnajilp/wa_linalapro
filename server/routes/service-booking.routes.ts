@@ -431,26 +431,83 @@ export function registerServiceBookingRoutes(app: Express) {
         existing = c;
       }
 
-      // Sanitize payload to prevent foreign key errors on empty strings
+      // Sanitize payload to prevent foreign key errors and timestamp string serialization errors
       const cleanData: any = {
-        ...body,
         tenantId,
         channelId: channelId,
         activeServiceId: body.activeServiceId ? String(body.activeServiceId).trim() || null : null,
-        whatsappFlowId: body.whatsappFlowId ? String(body.whatsappFlowId).trim() || null : null,
-        voiceProfileId: body.voiceProfileId ? String(body.voiceProfileId).trim() || null : null,
-        autoAssignUserId: body.autoAssignUserId ? String(body.autoAssignUserId).trim() || null : null,
-        dailyReportWaChannelId: body.dailyReportWaChannelId ? String(body.dailyReportWaChannelId).trim() || null : null,
-        timezone: body.timezone ? String(body.timezone).trim() || "Asia/Kolkata" : "Asia/Kolkata",
-        dailyReportEmails: Array.isArray(body.dailyReportEmails) ? body.dailyReportEmails : [],
-        merchantAlertEmails: Array.isArray(body.merchantAlertEmails) ? body.merchantAlertEmails : [],
-        dailyReportWaNumbers: Array.isArray(body.dailyReportWaNumbers) ? body.dailyReportWaNumbers : [],
-        autoAssignExcludedUserIds: Array.isArray(body.autoAssignExcludedUserIds) ? body.autoAssignExcludedUserIds : [],
+        bookingTriggerKeyword: body.bookingTriggerKeyword !== undefined ? String(body.bookingTriggerKeyword) : "book",
+        isBookingFlowActive: body.isBookingFlowActive !== undefined ? Boolean(body.isBookingFlowActive) : true,
+        welcomeMessage: body.welcomeMessage !== undefined ? String(body.welcomeMessage) : "Welcome to our service booking system! Please choose a service to get started:",
+        welcomeHeaderUrl: body.welcomeHeaderUrl ? String(body.welcomeHeaderUrl).trim() || null : null,
+        welcomeHeaderType: body.welcomeHeaderType || "image",
         welcomeMessages: Array.isArray(body.welcomeMessages) ? body.welcomeMessages : [],
-        checkoutFields: Array.isArray(body.checkoutFields) ? body.checkoutFields : [],
+        requireMasterSelection: body.requireMasterSelection !== undefined ? Boolean(body.requireMasterSelection) : true,
+        defaultWorkingHours: body.defaultWorkingHours || {
+          days: [1, 2, 3, 4, 5, 6],
+          startTime: "09:00",
+          endTime: "18:00",
+          breakStartTime: "13:00",
+          breakEndTime: "14:00",
+        },
+        defaultSlotIntervalMinutes: body.defaultSlotIntervalMinutes ? parseInt(body.defaultSlotIntervalMinutes, 10) || 30 : 30,
+        maxDaysInAdvance: body.maxDaysInAdvance ? parseInt(body.maxDaysInAdvance, 10) || 14 : 14,
+        checkoutFields: Array.isArray(body.checkoutFields) ? body.checkoutFields : [
+          { text: "Please enter your full name:", variable: "name" },
+          { text: "Please enter your contact phone number:", variable: "phone" },
+          { text: "Any special requests or customer notes:", variable: "notes" }
+        ],
+        useWhatsappFlowForm: body.useWhatsappFlowForm !== undefined ? Boolean(body.useWhatsappFlowForm) : false,
+        whatsappFlowId: body.whatsappFlowId ? String(body.whatsappFlowId).trim() || null : null,
+        whatsappFlowCtaText: body.whatsappFlowCtaText || "Book Appointment 📅",
+        qrCodeUrl: body.qrCodeUrl ? String(body.qrCodeUrl).trim() || null : null,
+        upiId: body.upiId ? String(body.upiId).trim() || null : null,
+        upiMerchantName: body.upiMerchantName ? String(body.upiMerchantName).trim() || null : null,
+        instamojoApiKey: body.instamojoApiKey ? String(body.instamojoApiKey).trim() || null : null,
+        instamojoAuthToken: body.instamojoAuthToken ? String(body.instamojoAuthToken).trim() || null : null,
+        instamojoSandbox: body.instamojoSandbox !== undefined ? Boolean(body.instamojoSandbox) : true,
+        razorpayKeyId: body.razorpayKeyId ? String(body.razorpayKeyId).trim() || null : null,
+        razorpayKeySecret: body.razorpayKeySecret ? String(body.razorpayKeySecret).trim() || null : null,
+        currency: body.currency || "INR",
+        timezone: body.timezone ? String(body.timezone).trim() || "Asia/Kolkata" : "Asia/Kolkata",
+        labelCod: body.labelCod || "Pay at Venue (Cash/Card)",
+        labelUpiDirect: body.labelUpiDirect || "GPay/PhonePe(UPI)",
+        labelQrPay: body.labelQrPay || "Acc. Info(QR Code)",
+        labelGateway: body.labelGateway || "Online Payment",
+        autoAssignEnabled: body.autoAssignEnabled !== undefined ? Boolean(body.autoAssignEnabled) : false,
+        autoAssignMode: body.autoAssignMode || "permanent",
+        autoAssignUserId: body.autoAssignUserId ? String(body.autoAssignUserId).trim() || null : null,
+        autoAssignExcludedUserIds: Array.isArray(body.autoAssignExcludedUserIds) ? body.autoAssignExcludedUserIds : [],
+        dailyReportEnabled: body.dailyReportEnabled !== undefined ? Boolean(body.dailyReportEnabled) : false,
+        dailyReportEmails: Array.isArray(body.dailyReportEmails) ? body.dailyReportEmails : [],
+        dailyReportTime: body.dailyReportTime || "21:00",
+        dailyReportLastSentAt: body.dailyReportLastSentAt ? new Date(body.dailyReportLastSentAt) : null,
+        merchantAlertEmails: Array.isArray(body.merchantAlertEmails) ? body.merchantAlertEmails : [],
+        dailyReportWaEnabled: body.dailyReportWaEnabled !== undefined ? Boolean(body.dailyReportWaEnabled) : false,
+        dailyReportWaNumbers: Array.isArray(body.dailyReportWaNumbers) ? body.dailyReportWaNumbers : [],
+        dailyReportWaChannelId: body.dailyReportWaChannelId ? String(body.dailyReportWaChannelId).trim() || null : null,
+        apiKeySource: body.apiKeySource || "own_key",
+        aiEnabled: body.aiEnabled !== undefined ? Boolean(body.aiEnabled) : false,
+        aiTakeoverEnabled: body.aiTakeoverEnabled !== undefined ? Boolean(body.aiTakeoverEnabled) : false,
+        aiVoiceEnabled: body.aiVoiceEnabled !== undefined ? Boolean(body.aiVoiceEnabled) : false,
+        voiceProfileId: body.voiceProfileId ? String(body.voiceProfileId).trim() || null : null,
+        aiVoiceLanguageMode: body.aiVoiceLanguageMode || "profile",
+        aiTimeoutMinutes: body.aiTimeoutMinutes ? parseInt(body.aiTimeoutMinutes, 10) || 30 : 30,
+        aiAskButtonEnabled: body.aiAskButtonEnabled !== undefined ? Boolean(body.aiAskButtonEnabled) : true,
+        aiSystemPrompt: body.aiSystemPrompt || null,
+        abandonedBookingRecoveryEnabled: body.abandonedBookingRecoveryEnabled !== undefined ? Boolean(body.abandonedBookingRecoveryEnabled) : false,
+        abandonedBookingDelay1Minutes: body.abandonedBookingDelay1Minutes ? parseInt(body.abandonedBookingDelay1Minutes, 10) || 60 : 60,
+        abandonedBookingDelay2Hours: body.abandonedBookingDelay2Hours ? parseInt(body.abandonedBookingDelay2Hours, 10) || 18 : 18,
+        abandonedBookingDiscountCode: body.abandonedBookingDiscountCode || null,
         abandonedBookingDiscountPercent: body.abandonedBookingDiscountPercent ? String(body.abandonedBookingDiscountPercent) : "0",
+        abandonedBookingMessage1: body.abandonedBookingMessage1 || null,
+        abandonedBookingMessage2: body.abandonedBookingMessage2 || null,
+        businessName: body.businessName || null,
+        businessAddress: body.businessAddress || null,
+        businessWebsite: body.businessWebsite || null,
+        businessLogo: body.businessLogo || null,
+        isActive: body.isActive !== undefined ? Boolean(body.isActive) : true,
       };
-      delete cleanData.id;
 
       if (existing) {
         const [updated] = await db
@@ -466,7 +523,11 @@ export function registerServiceBookingRoutes(app: Express) {
 
       const [created] = await db
         .insert(schema.serviceConfigs)
-        .values(cleanData)
+        .values({
+          ...cleanData,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
         .returning();
 
       res.json({ config: created });

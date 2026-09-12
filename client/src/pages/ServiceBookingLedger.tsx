@@ -434,6 +434,9 @@ export default function ServiceBookingLedger() {
         dailyReportWaChannelId: data.dailyReportWaChannelId || null,
         activeServiceId: data.activeServiceId || null,
       };
+      delete sanitized.id;
+      delete sanitized.createdAt;
+      delete sanitized.updatedAt;
       return apiRequest("POST", "/api/service-booking/config", sanitized);
     },
     onSuccess: () => {

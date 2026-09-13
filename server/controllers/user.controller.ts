@@ -19,7 +19,7 @@ import { Request, Response } from "express";
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { db } from "../db";
 import { users, channels, transactions, userActivityLogs } from "@shared/schema";
-import { eq, or, like, sql, and, desc, gte, inArray, gt } from "drizzle-orm";
+import { eq, or, ilike, sql, and, desc, gte, inArray, gt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 import { otpVerifications } from "@shared/schema";
@@ -89,12 +89,20 @@ export const getAllUsers = async (req: Request, res: Response) => {
     const dateRange = (req.query.dateRange as string) || "";
     const offset = (page - 1) * limit;
 
+    const trimmedSearch = search.trim();
+    const searchCondition = trimmedSearch
+      ? or(
+          ilike(users.username, `%${trimmedSearch}%`),
+          ilike(users.email, `%${trimmedSearch}%`),
+          ilike(users.firstName, `%${trimmedSearch}%`),
+          ilike(users.lastName, `%${trimmedSearch}%`),
+          ilike(users.phone, `%${trimmedSearch}%`)
+        )
+      : undefined;
+
     const conditions: any[] = [
       eq(users.role, role),
-      search ? or(
-        like(users.username, sql`${'%' + search + '%'}`),
-        like(users.email, sql`${'%' + search + '%'}`)
-      ) : undefined,
+      searchCondition,
       status ? eq(users.status, status) : undefined,
     ].filter(Boolean);
 
@@ -175,12 +183,20 @@ export const exportAllUsers = async (req: Request, res: Response) => {
     const hasChannels = (req.query.hasChannels as string) || "";
     const dateRange = (req.query.dateRange as string) || "";
 
+    const trimmedSearch = search.trim();
+    const searchCondition = trimmedSearch
+      ? or(
+          ilike(users.username, `%${trimmedSearch}%`),
+          ilike(users.email, `%${trimmedSearch}%`),
+          ilike(users.firstName, `%${trimmedSearch}%`),
+          ilike(users.lastName, `%${trimmedSearch}%`),
+          ilike(users.phone, `%${trimmedSearch}%`)
+        )
+      : undefined;
+
     const conditions: any[] = [
       eq(users.role, role),
-      search ? or(
-        like(users.username, sql`${'%' + search + '%'}`),
-        like(users.email, sql`${'%' + search + '%'}`)
-      ) : undefined,
+      searchCondition,
       statusFilter ? eq(users.status, statusFilter) : undefined,
     ].filter(Boolean);
 

@@ -246,8 +246,15 @@ const User: React.FC = () => {
   };
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchUsers(1, search, pagination.limit);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, statusFilter, hasChannelsFilter, dateRangeFilter]);
+
+  useEffect(() => {
     fetchUsers(pagination.page, search, pagination.limit);
-  }, [pagination.page, pagination.limit, statusFilter, hasChannelsFilter, dateRangeFilter]);
+  }, [pagination.page, pagination.limit]);
 
   const handlePageChange = (p: number) => {
     if (p >= 1 && p <= pagination.totalPages) {

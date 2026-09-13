@@ -391,6 +391,12 @@ const sidebarItemsCategories = [
     color: "text-green-600",
   },
   {
+    name: "navigation.tenant_wallets",
+    icon: CreditCard,
+    path: "/admin/wallets",
+    color: "text-emerald-600",
+  },
+  {
     name: "navigation.channels",
     icon: Smartphone,
     path: "/channels-management",
@@ -465,12 +471,6 @@ const sidebarItemsCategories = [
     icon: MdOutlineSupportAgent,
     path: "/support-tickets",
     color: "text-black-400",
-  },
-  {
-    name: "navigation.tenant_wallets",
-    icon: CreditCard,
-    path: "/admin/wallets",
-    color: "text-emerald-600",
   },
   {
     name: "navigation.manage_addons",

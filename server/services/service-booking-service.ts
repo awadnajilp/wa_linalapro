@@ -1357,9 +1357,7 @@ export class ServiceBookingService {
       whatsappMessageId: whatsappMsgId,
       metadata: { source: "service_booking" }
     });
-  }
-
-  /**
+  }  /**
    * Helper: Send Cloud API Interactive Button Message
    */
   public static async sendCloudApiButtonMessage(
@@ -1371,9 +1369,9 @@ export class ServiceBookingService {
     buttons: { id: string; title: string }[]
   ): Promise<void> {
     const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
-    const cleanPhone = to.replace(/[^0-9]/g, "");
+    const cleanPhone = (to || "").replace(/[^0-9]/g, "");
 
-    if (isCloudApi && buttons.length <= 3) {
+    if (isCloudApi && buttons.length <= 3 && channelRow.phoneNumberId && channelRow.accessToken) {
       try {
         const payload: any = {
           messaging_product: "whatsapp",
@@ -1382,11 +1380,11 @@ export class ServiceBookingService {
           type: "interactive",
           interactive: {
             type: "button",
-            body: { text: bodyText },
+            body: { text: bodyText.substring(0, 1024) },
             action: {
               buttons: buttons.slice(0, 3).map((btn) => ({
                 type: "reply",
-                reply: { id: btn.id, title: btn.title.substring(0, 20) }
+                reply: { id: btn.id.substring(0, 200), title: btn.title.substring(0, 20) }
               }))
             }
           }
@@ -1395,34 +1393,143 @@ export class ServiceBookingService {
         if (headerText) {
           payload.interactive.header = {
             type: "text",
-            text: headerText
+            text: headerText.substring(0, 60)
           };
         }
 
-        const waApi = new WhatsAppApiService(channelRow);
-        const res = await waApi.sendMessage(cleanPhone, payload);
-        await storage.createMessage({
-          conversationId,
-          sender: "system",
-          content: bodyText,
-          messageType: "interactive",
-          status: "delivered",
-          whatsappMessageId: res?.messages?.[0]?.id || null,
-          metadata: { source: "service_booking", buttons }
-        });
-        return;
+        const response = await fetch(
+          `https://graph.facebook.com/v24.0/${channelRow.phoneNumberId}/messages`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${channelRow.accessToken}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+          }
+        );
+
+        if (response.ok) {
+          const resJson = await response.json();
+          const waMsgId = resJson?.messages?.[0]?.id || null;
+          await storage.createMessage({
+            conversationId,
+            sender: "system",
+            content: bodyText,
+            messageType: "interactive",
+            status: "delivered",
+            whatsappMessageId: waMsgId,
+            metadata: { source: "service_booking", buttons }
+          });
+          return;
+        } else {
+          const errData = await response.json();
+          console.warn("[ServiceBookingService] Cloud API button failed:", errData);
+        }
       } catch (err: any) {
         console.warn("[ServiceBookingService] Cloud API button message failed, falling back to text:", err.message);
       }
     }
 
-    let text = `${bodyText}
-
-`;
+    let text = `${bodyText}\n\n`;
     buttons.forEach((b, idx) => {
-      text += `👉 Reply *${idx + 1}* for *${b.title}*
-`;
+      text += `👉 Reply *${idx + 1}* for *${b.title}*\n`;
     });
+    await this.sendAndSaveTextMessage(channelRow, conversationId, to, text);
+  }
+
+  /**
+   * Helper: Send Cloud API Interactive List Message
+   */
+  public static async sendCloudApiListMessage(
+    channelRow: any,
+    conversationId: string,
+    to: string,
+    headerText: string | null,
+    bodyText: string,
+    buttonText: string,
+    sections: { title: string; rows: { id: string; title: string; description?: string }[] }[]
+  ): Promise<void> {
+    const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
+    const cleanPhone = (to || "").replace(/[^0-9]/g, "");
+
+    if (isCloudApi && channelRow.phoneNumberId && channelRow.accessToken) {
+      try {
+        const payload: any = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: cleanPhone,
+          type: "interactive",
+          interactive: {
+            type: "list",
+            body: { text: bodyText.substring(0, 1024) },
+            action: {
+              button: (buttonText || "Select Option").substring(0, 20),
+              sections: sections.map((sec) => ({
+                title: (sec.title || "Options").substring(0, 24),
+                rows: sec.rows.slice(0, 10).map((row) => ({
+                  id: row.id.substring(0, 200),
+                  title: row.title.substring(0, 24),
+                  ...(row.description ? { description: row.description.substring(0, 72) } : {})
+                }))
+              }))
+            }
+          }
+        };
+
+        if (headerText) {
+          payload.interactive.header = {
+            type: "text",
+            text: headerText.substring(0, 60)
+          };
+        }
+
+        const response = await fetch(
+          `https://graph.facebook.com/v24.0/${channelRow.phoneNumberId}/messages`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${channelRow.accessToken}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+          }
+        );
+
+        if (response.ok) {
+          const resJson = await response.json();
+          const waMsgId = resJson?.messages?.[0]?.id || null;
+          await storage.createMessage({
+            conversationId,
+            sender: "system",
+            content: `${headerText ? headerText + "\n" : ""}${bodyText}`,
+            messageType: "interactive",
+            status: "delivered",
+            whatsappMessageId: waMsgId,
+            metadata: { source: "service_booking", buttonText, sections }
+          });
+          return;
+        } else {
+          const errData = await response.json();
+          console.warn("[ServiceBookingService] Cloud API list failed:", errData);
+        }
+      } catch (err: any) {
+        console.warn("[ServiceBookingService] Cloud API list message failed, falling back to text:", err.message);
+      }
+    }
+
+    // Text fallback
+    let text = `${headerText ? `*${headerText}*\n` : ""}${bodyText}\n\n`;
+    let count = 1;
+    sections.forEach(sec => {
+      if (sec.title) text += `*${sec.title}*\n`;
+      sec.rows.forEach(r => {
+        text += `👉 Reply *${count}* for *${r.title}*${r.description ? ` (${r.description})` : ""}\n`;
+        count++;
+      });
+      text += "\n";
+    });
+    text += "Reply *cancel* anytime to exit.";
     await this.sendAndSaveTextMessage(channelRow, conversationId, to, text);
   }
 
@@ -1929,16 +2036,44 @@ export class ServiceBookingService {
 
     const welcomeMsg = config.welcomeMessage || "Welcome! Please choose a service to book your appointment:";
 
-    if (isCloudApi && servicesList.length <= 3) {
-      const buttons = servicesList.map(s => ({
+    const servicesCount = servicesList.length;
+
+    if (isCloudApi && servicesCount <= 3 && servicesCount > 0) {
+      const buttons = servicesList.map((s) => ({
         id: `srv_${s.id}`,
         title: s.name.substring(0, 20)
       }));
       await this.sendCloudApiButtonMessage(channelRow, conversationId, to, welcomeMsg, null, buttons);
+    } else if (isCloudApi && servicesCount > 3) {
+      const rows = servicesList.slice(0, 10).map((s) => {
+        const priceStr = `${s.currency || config.currency || "INR"} ${s.price}`;
+        const durationStr = s.durationMinutes ? `${s.durationMinutes} mins` : "";
+        const desc = [priceStr, durationStr].filter(Boolean).join(" • ");
+        return {
+          id: `srv_${s.id}`,
+          title: s.name.substring(0, 24),
+          description: desc.substring(0, 72)
+        };
+      });
+
+      await this.sendCloudApiListMessage(
+        channelRow,
+        conversationId,
+        to,
+        "Our Services",
+        welcomeMsg,
+        "View Services",
+        [
+          {
+            title: "Available Services",
+            rows
+          }
+        ]
+      );
     } else {
       let promptText = `${welcomeMsg}\n\n`;
       servicesList.forEach((s, idx) => {
-        promptText += `👉 Reply *${idx + 1}* for *${s.name}* (${s.currency || "INR"} ${s.price} - ${s.durationMinutes || 30} mins)\n`;
+        promptText += `👉 Reply *${idx + 1}* for *${s.name}* (${s.currency || config.currency || "INR"} ${s.price})\n`;
       });
       promptText += `\nReply *cancel* anytime to exit.`;
       await this.sendAndSaveTextMessage(channelRow, conversationId, to, promptText);
@@ -2125,7 +2260,8 @@ export class ServiceBookingService {
       customerData: {
         serviceName: service.name,
         servicePrice: service.price,
-        serviceId: service.id
+        serviceId: service.id,
+        assignedMastersCache: assignedMasters.map(m => ({ id: m.id, name: m.name, title: m.title }))
       }
     });
 
@@ -2140,28 +2276,42 @@ export class ServiceBookingService {
       currentStep: "waiting_for_master"
     });
 
-    const promptText = `👤 *Choose Specialist / Staff*
+    const bodyText = `Please select your preferred specialist for *${service.name}*:`;
 
-Please select your preferred specialist for *${service.name}*:`;
+    if (isCloudApi) {
+      const rows: { id: string; title: string; description?: string }[] = [
+        {
+          id: "mst_any",
+          title: "Any Specialist",
+          description: "First available specialist"
+        },
+        ...assignedMasters.map(m => ({
+          id: `mst_${m.id}`,
+          title: (m.name || "Specialist").substring(0, 24),
+          description: (m.title || "Specialist").substring(0, 72)
+        }))
+      ];
 
-    if (isCloudApi && assignedMasters.length <= 2) {
-      const buttons = assignedMasters.map(m => ({
-        id: `mst_${m.id}`,
-        title: (m.name || "Specialist").substring(0, 20)
-      }));
-      buttons.push({ id: "mst_any", title: "Any Specialist" });
-      await this.sendCloudApiButtonMessage(channelRow, conversationId, to, promptText, null, buttons);
+      await this.sendCloudApiListMessage(
+        channelRow,
+        conversationId,
+        to,
+        "Select Specialist",
+        bodyText,
+        "View Specialists",
+        [
+          {
+            title: "Available Staff",
+            rows
+          }
+        ]
+      );
     } else {
-      let listText = `${promptText}
-
-`;
+      let listText = `👤 *Choose Specialist / Staff*\n\n${bodyText}\n\n`;
       assignedMasters.forEach((m, idx) => {
-        listText += `👉 Reply *${idx + 1}* for *${m.name}* (${m.title || "Specialist"})
-`;
+        listText += `👉 Reply *${idx + 1}* for *${m.name}* (${m.title || "Specialist"})\n`;
       });
-      listText += `👉 Reply *${assignedMasters.length + 1}* for *Any Available Specialist*
-
-` +
+      listText += `👉 Reply *${assignedMasters.length + 1}* for *Any Available Specialist*\n\n` +
         `Reply *cancel* anytime to exit.`;
       await this.sendAndSaveTextMessage(channelRow, conversationId, to, listText);
     }
@@ -2290,15 +2440,122 @@ Please select your preferred specialist for *${service.name}*:`;
     if (isCloudApi && availableSlots.length <= 3) {
       const buttons = availableSlots.slice(0, 3).map(s => ({
         id: `slot_${s.startTime}`,
-        title: s.startTime
+        title: s.startTime.substring(0, 20)
       }));
       await this.sendCloudApiButtonMessage(channelRow, session.conversationId, to, promptText, null, buttons);
+    } else if (isCloudApi && availableSlots.length > 3) {
+      const rows = availableSlots.slice(0, 10).map(s => ({
+        id: `slot_${s.startTime}`,
+        title: s.startTime.substring(0, 24),
+        description: s.label.substring(0, 72)
+      }));
+
+      await this.sendCloudApiListMessage(
+        channelRow,
+        session.conversationId,
+        to,
+        "Select Time Slot",
+        promptText,
+        "View Slots",
+        [
+          {
+            title: `Slots (${dateStr})`,
+            rows
+          }
+        ]
+      );
     } else {
       let listText = `${promptText}\n\n`;
       availableSlots.slice(0, 25).forEach((s, idx) => {
         listText += `👉 Reply *${idx + 1}* for *${s.label}*\n`;
       });
       listText += `\nReply *cancel* to exit.`;
+      await this.sendAndSaveTextMessage(channelRow, session.conversationId, to, listText);
+    }
+  }
+
+  /**
+   * Process State Transitions across Service Booking Steps
+   */
+  private static async promptBookingConfirmation(
+    channelRow: any,
+    config: schema.ServiceConfig,
+    session: schema.ServiceSession,
+    to: string
+  ) {
+    const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
+
+    const [service] = await db
+      .select()
+      .from(schema.services)
+      .where(eq(schema.services.id, session.serviceId))
+      .limit(1);
+
+    let masterName = "Any Available Specialist";
+    if (session.masterId && session.masterId !== "any") {
+      const [m] = await db
+        .select()
+        .from(schema.serviceMasters)
+        .where(eq(schema.serviceMasters.id, session.masterId))
+        .limit(1);
+      if (m?.name) masterName = m.name;
+    }
+
+    const customerData = (session.customerData as any) || {};
+    const bookingDate = session.bookingDate || customerData.bookingDate || "Today";
+    const slotStr = session.selectedSlot || `${customerData.startTime || "10:00"} - ${customerData.endTime || "10:30"}`;
+    const priceStr = `${service?.currency || config.currency || "INR"} ${service?.price || "0"}`;
+    const customerName = customerData.name || customerData.full_name || "Customer";
+
+    let summaryText = `📋 *Booking Summary Review*\n\n` +
+      `🛠️ *Service:* ${service?.name || "Service"}\n` +
+      `👤 *Specialist:* ${masterName}\n` +
+      `📅 *Date:* ${bookingDate}\n` +
+      `⏰ *Time:* ${slotStr}\n` +
+      `💰 *Total Amount:* ${priceStr}\n` +
+      `👤 *Name:* ${customerName}\n` +
+      `📱 *Phone:* ${to}\n`;
+
+    const rawFields = Array.isArray(config.checkoutFields) ? config.checkoutFields : [];
+    for (const f of rawFields) {
+      const varKey = typeof f === "string" ? f : f.variable;
+      if (varKey && varKey !== "name" && varKey !== "phone" && customerData[varKey]) {
+        summaryText += `📝 *${this.getFieldLabel(varKey)}:* ${customerData[varKey]}\n`;
+      }
+    }
+
+    summaryText += `\nPlease confirm your appointment details:`;
+
+    await db
+      .update(schema.serviceSessions)
+      .set({
+        currentStep: "waiting_for_confirmation",
+        customerData
+      })
+      .where(eq(schema.serviceSessions.id, session.id));
+
+    await this.trackAbandonedBooking({
+      tenantId: config.tenantId,
+      channelId: channelRow.id,
+      conversationId: session.conversationId,
+      customerPhone: to,
+      customerName,
+      customerData,
+      currentStep: "waiting_for_confirmation"
+    });
+
+    if (isCloudApi) {
+      const buttons = [
+        { id: "confirm_booking", title: "Confirm Booking ✅" },
+        { id: "edit_booking", title: "Edit Details ✏️" },
+        { id: "cancel_booking", title: "Cancel ❌" }
+      ];
+      await this.sendCloudApiButtonMessage(channelRow, session.conversationId, to, summaryText, null, buttons);
+    } else {
+      let listText = `${summaryText}\n\n` +
+        `👉 Reply *1* to *Confirm Booking* ✅\n` +
+        `👉 Reply *2* to *Edit Details* ✏️\n` +
+        `👉 Reply *3* to *Cancel Booking* ❌`;
       await this.sendAndSaveTextMessage(channelRow, session.conversationId, to, listText);
     }
   }
@@ -2329,8 +2586,8 @@ Please select your preferred specialist for *${service.name}*:`;
         .orderBy(desc(schema.services.createdAt));
 
       let selectedService: schema.Service | null = null;
-      if (buttonReplyId?.startsWith("srv_")) {
-        const id = buttonReplyId.replace("srv_", "");
+      if (buttonReplyId?.startsWith("srv_") || listReplyId?.startsWith("srv_")) {
+        const id = (buttonReplyId || listReplyId || "").replace("srv_", "");
         selectedService = servicesList.find(s => s.id === id) || null;
       } else {
         const num = parseInt(cleanInput, 10);
@@ -2363,10 +2620,10 @@ Please select your preferred specialist for *${service.name}*:`;
       });
 
       let selectedMasterId: string | null = null;
-      if (buttonReplyId === "mst_any" || cleanInput === String(assignedMasters.length + 1) || cleanInput.includes("any")) {
+      if (buttonReplyId === "mst_any" || listReplyId === "mst_any" || cleanInput === "mst_any" || cleanInput === String(assignedMasters.length + 1) || cleanInput.includes("any")) {
         selectedMasterId = null;
-      } else if (buttonReplyId?.startsWith("mst_")) {
-        selectedMasterId = buttonReplyId.replace("mst_", "");
+      } else if (buttonReplyId?.startsWith("mst_") || listReplyId?.startsWith("mst_")) {
+        selectedMasterId = (buttonReplyId || listReplyId || "").replace("mst_", "");
       } else {
         const num = parseInt(cleanInput, 10);
         if (!isNaN(num) && num >= 1 && num <= assignedMasters.length) {
@@ -2390,8 +2647,8 @@ Please select your preferred specialist for *${service.name}*:`;
       const upcoming = this.getUpcomingDates(activeTz, 2);
       const tomorrowStr = upcoming[1]?.dateStr || todayStr;
 
-      if (buttonReplyId?.startsWith("date_")) {
-        chosenDate = buttonReplyId.replace("date_", "");
+      if (buttonReplyId?.startsWith("date_") || listReplyId?.startsWith("date_")) {
+        chosenDate = (buttonReplyId || listReplyId || "").replace("date_", "");
       } else {
         const num = parseInt(cleanInput, 10);
         if (!isNaN(num) && num >= 1 && num <= cachedDates.length) {
@@ -2422,8 +2679,8 @@ Please select your preferred specialist for *${service.name}*:`;
       const cachedSlots: AvailableSlot[] = (session.customerData as any)?.availableSlotsCache || [];
       let selectedSlot: AvailableSlot | null = null;
 
-      if (buttonReplyId?.startsWith("slot_")) {
-        const start = buttonReplyId.replace("slot_", "");
+      if (buttonReplyId?.startsWith("slot_") || listReplyId?.startsWith("slot_")) {
+        const start = (buttonReplyId || listReplyId || "").replace("slot_", "");
         selectedSlot = cachedSlots.find(s => s.startTime === start) || null;
       } else {
         const num = parseInt(cleanInput, 10);
@@ -2435,7 +2692,7 @@ Please select your preferred specialist for *${service.name}*:`;
       }
 
       if (!selectedSlot) {
-        await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Please select a valid time slot number from the list above.");
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, "Please select a valid time slot from the list above.");
         return;
       }
 
@@ -2451,18 +2708,20 @@ Please select your preferred specialist for *${service.name}*:`;
         return { text: f.text || `Please enter your *${this.getFieldLabel(f.variable)}*:`, variable: f.variable || "custom_field" };
       });
 
-      const nextStep = fields.length > 0 ? `waiting_for_field:${fields[0].variable}` : "waiting_for_payment_method";
+      const nextStep = fields.length > 0 ? `waiting_for_field:${fields[0].variable}` : "waiting_for_confirmation";
+
+      const updatedCustomerData = {
+        ...(session.customerData || {}),
+        startTime: selectedSlot.startTime,
+        endTime: selectedSlot.endTime
+      };
 
       await db
         .update(schema.serviceSessions)
         .set({
           selectedSlot: `${selectedSlot.startTime} - ${selectedSlot.endTime}`,
           currentStep: nextStep,
-          customerData: {
-            ...(session.customerData || {}),
-            startTime: selectedSlot.startTime,
-            endTime: selectedSlot.endTime
-          }
+          customerData: updatedCustomerData
         })
         .where(eq(schema.serviceSessions.id, session.id));
 
@@ -2481,7 +2740,7 @@ Please select your preferred specialist for *${service.name}*:`;
       if (fields.length > 0) {
         await this.sendAndSaveTextMessage(channelRow, conversationId, to, fields[0].text);
       } else {
-        await this.promptPaymentMethod(channelRow, config, session, to);
+        await this.promptBookingConfirmation(channelRow, config, { ...session, customerData: updatedCustomerData, selectedSlot: `${selectedSlot.startTime} - ${selectedSlot.endTime}` }, to);
       }
       return;
     }
@@ -2533,11 +2792,11 @@ Please select your preferred specialist for *${service.name}*:`;
         return;
       }
 
-      // All fields collected -> Go to payment method
+      // All fields collected -> Go to Confirmation Review Step
       await db
         .update(schema.serviceSessions)
         .set({
-          currentStep: "waiting_for_payment_method",
+          currentStep: "waiting_for_confirmation",
           customerData
         })
         .where(eq(schema.serviceSessions.id, session.id));
@@ -2549,15 +2808,69 @@ Please select your preferred specialist for *${service.name}*:`;
         customerPhone: to,
         customerName: customerData.name || null,
         customerData,
-        currentStep: "waiting_for_payment_method"
+        currentStep: "waiting_for_confirmation"
       });
 
-      await this.promptPaymentMethod(channelRow, config, { ...session, customerData }, to);
+      await this.promptBookingConfirmation(channelRow, config, { ...session, customerData }, to);
+      return;
+    }
+
+    // STEP 5.5: WAITING FOR CONFIRMATION (REVIEW DETAILS)
+    if (session.currentStep === "waiting_for_confirmation") {
+      const isConfirm = buttonReplyId === "confirm_booking" || cleanInput === "1" || cleanInput.includes("confirm") || cleanInput.includes("yes") || cleanInput.includes("ok");
+      const isEdit = buttonReplyId === "edit_booking" || cleanInput === "2" || cleanInput.includes("edit") || cleanInput.includes("change");
+      const isCancel = buttonReplyId === "cancel_booking" || cleanInput === "3" || cleanInput.includes("cancel") || cleanInput.includes("no");
+
+      if (isCancel) {
+        await db.delete(schema.serviceSessions).where(eq(schema.serviceSessions.id, session.id));
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, "❌ Your appointment booking has been cancelled. Reply *book* anytime to start over!");
+        return;
+      }
+
+      if (isEdit) {
+        const [service] = await db
+          .select()
+          .from(schema.services)
+          .where(eq(schema.services.id, session.serviceId))
+          .limit(1);
+
+        if (service) {
+          await this.initSessionForService(channelRow, config, conversationId, to, service);
+        } else {
+          await this.startBookingFlow(channelRow, config, conversationId, to, null);
+        }
+        return;
+      }
+
+      if (isConfirm) {
+        await db
+          .update(schema.serviceSessions)
+          .set({
+            currentStep: "waiting_for_payment_method"
+          })
+          .where(eq(schema.serviceSessions.id, session.id));
+
+        await this.promptPaymentMethod(channelRow, config, session, to);
+        return;
+      }
+
+      await this.sendAndSaveTextMessage(
+        channelRow,
+        conversationId,
+        to,
+        "Please confirm your appointment details:\n👉 Reply *1* to Confirm ✅\n👉 Reply *2* to Edit Details ✏️\n👉 Reply *3* to Cancel ❌"
+      );
       return;
     }
 
     // STEP 6: WAITING FOR PAYMENT METHOD OR RECEIPT
     if (session.currentStep === "waiting_for_payment_method" || session.currentStep === "waiting_for_qr_receipt") {
+      if (buttonReplyId === "cancel_booking" || cleanInput === "cancel" || cleanInput === "cancel_booking") {
+        await db.delete(schema.serviceSessions).where(eq(schema.serviceSessions.id, session.id));
+        await this.sendAndSaveTextMessage(channelRow, conversationId, to, "❌ Your appointment booking has been cancelled. Reply *book* anytime to start over!");
+        return;
+      }
+
       // Check for receipt image upload
       const mediaId = message.image?.id || message.mediaId;
       const isImage = message.type === "image" || !!mediaId;
@@ -2689,11 +3002,12 @@ Please select your preferred specialist for *${service.name}*:`;
 
         if (isCloudApi) {
           const buttons = [
-            { id: "cod", title: "Pay at Venue" }
+            { id: "cod", title: "Pay at Venue 💵" },
+            { id: "cancel_booking", title: "Cancel ❌" }
           ];
           await this.sendCloudApiButtonMessage(channelRow, conversationId, to, msgText, null, buttons);
         } else {
-          await this.sendAndSaveTextMessage(channelRow, conversationId, to, `${msgText}\n\nReply *cod* to switch to Pay at Venue.`);
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, `${msgText}\n\nReply *cod* to switch to Pay at Venue or *cancel* to abort.`);
         }
       } else if (selectedMethod === "qr_pay") {
         await db
@@ -2712,10 +3026,13 @@ Please select your preferred specialist for *${service.name}*:`;
 
         const msgText = `Please scan the QR code to pay a total of *${newBooking.currency} ${newBooking.totalAmount}* via GPay / PhonePe.\n\nBooking Ref: *${bookingNumber}*\n\nAfter payment, *please upload your receipt/screenshot here* to verify your appointment.`;
         if (isCloudApi) {
-          const buttons = [{ id: "cod", title: "Pay at Venue" }];
+          const buttons = [
+            { id: "cod", title: "Pay at Venue 💵" },
+            { id: "cancel_booking", title: "Cancel ❌" }
+          ];
           await this.sendCloudApiButtonMessage(channelRow, conversationId, to, msgText, null, buttons);
         } else {
-          await this.sendAndSaveTextMessage(channelRow, conversationId, to, `${msgText}\n\nReply *cod* to switch to Pay at Venue.`);
+          await this.sendAndSaveTextMessage(channelRow, conversationId, to, `${msgText}\n\nReply *cod* to switch to Pay at Venue or *cancel* to abort.`);
         }
       } else if (selectedMethod === "gateway") {
         await db.delete(schema.serviceSessions).where(eq(schema.serviceSessions.id, session.id));
@@ -2737,26 +3054,64 @@ Please select your preferred specialist for *${service.name}*:`;
   ) {
     const isCloudApi = ServiceBookingService.isCloudApiChannel(channelRow);
 
-    const paymentOptions: { id: string; title: string }[] = [];
-    paymentOptions.push({ id: "cod", title: config.labelCod || "Pay at Venue (Cash/Card)" });
+    const paymentOptions: { id: string; title: string; description?: string }[] = [];
+    paymentOptions.push({
+      id: "cod",
+      title: (config.labelCod || "Pay at Venue").substring(0, 24),
+      description: "Pay with Cash/Card upon arrival"
+    });
+
     if (config.upiId) {
-      paymentOptions.push({ id: "upi_direct", title: config.labelUpiDirect || "GPay/PhonePe(UPI)" });
-    }
-    if (config.qrCodeUrl) {
-      paymentOptions.push({ id: "qr_pay", title: config.labelQrPay || "Acc. Info(QR Code)" });
-    }
-    if ((config.razorpayKeyId && config.razorpayKeySecret) || (config.instamojoApiKey && config.instamojoAuthToken)) {
-      paymentOptions.push({ id: "gateway", title: config.labelGateway || "Online Payment" });
+      paymentOptions.push({
+        id: "upi_direct",
+        title: (config.labelUpiDirect || "GPay / UPI Direct").substring(0, 24),
+        description: `Pay to ${config.upiId}`
+      });
     }
 
-    const summaryText = `💳 *Payment Method Selection*\n\nPlease choose how you would like to pay:`;
+    if (config.qrCodeUrl) {
+      paymentOptions.push({
+        id: "qr_pay",
+        title: (config.labelQrPay || "Scan QR Code").substring(0, 24),
+        description: "Scan QR & upload receipt"
+      });
+    }
+
+    if ((config.razorpayKeyId && config.razorpayKeySecret) || (config.instamojoApiKey && config.instamojoAuthToken)) {
+      paymentOptions.push({
+        id: "gateway",
+        title: (config.labelGateway || "Online Payment").substring(0, 24),
+        description: "Pay online via card/netbanking"
+      });
+    }
+
+    const summaryText = `💳 *Payment Method Selection*\n\nPlease choose how you would like to pay for your appointment:`;
 
     if (isCloudApi && paymentOptions.length <= 3) {
-      await this.sendCloudApiButtonMessage(channelRow, session.conversationId, to, summaryText, null, paymentOptions);
+      const buttons = paymentOptions.map(p => ({
+        id: p.id,
+        title: p.title.substring(0, 20)
+      }));
+      await this.sendCloudApiButtonMessage(channelRow, session.conversationId, to, summaryText, null, buttons);
+    } else if (isCloudApi && paymentOptions.length > 3) {
+      await this.sendCloudApiListMessage(
+        channelRow,
+        session.conversationId,
+        to,
+        "Payment Methods",
+        summaryText,
+        "Choose Payment",
+        [
+          {
+            title: "Available Options",
+            rows: paymentOptions
+          }
+        ]
+      );
     } else {
       let listText = `${summaryText}\n\n`;
       paymentOptions.forEach((opt, idx) => {
-        listText += `👉 Reply *${idx + 1}* for *${opt.title}*\n`;
+        listText += `👉 Reply *${idx + 1}* for *${opt.title}* (${opt.description})\n`;
       });
       listText += `\nReply *cancel* to exit.`;
       await this.sendAndSaveTextMessage(channelRow, session.conversationId, to, listText);

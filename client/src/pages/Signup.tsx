@@ -6,8 +6,9 @@
 
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
+import { loginWithFacebook } from "@/lib/facebook-sdk";
 import {
   Mail,
   Lock,
@@ -27,6 +28,7 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { AppSettings } from "@/types/types";
 
 const Signup: React.FC = () => {
@@ -46,11 +48,18 @@ const Signup: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFacebookLoading, setIsFacebookLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   const { data: brandSettings } = useQuery<AppSettings>({
     queryKey: ["/api/brand-settings"],
     queryFn: () => fetch("/api/brand-settings").then((res) => res.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: facebookConfig } = useQuery<{ enabled: boolean; appId: string }>({
+    queryKey: ["/api/auth/facebook/config"],
+    queryFn: () => fetch("/api/auth/facebook/config").then((res) => res.json()),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -139,6 +148,54 @@ const Signup: React.FC = () => {
     }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const handleFacebookSignup = async () => {
+    if (!facebookConfig?.appId) {
+      setErrors({ general: "Facebook authentication is not configured on this server." });
+      return;
+    }
+    setErrors({});
+    setIsFacebookLoading(true);
+
+    try {
+      const { accessToken } = await loginWithFacebook(facebookConfig.appId);
+
+      const response = await fetch("/api/auth/facebook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken }),
+        credentials: "include",
+      });
+
+      let json: any;
+      try {
+        json = await response.json();
+      } catch {
+        json = {};
+      }
+
+      if (!response.ok) {
+        throw new Error(json?.error || json?.message || "Facebook signup failed");
+      }
+
+      try {
+        sessionStorage.setItem("fromLogin", "true");
+      } catch (e) {
+        console.error("Failed to set sessionStorage:", e);
+      }
+
+      if (json?.user) {
+        queryClient.setQueryData(["/api/auth/me"], json.user);
+      }
+
+      window.location.href = "/dashboard";
+    } catch (err: any) {
+      console.error("Facebook signup error:", err);
+      setErrors({ general: err?.message || "Failed to continue with Facebook" });
+    } finally {
+      setIsFacebookLoading(false);
     }
   };
 
@@ -447,7 +504,7 @@ const Signup: React.FC = () => {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || isFacebookLoading}
                   className="w-full h-11 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-purple-600/25 transition-all mt-2 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isLoading ? (
@@ -462,6 +519,42 @@ const Signup: React.FC = () => {
                     </>
                   )}
                 </button>
+
+                {/* Continue with Facebook (Uses Same SuperAdmin Meta App) */}
+                {facebookConfig?.enabled && (
+                  <div className="pt-2">
+                    <div className="relative my-3">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-slate-200" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-white px-2 text-slate-400 font-medium">Or continue with</span>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleFacebookSignup}
+                      disabled={isLoading || isFacebookLoading}
+                      className="w-full h-11 rounded-xl border-slate-200 bg-white hover:bg-slate-50 text-slate-800 font-semibold text-sm shadow-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer hover:border-slate-300"
+                    >
+                      {isFacebookLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-[#1877F2]" />
+                          <span>Connecting to Facebook...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4 fill-[#1877F2] shrink-0" viewBox="0 0 24 24">
+                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                          </svg>
+                          <span>Continue with Facebook</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </form>
 
               {/* Login Link */}

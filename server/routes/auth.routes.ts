@@ -18,15 +18,15 @@
 import { Request, Response, Router } from "express";
 import { diployLogger, HTTP_STATUS, DIPLOY_BRAND } from "@diploy/core";
 import { db } from "../db";
-import { users, userActivityLogs } from "@shared/schema";
-import { eq, and, sql, or } from "drizzle-orm";
+import { users, userActivityLogs, whatsappBusinessAccountsConfig, otpVerifications } from "@shared/schema";
+import { eq, and, sql, or, ne } from "drizzle-orm";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { validateRequest } from "../middlewares/validateRequest.middleware";
 import { resolveUserPermissions } from "server/utils/role-permissions";
 import country from "../config/country.json"
 import {sendOTPEmail} from "../services/email.service"
-import { otpVerifications } from "@shared/schema";
 
 
 const router = Router();
@@ -226,6 +226,352 @@ router.get("/check", (req, res) => {
 
 router.get("/country-data", (req, res) => {
   res.json(country);
+});
+
+// ==========================================
+// FACEBOOK AUTHENTICATION (WEB & MOBILE)
+// ==========================================
+
+// Public endpoint to get Facebook App ID for Web/Mobile SDK initialization
+router.get("/facebook/config", async (_req: Request, res: Response) => {
+  try {
+    let config = await db.query.whatsappBusinessAccountsConfig.findFirst({
+      where: ne(whatsappBusinessAccountsConfig.appId, ""),
+    });
+    if (!config) {
+      config = await db.query.whatsappBusinessAccountsConfig.findFirst();
+    }
+
+    const appId = (config?.appId || process.env.META_APP_ID || process.env.FACEBOOK_APP_ID || "").trim();
+
+    res.json({
+      enabled: Boolean(appId.length > 0),
+      appId: appId || "",
+    });
+  } catch (error: any) {
+    console.error("Error fetching Facebook auth config:", error);
+    res.status(500).json({ error: "Failed to fetch Facebook auth config" });
+  }
+});
+
+const facebookLoginSchema = z.object({
+  accessToken: z.string().min(1, "Access token is required"),
+});
+
+// Facebook Login / SSO endpoint for both Web and Mobile apps
+router.post("/facebook", validateRequest(facebookLoginSchema), async (req: Request, res: Response) => {
+  try {
+    const { accessToken } = req.body;
+
+    // 1. Get Meta App credentials configured in SuperAdmin
+    let config = await db.query.whatsappBusinessAccountsConfig.findFirst({
+      where: ne(whatsappBusinessAccountsConfig.appId, ""),
+    });
+    if (!config) {
+      config = await db.query.whatsappBusinessAccountsConfig.findFirst();
+    }
+
+    const appId = (config?.appId || process.env.META_APP_ID || process.env.FACEBOOK_APP_ID || "").trim();
+    const appSecret = (config?.appSecret || process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET || "").trim();
+
+    if (!appSecret) {
+      return res.status(400).json({
+        error: "Facebook login is not configured on this server. Please configure Meta App credentials in Superadmin settings.",
+      });
+    }
+
+    // 2. Generate appsecret_proof for secure Graph API call
+    const appsecretProof = crypto
+      .createHmac("sha256", appSecret)
+      .update(accessToken)
+      .digest("hex");
+
+    // 3. Query Graph API for user profile
+    const metaUrl = `https://graph.facebook.com/v20.0/me?fields=id,name,first_name,last_name,email,picture.width(250).height(250)&access_token=${encodeURIComponent(
+      accessToken
+    )}&appsecret_proof=${appsecretProof}`;
+
+    const fbResponse = await fetch(metaUrl);
+    const fbData = (await fbResponse.json()) as any;
+
+    if (!fbResponse.ok || fbData.error) {
+      console.error("[Facebook Auth] Verification failed:", fbData.error);
+      return res.status(401).json({
+        error: fbData.error?.message || "Invalid or expired Facebook access token",
+      });
+    }
+
+    const fbId = fbData.id;
+    const fbEmail = fbData.email ? String(fbData.email).trim().toLowerCase() : null;
+    const firstName = fbData.first_name || (fbData.name ? fbData.name.split(" ")[0] : "Facebook");
+    const lastName = fbData.last_name || (fbData.name ? fbData.name.split(" ").slice(1).join(" ") : "User");
+    const avatar = fbData.picture?.data?.url || null;
+
+    if (!fbId) {
+      return res.status(400).json({ error: "Failed to retrieve Facebook profile ID" });
+    }
+
+    // 4. Resolve existing user or create a new user account
+    let existingUser: any = null;
+
+    // Check by facebookId
+    const usersByFbId = await db
+      .select()
+      .from(users)
+      .where(eq(users.facebookId, fbId))
+      .limit(1);
+
+    if (usersByFbId.length > 0) {
+      existingUser = usersByFbId[0];
+    } else if (fbEmail) {
+      // Check by matching verified email
+      const usersByEmail = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, fbEmail))
+        .limit(1);
+
+      if (usersByEmail.length > 0) {
+        existingUser = usersByEmail[0];
+        // Link facebookId to this account
+        await db
+          .update(users)
+          .set({ facebookId: fbId })
+          .where(eq(users.id, existingUser.id));
+        existingUser.facebookId = fbId;
+      }
+    }
+
+    let activeUser: any = null;
+
+    if (existingUser) {
+      // Verify user status
+      if ((existingUser.status || "").trim().toLowerCase() !== "active") {
+        return res.status(403).json({ error: "Account is inactive. Please contact administrator." });
+      }
+
+      const updatePayload: any = {
+        lastLogin: new Date(),
+        updatedAt: new Date(),
+      };
+      if (!existingUser.avatar && avatar) {
+        updatePayload.avatar = avatar;
+      }
+      if (!existingUser.isEmailVerified) {
+        updatePayload.isEmailVerified = true;
+      }
+
+      await db
+        .update(users)
+        .set(updatePayload)
+        .where(eq(users.id, existingUser.id));
+
+      activeUser = { ...existingUser, ...updatePayload };
+    } else {
+      // New User Registration via Facebook
+      const email = fbEmail || `fb_${fbId}@facebook.user`;
+
+      // Generate a unique clean username
+      let baseUsername = (fbData.name || "fbuser")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
+      if (!baseUsername || baseUsername.length < 3) {
+        baseUsername = `fbuser_${fbId.slice(-4)}`;
+      }
+
+      let candidateUsername = baseUsername;
+      let counter = 1;
+      while (true) {
+        const [existing] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.username, candidateUsername))
+          .limit(1);
+        if (!existing) break;
+        candidateUsername = `${baseUsername}_${Math.floor(1000 + Math.random() * 9000)}`;
+        counter++;
+        if (counter > 10) {
+          candidateUsername = `${baseUsername}_${Date.now()}`;
+          break;
+        }
+      }
+
+      const randomPassword = crypto.randomBytes(32).toString("hex");
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+      const defaultPermissions = resolveUserPermissions("admin", []);
+
+      const [createdUser] = await db
+        .insert(users)
+        .values({
+          username: candidateUsername,
+          password: hashedPassword,
+          email,
+          firstName,
+          lastName,
+          role: "admin",
+          avatar,
+          permissions: defaultPermissions,
+          isEmailVerified: true,
+          status: "active",
+          facebookId: fbId,
+        })
+        .returning();
+
+      activeUser = createdUser;
+    }
+
+    // 5. Log activity
+    try {
+      await db.insert(userActivityLogs).values({
+        userId: activeUser.id,
+        action: existingUser ? "facebook_login" : "facebook_signup",
+        entityType: "user",
+        entityId: activeUser.id,
+        details: JSON.stringify({
+          ipAddress: req.ip,
+          userAgent: req.get("user-agent"),
+          provider: "facebook",
+          facebookId: fbId,
+        }),
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+    } catch (logErr) {
+      console.error("Failed to log Facebook login activity:", logErr);
+    }
+
+    // 6. Set session
+    if (!(req as any).session) {
+      console.error("Session not initialized");
+      return res.status(500).json({ error: "Session not initialized" });
+    }
+
+    (req as any).session.user = {
+      id: activeUser.id,
+      username: activeUser.username,
+      email: activeUser.email,
+      firstName: activeUser.firstName,
+      lastName: activeUser.lastName,
+      role: activeUser.role,
+      permissions: resolveUserPermissions(activeUser.role, activeUser.permissions as any),
+      avatar: activeUser.avatar,
+      createdBy: activeUser.createdBy || "",
+      channelId: activeUser.channelId || null,
+      showOnlyAssigned: !!activeUser.showOnlyAssigned,
+      isAdminMember: !!activeUser.isAdminMember,
+    };
+
+    const { password: _, ...userData } = activeUser;
+
+    // Sign the session ID to support cross-origin header authentication on mobile apps
+    const signature = await import("cookie-signature");
+    const secret = process.env.SESSION_SECRET || "your-secret-key-change-in-production";
+    const signedSessionId = "s:" + signature.sign((req as any).sessionID, secret);
+
+    res.json({
+      message: existingUser ? "Login successful" : "Account created and logged in successfully",
+      user: userData,
+      sessionId: signedSessionId,
+    });
+  } catch (error: any) {
+    console.error("Error during Facebook login:", error);
+    res.status(500).json({
+      error: "Facebook login failed",
+      message: error.message || "Unknown error",
+    });
+  }
+});
+
+// Helper to parse and verify signed_request from Meta callbacks
+async function parseMetaSignedRequest(signedRequest: string): Promise<any | null> {
+  try {
+    let config = await db.query.whatsappBusinessAccountsConfig.findFirst({
+      where: ne(whatsappBusinessAccountsConfig.appId, ""),
+    });
+    if (!config) {
+      config = await db.query.whatsappBusinessAccountsConfig.findFirst();
+    }
+    const appSecret = (config?.appSecret || process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET || "").trim();
+    if (!appSecret) return null;
+
+    const [encodedSig, payload] = signedRequest.split(".");
+    if (!encodedSig || !payload) return null;
+
+    const sig = Buffer.from(encodedSig.replace(/-/g, "+").replace(/_/g, "/"), "base64");
+    const data = JSON.parse(Buffer.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf-8"));
+
+    const expectedSig = crypto.createHmac("sha256", appSecret).update(payload).digest();
+    if (!crypto.timingSafeEqual(sig, expectedSig)) {
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error("Failed to parse Meta signed_request:", err);
+    return null;
+  }
+}
+
+// Meta Deauthorize Callback URL
+router.post("/facebook/deauthorize", async (req: Request, res: Response) => {
+  try {
+    const signedRequest = req.body.signed_request;
+    if (!signedRequest) {
+      return res.status(400).json({ error: "signed_request parameter is required" });
+    }
+
+    const data = await parseMetaSignedRequest(signedRequest);
+    if (!data || !data.user_id) {
+      return res.status(400).json({ error: "Invalid signed_request signature or missing user_id" });
+    }
+
+    const fbUserId = String(data.user_id);
+    console.log(`[Facebook Deauthorize] User ${fbUserId} deauthorized the app`);
+
+    // Unlink facebookId from the user in database
+    await db
+      .update(users)
+      .set({ facebookId: null, updatedAt: new Date() })
+      .where(eq(users.facebookId, fbUserId));
+
+    res.json({ success: true, message: "Deauthorized successfully" });
+  } catch (error: any) {
+    console.error("Facebook deauthorize error:", error);
+    res.status(500).json({ error: error.message || "Failed to process deauthorization" });
+  }
+});
+
+// Meta Data Deletion Callback URL (Complies with Meta Platform Terms)
+router.post("/facebook/data-deletion", async (req: Request, res: Response) => {
+  try {
+    const signedRequest = req.body.signed_request;
+    if (!signedRequest) {
+      return res.status(400).json({ error: "signed_request parameter is required" });
+    }
+
+    const data = await parseMetaSignedRequest(signedRequest);
+    if (!data || !data.user_id) {
+      return res.status(400).json({ error: "Invalid signed_request signature or missing user_id" });
+    }
+
+    const fbUserId = String(data.user_id);
+    const confirmationCode = `del_${fbUserId}_${Date.now()}`;
+    console.log(`[Facebook Data Deletion] Received request for user ${fbUserId}, confirmation: ${confirmationCode}`);
+
+    // Unlink or soft-clean user facebook association
+    await db
+      .update(users)
+      .set({ facebookId: null, updatedAt: new Date() })
+      .where(eq(users.facebookId, fbUserId));
+
+    // Respond with JSON format required by Meta
+    res.json({
+      url: `https://wa.linalapro.com/account-deletion?code=${confirmationCode}`,
+      confirmation_code: confirmationCode,
+    });
+  } catch (error: any) {
+    console.error("Facebook data deletion callback error:", error);
+    res.status(500).json({ error: error.message || "Failed to process data deletion callback" });
+  }
 });
 
 

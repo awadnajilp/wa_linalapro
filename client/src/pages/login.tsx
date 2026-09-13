@@ -14,6 +14,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import ResetPassword from "@/components/ResetPassword";
 import VerifyOtp from "@/components/VerifyOtp";
 import ForgotPasswordEmail from "@/components/ForgotPasswordEmail";
+import { loginWithFacebook } from "@/lib/facebook-sdk";
 import {
   Card,
   CardContent,
@@ -61,6 +62,7 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [isFacebookLoading, setIsFacebookLoading] = useState(false);
 
   const [step, setStep] = useState<"login" | "forgot" | "verify" | "reset">(
     "login"
@@ -71,6 +73,12 @@ export default function LoginPage() {
   const { data: brandSettings } = useQuery<AppSettings>({
     queryKey: ["/api/brand-settings"],
     queryFn: () => fetch("/api/brand-settings").then((res) => res.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: facebookConfig } = useQuery<{ enabled: boolean; appId: string }>({
+    queryKey: ["/api/auth/facebook/config"],
+    queryFn: () => fetch("/api/auth/facebook/config").then((res) => res.json()),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -138,6 +146,54 @@ export default function LoginPage() {
   const onSubmit = async (data: z.infer<typeof loginSchema>) => {
     setError(null);
     loginMutation.mutate(data);
+  };
+
+  const handleFacebookLogin = async () => {
+    if (!facebookConfig?.appId) {
+      setError("Facebook login is not configured on this server.");
+      return;
+    }
+    setError(null);
+    setIsFacebookLoading(true);
+
+    try {
+      const { accessToken } = await loginWithFacebook(facebookConfig.appId);
+
+      const response = await fetch("/api/auth/facebook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken }),
+        credentials: "include",
+      });
+
+      let json: any;
+      try {
+        json = await response.json();
+      } catch {
+        json = {};
+      }
+
+      if (!response.ok) {
+        throw new Error(json?.error || json?.message || "Facebook login failed");
+      }
+
+      try {
+        sessionStorage.setItem("fromLogin", "true");
+      } catch (e) {
+        console.error("Failed to set sessionStorage:", e);
+      }
+
+      if (json?.user) {
+        queryClient.setQueryData(["/api/auth/me"], json.user);
+      }
+
+      window.location.href = "/dashboard";
+    } catch (err: any) {
+      console.error("Facebook login error:", err);
+      setError(err?.message || "Failed to log in with Facebook");
+    } finally {
+      setIsFacebookLoading(false);
+    }
   };
 
   const moduleCards = [
@@ -473,7 +529,7 @@ export default function LoginPage() {
                     {/* Submit Button */}
                     <Button
                       type="submit"
-                      disabled={loginMutation.isPending}
+                      disabled={loginMutation.isPending || isFacebookLoading}
                       className="w-full h-11 rounded-xl bg-[#9333EA] hover:bg-[#7E22CE] text-white font-bold text-sm shadow-md shadow-purple-900/20 transition-all mt-2 cursor-pointer flex items-center justify-center gap-2"
                     >
                       {loginMutation.isPending ? (
@@ -488,6 +544,42 @@ export default function LoginPage() {
                         </>
                       )}
                     </Button>
+
+                    {/* Continue with Facebook (Uses Same SuperAdmin Meta App) */}
+                    {facebookConfig?.enabled && (
+                      <div className="pt-2">
+                        <div className="relative my-3">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-slate-200" />
+                          </div>
+                          <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-white px-2 text-slate-400 font-medium">Or continue with</span>
+                          </div>
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleFacebookLogin}
+                          disabled={loginMutation.isPending || isFacebookLoading}
+                          className="w-full h-11 rounded-xl border-slate-200 bg-white hover:bg-slate-50 text-slate-800 font-semibold text-sm shadow-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer hover:border-slate-300"
+                        >
+                          {isFacebookLoading ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin text-[#1877F2]" />
+                              <span>Connecting to Facebook...</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4 fill-[#1877F2] shrink-0" viewBox="0 0 24 24">
+                                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                              </svg>
+                              <span>Continue with Facebook</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </form>
                 </Form>
               )}

@@ -73,6 +73,7 @@ export const users = pgTable("users", {
   roundRobinCapacity: integer("round_robin_capacity").default(0),
   notificationChannelId: varchar("notification_channel_id"),
   walletEnabled: boolean("wallet_enabled").default(false),
+  facebookId: text("facebook_id"),
 });
 
 // Conversation assignments to users

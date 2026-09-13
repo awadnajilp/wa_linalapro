@@ -278,3 +278,10 @@ Deletes a scheduled campaign.
 *   **Media Gallery File Names & MIME Types:** Updated frontend `MediaGalleryDialog` to forward MIME types on select, and backend `sendMediaMessage` / `sendDirectMessage` to accept and pass the original file name and MIME type. This prevents documents sent via QR Code/Baileys from defaulting to extension-less `.bin` files and crashing when opened on the recipient's phone.
 *   **QR Media Gallery URL Support:** Fixed the "Media not found in cache or payload for QR message" error by automatically constructing media downloader configurations using the provided resource URL when direct media cache hits are missed.
 *   **Wait-for-Read Node Resumption:** Patched Baileys status update callback in `baileys-manager.ts` to trigger the `handleMessageRead` / `handleMessageDelivered` flow resumptions even when a status update does not correspond to a master campaign (`messageQueue` entry), such as chatbot/flow execution triggers.
+
+### 17. Facebook Login SSO for Web & Mobile Apps (September 2026)
+*   **Shared Meta App Architecture:** Reuses the exact same Meta App configured in **Superadmin > Settings > Embedded Signup** (`appId` & `appSecret`). A single Meta App supports WhatsApp Cloud API, WhatsApp Embedded Signup, and Facebook Login (SSO).
+*   **Public Config API:** Added `GET /api/auth/facebook/config` which dynamically exposes `{ enabled: boolean, appId: string }` without exposing the secret key, allowing web and mobile apps to initialize the Facebook SDK automatically.
+*   **Cross-Platform Auth Endpoint:** Implemented `POST /api/auth/facebook` taking `{ accessToken }`. It computes an HMAC `appsecret_proof` to securely verify tokens directly against Meta Graph API (`/v20.0/me`), resolves or creates user accounts with verified emails, and returns signed session tokens (`sessionId`) compatible with header-based auth (`x-session-id`) for mobile apps.
+*   **Web UX Integration:** Added responsive "Continue with Facebook" buttons on both `/login` and `/signup` with seamless popup authentication and automatic dashboard redirection.
+

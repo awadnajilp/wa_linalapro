@@ -150,6 +150,11 @@ const steps: MigrationStep[] = [
   addColumnIfNotExists("users", "paypal_customer_id", "VARCHAR"),
   addColumnIfNotExists("users", "paystack_customer_code", "VARCHAR"),
   addColumnIfNotExists("users", "mercadopago_customer_id", "VARCHAR"),
+  addColumnIfNotExists("users", "facebook_id", "TEXT"),
+  {
+    description: "Create users_facebook_id_idx",
+    sql: `CREATE INDEX IF NOT EXISTS users_facebook_id_idx ON users (facebook_id);`,
+  },
 
   // ────────────────────────────────────────────────────
   // plans

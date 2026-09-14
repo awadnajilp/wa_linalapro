@@ -1741,6 +1741,24 @@ export async function runStartupMigration(pool: Pool): Promise<void> {
           WHERE c.id = sub.campaign_id
             AND (c.replied_count IS NULL OR c.replied_count < sub.cnt);
         `);
+
+        // Synchronize all conversations whose last_message_at is NULL or out-of-sync with actual messages
+        await bgClient.query(`
+          UPDATE conversations c
+          SET 
+            last_message_at = m.latest_ts,
+            last_message_text = COALESCE(NULLIF(m.latest_content, ''), c.last_message_text)
+          FROM (
+            SELECT conversation_id, 
+                   MAX(created_at) as latest_ts,
+                   (ARRAY_AGG(content ORDER BY created_at DESC))[1] as latest_content
+            FROM messages
+            WHERE conversation_id IS NOT NULL
+            GROUP BY conversation_id
+          ) m
+          WHERE c.id = m.conversation_id
+            AND (c.last_message_at IS NULL OR c.last_message_at < m.latest_ts);
+        `);
       } finally {
         bgClient.release();
       }

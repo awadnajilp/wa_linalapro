@@ -30,41 +30,70 @@ import React from "react";
 
 export function normalizeDate(value: any): Date | null {
   if (!value) return null;
-
-  if (value instanceof Date) return value;
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
 
   if (typeof value === "number") {
-    return new Date(value < 1e12 ? value * 1000 : value);
+    const ms = value < 1e12 ? value * 1000 : value;
+    return isNaN(ms) ? null : new Date(ms);
   }
 
-  const num = Number(value);
-  if (!isNaN(num)) {
-    return new Date(num < 1e12 ? num * 1000 : num);
+  if (typeof value === "string") {
+    const num = Number(value);
+    if (!isNaN(num) && String(num) === value.trim()) {
+      const ms = num < 1e12 ? num * 1000 : num;
+      return isNaN(ms) ? null : new Date(ms);
+    }
+
+    let parsed = Date.parse(value);
+    if (!isNaN(parsed)) return new Date(parsed);
+
+    if (value.includes(" ")) {
+      let formatted = value.replace(" ", "T");
+      if (!formatted.endsWith("Z") && !/[+-]\d{2}(:?\d{2})?$/.test(formatted)) {
+        formatted += "Z";
+      }
+      parsed = Date.parse(formatted);
+      if (!isNaN(parsed)) return new Date(parsed);
+    }
   }
 
-  const parsed = Date.parse(value);
-  return isNaN(parsed) ? null : new Date(parsed);
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 export function normalizeTime(value: any): number {
   if (!value) return 0;
-
-  if (typeof value === "string" && value.includes(" ")) {
-    const iso = value.replace(" ", "T") + "Z";
-    const parsed = Date.parse(iso);
-    return isNaN(parsed) ? 0 : parsed;
+  if (value instanceof Date) {
+    const t = value.getTime();
+    return isNaN(t) ? 0 : t;
   }
 
   if (typeof value === "number") {
     return value < 1e12 ? value * 1000 : value;
   }
 
-  if (value instanceof Date) {
-    return value.getTime();
+  if (typeof value === "string") {
+    const num = Number(value);
+    if (!isNaN(num) && String(num) === value.trim()) {
+      return num < 1e12 ? num * 1000 : num;
+    }
+
+    let parsed = Date.parse(value);
+    if (!isNaN(parsed)) return parsed;
+
+    if (value.includes(" ")) {
+      let formatted = value.replace(" ", "T");
+      if (!formatted.endsWith("Z") && !/[+-]\d{2}(:?\d{2})?$/.test(formatted)) {
+        formatted += "Z";
+      }
+      parsed = Date.parse(formatted);
+      if (!isNaN(parsed)) return parsed;
+    }
   }
 
-  const parsed = Date.parse(value);
-  return isNaN(parsed) ? 0 : parsed;
+  const d = new Date(value);
+  const t = d.getTime();
+  return isNaN(t) ? 0 : t;
 }
 
 export const formatLastSeen = (value: any) => {

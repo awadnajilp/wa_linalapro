@@ -33,11 +33,11 @@ export async function getConversationsFromDB(channelId: string) {
     .leftJoin(contacts, eq(conversations.contactId, contacts.id))
     .leftJoin(users, eq(conversations.assignedTo, users.id))
     .where(eq(conversations.channelId, channelId))
-    .orderBy(desc(conversations.lastMessageAt));
+    .orderBy(sql`COALESCE(${conversations.lastMessageAt}, ${conversations.createdAt}) DESC NULLS LAST`);
 
   return rows.map(row => ({
     ...row.conversation,
-    lastMessageAt: row.conversation.lastMessageAt || null,
+    lastMessageAt: row.conversation.lastMessageAt || row.conversation.createdAt || null,
     lastMessageText: row.conversation.lastMessageText || null,
     assignedToName: row.assignedToName || null,
     contact: row.contact || null,

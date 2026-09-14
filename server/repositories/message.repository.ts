@@ -65,6 +65,32 @@ export class MessageRepository {
       .values(insertMessage as any)
       .returning();
 
+    // Keep parent conversation lastMessageAt and lastMessageText synchronized
+    if (message.conversationId) {
+      try {
+        const textPreview = typeof message.content === "string" && message.content.trim().length > 0
+          ? (message.content.length > 200 ? message.content.substring(0, 200) : message.content)
+          : (message.messageType === "image" ? "[Image]" : message.messageType === "audio" ? "[Audio]" : message.messageType === "video" ? "[Video]" : message.messageType === "document" ? "[Document]" : "[Media]");
+
+        const convUpdate: any = {
+          lastMessageAt: message.createdAt || new Date(),
+          lastMessageText: textPreview,
+          updatedAt: new Date(),
+        };
+
+        if (message.direction === "inbound") {
+          convUpdate.lastIncomingMessageAt = message.createdAt || new Date();
+        }
+
+        await db
+          .update(conversations)
+          .set(convUpdate)
+          .where(eq(conversations.id, message.conversationId));
+      } catch (convSyncErr) {
+        console.error("Failed to sync conversation lastMessageAt in MessageRepository.create:", convSyncErr);
+      }
+    }
+
     // Auto-increment CRM deal contacted count for successful outbound automated messages
     if (
       message.direction === "outbound" && 

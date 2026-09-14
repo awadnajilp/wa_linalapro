@@ -75,7 +75,7 @@ export class ConversationRepository {
       })
       .from(conversations)
       .leftJoin(contacts, eq(conversations.contactId, contacts.id))
-      .orderBy(desc(conversations.lastMessageAt));
+      .orderBy(sql`COALESCE(${conversations.lastMessageAt}, ${conversations.createdAt}) DESC NULLS LAST`);
     
     return result.map(row => ({
       ...row.conversation,
@@ -92,7 +92,7 @@ export class ConversationRepository {
       .from(conversations)
       .leftJoin(contacts, eq(conversations.contactId, contacts.id))
       .where(eq(conversations.channelId, channelId))
-      .orderBy(desc(conversations.lastMessageAt));
+      .orderBy(sql`COALESCE(${conversations.lastMessageAt}, ${conversations.createdAt}) DESC NULLS LAST`);
     
     return result.map(row => ({
       ...row.conversation,
@@ -109,7 +109,7 @@ export class ConversationRepository {
       .from(conversations)
       .leftJoin(contacts, eq(conversations.contactId, contacts.id))
       .where(eq(conversations.contactId, contactId))
-      .orderBy(desc(conversations.lastMessageAt));
+      .orderBy(sql`COALESCE(${conversations.lastMessageAt}, ${conversations.createdAt}) DESC NULLS LAST`);
     
     return result.map(row => ({
       ...row.conversation,
@@ -126,7 +126,7 @@ export class ConversationRepository {
       .from(conversations)
       .leftJoin(contacts, eq(conversations.contactId, contacts.id))
       .where(eq(conversations.sessionId, sessionId))
-      .orderBy(desc(conversations.lastMessageAt));
+      .orderBy(sql`COALESCE(${conversations.lastMessageAt}, ${conversations.createdAt}) DESC NULLS LAST`);
     
     return result.map(row => ({
       ...row.conversation,

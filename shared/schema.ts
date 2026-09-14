@@ -75,6 +75,7 @@ export const users = pgTable("users", {
   walletEnabled: boolean("wallet_enabled").default(false),
   facebookId: text("facebook_id"),
   googleId: text("google_id"),
+  isPhoneVerified: boolean("is_phone_verified").default(false),
 });
 
 // Conversation assignments to users
@@ -1137,6 +1138,16 @@ export const panelConfig = pgTable("panel_config", {
   googleClientId: text("google_client_id"),
   googleClientSecret: text("google_client_secret"),
   googleAuthEnabled: boolean("google_auth_enabled").default(true),
+  systemWhatsappType: varchar("system_whatsapp_type", { length: 20 }).default("cloud_api"), // cloud_api or qr_code
+  systemWhatsappChannelId: varchar("system_whatsapp_channel_id"),
+  systemWhatsappPhoneNumberId: text("system_whatsapp_phone_number_id"),
+  systemWhatsappAccessToken: text("system_whatsapp_access_token"),
+  systemWhatsappWabaId: text("system_whatsapp_waba_id"),
+  systemWhatsappEnabled: boolean("system_whatsapp_enabled").default(true),
+  systemWhatsappRenewalReminderEnabled: boolean("system_whatsapp_renewal_reminder_enabled").default(true),
+  systemWhatsappRenewalTemplate: text("system_whatsapp_renewal_template").default("Hello {{name}}, your {{plan_name}} subscription is expiring in {{days_left}} days ({{expiry_date}}). Renew now to avoid interruption: {{renewal_link}}"),
+  systemWhatsappOtpTemplate: text("system_whatsapp_otp_template").default("Your verification code is: {{otp}}. Do not share this code with anyone."),
+  systemWhatsappRenewalUrl: text("system_whatsapp_renewal_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1267,8 +1278,10 @@ export const otpVerifications = pgTable("otp_verifications", {
     .primaryKey()
     .default(sql`gen_random_uuid()`), // UUID primary key
 
-  userId: varchar("user_id")
-    .notNull(), 
+  userId: varchar("user_id"), // Nullable for uncreated users during phone signup
+  phone: varchar("phone", { length: 50 }),
+  email: varchar("email", { length: 255 }),
+  type: varchar("type", { length: 20 }).default("email"), // 'whatsapp' or 'email'
 
   otpCode: varchar("otp_code", { length: 6 }).notNull(), // 6-digit OTP
   expiresAt: timestamp("expires_at").notNull(), 

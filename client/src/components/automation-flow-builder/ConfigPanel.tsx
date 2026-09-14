@@ -64,6 +64,8 @@ import {
   Zap,
   Sparkles,
   BadgeDollarSign,
+  Bell,
+  AlertTriangle,
 } from "lucide-react";
 import { BuilderNodeData, NodeKind, Template, Member, ListSection } from "./types";
 import { FileUploadButton } from "./FileUploadButton";
@@ -76,6 +78,27 @@ import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Upload, Link as LinkIcon, Loader2 } from "lucide-react";
+
+const COMMON_TIMEZONES = [
+  { label: `Local (${Intl.DateTimeFormat().resolvedOptions().timeZone})`, value: Intl.DateTimeFormat().resolvedOptions().timeZone },
+  { label: "UTC (Coordinated Universal Time)", value: "UTC" },
+  { label: "Asia/Riyadh (Saudi Arabia, GMT+3)", value: "Asia/Riyadh" },
+  { label: "Asia/Dubai (UAE, Gulf Standard Time, GMT+4)", value: "Asia/Dubai" },
+  { label: "Asia/Kolkata (India Standard Time, GMT+5:30)", value: "Asia/Kolkata" },
+  { label: "Asia/Kuwait (Kuwait, GMT+3)", value: "Asia/Kuwait" },
+  { label: "Asia/Qatar (Qatar, GMT+3)", value: "Asia/Qatar" },
+  { label: "Asia/Bahrain (Bahrain, GMT+3)", value: "Asia/Bahrain" },
+  { label: "Asia/Muscat (Oman, GMT+4)", value: "Asia/Muscat" },
+  { label: "Africa/Cairo (Egypt, GMT+2)", value: "Africa/Cairo" },
+  { label: "Europe/London (London, GMT+0 / +1)", value: "Europe/London" },
+  { label: "Europe/Paris (Paris / Central Europe, GMT+1 / +2)", value: "Europe/Paris" },
+  { label: "America/New_York (Eastern Time, GMT-5 / -4)", value: "America/New_York" },
+  { label: "America/Chicago (Central Time, GMT-6 / -5)", value: "America/Chicago" },
+  { label: "America/Los_Angeles (Pacific Time, GMT-8 / -7)", value: "America/Los_Angeles" },
+  { label: "Asia/Singapore (Singapore, GMT+8)", value: "Asia/Singapore" },
+  { label: "Asia/Tokyo (Japan, GMT+9)", value: "Asia/Tokyo" },
+  { label: "Australia/Sydney (Sydney, GMT+10 / +11)", value: "Australia/Sydney" },
+];
 
 interface ConfigPanelProps {
   selected: Node<BuilderNodeData> | null;
@@ -743,46 +766,108 @@ export function ConfigPanel({
                 </div>
 
                 {d.scheduleType === "date" ? (
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-gray-700">Target Date & Time</Label>
-                    <Input
-                      type="datetime-local"
-                      value={(d.scheduleDate as string) || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (!val) {
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-gray-700">Target Date & Time</Label>
+                      <Input
+                        type="datetime-local"
+                        value={(d.scheduleDate as string) || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const tz = (d.scheduleTimezone as string) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+                          if (!val) {
+                            onChange({
+                              scheduleDate: "",
+                              scheduleIso: "",
+                              scheduleTimestamp: undefined,
+                              scheduleTimezone: tz,
+                            });
+                          } else {
+                            const localDate = new Date(val);
+                            onChange({
+                              scheduleDate: val,
+                              scheduleIso: localDate.toISOString(),
+                              scheduleTimestamp: localDate.getTime(),
+                              scheduleTimezone: tz,
+                            });
+                          }
+                        }}
+                        className="h-9 text-sm rounded-lg bg-white"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-gray-700">Timezone Context</Label>
+                      <Select
+                        value={(d.scheduleTimezone as string) || Intl.DateTimeFormat().resolvedOptions().timeZone}
+                        onValueChange={(tz) => {
                           onChange({
-                            scheduleDate: "",
-                            scheduleIso: "",
-                            scheduleTimestamp: undefined,
-                            scheduleTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                            scheduleTimezone: tz,
+                            scheduleIso: d.scheduleDate ? new Date(d.scheduleDate as string).toISOString() : "",
                           });
-                        } else {
-                          const localDate = new Date(val);
-                          onChange({
-                            scheduleDate: val,
-                            scheduleIso: localDate.toISOString(),
-                            scheduleTimestamp: localDate.getTime(),
-                            scheduleTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                          });
-                        }
-                      }}
-                      className="h-9 text-sm rounded-lg bg-white"
-                    />
-                    <div className="rounded-md bg-blue-50/70 border border-blue-100 p-2 text-[11px] text-blue-900 flex flex-col gap-0.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-600">Your Timezone:</span>
-                        <span className="font-semibold text-slate-800">{Intl.DateTimeFormat().resolvedOptions().timeZone}</span>
+                        }}
+                      >
+                        <SelectTrigger className="h-9 text-xs bg-white rounded-lg">
+                          <SelectValue placeholder="Select timezone" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-56">
+                          {COMMON_TIMEZONES.map((tz) => (
+                            <SelectItem key={tz.value} value={tz.value} className="text-xs">
+                              {tz.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-gray-400">
+                        Scheduled execution evaluates relative to this timezone.
+                      </p>
+                    </div>
+
+                    <div className="flex items-start space-x-2 bg-white p-2.5 rounded-lg border border-slate-200">
+                      <Checkbox
+                        id="preventPastExecution"
+                        checked={d.preventPastExecution !== false}
+                        onCheckedChange={(checked) => onChange({ preventPastExecution: !!checked })}
+                        className="mt-0.5"
+                      />
+                      <div className="space-y-0.5">
+                        <Label htmlFor="preventPastExecution" className="text-xs font-semibold text-gray-800 cursor-pointer">
+                          Prevent Past Execution
+                        </Label>
+                        <p className="text-[10px] text-gray-500 leading-tight">
+                          If enabled, when the flow reaches this node and the scheduled datetime has already passed, it will skip this step instead of firing immediately.
+                        </p>
                       </div>
-                      {d.scheduleDate ? (
-                        <div className="flex items-center justify-between text-blue-700 font-medium">
-                          <span>Scheduled Run:</span>
+                    </div>
+
+                    {d.scheduleDate ? (
+                      <div className={`rounded-md p-2.5 text-[11px] border flex flex-col gap-1 ${
+                        new Date(d.scheduleDate as string).getTime() < Date.now()
+                          ? "bg-amber-50 border-amber-200 text-amber-900"
+                          : "bg-blue-50/70 border-blue-100 text-blue-900"
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-600">Selected Timezone:</span>
+                          <span className="font-semibold text-slate-800">
+                            {(d.scheduleTimezone as string) || Intl.DateTimeFormat().resolvedOptions().timeZone}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between font-medium">
+                          <span>Target Run:</span>
                           <span>{new Date(d.scheduleDate as string).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>
                         </div>
-                      ) : (
-                        <span className="text-gray-400 italic">Select a date and time in your local timezone</span>
-                      )}
-                    </div>
+                        {new Date(d.scheduleDate as string).getTime() < Date.now() && (
+                          <div className="flex items-center gap-1 text-[10px] font-semibold text-amber-700 pt-1 border-t border-amber-200/60 mt-0.5">
+                            <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                            <span>This date & time is in the past! It will be skipped upon flow execution.</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="rounded-md bg-slate-100 p-2 text-[10px] text-slate-500 italic">
+                        Select a date and time to schedule this step
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
@@ -2431,7 +2516,7 @@ export function ConfigPanel({
           {d.kind === "wait_reply" && (
             <>
               <SectionHeader>Wait Configuration</SectionHeader>
-              <div className="space-y-3 bg-amber-50/50 rounded-xl p-4 border border-amber-100">
+              <div className="space-y-4 bg-amber-50/50 rounded-xl p-4 border border-amber-100">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-gray-700">Save Reply As (Optional)</Label>
                   <Input
@@ -2440,9 +2525,102 @@ export function ConfigPanel({
                     placeholder="e.g., user_choice"
                     className="h-9 text-sm rounded-lg bg-white"
                   />
-                  <div className="text-[10px] text-gray-400 leading-relaxed mt-1">
-                    If specified, the user's incoming message content will be saved to this variable. You can then reference it in subsequent nodes (e.g. using <code className="bg-gray-100 px-1 rounded font-mono">{"{{user_choice}}"}</code> in Send Message nodes, or in Condition nodes).
+                  <div className="text-[10px] text-gray-500 leading-relaxed mt-1">
+                    If specified, the user's incoming message content will be saved to this variable. You can then reference it in subsequent nodes (e.g. using <code className="bg-white/80 px-1 py-0.5 rounded font-mono text-amber-800">{"{{user_choice}}"}</code> in Send Message nodes, or in Condition nodes).
                   </div>
+                </div>
+
+                {/* Follow-up / Reminder Alert Configuration */}
+                <div className="pt-3 border-t border-amber-200/60 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="enableReminder" className="text-xs font-semibold text-gray-800 cursor-pointer flex items-center gap-1.5">
+                        <Bell className="w-3.5 h-3.5 text-amber-600" />
+                        Send Follow-up Alert if No Reply
+                      </Label>
+                      <p className="text-[10px] text-gray-500">
+                        Automatically prompts the customer if they don't respond in time.
+                      </p>
+                    </div>
+                    <Switch
+                      id="enableReminder"
+                      checked={!!d.enableReminder}
+                      onCheckedChange={(checked) => onChange({
+                        enableReminder: checked,
+                        reminderMessage: d.reminderMessage || "Hi {{name}}, just following up on our previous message. Please reply when you get a chance!",
+                        reminderMaxRetries: d.reminderMaxRetries !== undefined ? d.reminderMaxRetries : 1,
+                        reminderIntervalMinutes: d.reminderIntervalMinutes !== undefined ? d.reminderIntervalMinutes : 10,
+                        reminderIntervalUnit: d.reminderIntervalUnit || "minutes",
+                      })}
+                    />
+                  </div>
+
+                  {d.enableReminder && (
+                    <div className="space-y-3 bg-white p-3 rounded-lg border border-amber-200 shadow-sm animate-in fade-in-50 duration-150">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-gray-700">Follow-up Message Content</Label>
+                        <Textarea
+                          rows={3}
+                          value={d.reminderMessage || ""}
+                          onChange={(e) => onChange({ reminderMessage: e.target.value })}
+                          placeholder="Hi {{name}}, we are waiting for your response. Please reply when you get a chance!"
+                          className="text-xs bg-amber-50/20"
+                        />
+                        <p className="text-[10px] text-gray-400">
+                          Supports variables like <code className="text-amber-700 font-mono font-semibold">{"{{name}}"}</code>, <code className="text-amber-700 font-mono font-semibold">{"{{phone}}"}</code>, etc.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="space-y-1">
+                          <Label className="text-xs font-medium text-gray-700">Number of Retries</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={10}
+                            value={d.reminderMaxRetries !== undefined ? Number(d.reminderMaxRetries) : 1}
+                            onChange={(e) => onChange({ reminderMaxRetries: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                            className="h-8 text-xs bg-white"
+                          />
+                          <p className="text-[10px] text-gray-400">Times to alert (default: 1)</p>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs font-medium text-gray-700">Time Gap / Interval</Label>
+                          <div className="flex gap-1.5">
+                            <Input
+                              type="number"
+                              min={1}
+                              value={d.reminderIntervalMinutes !== undefined ? Number(d.reminderIntervalMinutes) : 10}
+                              onChange={(e) => onChange({ reminderIntervalMinutes: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                              className="h-8 text-xs bg-white w-16"
+                            />
+                            <Select
+                              value={d.reminderIntervalUnit || "minutes"}
+                              onValueChange={(val: any) => onChange({ reminderIntervalUnit: val })}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-white flex-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="minutes">Minutes</SelectItem>
+                                <SelectItem value="hours">Hours</SelectItem>
+                                <SelectItem value="days">Days</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <p className="text-[10px] text-gray-400">Delay between alerts</p>
+                        </div>
+                      </div>
+
+                      <div className="p-2 bg-amber-50 rounded text-[10px] text-amber-900 border border-amber-100 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                        <span>
+                          Will alert contact <strong>{d.reminderMaxRetries || 1} time(s)</strong> every <strong>{d.reminderIntervalMinutes || 10} {d.reminderIntervalUnit || "minutes"}</strong> until they reply.
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </>

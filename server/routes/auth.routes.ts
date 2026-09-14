@@ -26,8 +26,9 @@ import crypto from "crypto";
 import { validateRequest } from "../middlewares/validateRequest.middleware";
 import { resolveUserPermissions } from "server/utils/role-permissions";
 import country from "../config/country.json"
-import {sendOTPEmail} from "../services/email.service"
+import { sendOTPEmail, sendOTPEmailVerify } from "../services/email.service";
 import { getFirstPanelConfig } from "../services/panel.config";
+import { sendSystemWhatsappOtp } from "../services/system-whatsapp.service";
 
 
 const router = Router();
@@ -72,13 +73,8 @@ router.post("/login", validateRequest(loginSchema), async (req, res) => {
 
     // Check if user is active
     if ((user.status || "").trim().toLowerCase() !== "active") {
-  return res.status(403).json({ error: "Account is inactive. Please contact administrator." });
-}
-
-    // Check if email is verified
-if (user.isEmailVerified === false) {
-  return res.status(403).json({ error: "Email not verified. Please verify your email first." });
-}
+      return res.status(403).json({ error: "Account is inactive. Please contact administrator." });
+    }
 
     // Ensure password field exists
     if (!user.password) {
@@ -138,6 +134,9 @@ if (user.isEmailVerified === false) {
       channelId: user.channelId || null,
       showOnlyAssigned: !!user.showOnlyAssigned,
       isAdminMember: !!user.isAdminMember,
+      isEmailVerified: user.isEmailVerified ?? false,
+      isPhoneVerified: user.isPhoneVerified ?? false,
+      phoneNumber: user.phoneNumber,
     };
 
     // Remove password before sending back
@@ -505,10 +504,12 @@ router.get("/facebook/config", async (_req: Request, res: Response) => {
     }
 
     const appId = (config?.appId || process.env.META_APP_ID || process.env.FACEBOOK_APP_ID || "").trim();
+    const configId = (config?.configId || process.env.META_CONFIG_ID || process.env.FACEBOOK_CONFIG_ID || "").trim();
 
     res.json({
       enabled: Boolean(appId.length > 0),
       appId: appId || "",
+      configId: configId || "",
     });
   } catch (error: any) {
     console.error("Error fetching Facebook auth config:", error);
@@ -1216,6 +1217,396 @@ router.post("/delete-account", async (req, res) => {
   } catch (error: any) {
     console.error("Account deletion error:", error);
     res.status(500).json({ error: error.message || "Failed to delete account" });
+  }
+});
+
+// ============================================================
+// SIMPLIFIED MULTI-STEP SIGNUP & WHATSAPP / EMAIL OTP ROUTES
+// ============================================================
+
+const DEFAULT_SIGNUP_PERMISSIONS = [
+  "contacts:view", "contacts:create", "contacts:edit", "contacts:delete", "contacts:export",
+  "groups:view", "groups:create", "groups:edit", "groups:delete",
+  "campaigns:view", "campaigns:create", "campaigns:edit", "campaigns:delete",
+  "templates:view", "templates:create", "templates:edit", "templates:delete",
+  "analytics:view",
+  "team:view", "team:create", "team:edit", "team:delete",
+  "settings:view",
+  "inbox:view", "inbox:send", "inbox:assign",
+  "automations:view", "automations:create", "automations:edit", "automations:delete",
+];
+
+// Step 1: Send WhatsApp OTP
+router.post("/signup/send-whatsapp-otp", async (req: Request, res: Response) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      return res.status(400).json({ error: "WhatsApp phone number is required" });
+    }
+
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone.length < 7) {
+      return res.status(400).json({ error: "Please enter a valid phone number with country code" });
+    }
+
+    // Rate limiting: max 4 OTPs per 5 minutes for this phone
+    const recentOTPs = await db
+      .select()
+      .from(otpVerifications)
+      .where(
+        and(
+          eq(otpVerifications.phone, cleanPhone),
+          eq(otpVerifications.type, "whatsapp"),
+          sql`${otpVerifications.createdAt} > NOW() - INTERVAL '5 minutes'`
+        )
+      );
+
+    if (recentOTPs.length >= 4) {
+      return res.status(429).json({ error: "Too many requests. Please wait 5 minutes before trying again." });
+    }
+
+    // Generate 6-digit OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Store in DB
+    await db.insert(otpVerifications).values({
+      phone: cleanPhone,
+      type: "whatsapp",
+      otpCode,
+      expiresAt,
+      isUsed: false,
+    });
+
+    console.log(`📱 [Signup] Generated WhatsApp OTP for ${cleanPhone}: ${otpCode}`);
+
+    // Send via system WhatsApp channel
+    const sendResult = await sendSystemWhatsappOtp(cleanPhone, otpCode);
+    if (!sendResult.success) {
+      console.warn(`⚠️ [Signup] Failed to deliver WhatsApp OTP to ${cleanPhone}: ${sendResult.error}`);
+      // Still allow continuation with warning or return error based on configuration
+      return res.json({
+        success: true,
+        message: "OTP generated. (If you don't receive it, ensure system WhatsApp is configured)",
+        otpPreview: process.env.NODE_ENV !== "production" ? otpCode : undefined,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Verification code sent to your WhatsApp number",
+    });
+  } catch (error: any) {
+    console.error("Error sending WhatsApp OTP:", error);
+    return res.status(500).json({ error: error.message || "Failed to send WhatsApp verification code" });
+  }
+});
+
+// Step 2: Verify WhatsApp OTP
+router.post("/signup/verify-whatsapp-otp", async (req: Request, res: Response) => {
+  try {
+    const { phone, otpCode } = req.body;
+    if (!phone || !otpCode) {
+      return res.status(400).json({ error: "Phone number and OTP code are required" });
+    }
+
+    const cleanPhone = phone.replace(/\D/g, "");
+    const cleanOtp = otpCode.toString().trim();
+
+    const matchingRecord = await db
+      .select()
+      .from(otpVerifications)
+      .where(
+        and(
+          eq(otpVerifications.phone, cleanPhone),
+          eq(otpVerifications.otpCode, cleanOtp),
+          eq(otpVerifications.type, "whatsapp"),
+          eq(otpVerifications.isUsed, false),
+          sql`${otpVerifications.expiresAt} > NOW()`
+        )
+      )
+      .orderBy(sql`${otpVerifications.createdAt} DESC`)
+      .limit(1);
+
+    if (!matchingRecord.length) {
+      return res.status(400).json({ error: "Invalid or expired WhatsApp OTP code" });
+    }
+
+    // Mark as used
+    await db
+      .update(otpVerifications)
+      .set({ isUsed: true })
+      .where(eq(otpVerifications.id, matchingRecord[0].id));
+
+    return res.json({
+      success: true,
+      verifiedPhone: cleanPhone,
+      message: "WhatsApp number verified successfully",
+    });
+  } catch (error: any) {
+    console.error("Error verifying WhatsApp OTP:", error);
+    return res.status(500).json({ error: error.message || "Failed to verify WhatsApp OTP" });
+  }
+});
+
+// Step 3: Create User Account (Username = Email)
+router.post("/signup/create-account", async (req: Request, res: Response) => {
+  try {
+    const { fullName, email, password, phone } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanPhone = phone ? phone.replace(/\D/g, "") : null;
+
+    // Split fullName into firstName and lastName
+    const nameParts = (fullName || "").trim().split(/\s+/);
+    const firstName = nameParts[0] || cleanEmail.split("@")[0];
+    const lastName = nameParts.slice(1).join(" ") || "";
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Check if user already exists
+    const [existingUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, cleanEmail))
+      .limit(1);
+
+    let finalUser: any = null;
+
+    if (existingUser) {
+      if (existingUser.isEmailVerified) {
+        return res.status(409).json({ error: "An account with this email already exists. Please sign in." });
+      }
+
+      // Update existing unverified user
+      const [updated] = await db
+        .update(users)
+        .set({
+          username: cleanEmail,
+          password: hashedPassword,
+          firstName,
+          lastName,
+          phoneNumber: cleanPhone || existingUser.phoneNumber,
+          isPhoneVerified: true,
+          status: "active",
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, existingUser.id))
+        .returning();
+
+      finalUser = updated;
+    } else {
+      // Create new user with username = email
+      const [created] = await db
+        .insert(users)
+        .values({
+          username: cleanEmail,
+          email: cleanEmail,
+          password: hashedPassword,
+          firstName,
+          lastName,
+          phoneNumber: cleanPhone,
+          role: "admin",
+          status: "active",
+          permissions: DEFAULT_SIGNUP_PERMISSIONS,
+          isEmailVerified: false,
+          isPhoneVerified: true,
+        })
+        .returning();
+
+      finalUser = created;
+    }
+
+    // Generate 6-digit Email OTP
+    const emailOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+    await db.insert(otpVerifications).values({
+      userId: finalUser.id,
+      email: cleanEmail,
+      type: "email",
+      otpCode: emailOtp,
+      expiresAt,
+      isUsed: false,
+    });
+
+    console.log(`✉️ [Signup] Generated Email OTP for ${cleanEmail}: ${emailOtp}`);
+
+    try {
+      await sendOTPEmailVerify(cleanEmail, emailOtp, firstName);
+    } catch (emailErr) {
+      console.warn("⚠️ [Signup] Verification email could not be sent:", emailErr);
+    }
+
+    // Set user session automatically
+    if ((req as any).session) {
+      (req as any).session.user = {
+        id: finalUser.id,
+        username: finalUser.username,
+        email: finalUser.email,
+        firstName: finalUser.firstName,
+        lastName: finalUser.lastName,
+        role: finalUser.role,
+        permissions: resolveUserPermissions(finalUser.role, finalUser.permissions as any),
+        avatar: finalUser.avatar,
+        createdBy: finalUser.createdBy || "",
+        channelId: finalUser.channelId || null,
+        showOnlyAssigned: !!finalUser.showOnlyAssigned,
+        isAdminMember: !!finalUser.isAdminMember,
+        isEmailVerified: false,
+        isPhoneVerified: true,
+        phoneNumber: finalUser.phoneNumber,
+      };
+    }
+
+    const { password: _, ...userData } = finalUser;
+
+    const signature = await import("cookie-signature");
+    const secret = process.env.SESSION_SECRET || "your-secret-key-change-in-production";
+    const signedSessionId = (req as any).sessionID ? "s:" + signature.sign((req as any).sessionID, secret) : undefined;
+
+    return res.status(201).json({
+      success: true,
+      message: "Account created successfully. Please verify your email.",
+      user: userData,
+      sessionId: signedSessionId,
+    });
+  } catch (error: any) {
+    console.error("Error in signup create-account:", error);
+    return res.status(500).json({ error: error.message || "Failed to create account" });
+  }
+});
+
+// Step 4: Verify Email OTP
+router.post("/verify-email-otp", async (req: Request, res: Response) => {
+  try {
+    const { otpCode, email } = req.body;
+    const sessionUser = (req as any).session?.user;
+
+    const targetEmail = (email || sessionUser?.email || "").toLowerCase().trim();
+    if (!targetEmail || !otpCode) {
+      return res.status(400).json({ error: "Email and OTP code are required" });
+    }
+
+    const cleanOtp = otpCode.toString().trim();
+
+    // Find valid OTP
+    const matchingRecords = await db
+      .select()
+      .from(otpVerifications)
+      .where(
+        and(
+          or(
+            eq(otpVerifications.email, targetEmail),
+            sessionUser?.id ? eq(otpVerifications.userId, sessionUser.id) : sql`TRUE`
+          ),
+          eq(otpVerifications.otpCode, cleanOtp),
+          eq(otpVerifications.isUsed, false),
+          sql`${otpVerifications.expiresAt} > NOW()`
+        )
+      )
+      .orderBy(sql`${otpVerifications.createdAt} DESC`)
+      .limit(1);
+
+    if (!matchingRecords.length) {
+      return res.status(400).json({ error: "Invalid or expired email OTP code" });
+    }
+
+    // Mark OTP used
+    await db
+      .update(otpVerifications)
+      .set({ isUsed: true })
+      .where(eq(otpVerifications.id, matchingRecords[0].id));
+
+    // Update user isEmailVerified = true
+    await db
+      .update(users)
+      .set({ isEmailVerified: true, status: "active", updatedAt: new Date() })
+      .where(eq(users.email, targetEmail));
+
+    // Update active session
+    if (sessionUser) {
+      sessionUser.isEmailVerified = true;
+    }
+
+    return res.json({
+      success: true,
+      message: "Email verified successfully",
+    });
+  } catch (error: any) {
+    console.error("Error verifying email OTP:", error);
+    return res.status(500).json({ error: error.message || "Failed to verify email OTP" });
+  }
+});
+
+// Resend Email OTP
+router.post("/resend-email-otp", async (req: Request, res: Response) => {
+  try {
+    const sessionUser = (req as any).session?.user;
+    const { email } = req.body;
+
+    const targetEmail = (email || sessionUser?.email || "").toLowerCase().trim();
+    if (!targetEmail) {
+      return res.status(400).json({ error: "Email address is required" });
+    }
+
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, targetEmail))
+      .limit(1);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Rate limiting: max 3 per 5 mins
+    const recentOTPs = await db
+      .select()
+      .from(otpVerifications)
+      .where(
+        and(
+          eq(otpVerifications.email, targetEmail),
+          eq(otpVerifications.type, "email"),
+          sql`${otpVerifications.createdAt} > NOW() - INTERVAL '5 minutes'`
+        )
+      );
+
+    if (recentOTPs.length >= 4) {
+      return res.status(429).json({ error: "Too many requests. Please wait 5 minutes before resending." });
+    }
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    await db.insert(otpVerifications).values({
+      userId: user.id,
+      email: targetEmail,
+      type: "email",
+      otpCode,
+      expiresAt,
+      isUsed: false,
+    });
+
+    console.log(`✉️ [Resend] Email OTP for ${targetEmail}: ${otpCode}`);
+
+    try {
+      await sendOTPEmailVerify(targetEmail, otpCode, user.firstName || "Customer");
+    } catch (emailErr) {
+      console.warn("⚠️ Verification email resend failed:", emailErr);
+    }
+
+    return res.json({
+      success: true,
+      message: "Verification code has been resent to your email",
+    });
+  } catch (error: any) {
+    console.error("Error resending email OTP:", error);
+    return res.status(500).json({ error: error.message || "Failed to resend email verification code" });
   }
 });
 

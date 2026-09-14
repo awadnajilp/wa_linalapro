@@ -63,12 +63,23 @@ export function loadFacebookSdk(appId: string): Promise<void> {
   return fbSdkPromise;
 }
 
-export async function loginWithFacebook(appId: string): Promise<{ accessToken: string }> {
+export async function loginWithFacebook(appId: string, configId?: string): Promise<{ accessToken: string }> {
   await loadFacebookSdk(appId);
 
   return new Promise<{ accessToken: string }>((resolve, reject) => {
     if (!window.FB) {
       return reject(new Error("Facebook SDK failed to initialize"));
+    }
+
+    const loginOptions: any = {
+      return_scopes: true,
+    };
+
+    if (configId && configId.trim().length > 0) {
+      loginOptions.config_id = configId.trim();
+      loginOptions.response_type = "token";
+    } else {
+      loginOptions.scope = "public_profile,email";
     }
 
     window.FB.login(
@@ -83,10 +94,7 @@ export async function loginWithFacebook(appId: string): Promise<{ accessToken: s
           reject(new Error(response.error?.message || "Facebook login was cancelled or closed"));
         }
       },
-      {
-        scope: "public_profile,email",
-        return_scopes: true,
-      }
+      loginOptions
     );
   });
 }

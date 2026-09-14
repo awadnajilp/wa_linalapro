@@ -1155,6 +1155,26 @@ const steps: MigrationStep[] = [
   addColumnIfNotExists("panel_config", "google_client_id", "TEXT"),
   addColumnIfNotExists("panel_config", "google_client_secret", "TEXT"),
   addColumnIfNotExists("panel_config", "google_auth_enabled", "BOOLEAN DEFAULT true"),
+  addColumnIfNotExists("panel_config", "system_whatsapp_type", "VARCHAR(20) DEFAULT 'cloud_api'"),
+  addColumnIfNotExists("panel_config", "system_whatsapp_channel_id", "VARCHAR"),
+  addColumnIfNotExists("panel_config", "system_whatsapp_phone_number_id", "TEXT"),
+  addColumnIfNotExists("panel_config", "system_whatsapp_access_token", "TEXT"),
+  addColumnIfNotExists("panel_config", "system_whatsapp_waba_id", "TEXT"),
+  addColumnIfNotExists("panel_config", "system_whatsapp_enabled", "BOOLEAN DEFAULT true"),
+  addColumnIfNotExists("panel_config", "system_whatsapp_renewal_reminder_enabled", "BOOLEAN DEFAULT true"),
+  addColumnIfNotExists("panel_config", "system_whatsapp_renewal_template", "TEXT"),
+  addColumnIfNotExists("panel_config", "system_whatsapp_otp_template", "TEXT"),
+  addColumnIfNotExists("panel_config", "system_whatsapp_renewal_url", "TEXT"),
+  addColumnIfNotExists("users", "is_phone_verified", "BOOLEAN DEFAULT false"),
+  {
+    description: "Allow nullable user_id on otp_verifications and add phone/email/type columns",
+    sql: `
+      ALTER TABLE otp_verifications ALTER COLUMN user_id DROP NOT NULL;
+      ALTER TABLE otp_verifications ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+      ALTER TABLE otp_verifications ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+      ALTER TABLE otp_verifications ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'email';
+    `,
+  },
 
   // ────────────────────────────────────────────────────
   // Ecommerce Config AI Key Source Switcher

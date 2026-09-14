@@ -18,13 +18,15 @@
 import type { Request, Response } from 'express';
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { storage } from '../storage';
-import { insertTemplateSchema, mediaLibrary } from '@shared/schema';
+import { insertTemplateSchema, mediaLibrary, users, aiSettings } from '@shared/schema';
+import { eq, and } from "drizzle-orm";
 import { db } from "../db";
 import path from "path";
 import { AppError, asyncHandler } from '../middlewares/error.middleware';
 import { WhatsAppApiService } from '../services/whatsapp-api';
 import type { RequestWithChannel } from '../middlewares/channel.middleware';
 import { checkUtilityHelperPermission } from '../services/plan-permission.service';
+import { AiBillingService } from '../services/ai-billing-service';
 import fs from "fs";
 import sharp from 'sharp';
 import { getEcommerceStarterTemplates } from "../services/ecommerce-templates";
@@ -215,6 +217,10 @@ export const createTemplate = asyncHandler(
       if (placeholders[i] !== i + 1) {
         throw new AppError(400, "Placeholders must be sequential starting from {{1}}");
       }
+    }
+
+    if (bodyText && /\{\{\d+\}\}\s*$/.test(bodyText.trim())) {
+      throw new AppError(400, "Template body cannot end with a variable like {{1}}. Please add closing text or punctuation after the variable.");
     }
 
     let samples: string[] = [];
@@ -719,6 +725,10 @@ export const updateTemplate = asyncHandler(
           "Placeholders must be sequential starting from {{1}}"
         );
       }
+    }
+
+    if (validatedTemplate.body && /\{\{\d+\}\}\s*$/.test(validatedTemplate.body.trim())) {
+      throw new AppError(400, "Template body cannot end with a variable like {{1}}. Please add closing text or punctuation after the variable.");
     }
 
     /* ------------------------------------------------
@@ -2156,4 +2166,180 @@ export const seedTemplates = asyncHandler(async (req: RequestWithChannel, res: R
   );
 
   res.json({ message: "Templates seeded successfully", templates: createdTemplates });
+});
+
+/**
+ * AI Reformat Template into Meta-Compliant Utility Category
+ */
+export const aiFormatUtilityTemplate = asyncHandler(async (req: Request, res: Response) => {
+  const user = (req.session as any)?.user;
+  if (!user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+
+  // Check plan permission
+  const hasPermission = await checkUtilityHelperPermission(user.id);
+  if (!hasPermission) {
+    return res.status(403).json({
+      error: "Utility Category Helper is not enabled on your subscription plan.",
+    });
+  }
+
+  const { body, header, language, channelId } = req.body;
+  if (!body || typeof body !== "string" || !body.trim()) {
+    return res.status(400).json({ error: "Template body content is required for AI formatting." });
+  }
+
+  // Resolve AI credentials
+  let finalApiKey = "";
+  let finalBaseURL = "https://api.openai.com/v1";
+  let finalModel = "gpt-4o-mini";
+
+  // 1. Check user/owner keys
+  const ownerId = user.role === "team" && user.createdBy ? user.createdBy : user.id;
+  const [ownerUser] = await db.select().from(users).where(eq(users.id, ownerId)).limit(1);
+
+  if (ownerUser?.groqApiKey) {
+    finalApiKey = ownerUser.groqApiKey;
+    finalBaseURL = "https://api.groq.com/openai/v1";
+    finalModel = "llama-3.3-70b-versatile";
+  } else if (ownerUser?.openaiApiKey) {
+    finalApiKey = ownerUser.openaiApiKey;
+    finalBaseURL = "https://api.openai.com/v1";
+    finalModel = "gpt-4o-mini";
+  }
+
+  // 2. Check channel aiSettings if provided
+  if (!finalApiKey && channelId) {
+    const [aiSetting] = await db
+      .select()
+      .from(aiSettings)
+      .where(and(eq(aiSettings.channelId, channelId), eq(aiSettings.isActive, true)))
+      .limit(1);
+
+    if (aiSetting?.apiKey) {
+      finalApiKey = aiSetting.apiKey;
+      finalBaseURL = aiSetting.endpoint || "https://api.openai.com/v1";
+      finalModel = aiSetting.model || "gpt-4o-mini";
+    }
+  }
+
+  // 3. Fallback to platform AI settings / panelConfig
+  if (!finalApiKey) {
+    const platformConfig = await AiBillingService.getPlatformAiConfig();
+    if (platformConfig.openaiApiKey) {
+      finalApiKey = platformConfig.openaiApiKey;
+      finalBaseURL = "https://api.openai.com/v1";
+      finalModel = "gpt-4o-mini";
+    } else if (platformConfig.groqApiKey) {
+      finalApiKey = platformConfig.groqApiKey;
+      finalBaseURL = "https://api.groq.com/openai/v1";
+      finalModel = "llama-3.3-70b-versatile";
+    }
+  }
+
+  // 4. Fallback to environment variables
+  if (!finalApiKey) {
+    finalApiKey = process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY || "";
+    if (process.env.GROQ_API_KEY && !process.env.OPENAI_API_KEY) {
+      finalBaseURL = "https://api.groq.com/openai/v1";
+      finalModel = "llama-3.3-70b-versatile";
+    }
+  }
+
+  if (!finalApiKey) {
+    return res.status(500).json({
+      error: "No AI provider configured. Please configure an OpenAI or Groq API key in Settings or contact your administrator.",
+    });
+  }
+
+  const OpenAIModule = (await import("openai")).default;
+  const aiClient = new OpenAIModule({
+    apiKey: finalApiKey,
+    baseURL: finalBaseURL,
+  });
+
+  const targetLang = language || "en_US";
+
+  const systemPrompt = `You are an elite Meta WhatsApp Business API Template Compliance Specialist.
+Your task is to reformat any given draft message into a 100% compliant, high-approval-rate WhatsApp **UTILITY** category template.
+
+### Meta WhatsApp UTILITY Guidelines:
+1. **Strictly Transactional Tone:** The message MUST be framed as a critical account alert, order update, booking/reservation notification, appointment reminder, service maintenance notice, transaction receipt, or verification alert.
+2. **Zero Marketing / Promotional Content:** Strip out ALL sales pitches, discounts, deals, limited-time offers, promotional buzzwords, marketing enthusiasm, and calls to buy.
+3. **Variable Numbering & Positioning:**
+   - Use sequential numbered variables: {{1}}, {{2}}, {{3}}, etc.
+   - Every variable MUST be surrounded by clear contextual text (e.g. "Dear {{1}}, your order {{2}}...").
+4. **CRITICAL MANDATORY RULE - NO TRAILING VARIABLE:**
+   - Meta AUTOMATICALLY REJECTS utility templates that end with a variable (e.g. ending with "Ref: {{3}}" or "{{1}}").
+   - The message body MUST NEVER end with {{x}}.
+   - The message MUST ALWAYS end with clear closing text, punctuation, or contact instructions after any reference code or variable (e.g. "Reference ID: #{{3}} for your records.", or "Tracking ID: {{2}}. Thank you for your business.", or "If you did not request this, please contact support immediately.").
+5. **Language:** Keep the template in the target language (${targetLang}) matching the original user input.
+6. **Provide Sample Values:** For every numbered variable in the reformatted body, provide a clear, realistic sample value (e.g. ["John Doe", "ORD-94821", "REF-827394"]).
+
+Output format MUST be a valid JSON object ONLY (no markdown code blocks, no explanation text outside JSON):
+{
+  "body": "Your reformatted body text here with sequential variables {{1}}, {{2}} and closing non-variable text.",
+  "header": "Optional transactional header or empty string",
+  "variables": ["sample value 1", "sample value 2"],
+  "explanation": "Brief 1-sentence explanation of changes made for utility compliance"
+}`;
+
+  const userPrompt = `Reformat the following template text into a Meta-compliant UTILITY category template:\n\nOriginal Body:\n"${body}"${header ? `\nOriginal Header: "${header}"` : ""}`;
+
+  try {
+    const completion = await aiClient.chat.completions.create({
+      model: finalModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.2,
+      max_tokens: 1000,
+    });
+
+    const responseText = completion.choices[0]?.message?.content?.trim() || "";
+    
+    // Parse JSON
+    let cleanJson = responseText;
+    if (responseText.includes("```json")) {
+      cleanJson = responseText.split("```json")[1].split("```")[0].trim();
+    } else if (responseText.includes("```")) {
+      cleanJson = responseText.split("```")[1].split("```")[0].trim();
+    }
+
+    const parsed = JSON.parse(cleanJson);
+    let reformattedBody = parsed.body || body;
+    const reformattedHeader = parsed.header || "";
+    let sampleVariables: string[] = Array.isArray(parsed.variables) ? parsed.variables : [];
+
+    // Programmatic safety checks on reformatted body
+    // 1. Ensure it does NOT end with a variable like {{1}} or {{x}}
+    if (/\{\{\d+\}\}\s*[\.\,\;\:]*$/i.test(reformattedBody.trim())) {
+      reformattedBody = reformattedBody.trim() + " for your account records.";
+    }
+
+    // 2. Validate variables extraction and samples alignment
+    const extractedVarIndices = [...new Set([...reformattedBody.matchAll(/\{\{(\d+)\}\}/g)].map(m => parseInt(m[1])))];
+    const maxVarIdx = extractedVarIndices.length > 0 ? Math.max(...extractedVarIndices) : 0;
+    
+    if (sampleVariables.length < maxVarIdx) {
+      for (let i = sampleVariables.length; i < maxVarIdx; i++) {
+        sampleVariables.push(`Sample_${i + 1}`);
+      }
+    }
+
+    res.json({
+      success: true,
+      body: reformattedBody,
+      header: reformattedHeader,
+      variables: sampleVariables,
+      explanation: parsed.explanation || "Reformatted to Meta Utility standards.",
+    });
+  } catch (err: any) {
+    console.error("[AI Utility Reformat] Error calling AI model:", err);
+    res.status(500).json({
+      error: `AI reformatting failed: ${err.message || "Unknown error"}`,
+    });
+  }
 });

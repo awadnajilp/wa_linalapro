@@ -63,7 +63,9 @@ export const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
     scheduleRecurring: false,
     scheduleInterval: "daily",
     scheduleRepeatTimes: 1,
-    scheduleDate: ""
+    scheduleDate: "",
+    scheduleTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    preventPastExecution: true,
   },
   send_template: { kind: "send_template", label: "Template", templateId: "" },
   assign_user: { kind: "assign_user", label: "Assign User", assigneeId: "" },
@@ -152,6 +154,11 @@ export const defaultsByKind: Record<NodeKind, Partial<BuilderNodeData>> = {
     kind: "wait_reply",
     label: "Wait Reply",
     saveAs: "",
+    enableReminder: false,
+    reminderMessage: "Hi {{name}}, just following up on our previous message. Please reply when you get a chance!",
+    reminderMaxRetries: 1,
+    reminderIntervalMinutes: 10,
+    reminderIntervalUnit: "minutes",
   },
   ai_answer: {
     kind: "ai_answer",

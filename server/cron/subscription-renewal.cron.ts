@@ -3,6 +3,7 @@ import { db } from "../db";
 import { subscriptions, users, plans } from "@shared/schema";
 import { eq, and, or, gte, lte, lt, sql } from "drizzle-orm";
 import { sendSubscriptionRenewalEmail } from "../services/email.service";
+import { sendSystemWhatsappRenewalReminder } from "../services/system-whatsapp.service";
 
 export async function runSubscriptionRenewalCron(): Promise<{
   checkedCount: number;
@@ -65,7 +66,7 @@ export async function runSubscriptionRenewalCron(): Promise<{
     console.log(`[Subscription Renewal Cron] Found ${checkedCount} subscriptions eligible for reminder check.`);
 
     for (const item of candidates) {
-      if (!item.user || !item.user.email || !item.subscription) continue;
+      if (!item.user || !item.subscription) continue;
 
       const endDate = new Date(item.subscription.endDate);
       const msDiff = endDate.getTime() - now.getTime();
@@ -74,25 +75,50 @@ export async function runSubscriptionRenewalCron(): Promise<{
 
       const planName = item.plan?.name || (item.subscription.planData as any)?.name || "Subscription Plan";
 
-      try {
-        const result = await sendSubscriptionRenewalEmail({
-          toEmail: item.user.email,
-          username: item.user.username || item.user.firstName || "Customer",
-          planName,
-          endDate: item.subscription.endDate.toISOString(),
-          daysLeft: Math.max(0, daysLeft),
-          isExpired,
-        });
+      // 1. Send Email Reminder (if email exists)
+      if (item.user.email) {
+        try {
+          const result = await sendSubscriptionRenewalEmail({
+            toEmail: item.user.email,
+            username: item.user.username || item.user.firstName || "Customer",
+            planName,
+            endDate: item.subscription.endDate.toISOString(),
+            daysLeft: Math.max(0, daysLeft),
+            isExpired,
+          });
 
-        if (result.success) {
-          sentCount++;
-          console.log(`[Subscription Renewal Cron] Sent reminder to ${item.user.email} for ${planName} (days left: ${daysLeft})`);
-        } else {
+          if (result.success) {
+            sentCount++;
+            console.log(`[Subscription Renewal Cron] Sent email reminder to ${item.user.email} for ${planName} (days left: ${daysLeft})`);
+          } else {
+            errorCount++;
+          }
+        } catch (err) {
           errorCount++;
+          console.error(`[Subscription Renewal Cron] Failed to send email to ${item.user.email}:`, err);
         }
-      } catch (err) {
-        errorCount++;
-        console.error(`[Subscription Renewal Cron] Failed to send email to ${item.user.email}:`, err);
+      }
+
+      // 2. Send WhatsApp Renewal Reminder (if phoneNumber exists)
+      const userPhone = item.user.phoneNumber || (item.user as any).phone;
+      if (userPhone) {
+        try {
+          const waResult = await sendSystemWhatsappRenewalReminder({
+            user: item.user,
+            subscription: item.subscription,
+            planName,
+            daysLeft,
+            isExpired,
+          });
+
+          if (waResult.success) {
+            console.log(`[Subscription Renewal Cron] Sent WhatsApp renewal reminder to ${userPhone} for ${planName}`);
+          } else {
+            console.warn(`[Subscription Renewal Cron] WhatsApp renewal reminder skipped or failed for ${userPhone}: ${waResult.error}`);
+          }
+        } catch (waErr: any) {
+          console.error(`[Subscription Renewal Cron] WhatsApp renewal error for ${userPhone}:`, waErr.message);
+        }
       }
     }
   } catch (error) {

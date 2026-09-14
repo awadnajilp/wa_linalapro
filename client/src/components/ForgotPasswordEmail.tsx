@@ -92,7 +92,7 @@ export default function ForgotPasswordEmail({ onEmailSent, onBack }: Props) {
 
       <Button
         onClick={handleSubmit}
-        className="w-full bg-green-600 hover:bg-green-700"
+        className="w-full h-11 bg-purple-600 hover:bg-purple-700 rounded-xl text-white font-bold text-sm"
         disabled={isLoading}
       >
         {isLoading ? (
@@ -109,10 +109,10 @@ export default function ForgotPasswordEmail({ onEmailSent, onBack }: Props) {
         <button
           type="button"
           onClick={onBack}
-          className="w-full flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-green-600 transition-colors"
+          className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-slate-500 hover:text-purple-600 transition-colors py-2 cursor-pointer"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Login
+          Back to Sign In
         </button>
       )}
     </div>

@@ -127,6 +127,7 @@ interface PendingExecution {
 export class AutomationExecutionService {
   private pendingExecutions = new Map<string, PendingExecution>();
   private activeTimeGapTimers = new Set<string>();
+  private activeWaitReplyTimers = new Set<string>();
 
   constructor() {
     setInterval(() => {
@@ -1027,6 +1028,13 @@ private stemWord(word: string = ""): string {
       delete context.variables._userReply_nodeId;
       delete context.variables._userReply_saveAs;
       delete context.variables._userReply_expectedButtons;
+      delete context.variables._waitReply_enableReminder;
+      delete context.variables._waitReply_reminderMessage;
+      delete context.variables._waitReply_maxRetries;
+      delete context.variables._waitReply_intervalMinutes;
+      delete context.variables._waitReply_retryCount;
+      delete context.variables._waitReply_nextReminderAt;
+      this.activeWaitReplyTimers.delete(context.executionId);
 
       await db.update(automationExecutions)
         .set({
@@ -1953,12 +1961,34 @@ private async executeUserReply(node: any, context: ExecutionContext) {
     context.variables._userReply_saveAs = node.data?.saveAs || null;
     context.variables._userReply_expectedButtons = [];
 
+    // Configure and schedule follow-up reminder alerts if enabled
+    const enableReminder = !!node.data?.enableReminder;
+    const reminderMessage = node.data?.reminderMessage || '';
+    const reminderMaxRetries = Math.max(1, Number(node.data?.reminderMaxRetries || 1));
+    const reminderIntervalUnit = node.data?.reminderIntervalUnit || 'minutes';
+    let intervalMinutes = Number(node.data?.reminderIntervalMinutes || 10);
+    if (reminderIntervalUnit === 'hours') intervalMinutes *= 60;
+    if (reminderIntervalUnit === 'days') intervalMinutes *= 1440;
+    if (intervalMinutes <= 0) intervalMinutes = 10;
+
+    if (enableReminder && reminderMessage) {
+      context.variables._waitReply_enableReminder = true;
+      context.variables._waitReply_reminderMessage = reminderMessage;
+      context.variables._waitReply_maxRetries = reminderMaxRetries;
+      context.variables._waitReply_intervalMinutes = intervalMinutes;
+      context.variables._waitReply_retryCount = 0;
+      context.variables._waitReply_nextReminderAt = new Date(Date.now() + intervalMinutes * 60 * 1000).toISOString();
+      
+      this.scheduleWaitReplyReminder(context.executionId, intervalMinutes * 60 * 1000);
+      console.log(`🔔 [WaitReply Reminder] Scheduled 1st follow-up alert in ${intervalMinutes}m for execution ${context.executionId} (max ${reminderMaxRetries} times)`);
+    }
+
     await db.update(automationExecutions)
       .set({
         status: 'paused',
         currentNodeId: node.nodeId,
         variables: context.variables,
-        result: `Waiting for user reply`
+        result: `Waiting for user reply${enableReminder ? ` (Follow-up alerts enabled: ${reminderMaxRetries}x every ${intervalMinutes}m)` : ''}`
       })
       .where(eq(automationExecutions.id, context.executionId));
     
@@ -2714,6 +2744,13 @@ private async sendInteractiveMessage(
     delete cleanVars._userReply_nodeType;
     delete cleanVars._userReply_saveAs;
     delete cleanVars._userReply_expectedButtons;
+    delete cleanVars._waitReply_enableReminder;
+    delete cleanVars._waitReply_reminderMessage;
+    delete cleanVars._waitReply_maxRetries;
+    delete cleanVars._waitReply_intervalMinutes;
+    delete cleanVars._waitReply_retryCount;
+    delete cleanVars._waitReply_nextReminderAt;
+    this.activeWaitReplyTimers.delete(exec.id);
 
     const context: ExecutionContext = {
       executionId: exec.id,
@@ -2818,7 +2855,26 @@ private async sendInteractiveMessage(
       }
 
       const diffMs = resumeAt.getTime() - Date.now();
-      delaySeconds = Math.max(0, Math.round(diffMs / 1000));
+      delaySeconds = Math.round(diffMs / 1000);
+
+      const preventPast = node.data?.preventPastExecution !== false;
+      if (delaySeconds <= 0 && preventPast) {
+        const tzInfo = node.data?.scheduleTimezone ? ` in timezone ${node.data.scheduleTimezone}` : '';
+        console.log(`⏰ [Scheduler] Node ${node.nodeId}: Target time ${resumeAt.toISOString()}${tzInfo} is in the past for execution ${context.executionId} and preventPastExecution is enabled. Skipping execution.`);
+        await this.completeExecution(
+          context.executionId,
+          'completed',
+          `Scheduler skipped: Target time (${resumeAt.toLocaleString()}${tzInfo}) has already passed.`
+        );
+        return {
+          action: 'schedule_skipped',
+          delaySeconds: 0,
+          reason: 'past_time',
+          scheduledFor: resumeAt,
+        };
+      }
+
+      delaySeconds = Math.max(0, delaySeconds);
     } else {
       const days = Number(node.data?.scheduleDays || 0);
       const minutes = Number(node.data?.scheduleMinutes || 10);
@@ -3119,8 +3175,167 @@ private async sendInteractiveMessage(
           setTimeout(resume, remainingMs);
         }
       }
+
+      // Also check and recover any due wait_reply reminder alerts
+      await this.recoverWaitReplyReminders();
     } catch (err) {
       console.error('[time_gap recovery] Error during recovery:', err);
+    }
+  }
+
+  scheduleWaitReplyReminder(executionId: string, delayMs: number) {
+    if (this.activeWaitReplyTimers.has(executionId)) return;
+    this.activeWaitReplyTimers.add(executionId);
+
+    setTimeout(async () => {
+      this.activeWaitReplyTimers.delete(executionId);
+      try {
+        await this.processWaitReplyReminder(executionId);
+      } catch (err: any) {
+        console.error(`[WaitReply Reminder] Error processing reminder for execution ${executionId}:`, err);
+      }
+    }, Math.max(1000, delayMs));
+  }
+
+  async processWaitReplyReminder(executionId: string) {
+    const exec = await db.query.automationExecutions.findFirst({
+      where: eq(automationExecutions.id, executionId)
+    });
+
+    if (!exec || exec.status !== 'paused') return;
+    const vars = (exec.variables as Record<string, any>) || {};
+    
+    // Ensure it is still waiting for user reply and reminders are enabled
+    if (!vars._userReply_waiting || !vars._waitReply_enableReminder || !vars._waitReply_reminderMessage) return;
+
+    const retryCount = Number(vars._waitReply_retryCount || 0);
+    const maxRetries = Number(vars._waitReply_maxRetries || 1);
+
+    if (retryCount >= maxRetries) {
+      console.log(`[WaitReply Reminder] Max retries (${maxRetries}) reached for execution ${executionId}. No more reminders will be sent.`);
+      const updatedVars = { ...vars };
+      delete updatedVars._waitReply_nextReminderAt;
+      await db.update(automationExecutions)
+        .set({ variables: updatedVars })
+        .where(eq(automationExecutions.id, executionId));
+      return;
+    }
+
+    // Resolve contact and channel
+    let contactRow: any = null;
+    if (exec.contactId) {
+      contactRow = await db.query.contacts.findFirst({
+        where: eq(contacts.id, exec.contactId)
+      });
+    }
+
+    if (!contactRow && exec.conversationId) {
+      const conv = await db.query.conversations.findFirst({
+        where: eq(conversations.id, exec.conversationId)
+      });
+      if (conv?.contactId) {
+        contactRow = await db.query.contacts.findFirst({
+          where: eq(contacts.id, conv.contactId)
+        });
+      }
+    }
+
+    if (!contactRow?.phone) {
+      console.warn(`[WaitReply Reminder] Cannot send reminder for execution ${executionId}: contact phone not found`);
+      return;
+    }
+
+    let effectiveChannelId = contactRow.channelId;
+    if (!effectiveChannelId) {
+      const [automationRow] = await db
+        .select({ channelId: automations.channelId })
+        .from(automations)
+        .where(eq(automations.id, exec.automationId))
+        .limit(1);
+      effectiveChannelId = automationRow?.channelId;
+    }
+
+    if (!effectiveChannelId) {
+      console.warn(`[WaitReply Reminder] Cannot send reminder for execution ${executionId}: channelId not found`);
+      return;
+    }
+
+    // Format message with variables
+    const formattedMessage = this.replaceVariables(vars._waitReply_reminderMessage, {
+      ...vars,
+      name: contactRow.name || '',
+      phone: contactRow.phone || '',
+    });
+
+    console.log(`🔔 [WaitReply Reminder] Sending reminder (${retryCount + 1}/${maxRetries}) to ${contactRow.phone}: "${formattedMessage}"`);
+
+    await sendBusinessMessage({
+      to: contactRow.phone,
+      message: formattedMessage,
+      channelId: effectiveChannelId,
+    });
+
+    const newRetryCount = retryCount + 1;
+    const intervalMinutes = Number(vars._waitReply_intervalMinutes || 10);
+    const updatedVars = {
+      ...vars,
+      _waitReply_retryCount: newRetryCount,
+    };
+
+    if (newRetryCount < maxRetries) {
+      const nextReminderAt = new Date(Date.now() + intervalMinutes * 60 * 1000).toISOString();
+      updatedVars._waitReply_nextReminderAt = nextReminderAt;
+      this.scheduleWaitReplyReminder(executionId, intervalMinutes * 60 * 1000);
+    } else {
+      delete updatedVars._waitReply_nextReminderAt;
+    }
+
+    await db.update(automationExecutions)
+      .set({ variables: updatedVars })
+      .where(eq(automationExecutions.id, executionId));
+
+    await this.logNodeExecution(
+      executionId,
+      vars._userReply_nodeId || exec.currentNodeId || 'wait_reply',
+      'wait_reply',
+      'reminder_sent',
+      { reminderMessage: formattedMessage, retryCount: newRetryCount, maxRetries },
+      { action: 'wait_reply_reminder_delivered', retryCount: newRetryCount },
+      null
+    );
+  }
+
+  async recoverWaitReplyReminders() {
+    try {
+      const pausedExecs = await db.query.automationExecutions.findMany({
+        where: and(
+          eq(automationExecutions.status, 'paused'),
+          sql`variables->>'_userReply_waiting' = 'true'`,
+          sql`variables->>'_waitReply_enableReminder' = 'true'`,
+          sql`variables->>'_waitReply_nextReminderAt' IS NOT NULL`
+        )
+      });
+
+      for (const exec of pausedExecs) {
+        const vars = (exec.variables as Record<string, any>) || {};
+        const nextReminderAtStr = vars._waitReply_nextReminderAt;
+        if (!nextReminderAtStr) continue;
+
+        const nextReminderAt = new Date(nextReminderAtStr);
+        const remainingMs = nextReminderAt.getTime() - Date.now();
+
+        if (this.activeWaitReplyTimers.has(exec.id) && remainingMs > 0) {
+          continue;
+        }
+
+        if (remainingMs <= 0) {
+          void this.processWaitReplyReminder(exec.id);
+        } else {
+          this.scheduleWaitReplyReminder(exec.id, remainingMs);
+        }
+      }
+    } catch (err: any) {
+      console.error("[recoverWaitReplyReminders] Error recovering reminders:", err);
     }
   }
 

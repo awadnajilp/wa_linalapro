@@ -78,7 +78,7 @@ export default function LoginPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: facebookConfig } = useQuery<{ enabled: boolean; appId: string }>({
+  const { data: facebookConfig } = useQuery<{ enabled: boolean; appId: string; configId?: string }>({
     queryKey: ["/api/auth/facebook/config"],
     queryFn: () => fetch("/api/auth/facebook/config").then((res) => res.json()),
     staleTime: 5 * 60 * 1000,
@@ -165,7 +165,7 @@ export default function LoginPage() {
     setIsFacebookLoading(true);
 
     try {
-      const { accessToken } = await loginWithFacebook(facebookConfig.appId);
+      const { accessToken } = await loginWithFacebook(facebookConfig.appId, facebookConfig.configId);
 
       const response = await fetch("/api/auth/facebook", {
         method: "POST",
@@ -330,9 +330,9 @@ export default function LoginPage() {
   ];
 
   return (
-    <div className="min-h-screen flex font-sans selection:bg-purple-600 selection:text-white bg-[#0A0910]">
-      {/* LEFT PANE: Clean, Solid Obsidian-Purple Showcase */}
-      <div className="hidden lg:flex lg:w-7/12 xl:w-3/5 relative flex-col justify-between p-10 xl:p-14 overflow-hidden bg-[#0C0A14] text-slate-100 border-r border-slate-800/80">
+    <div className="min-h-screen flex flex-col lg:flex-row font-sans selection:bg-purple-600 selection:text-white bg-slate-50 lg:bg-[#0A0910]">
+      {/* LEFT PANE: Clean, Solid Obsidian-Purple Showcase (Desktop) */}
+      <div className="hidden lg:flex lg:w-7/12 xl:w-3/5 min-h-screen relative flex-col justify-between p-8 xl:p-14 overflow-hidden bg-[#0C0A14] text-slate-100 border-r border-slate-800/80">
         {/* Subtle Brand Structural Grid */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e172e_1px,transparent_1px),linear-gradient(to_bottom,#1e172e_1px,transparent_1px)] bg-[size:32px_32px] opacity-40 pointer-events-none" />
 
@@ -366,8 +366,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Center Canvas: Spacious, Crisp Hero & Smooth Floating Feature Stream */}
-        <div className="relative z-10 my-auto py-2 max-w-xl">
+        {/* Center Canvas: Hero & Smooth Floating Feature Stream */}
+        <div className="relative z-10 my-auto py-4 max-w-xl">
           <div className="mb-6">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-950/80 text-purple-300 border border-purple-800/50 text-xs font-semibold uppercase tracking-wider mb-3">
               <Sparkles className="w-3.5 h-3.5 text-purple-400" />
@@ -454,21 +454,21 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* RIGHT PANE: Clean Crisp Light Form Container */}
-      <div className="w-full lg:w-5/12 xl:w-2/5 flex items-center justify-center p-6 sm:p-10 lg:p-12 relative bg-slate-50">
-        <div className="w-full max-w-md relative z-10">
+      {/* RIGHT PANE: Clean Crisp Light Form Container (Fully Responsive) */}
+      <div className="w-full lg:w-5/12 xl:w-2/5 min-h-screen flex items-center justify-center p-4 sm:p-8 lg:p-10 xl:p-12 relative bg-slate-50">
+        <div className="w-full max-w-md mx-auto py-6 sm:py-8 relative z-10">
           {/* Mobile Brand Logo */}
-          <div className="lg:hidden flex items-center justify-center mb-8">
+          <div className="lg:hidden flex items-center justify-center mb-6 sm:mb-8">
             <Link href="/" className="inline-flex items-center gap-2.5">
               {brandSettings?.logo ? (
                 <img
                   src={brandSettings?.logo}
                   alt="Logo"
-                  className="h-10 object-contain"
+                  className="h-9 sm:h-10 object-contain"
                 />
               ) : (
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-purple-600 flex items-center justify-center text-white shadow-lg shadow-purple-600/30">
+                  <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-2xl bg-purple-600 flex items-center justify-center text-white shadow-lg shadow-purple-600/30">
                     <MessageSquare className="w-5 h-5" />
                   </div>
                   <span className="text-xl font-bold text-slate-900 tracking-tight">LINALA</span>
@@ -478,14 +478,14 @@ export default function LoginPage() {
           </div>
 
           {/* Form Header */}
-          <div className="mb-6 text-center lg:text-left">
+          <div className="mb-5 sm:mb-6 text-center lg:text-left">
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
               {step === "login" && "Sign In"}
               {step === "forgot" && "Reset Your Password"}
               {step === "verify" && "Verify Security Code"}
               {step === "reset" && "Create New Password"}
             </h2>
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-1.5 sm:mt-2 text-xs sm:text-sm text-slate-500">
               {step === "login" && "Access your WhatsApp workspace and AI modules"}
               {step === "forgot" && "Enter your account email to receive an instant reset code"}
               {step === "verify" && "Enter the 6-digit verification code sent to your email"}
@@ -494,8 +494,8 @@ export default function LoginPage() {
           </div>
 
           {/* Clean Light Card */}
-          <Card className="bg-white border border-slate-200/90 shadow-xl shadow-purple-950/5 rounded-3xl overflow-hidden">
-            <CardContent className="p-6 sm:p-8">
+          <Card className="bg-white border border-slate-200/90 shadow-xl shadow-purple-950/5 rounded-2xl sm:rounded-3xl overflow-hidden">
+            <CardContent className="p-5 sm:p-8">
               {error && (
                 <Alert className="mb-5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-3.5">
                   <AlertDescription className="text-xs font-semibold flex items-center gap-2">

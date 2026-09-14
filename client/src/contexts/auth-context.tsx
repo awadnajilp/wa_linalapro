@@ -34,6 +34,9 @@ interface User {
   createdAt?: string;
   originalSuperadmin?: any;
   crmStatus?: string;
+  isEmailVerified?: boolean;
+  isPhoneVerified?: boolean;
+  phoneNumber?: string;
 }
 
 interface BrandSettings {

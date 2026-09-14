@@ -106,7 +106,7 @@ export default function VerifyOtp({ email, onVerified }: Props) {
         </Alert>
       )}
 
-      <div className="flex justify-center gap-3" onPaste={handlePaste}>
+      <div className="flex justify-center gap-1.5 sm:gap-3" onPaste={handlePaste}>
         {otp.map((digit, index) => (
           <input
             key={index}
@@ -117,8 +117,8 @@ export default function VerifyOtp({ email, onVerified }: Props) {
             onChange={(e) => handleChange(index, e.target.value)}
             onKeyDown={(e) => handleKeyDown(index, e)}
             ref={(el) => (inputRefs.current[index] = el!)}
-            className="w-12 h-14 text-center text-xl font-semibold border-2 border-gray-300 rounded-lg 
-              focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 
+            className="w-9 sm:w-12 h-11 sm:h-14 text-center text-lg sm:text-xl font-semibold border-2 border-gray-300 rounded-lg 
+              focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 
               transition-all duration-200
               hover:border-gray-400"
             autoFocus={index === 0}
@@ -128,7 +128,7 @@ export default function VerifyOtp({ email, onVerified }: Props) {
 
       <Button
         onClick={handleVerify}
-        className="w-full bg-green-600 hover:bg-green-700"
+        className="w-full bg-purple-600 hover:bg-purple-700 h-11 rounded-xl text-white font-bold text-sm"
         disabled={isLoading}
       >
         {isLoading ? (

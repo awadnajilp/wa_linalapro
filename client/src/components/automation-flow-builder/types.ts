@@ -212,6 +212,14 @@ export interface BuilderNodeData {
   scheduleRecurring?: boolean;
   scheduleInterval?: "daily" | "weekly" | "monthly";
   scheduleRepeatTimes?: number;
+  preventPastExecution?: boolean;
+
+  // Wait for reply follow-up reminder alerts
+  enableReminder?: boolean;
+  reminderMessage?: string;
+  reminderMaxRetries?: number;
+  reminderIntervalMinutes?: number;
+  reminderIntervalUnit?: "minutes" | "hours" | "days";
 
   [key: string]: unknown;
 }

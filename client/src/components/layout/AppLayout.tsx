@@ -21,6 +21,7 @@ import { setMeta } from "@/hooks/setMeta";
 import { SidebarProvider } from "@/contexts/sidebar-context";
 import { useSocket } from "@/contexts/socket-context";
 import { useGlobalNotifications } from "../notification/useGlobalNotifications.tsx";
+import EmailVerificationBanner from "@/components/EmailVerificationBanner";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { data: brandSettings } = useQuery({
@@ -56,6 +57,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <EmailVerificationBanner />
       <SidebarProvider>{children}</SidebarProvider>
     </>
   );

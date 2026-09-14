@@ -72,10 +72,12 @@ import { registerEcommerceRoutes } from "./ecommerce.routes";
 import { registerServiceBookingRoutes } from "./service-booking.routes";
 import { registerRemindersRoutes } from "./reminders.routes";
 import { registerWhatsappFlowsRoutes } from "./whatsapp-flows.routes";
+import systemWhatsappRoutes from "./system-whatsapp.routes";
 
 export async function registerRoutes(app: Express, existingServer?: Server): Promise<Server> {
   // Auth routes (no authentication required)
   app.use("/api/auth", authRoutes);
+  app.use("/api/system-whatsapp", systemWhatsappRoutes);
 
   // Register all route modules
   registerWidgetRoutes(app);

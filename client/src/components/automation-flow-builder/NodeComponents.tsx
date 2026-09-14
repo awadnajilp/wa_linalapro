@@ -374,9 +374,17 @@ export function SchedulerNode({ data }: { data: BuilderNodeData }) {
       >
         <div className="flex flex-col gap-1 bg-white rounded-lg p-2 border border-gray-100 min-w-[120px]">
           <span className="text-xs font-semibold text-rose-700">{display}</span>
-          <span className="text-[9px] text-gray-400 font-medium uppercase">
-            {type === "date" ? "Specific Date" : "Relative Period"}
-          </span>
+          <div className="flex items-center justify-between gap-1 text-[9px] text-gray-400 font-medium">
+            <span className="uppercase">{type === "date" ? "Specific Date" : "Relative Period"}</span>
+            {type === "date" && data.scheduleTimezone && (
+              <span className="text-slate-500 font-normal truncate max-w-[90px]">{data.scheduleTimezone.split('/').pop()}</span>
+            )}
+          </div>
+          {type === "date" && data.preventPastExecution !== false && (
+            <span className="text-[9px] text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded text-center font-medium">
+              Strict Future Only
+            </span>
+          )}
         </div>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-rose-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
@@ -893,16 +901,26 @@ export function WaitReplyNode({ data, selected }: { data: BuilderNodeData; selec
         borderColor="border-amber-100"
         selected={selected}
       >
-        {data.saveAs ? (
-          <div className="flex items-center gap-1.5 bg-amber-100/50 rounded px-2 py-1 border border-amber-200/50 text-[11px] text-amber-800">
-            <span>Save reply to:</span>
-            <code className="font-mono font-bold bg-white px-1.5 py-0.5 rounded shadow-sm">
-              {data.saveAs}
-            </code>
-          </div>
-        ) : (
-          <div className="text-gray-400 italic text-[11px]">Just pause & wait for reply</div>
-        )}
+        <div className="space-y-1.5">
+          {data.saveAs ? (
+            <div className="flex items-center gap-1.5 bg-amber-100/50 rounded px-2 py-1 border border-amber-200/50 text-[11px] text-amber-800">
+              <span>Save reply to:</span>
+              <code className="font-mono font-bold bg-white px-1.5 py-0.5 rounded shadow-sm">
+                {data.saveAs}
+              </code>
+            </div>
+          ) : (
+            <div className="text-gray-400 italic text-[11px]">Just pause & wait for reply</div>
+          )}
+          {data.enableReminder && (
+            <div className="flex items-center gap-1 bg-amber-100/70 border border-amber-300/60 rounded px-2 py-0.5 text-[10px] text-amber-900 font-medium">
+              <span>🔔 Follow-up alert:</span>
+              <span className="font-semibold">
+                {data.reminderIntervalMinutes || 10}{data.reminderIntervalUnit === "hours" ? "h" : data.reminderIntervalUnit === "days" ? "d" : "m"} (x{data.reminderMaxRetries || 1})
+              </span>
+            </div>
+          )}
+        </div>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-amber-500 !w-3 !h-3 !border-2 !border-white !shadow-sm !-bottom-1.5" />
     </div>

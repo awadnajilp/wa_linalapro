@@ -63,6 +63,7 @@ import BillingSubscriptionPage from "@/components/billing-subscription-page";
 import WidgetBuilder from "@/pages/widget-builder/WidgetBuilder";
 import ApiDocs from "@/pages/api-docs";
 import TagsManagerSettings from "@/components/settings/TagsManagerSettings";
+import SystemWhatsappSettings from "@/components/settings/SystemWhatsappSettings";
 
 const tabTriggerClass =
   "flex items-center gap-2 whitespace-nowrap text-xs h-8 rounded-md px-3 sm:h-9 sm:px-4 sm:text-sm shrink-0";
@@ -216,6 +217,11 @@ export default function Settings() {
                     <span>Notifications</span>
                   </TabsTrigger>
 
+                  <TabsTrigger value="system_whatsapp" className={tabTriggerClass}>
+                    <Smartphone className="w-4 h-4 shrink-0 text-emerald-500" />
+                    <span>WA Notifications & Renewals</span>
+                  </TabsTrigger>
+
                   <TabsTrigger value="languages" className={tabTriggerClass}>
                     <Globe className="w-4 h-4 shrink-0" />
                     <span>Languages</span>
@@ -319,6 +325,10 @@ export default function Settings() {
 
               <TabsContent value="notification_templates">
                 <NotificationTemplatesSettings />
+              </TabsContent>
+
+              <TabsContent value="system_whatsapp">
+                <SystemWhatsappSettings />
               </TabsContent>
 
               <TabsContent value="languages">

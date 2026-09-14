@@ -167,7 +167,7 @@ export default function ResetPassword({ email, otpCode, onReset }: Props) {
 
       <Button
         onClick={handleReset}
-        className="w-full bg-green-600 hover:bg-green-700"
+        className="w-full h-11 bg-purple-600 hover:bg-purple-700 rounded-xl text-white font-bold text-sm"
         disabled={isLoading}
       >
         {isLoading ? (

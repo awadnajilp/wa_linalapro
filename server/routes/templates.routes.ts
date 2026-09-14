@@ -87,6 +87,12 @@ export function registerTemplateRoutes(app: Express) {
   app.post("/api/templates/sync",requireAuth,
   requirePermission(PERMISSIONS.TEMPLATES_SYNC), templatesController.syncTemplates);
 
+  // AI Reformat Template into Utility Category
+  app.post("/api/templates/ai-format-utility",
+    requireAuth,
+    templatesController.aiFormatUtilityTemplate
+  );
+
   // Seed templates
   app.post("/api/templates/seed",
     extractChannelId,

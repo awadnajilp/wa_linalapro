@@ -390,32 +390,32 @@ function LanguageSearch({
 const UTILITY_SAMPLES = [
   {
     title: "Admission Announcement",
-    body: "Dear {{1}}, this is an update regarding your admission query for batch {{2}}. Registration has officially started. Please contact our support team to secure your seat.\n\nRef: {{3}}",
+    body: "Dear {{1}}, this is an update regarding your admission query for batch {{2}}. Registration has officially started. Please contact our support team to secure your seat.\n\nReference ID: #{{3}} for your records.",
     samples: ["John Doe", "2026-27", "ADM-827391"],
   },
   {
     title: "Abandoned Cart Recovery",
-    body: "Dear {{1}}, this is a status update on your checkout session {{2}}. The items you selected are reserved. Please visit your cart to finalize your order request.\n\nRef: {{3}}",
+    body: "Dear {{1}}, this is a status update on your checkout session {{2}}. The items you selected are reserved. Please visit your cart to finalize your order request.\n\nReference ID: #{{3}} for your order tracking.",
     samples: ["Alice", "CS-9284", "CRT-18274"],
   },
   {
     title: "Webinar / Event Booking",
-    body: "Hello {{1}}, this is a reservation status update for ticket {{2}} regarding the upcoming workshop scheduled on {{3}}. We look forward to your attendance.\n\nRef: {{4}}",
+    body: "Hello {{1}}, this is a reservation status update for ticket {{2}} regarding the upcoming workshop scheduled on {{3}}. We look forward to your attendance.\n\nReservation Ref: #{{4}}. Please save this for verification.",
     samples: ["John", "TK-902", "July 20th at 10 AM", "EVT-73821"],
   },
   {
     title: "Membership / Renewal Notice",
-    body: "Dear {{1}}, your membership for account {{2}} is due for renewal on {{3}}. To avoid service interruption, please update your billing details.\n\nRef: {{4}}",
+    body: "Dear {{1}}, your membership for account {{2}} is due for renewal on {{3}}. To avoid service interruption, please update your billing details.\n\nRenewal Ref: #{{4}}. Contact support if you need assistance.",
     samples: ["Bob", "MEMB-823", "2026-08-01", "REN-38291"],
   },
   {
     title: "Service Feedback Request",
-    body: "Hello {{1}}, following your recent interaction on transaction {{2}}, we would like to confirm your service experience. Please reply with your rating.\n\nRef: {{3}}",
+    body: "Hello {{1}}, following your recent interaction on transaction {{2}}, we would like to confirm your service experience. Please reply with your rating.\n\nFeedback Ref: #{{3}}. Thank you for your time.",
     samples: ["Sarah", "TX-8829", "SRV-28371"],
   },
   {
     title: "Service / Product Proposal",
-    body: "Dear {{1}}, this is an update regarding your catalog query for {{2}}. We have prepared your custom proposal details. Please contact our representative to proceed.\n\nRef: {{3}}",
+    body: "Dear {{1}}, this is an update regarding your catalog query for {{2}}. We have prepared your custom proposal details. Please contact our representative to proceed.\n\nProposal Ref: #{{3}}. Our support team is available to assist you.",
     samples: ["Alex", "Enterprise Suite", "PRP-928374"],
   },
 ];
@@ -431,9 +431,11 @@ export function TemplateDialog({
   channelId,
 }: TemplateDialogProps) {
   const { user, userPlans } = useAuth();
+  const { toast } = useToast();
   const [submitted, setSubmitted] = useState(false);
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [optimizeToUtility, setOptimizeToUtility] = useState(false);
+  const [isAiFormatting, setIsAiFormatting] = useState(false);
   const [showMediaGallery, setShowMediaGallery] = useState(false);
 
   const { data: activeChannel } = useQuery({
@@ -718,11 +720,11 @@ export function TemplateDialog({
       const vars = extractVariables(currentBody);
       const hasRef = currentBody.toLowerCase().includes("ref:") || 
                      currentBody.toLowerCase().includes("id:") || 
-                     (currentBody.includes("{{") && currentBody.toLowerCase().includes("reference"));
+                     currentBody.toLowerCase().includes("reference");
       
       if (!hasRef) {
         const nextVarNum = vars.length + 1;
-        const refSuffix = `\n\nRef: {{${nextVarNum}}}`;
+        const refSuffix = `\n\nReference ID: #{{${nextVarNum}}} for your account records.`;
         const newBody = currentBody.trim() + refSuffix;
         form.setValue("body", newBody);
         
@@ -730,9 +732,68 @@ export function TemplateDialog({
         const newSamples = [...currentSamples];
         newSamples[nextVarNum - 1] = "REF-" + Math.floor(100000 + Math.random() * 900000);
         form.setValue("variables", newSamples);
+      } else {
+        if (/\{\{\d+\}\}\s*[\.\,\;\:]*$/i.test(currentBody.trim())) {
+          form.setValue("body", currentBody.trim() + " for your records.");
+        }
       }
     } else {
       form.setValue("category", "MARKETING");
+    }
+  };
+
+  const handleAiFormatUtility = async () => {
+    const currentBody = form.getValues("body") || "";
+    if (!currentBody.trim()) {
+      toast({
+        title: "Draft content required",
+        description: "Please enter your message draft in the Body field first so AI can reformat it into a Meta Utility format.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsAiFormatting(true);
+      const currentHeader = form.getValues("header") || "";
+      const currentLanguage = form.getValues("language") || "en_US";
+
+      const res = await apiRequest("POST", "/api/templates/ai-format-utility", {
+        body: currentBody,
+        header: currentHeader,
+        language: currentLanguage,
+        channelId,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to reformat template with AI");
+      }
+
+      const data = await res.json();
+      if (data.body) {
+        form.setValue("body", data.body);
+        form.setValue("category", "UTILITY");
+        form.setValue("marketingSubType", "CUSTOM");
+        setOptimizeToUtility(true);
+
+        if (Array.isArray(data.variables) && data.variables.length > 0) {
+          form.setValue("variables", data.variables);
+        }
+
+        toast({
+          title: "Template Reformatted with AI",
+          description: data.explanation || "Your template has been converted to a strict Meta-compliant Utility category format without trailing variables.",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "AI Reformatting Failed",
+        description: err.message || "Could not reformat template. Please check AI settings.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAiFormatting(false);
     }
   };
 
@@ -765,19 +826,17 @@ export function TemplateDialog({
   useEffect(() => {
     if (!isAuthentication) return;
     const vars = extractVariables(watchedValues.body || "");
-    form.setValue(
-      "variables",
-      vars.map(() => "")
-    );
+    const currentVars = form.getValues("variables") || [];
+    const newVars = vars.map((_, i) => currentVars[i] || "");
+    form.setValue("variables", newVars);
   }, [watchedValues.body, isAuthentication]);
 
   useEffect(() => {
     if (isAuthentication) return;
     const vars = extractVariables(watchedValues.body || "");
-    form.setValue(
-      "variables",
-      vars.map(() => "")
-    );
+    const currentVars = form.getValues("variables") || [];
+    const newVars = vars.map((_, i) => currentVars[i] || "");
+    form.setValue("variables", newVars);
   }, [watchedValues.body]);
 
   useEffect(() => {
@@ -2032,7 +2091,7 @@ export function TemplateDialog({
 
                     {/* Utility Category Optimization Helper */}
                     {isUtilityHelperEnabled && (
-                      <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 space-y-3 mt-4 mb-4 transition-all duration-200">
+                      <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 space-y-3.5 mt-4 mb-4 transition-all duration-200 shadow-sm">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Wrench className="h-4.5 w-4.5 text-blue-600 animate-pulse" />
@@ -2048,7 +2107,44 @@ export function TemplateDialog({
                           WhatsApp automated review is highly likely to approve templates in the <strong>Utility</strong> category (which is cheaper and has higher delivery rates) if they contain transactional parameters (like reference codes/IDs) and lack promotional words.
                         </p>
 
-                        <div className="flex items-center space-x-2 bg-white/60 p-2.5 rounded-lg border border-blue-100">
+                        {/* AI Auto-Reformatting Tool */}
+                        <div className="bg-gradient-to-r from-purple-50 to-blue-50/80 p-3 rounded-lg border border-purple-200/80 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <Sparkles className="h-4 w-4 text-purple-600" />
+                              <span className="text-xs font-semibold text-purple-950">AI Utility Auto-Reformat</span>
+                            </div>
+                            <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-[10px] font-medium">
+                              AI Powered
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-purple-900/80 leading-snug">
+                            Click below to analyze your existing draft and automatically reformat it into a high-probability, Meta-compliant transactional utility template without promotional text or trailing variables.
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleAiFormatUtility}
+                            disabled={isAiFormatting}
+                            className="w-full h-8 text-xs font-medium bg-white text-purple-700 hover:bg-purple-50 hover:text-purple-900 border-purple-300 gap-1.5 shadow-sm transition-colors"
+                          >
+                            {isAiFormatting ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-600" />
+                                <span>AI is Reformatting to Meta Utility...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="h-3.5 w-3.5 text-purple-600" />
+                                <span>✨ Reformat to Utility with AI</span>
+                              </>
+                            )}
+                          </Button>
+                        </div>
+
+                        {/* Manual Auto-Append Reference ID Switch */}
+                        <div className="flex items-center space-x-2 bg-white/70 p-2.5 rounded-lg border border-blue-100">
                           <Switch
                             id="optimizeToUtility"
                             checked={optimizeToUtility}
@@ -2059,6 +2155,7 @@ export function TemplateDialog({
                           </Label>
                         </div>
 
+                        {/* Pre-approved Sample Selector */}
                         <div className="space-y-1.5">
                           <Label className="text-xs font-medium text-blue-900">
                             Or Load a Pre-approved Utility Sample Format:
@@ -2111,6 +2208,14 @@ export function TemplateDialog({
                                 </span>
                               </div>
                             </FormControl>
+                            {watchedValues.body && /\{\{\d+\}\}\s*$/.test(watchedValues.body.trim()) && (
+                              <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-amber-800 bg-amber-50 p-2 rounded-md border border-amber-200">
+                                <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 text-amber-600" />
+                                <span>
+                                  <strong>Meta Policy Alert:</strong> Templates cannot end with a variable (e.g. <code>{"{{1}}"}</code>). Add closing text or punctuation after the variable (e.g., <code>for your account records.</code>).
+                                </span>
+                              </div>
+                            )}
                             <FormDescription>
                               Use {"{{1}}"}, {"{{2}}"}, etc. for variables. Max{" "}
                               {bodyCharLimit} characters.

@@ -1372,9 +1372,8 @@ export const getManualPaymentRequests = async (req: Request, res: Response) => {
         plan: {
           id: plans.id,
           name: plans.name,
-          price: plans.price,
-          currency: plans.currency,
-          billingCycle: plans.billingCycle,
+          monthlyPrice: plans.monthlyPrice,
+          annualPrice: plans.annualPrice,
         },
       })
       .from(manualPaymentRequests)

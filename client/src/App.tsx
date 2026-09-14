@@ -189,9 +189,14 @@ function PermissionRoute({
   return <Component />;
 }
 
+import EmailVerificationBanner from "@/components/EmailVerificationBanner";
+import { SubscriptionExpiredBanner } from "@/components/SubscriptionExpiredBanner";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+
 function ProtectedRoutes() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [location, setLocation] = useLocation();
+  const { isExpired, isSuperadmin } = useSubscriptionStatus();
 
   // Check flag immediately on mount - synchronously
   let fromLoginFlag = false;
@@ -215,16 +220,24 @@ function ProtectedRoutes() {
     }
   }, [fromLoginFlag]);
 
-  // Check if user has access to current route
+  // Check if user has access to current route or if expired
   useEffect(() => {
     if (isAuthenticated && user && location !== "/") {
+      if (!isSuperadmin && isExpired) {
+        const allowedWhenExpired = ["/plans", "/billing", "/dashboard"];
+        if (!allowedWhenExpired.includes(location)) {
+          setLocation("/plans");
+          return;
+        }
+      }
+
       const requiredPermission = ROUTE_PERMISSIONS[location];
 
       if (requiredPermission && !hasRoutePermission(requiredPermission, user)) {
         setLocation("/dashboard");
       }
     }
-  }, [location, isAuthenticated, user, setLocation]);
+  }, [location, isAuthenticated, user, isSuperadmin, isExpired, setLocation]);
 
   // Priority 1: Show login animation loader immediately
   if (showLoading && isLoginRedirect) {
@@ -262,17 +275,22 @@ function ProtectedRoutes() {
   return (
     <div className="flex min-h-screen bg-white w-full max-w-full overflow-x-hidden">
       <Sidebar />
-      <div className="flex-1 lg:ml-64 min-w-0 overflow-x-hidden">
-        <Switch>
-          <Route path="/dashboard">
-            <Dashboard />
-          </Route>
-          <Route path="/contacts">
-            <PermissionRoute
-              component={Contacts}
-              requiredPermission="contacts:view"
-            />
-          </Route>
+      <div className="flex-1 lg:ml-64 min-w-0 overflow-x-hidden flex flex-col">
+        <EmailVerificationBanner />
+        <div className="px-4 pt-4 sm:px-6 sm:pt-4">
+          <SubscriptionExpiredBanner />
+        </div>
+        <div className="flex-1 min-w-0">
+          <Switch>
+            <Route path="/dashboard">
+              <Dashboard />
+            </Route>
+            <Route path="/contacts">
+              <PermissionRoute
+                component={Contacts}
+                requiredPermission="contacts:view"
+              />
+            </Route>
           <Route path="/users">
             <PermissionRoute component={User} requiredRoles={["superadmin", "manager"]} />
           </Route>
@@ -470,6 +488,7 @@ function ProtectedRoutes() {
           </Route>
           <Route component={NotFound} />
         </Switch>
+        </div>
       </div>
     </div>
   );

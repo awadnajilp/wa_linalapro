@@ -60,16 +60,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, [brandSettings]);
 
   return (
-    <>
-      <EmailVerificationBanner />
-      <SidebarProvider>
-        <div className="w-full">
-          <div className="px-4 pt-4 sm:px-6 sm:pt-6">
-            <SubscriptionExpiredBanner />
-          </div>
-          {children}
-        </div>
-      </SidebarProvider>
-    </>
+    <SidebarProvider>
+      <div className="w-full">
+        {children}
+      </div>
+    </SidebarProvider>
   );
 }

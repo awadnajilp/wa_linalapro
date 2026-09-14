@@ -29,6 +29,7 @@ import {
 import type { Express } from "express";
 
 export function registerPlansRoutes(app: Express) {
+  app.get("/api/plans", getAllPlans);
   app.get("/api/admin/plans", getAllPlans);
 
   app.get("/api/admin/plans/:id", requireAuth, getPlanById);

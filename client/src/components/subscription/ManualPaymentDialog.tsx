@@ -60,12 +60,21 @@ export const ManualPaymentDialog: React.FC<ManualPaymentDialogProps> = ({
   const [uploadError, setUploadError] = useState("");
 
   // Fetch available plans
-  const { data: plansData } = useQuery<any>({
-    queryKey: ["/api/plans"],
-    queryFn: () => fetch("/api/plans").then((res) => res.json()),
+  const { data: plansData, isLoading: isPlansLoading } = useQuery<any>({
+    queryKey: ["/api/admin/plans"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/admin/plans");
+        if (res.ok) return await res.json();
+      } catch {}
+      const fallbackRes = await fetch("/api/plans");
+      return await fallbackRes.json();
+    },
   });
 
-  const plansList = Array.isArray(plansData) ? plansData : plansData?.data || [];
+  const plansList = Array.isArray(plansData)
+    ? plansData
+    : plansData?.data || [];
 
   // Fetch brand & bank settings
   const { data: brandSettings } = useQuery<any>({
@@ -76,20 +85,35 @@ export const ManualPaymentDialog: React.FC<ManualPaymentDialogProps> = ({
   useEffect(() => {
     if (preselectedPlan?.id) {
       setSelectedPlanId(preselectedPlan.id);
+    } else if (preselectedPlan?.name && plansList.length > 0) {
+      const match = plansList.find(
+        (p: any) => p.name?.toLowerCase() === preselectedPlan.name?.toLowerCase()
+      );
+      if (match) setSelectedPlanId(match.id);
+      else if (!selectedPlanId && plansList[0]) setSelectedPlanId(plansList[0].id);
     } else if (plansList.length > 0 && !selectedPlanId) {
       setSelectedPlanId(plansList[0].id);
     }
-  }, [preselectedPlan, plansList]);
+  }, [preselectedPlan, plansList, selectedPlanId]);
 
-  const selectedPlan = plansList.find((p: any) => p.id === selectedPlanId) || preselectedPlan || plansList[0];
+  const selectedPlan =
+    plansList.find((p: any) => p.id === selectedPlanId) ||
+    preselectedPlan ||
+    plansList[0];
+
+  const getMonthlyPrice = (p: any) =>
+    Number(p?.monthlyPrice ?? p?.price ?? 0);
+
+  const getAnnualPrice = (p: any) =>
+    Number(p?.annualPrice ?? (getMonthlyPrice(p) * 10) ?? 0);
 
   const calculatedAmount = selectedPlan
     ? billingCycle === "annual"
-      ? (Number(selectedPlan.price || 0) * 10).toFixed(2) // 2 months discount on annual
-      : Number(selectedPlan.price || 0).toFixed(2)
+      ? getAnnualPrice(selectedPlan).toFixed(2)
+      : getMonthlyPrice(selectedPlan).toFixed(2)
     : "0.00";
 
-  const currencySymbol = selectedPlan?.currency || brandSettings?.currency || "USD";
+  const currencySymbol = brandSettings?.currency || selectedPlan?.currency || "$";
 
   // Handle Receipt File Upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -212,11 +236,21 @@ export const ManualPaymentDialog: React.FC<ManualPaymentDialogProps> = ({
                   onChange={(e) => setSelectedPlanId(e.target.value)}
                   className="w-full h-10 px-3 rounded-lg border bg-card text-foreground text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 >
-                  {plansList.map((p: any) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({currencySymbol} {p.price}/mo)
-                    </option>
-                  ))}
+                  {plansList.length === 0 ? (
+                    <option value="">{isPlansLoading ? "Loading plans..." : "No plans available"}</option>
+                  ) : (
+                    plansList.map((p: any) => {
+                      const priceStr =
+                        billingCycle === "annual"
+                          ? `${currencySymbol} ${getAnnualPrice(p)}/yr`
+                          : `${currencySymbol} ${getMonthlyPrice(p)}/mo`;
+                      return (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({priceStr})
+                        </option>
+                      );
+                    })
+                  )}
                 </select>
               </div>
 

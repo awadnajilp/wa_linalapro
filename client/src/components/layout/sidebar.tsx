@@ -672,7 +672,7 @@ export default function Sidebar() {
     colorClass?: string
   ) => {
     const isActive = location === path;
-    const allowedWhenExpired = ["/plans", "/settings", "/account", "/dashboard"];
+    const allowedWhenExpired = ["/plans", "/billing", "/dashboard"];
     const isLocked = !isSuperadmin && isExpired && !allowedWhenExpired.includes(path);
 
     const handleClick = (e: React.MouseEvent) => {
@@ -1061,17 +1061,47 @@ export default function Sidebar() {
                 <DropdownMenuSeparator />
                 {user?.role !== "manager" && (
                   <DropdownMenuItem asChild>
-                    <Link href="/settings" className="cursor-pointer">
+                    <Link
+                      href={!isSuperadmin && isExpired ? "/plans" : "/settings"}
+                      className={`cursor-pointer ${!isSuperadmin && isExpired ? "opacity-50" : ""}`}
+                      onClick={(e) => {
+                        if (!isSuperadmin && isExpired) {
+                          e.preventDefault();
+                          toast({
+                            title: "Subscription Expired",
+                            description: "Settings are locked until subscription renewal.",
+                            variant: "destructive",
+                          });
+                          setLocation("/plans");
+                        }
+                      }}
+                    >
                       <Settings className="mr-2 h-4 w-4" />
                       <span>{t("navigation.settings")}</span>
+                      {!isSuperadmin && isExpired && <Lock className="ml-auto w-3 h-3 text-red-500" />}
                     </Link>
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/account" className="cursor-pointer">
+                  <Link
+                    href={!isSuperadmin && isExpired ? "/plans" : "/account"}
+                    className={`cursor-pointer ${!isSuperadmin && isExpired ? "opacity-50" : ""}`}
+                    onClick={(e) => {
+                      if (!isSuperadmin && isExpired) {
+                        e.preventDefault();
+                        toast({
+                          title: "Subscription Expired",
+                          description: "Account settings are locked until subscription renewal.",
+                          variant: "destructive",
+                        });
+                        setLocation("/plans");
+                      }
+                    }}
+                  >
                     <User className="mr-2 h-4 w-4" />
                     <span>{t("navigation.account")}</span>
+                    {!isSuperadmin && isExpired && <Lock className="ml-auto w-3 h-3 text-red-500" />}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

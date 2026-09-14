@@ -420,6 +420,30 @@ const steps: MigrationStep[] = [
       CREATE INDEX IF NOT EXISTS contact_campaign_templates_channel_idx ON contact_campaign_templates (channel_id);
     `,
   },
+  {
+    description: "Create table manual_payment_requests (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS manual_payment_requests (
+        id                     VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id                VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        plan_id                VARCHAR NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+        billing_cycle          VARCHAR NOT NULL DEFAULT 'monthly',
+        amount                 NUMERIC(10, 2) NOT NULL,
+        currency               VARCHAR DEFAULT 'USD',
+        receipt_url            TEXT NOT NULL,
+        transaction_reference  TEXT,
+        notes                  TEXT,
+        status                 VARCHAR NOT NULL DEFAULT 'pending',
+        rejection_reason       TEXT,
+        approved_by            VARCHAR,
+        approved_at            TIMESTAMP,
+        created_at             TIMESTAMP DEFAULT NOW(),
+        updated_at             TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS manual_payment_requests_user_idx ON manual_payment_requests (user_id);
+      CREATE INDEX IF NOT EXISTS manual_payment_requests_status_idx ON manual_payment_requests (status);
+    `,
+  },
   addColumnIfNotExists(
     "users",
     "round_robin_capacity",

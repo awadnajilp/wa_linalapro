@@ -51,6 +51,7 @@ import {
   Clock,
   Workflow,
   ShieldCheck,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChannelSwitcher } from "@/components/channel-switcher";
@@ -58,6 +59,7 @@ import { useChannelContext } from "@/contexts/channel-context";
 import { useTranslation } from "@/lib/i18n";
 import { LanguageSelector } from "@/components/language-selector";
 import { useAuth } from "@/contexts/auth-context";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 // import logo from "../../images/logo1924.jpg";
 import { GiUpgrade } from "react-icons/gi";
@@ -660,6 +662,8 @@ export default function Sidebar() {
     );
   };
 
+  const { isExpired, isSuperadmin } = useSubscriptionStatus();
+
   const renderLink = (
     name: string,
     Icon: React.ComponentType<{ className?: string }>,
@@ -668,31 +672,60 @@ export default function Sidebar() {
     colorClass?: string
   ) => {
     const isActive = location === path;
+    const allowedWhenExpired = ["/plans", "/settings", "/account", "/dashboard"];
+    const isLocked = !isSuperadmin && isExpired && !allowedWhenExpired.includes(path);
+
+    const handleClick = (e: React.MouseEvent) => {
+      if (isLocked) {
+        e.preventDefault();
+        toast({
+          title: "Subscription Expired",
+          description: "All operational features are locked. Please renew your plan to continue.",
+          variant: "destructive",
+        });
+        setLocation("/plans");
+        toggle();
+        return;
+      }
+      toggle();
+    };
+
     return (
       <Link
         key={path}
-        href={path}
+        href={isLocked ? "/plans" : path}
         className={cn(
-          "flex items-center px-3 py-2 text-sm font-medium rounded-xl transition-all duration-150 group",
-          isActive
+          "flex items-center px-3 py-2 text-sm font-medium rounded-xl transition-all duration-150 group relative",
+          isLocked
+            ? "opacity-40 grayscale cursor-not-allowed hover:bg-red-50/50 hover:text-red-700"
+            : isActive
             ? "bg-purple-50 text-purple-700 font-semibold border-r-2 border-purple-600 shadow-2xs"
             : "text-slate-600 hover:bg-slate-100/70 hover:text-slate-900"
         )}
-        onClick={toggle}
+        onClick={handleClick}
       >
         <Icon
           className={cn(
             "w-5 h-5 mr-3 transition-colors",
-            isActive ? "text-purple-600" : colorClass || "text-slate-400 group-hover:text-slate-600"
+            isLocked
+              ? "text-slate-400"
+              : isActive
+              ? "text-purple-600"
+              : colorClass || "text-slate-400 group-hover:text-slate-600"
           )}
         />
 
-        {name}
-        {badge && (
+        <span className="truncate">{name}</span>
+
+        {isLocked ? (
+          <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-red-500 bg-red-100/80 px-1.5 py-0.5 rounded-md">
+            <Lock className="w-3 h-3" />
+          </span>
+        ) : badge ? (
           <span className="ml-auto bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full font-semibold">
             {badge}
           </span>
-        )}
+        ) : null}
       </Link>
     );
   };

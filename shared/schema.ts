@@ -743,6 +743,31 @@ export const transactions = pgTable("transactions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Manual Payment Requests table (Offline payment with receipt upload)
+export const manualPaymentRequests = pgTable("manual_payment_requests", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  planId: varchar("plan_id")
+    .notNull()
+    .references(() => plans.id, { onDelete: "cascade" }),
+  billingCycle: varchar("billing_cycle").notNull().default("monthly"), // "monthly" or "annual"
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: varchar("currency").default("USD"),
+  receiptUrl: text("receipt_url").notNull(),
+  transactionReference: text("transaction_reference"),
+  notes: text("notes"),
+  status: varchar("status").notNull().default("pending"), // "pending", "approved", "rejected"
+  rejectionReason: text("rejection_reason"),
+  approvedBy: varchar("approved_by"),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const ticketStatusEnum = pgEnum("ticket_status", [
   "open",
   "in_progress",

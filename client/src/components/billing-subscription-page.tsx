@@ -1,80 +1,84 @@
 /**
  * ============================================================
- * © 2025 Diploy — a brand of Bisht Technologies Private Limited
- * Original Author: BTPL Engineering Team
- * Website: https://diploy.in
- * Contact: cs@diploy.in
- *
- * Distributed under the Envato / CodeCanyon License Agreement.
- * Licensed to the purchaser for use as defined by the
- * Envato Market (CodeCanyon) Regular or Extended License.
- *
- * You are NOT permitted to redistribute, resell, sublicense,
- * or share this source code, in whole or in part.
- * Respect the author's rights and Envato licensing terms.
+ * © 2026 Linala — Autonomous WhatsApp AI & Omnichannel CRM
+ * Redesigned Premium Subscription & Billing Dashboard
  * ============================================================
  */
 
-import { Crown, Calendar, Check, X, ArrowRightLeft, XCircle, Puzzle } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import React, { useState } from "react";
+import {
+  Crown,
+  Calendar,
+  Check,
+  X,
+  CreditCard,
+  Building2,
+  Clock,
+  Sparkles,
+  ShieldCheck,
+  AlertTriangle,
+  Receipt,
+  ArrowRight,
+  RefreshCw,
+  Zap,
+  Users,
+  MessageSquare,
+  Layers,
+  Radio,
+  ExternalLink,
+  ChevronRight,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/auth-context";
-import type { SubscriptionResponse } from "@/types/types";
-import { useLocation } from "wouter";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { useLocation, Link } from "wouter";
 import { useTranslation } from "@/lib/i18n";
-import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import ManualPaymentDialog from "@/components/subscription/ManualPaymentDialog";
 
-export default function BillingSubscriptionPage({ embedded = false }: { embedded?: boolean } = {}) {
+export default function BillingSubscriptionPage({
+  embedded = false,
+}: { embedded?: boolean } = {}) {
   const { t } = useTranslation();
   const { user, currency, currencySymbol } = useAuth();
   const [, setLocation] = useLocation();
 
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
-  const [showCancelConfirm, setShowCancelConfirm] = useState<string | null>(null);
-
-  const handleCancelSubscription = async (subscriptionId: string) => {
-    setCancellingId(subscriptionId);
-    try {
-      const response = await apiRequest("PATCH", `/api/subscriptions/${subscriptionId}/cancel`, {});
-      const data = await response.json();
-      if (data.success) {
-        toast({
-          title: "Subscription Cancelled",
-          description: data.message || "Your subscription has been cancelled successfully.",
-        });
-        queryClient.invalidateQueries({ queryKey: [`api/subscriptions/user/${user?.id}`] });
-      } else {
-        throw new Error(data.message || "Failed to cancel");
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to cancel subscription",
-        variant: "destructive",
-      });
-    } finally {
-      setCancellingId(null);
-      setShowCancelConfirm(null);
-    }
-  };
+  const [openManualPay, setOpenManualPay] = useState(false);
+  const [selectedPlanForRenewal, setSelectedPlanForRenewal] = useState<any>(null);
 
   const {
-    data: activeplandata,
+    isExpired,
+    hasActiveSubscription,
+    isExpiringSoon,
+    daysLeft,
+    activeSubscription,
+    activePlan,
+    latestSubscription,
+    isSuperadmin,
     isLoading,
-    isError,
-  } = useQuery<SubscriptionResponse>({
-    queryKey: [`api/subscriptions/user/${user?.id}`],
+  } = useSubscriptionStatus();
+
+  // Query manual payment requests history
+  const { data: manualRequestsData, isLoading: isLoadingRequests } = useQuery<any>({
+    queryKey: ["/api/subscriptions/manual-payment-requests"],
     queryFn: () =>
-      apiRequest("GET", `api/subscriptions/user/${user?.id}`).then((res) =>
-        res.json()
+      fetch("/api/subscriptions/manual-payment-requests", { credentials: "include" }).then(
+        (res) => res.json()
       ),
     enabled: !!user?.id,
   });
 
+  const manualRequests = Array.isArray(manualRequestsData?.data)
+    ? manualRequestsData.data
+    : [];
+
+  const pendingRequest = manualRequests.find((r: any) => r.status === "pending");
+
+  // Query tenant active addons
   const { data: tenantAddons } = useQuery<any[]>({
     queryKey: ["/api/tenant/addons"],
     enabled: !!user?.id,
@@ -82,339 +86,390 @@ export default function BillingSubscriptionPage({ embedded = false }: { embedded
 
   if (isLoading) {
     return (
-      <div className={embedded ? "flex items-center justify-center p-4" : "flex-1 min-h-screen flex items-center justify-center p-4 bg-white text-gray-700"}>
-        <p>{t("billing_subscription.loading")}</p>
+      <div className="flex items-center justify-center p-12 text-muted-foreground">
+        <RefreshCw className="w-6 h-6 animate-spin mr-3 text-emerald-500" />
+        <span>Loading subscription details...</span>
       </div>
     );
   }
 
+  const currentPlan = activePlan || (latestSubscription?.planData) || {
+    name: "Starter Trial Plan",
+    price: 0,
+    currency: "USD",
+  };
+
+  const currentSub = activeSubscription || latestSubscription;
+  const permissions = currentPlan?.permissions || (currentSub?.planData?.permissions) || {};
+
+  const endDateFormatted = currentSub?.endDate
+    ? new Date(currentSub.endDate).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "No expiration set";
+
+  const startDateFormatted = currentSub?.startDate
+    ? new Date(currentSub.startDate).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "N/A";
+
+  const handleOpenRenew = (planObj?: any) => {
+    setSelectedPlanForRenewal(planObj || currentPlan);
+    setOpenManualPay(true);
+  };
 
   return (
-    <div className={embedded ? "" : "flex-1 bg-white text-gray-900 dots-bg"}>
-      <div className="p-6 pb-0 bg-white border">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-green-100 rounded-lg">
-            <Crown className="w-6 h-6 text-green-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900">
-            Active Plan Details
-          </h2>
-        </div>
-        <p className="text-gray-500 text-sm ml-14 pb-2">
-          View and manage your current subscription plans
-        </p>
-      </div>
-      <main className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 p-6">
-        {isError ||
-        !activeplandata?.success ||
-        activeplandata.data.length === 0 ? (
-          <div className="col-span-full flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-gray-200 shadow-sm">
-            <div className="p-4 bg-gray-100 rounded-full">
-              <svg
-                className="w-10 h-10 text-gray-500"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9 13h6m-3-3v6m9 1V7a2 2 0 00-2-2h-3.5L14 3H10L8.5 5H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2z"
-                />
-              </svg>
-            </div>
-
-            <h3 className="mt-4 text-lg font-semibold text-gray-800">
-              {t("billing_subscription.noSubscription.title")}
-            </h3>
-            <p className="text-gray-500 text-sm mt-1">
-              {t("billing_subscription.noSubscription.description")}
-            </p>
-
-            <button
-              className="mt-6 px-5 py-2.5 text-sm font-medium bg-green-700 text-white rounded-xl hover:bg-green-800"
-              onClick={() => setLocation("/plan-upgrade")}
-            >
-              {t("billing_subscription.noSubscription.upgradePlan")}
-            </button>
-          </div>
-        ) : (
-          activeplandata.data.map((item) => {
-            const subscription = item.subscription;
-            const planData = subscription.planData;
-            const renewsDate = subscription.endDate
-              ? new Date(subscription.endDate).toLocaleDateString()
-              : "-";
-            const startDate = subscription.startDate
-              ? new Date(subscription.startDate).toLocaleDateString()
-              : "-";
-
-            return (
-              <div
-                key={subscription.id}
-                className="bg-white rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col h-full max-w-sm"
-              >
-                {/* Header with gradient */}
-                <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4 relative">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Crown className="w-5 h-5 text-yellow-300" />
-                      <h2 className="text-lg font-bold">{planData.name}</h2>
-                    </div>
-                    <span className={`backdrop-blur-sm text-xs font-semibold rounded-full px-2.5 py-1 capitalize ${
-                      (subscription as any).gatewayStatus === "cancel_at_period_end"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-white/20 text-white"
-                    }`}>
-                      {(subscription as any).gatewayStatus === "cancel_at_period_end"
-                        ? "Cancels " + renewsDate
-                        : subscription.status}
-                    </span>
-                  </div>
-                  <p className="text-green-100 text-xs line-clamp-2">
-                    {planData.description}
-                  </p>
-                </div>
-
-                {/* Body Content */}
-                <div className="p-4 flex-grow flex flex-col space-y-4">
-                  {/* Date Info - Compact */}
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="bg-blue-50 rounded-lg p-2 text-center">
-                      <Calendar className="w-3.5 h-3.5 text-blue-600 mx-auto mb-1" />
-                      <p className="text-gray-500 text-[10px] mb-0.5">
-                        {t("billing_subscription.card.billing")}
-                      </p>
-                      <p className="font-semibold text-gray-800 capitalize truncate">
-                        {subscription.billingCycle}
-                      </p>
-                    </div>
-                    <div className="bg-green-50 rounded-lg p-2 text-center">
-                      <Calendar className="w-3.5 h-3.5 text-green-600 mx-auto mb-1" />
-                      <p className="text-gray-500 text-[10px] mb-0.5">
-                        {t("billing_subscription.card.starts")}
-                      </p>
-                      <p className="font-semibold text-gray-800 text-[10px]">
-                        {startDate}
-                      </p>
-                    </div>
-                    <div className="bg-purple-50 rounded-lg p-2 text-center">
-                      <Calendar className="w-3.5 h-3.5 text-purple-600 mx-auto mb-1" />
-                      <p className="text-gray-500 text-[10px] mb-0.5">
-                        {t("billing_subscription.card.renews")}
-                      </p>
-                      <p className="font-semibold text-gray-800 text-[10px]">
-                        {renewsDate}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Pricing */}
-                  <div>
-                    <h3 className="text-xs font-semibold text-gray-700 mb-2">
-                      {t("billing_subscription.card.pricing")}
-                    </h3>
-                    <div className="flex gap-2">
-                      <div className="flex-1 bg-gradient-to-br from-yellow-100 to-orange-100 border border-yellow-200 rounded-lg px-3 py-2 text-center">
-                        <p className="text-[10px] text-gray-600">
-                          {t("billing_subscription.card.monthly")}
-                        </p>
-                        <p className="text-sm font-bold text-yellow-700">
-                          {currencySymbol} {planData.monthlyPrice}
-                        </p>
-                      </div>
-                      <div className="flex-1 bg-gradient-to-br from-green-100 to-emerald-100 border border-green-200 rounded-lg px-3 py-2 text-center">
-                        <p className="text-[10px] text-gray-600">
-                          {t("billing_subscription.card.annual")}
-                        </p>
-                        <p className="text-sm font-bold text-green-700">
-                          {currencySymbol} {planData.annualPrice}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Permissions */}
-                  {planData.permissions && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-700 mb-2">
-                        {t("billing_subscription.card.details")}
-                      </h3>
-                      <div className="flex flex-wrap gap-1.5">
-                        {Object.entries(planData.permissions).map(
-                          ([key, value]) => (
-                            <div
-                              key={key}
-                              className="flex items-center gap-1 text-[10px] bg-gray-100 rounded-md px-2 py-1"
-                            >
-                              <Check className="w-3 h-3 text-green-600" />
-                              <span className="text-gray-700 capitalize">
-                                {value} {key}
-                              </span>
-                            </div>
-                          )
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Features - Scrollable */}
-                  <div className="flex-grow">
-                    <h3 className="text-xs font-semibold text-gray-700 mb-2">
-                      {t("billing_subscription.card.features")}
-                    </h3>
-                    <ul className="space-y-1.5 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
-                      {planData.features.map((feature, idx) => (
-                        <li
-                          key={idx}
-                          className={`flex items-start gap-1.5 text-xs ${
-                            feature.included
-                              ? "text-gray-700"
-                              : "text-gray-400 line-through"
-                          }`}
-                        >
-                          {feature.included ? (
-                            <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" />
-                          ) : (
-                            <X className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
-                          )}
-                          <span className="leading-tight">{feature.name}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
-                {subscription.status === "active" && (
-                  <div className="p-4 pt-2 space-y-2 border-t border-gray-100">
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => setLocation("/plan-upgrade")}
-                    >
-                      <ArrowRightLeft className="w-4 h-4 mr-2" />
-                      Change Plan
-                    </Button>
-
-                    {showCancelConfirm === subscription.id ? (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
-                        <p className="text-xs text-red-700 font-medium">
-                          Are you sure you want to cancel? Your plan will remain active until {renewsDate}, after which it will not renew.
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="flex-1"
-                            disabled={cancellingId === subscription.id}
-                            onClick={() => handleCancelSubscription(subscription.id)}
-                          >
-                            {cancellingId === subscription.id ? "Cancelling..." : "Yes, Cancel"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1"
-                            onClick={() => setShowCancelConfirm(null)}
-                          >
-                            Keep Plan
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => setShowCancelConfirm(subscription.id)}
-                      >
-                        <XCircle className="w-4 h-4 mr-2" />
-                        Cancel Subscription
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })
+    <div className={`space-y-6 ${embedded ? "" : "p-6 max-w-7xl mx-auto"}`}>
+      {/* 1. Header Banner Card */}
+      <div className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-card via-card to-muted/40 p-6 md:p-8 shadow-sm">
+        {/* Glow accents */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        {isExpired && (
+          <div className="absolute top-0 left-0 w-96 h-96 bg-red-500/10 rounded-full blur-3xl pointer-events-none" />
         )}
-      </main>
 
-      {/* Subscribed Addons Section */}
-      {tenantAddons && tenantAddons.some((a) => a.subscription?.status === "active") && (
-        <div className="p-6 pt-0 border-t border-gray-100 mt-4">
-          <div className="flex items-center gap-3 mb-4 mt-6">
-            <div className="p-2 bg-indigo-100 rounded-lg">
-              <Puzzle className="w-6 h-6 text-indigo-600" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900">
-              Active Addons Details
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {tenantAddons
-              .filter((a) => a.subscription?.status === "active")
-              .map((addon) => {
-                const renewsDate = addon.subscription?.expiresAt
-                  ? new Date(addon.subscription.expiresAt).toLocaleDateString()
-                  : "-";
-
-                return (
-                  <div
-                    key={addon.id}
-                    className="bg-white rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col h-full max-w-sm"
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex items-center gap-3">
+              <div
+                className={`p-3 rounded-2xl shadow-sm ${
+                  isExpired
+                    ? "bg-red-500/15 text-red-500 border border-red-500/30"
+                    : isExpiringSoon
+                    ? "bg-amber-500/15 text-amber-500 border border-amber-500/30"
+                    : "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
+                }`}
+              >
+                <Crown className="w-7 h-7" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+                    {isSuperadmin
+                      ? "Superadmin Enterprise"
+                      : currentPlan.name || "Subscription Management"}
+                  </h1>
+                  <Badge
+                    variant={isExpired ? "destructive" : isExpiringSoon ? "secondary" : "default"}
+                    className={`text-xs px-2.5 py-0.5 font-bold uppercase tracking-wider ${
+                      !isExpired && !isExpiringSoon
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        : isExpiringSoon
+                        ? "bg-amber-500 text-white"
+                        : ""
+                    }`}
                   >
-                    <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Puzzle className="w-5 h-5 text-yellow-300" />
-                          <h2 className="text-lg font-bold">{addon.name}</h2>
-                        </div>
-                        <span className="bg-white/20 text-white text-xs font-semibold rounded-full px-2.5 py-1 capitalize">
-                          {addon.subscription?.status || "active"}
-                        </span>
-                      </div>
-                      <p className="text-indigo-100 text-xs line-clamp-2">
-                        {addon.description}
-                      </p>
-                    </div>
+                    {isSuperadmin
+                      ? "Active (Unlimited)"
+                      : isExpired
+                      ? "Expired / Paused"
+                      : isExpiringSoon
+                      ? `Expiring in ${daysLeft} Days`
+                      : "Active Plan"}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Manage your subscription tier, manual payment receipts, and WhatsApp usage quotas.
+                </p>
+              </div>
+            </div>
+          </div>
 
-                    <div className="p-4 flex-grow flex flex-col justify-between space-y-4">
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-indigo-50 rounded-lg p-2 text-center">
-                          <p className="text-gray-500 text-[10px] mb-0.5">Price</p>
-                          <p className="font-semibold text-gray-800">${addon.price}/mo</p>
-                        </div>
-                        <div className="bg-purple-50 rounded-lg p-2 text-center">
-                          <p className="text-gray-500 text-[10px] mb-0.5">Renews/Expires</p>
-                          <p className="font-semibold text-gray-800">{renewsDate}</p>
-                        </div>
-                      </div>
-                      <div className="text-[10px] text-indigo-700 bg-indigo-50 p-2.5 rounded-lg border border-indigo-100 font-medium">
-                        <span className="font-bold">Billing Mode:</span> Invoiced monthly with platform subscription fees.
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+          {/* Action Buttons */}
+          {!isSuperadmin && (
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+              <Button
+                onClick={() => handleOpenRenew(currentPlan)}
+                className="flex-1 md:flex-none h-12 px-6 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-2xl shadow-lg shadow-emerald-700/20 flex items-center justify-center gap-2"
+              >
+                <CreditCard className="w-4 h-4" />
+                <span>Renew / Offline Payment</span>
+              </Button>
+
+              <Link href="/plans">
+                <Button
+                  variant="outline"
+                  className="flex-1 md:flex-none h-12 px-5 rounded-2xl border-border hover:bg-muted font-semibold flex items-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4 text-emerald-500" />
+                  <span>Upgrade Plan</span>
+                </Button>
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Pending Verification Notice */}
+        {pendingRequest && (
+          <div className="mt-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 text-amber-900 dark:text-amber-200">
+            <Clock className="w-5 h-5 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
+            <div className="text-xs sm:text-sm">
+              <strong className="font-bold">Manual Payment Under Review:</strong> A payment receipt
+              for{" "}
+              <span className="font-semibold text-foreground">
+                {pendingRequest.currency} {pendingRequest.amount}
+              </span>{" "}
+              (Ref: <code className="font-mono">{pendingRequest.transactionReference || "N/A"}</code>)
+              was submitted on{" "}
+              {new Date(pendingRequest.createdAt).toLocaleDateString()}. Your plan will be updated as
+              soon as the admin verifies your transfer.
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 2. Key Metrics & Quotas Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Billing Period Card */}
+        <div className="p-5 rounded-2xl border bg-card text-card-foreground shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-muted-foreground mb-3">
+            <span className="text-xs font-semibold uppercase tracking-wider">Subscription Validity</span>
+            <Calendar className="w-4 h-4 text-emerald-500" />
+          </div>
+          <div>
+            <div className="text-xl font-bold text-foreground">
+              {isSuperadmin ? "Lifetime Access" : `${daysLeft} Days Remaining`}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {isSuperadmin ? "Managed by System" : `Expires on ${endDateFormatted}`}
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t text-[11px] text-muted-foreground flex justify-between">
+            <span>Started: {startDateFormatted}</span>
+            <span className="capitalize font-medium">{currentSub?.billingCycle || "Monthly"}</span>
+          </div>
+        </div>
+
+        {/* WhatsApp Channels Limit */}
+        <div className="p-5 rounded-2xl border bg-card text-card-foreground shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-muted-foreground mb-3">
+            <span className="text-xs font-semibold uppercase tracking-wider">Channels Limit</span>
+            <Radio className="w-4 h-4 text-blue-500" />
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-foreground">
+              {isSuperadmin ? "Unlimited" : permissions.channel || 1} Channel(s)
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              QR Code & Cloud API connections
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>QR Channel Warmer Included</span>
+          </div>
+        </div>
+
+        {/* CRM Contacts Limit */}
+        <div className="p-5 rounded-2xl border bg-card text-card-foreground shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-muted-foreground mb-3">
+            <span className="text-xs font-semibold uppercase tracking-wider">CRM Contacts</span>
+            <Users className="w-4 h-4 text-purple-500" />
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-foreground">
+              {isSuperadmin
+                ? "Unlimited"
+                : Number(permissions.contacts || 5000).toLocaleString()}{" "}
+              Contacts
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Audience size and tag segmentations
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t text-[11px] text-muted-foreground flex justify-between">
+            <span>Custom attributes enabled</span>
+            <span>Excel export</span>
+          </div>
+        </div>
+
+        {/* Automation Flows Limit */}
+        <div className="p-5 rounded-2xl border bg-card text-card-foreground shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between text-muted-foreground mb-3">
+            <span className="text-xs font-semibold uppercase tracking-wider">Flow Automations</span>
+            <Zap className="w-4 h-4 text-amber-500" />
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-foreground">
+              {isSuperadmin ? "Unlimited" : permissions.automation || 10} Active Flows
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Interactive chatbot & API triggers
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Multi-channel routing enabled</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Included Features & Plan Details */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: Plan Features Breakdown */}
+        <div className="lg:col-span-2 p-6 rounded-3xl border bg-card text-card-foreground shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b">
+            <div>
+              <h3 className="text-lg font-bold text-foreground">Current Plan Features</h3>
+              <p className="text-xs text-muted-foreground">Capabilities enabled for your tenant account</p>
+            </div>
+            <Badge variant="outline" className="font-mono text-xs">
+              {currentPlan.name}
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            {[
+              { label: "WhatsApp Cloud API & Baileys QR Channels", enabled: true },
+              { label: "Unlimited Inbound & 2-Way Conversations", enabled: true },
+              { label: "AI Agent Voice Synthesis & ElevenLabs TTS", enabled: permissions.aiAgent !== "false" },
+              { label: "Visual Flow Canvas & Bot Logic Builder", enabled: true },
+              { label: "WhatsApp Group Campaigns & Synchronizations", enabled: true },
+              { label: "Contact-Based Recurring Campaign Scheduler", enabled: true },
+              { label: "Payment Gateways (Razorpay, Tap, Noon)", enabled: true },
+              { label: "Custom Variables & Flow Data Repository", enabled: true },
+            ].map((feat, idx) => (
+              <div
+                key={idx}
+                className="flex items-center gap-2.5 p-3 rounded-xl bg-muted/30 border text-xs"
+              >
+                {feat.enabled ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+                )}
+                <span className={feat.enabled ? "text-foreground font-medium" : "text-muted-foreground"}>
+                  {feat.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right: Quick Upgrade / Renewal Card */}
+        <div className="p-6 rounded-3xl border bg-gradient-to-br from-emerald-500/10 via-card to-card text-card-foreground shadow-sm flex flex-col justify-between space-y-6">
+          <div>
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-3">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <h3 className="text-lg font-bold text-foreground">Manual Plan Renewal</h3>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              Renew or upgrade seamlessly by transferring funds directly to our bank or UPI account and submitting your payment receipt.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-card border space-y-2">
+            <div className="text-xs text-muted-foreground">Standard Renewal Rate</div>
+            <div className="text-3xl font-extrabold text-foreground">
+              {currencySymbol} {currentPlan.price || 0}
+              <span className="text-xs font-normal text-muted-foreground"> / month</span>
+            </div>
+            <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+              * Annual billing saves 2 months
+            </div>
+          </div>
+
+          <Button
+            onClick={() => handleOpenRenew(currentPlan)}
+            className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-md flex items-center justify-center gap-2"
+          >
+            <Receipt className="w-4 h-4" />
+            <span>Upload Payment Receipt</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* 4. Manual Payment History Table */}
+      {manualRequests.length > 0 && (
+        <div className="p-6 rounded-3xl border bg-card text-card-foreground shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b">
+            <div>
+              <h3 className="text-lg font-bold text-foreground">Offline Payment Requests History</h3>
+              <p className="text-xs text-muted-foreground">
+                Your submitted manual renewal receipts and their verification statuses
+              </p>
+            </div>
+            <Badge variant="outline" className="text-xs">
+              {manualRequests.length} Submission(s)
+            </Badge>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="text-muted-foreground uppercase bg-muted/40 text-[10px] tracking-wider">
+                <tr>
+                  <th className="py-3 px-4 rounded-l-lg">Date</th>
+                  <th className="py-3 px-4">Plan / Cycle</th>
+                  <th className="py-3 px-4">Amount</th>
+                  <th className="py-3 px-4">Transaction Ref</th>
+                  <th className="py-3 px-4">Receipt</th>
+                  <th className="py-3 px-4 rounded-r-lg">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {manualRequests.map((req: any) => (
+                  <tr key={req.id} className="hover:bg-muted/20">
+                    <td className="py-3 px-4 font-medium text-foreground">
+                      {new Date(req.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="font-semibold text-foreground">{req.plan?.name || "Plan"}</span>
+                      <span className="text-muted-foreground capitalize ml-1.5">({req.billingCycle})</span>
+                    </td>
+                    <td className="py-3 px-4 font-bold text-foreground font-mono">
+                      {req.currency} {req.amount}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-muted-foreground">
+                      {req.transactionReference || "—"}
+                    </td>
+                    <td className="py-3 px-4">
+                      {req.receiptUrl ? (
+                        <a
+                          href={req.receiptUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-emerald-600 hover:underline font-semibold"
+                        >
+                          View Receipt <ExternalLink className="w-3 h-3" />
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {req.status === "approved" ? (
+                        <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-bold uppercase">
+                          Approved & Active
+                        </Badge>
+                      ) : req.status === "rejected" ? (
+                        <Badge variant="destructive" className="text-[10px] font-bold uppercase" title={req.rejectionReason}>
+                          Rejected
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] font-bold uppercase animate-pulse">
+                          Pending Review
+                        </Badge>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {/* Custom Scrollbar */}
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 3px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #10b981;
-          border-radius: 10px;
-        }
-      `}</style>
+      {/* Manual Payment Dialog */}
+      <ManualPaymentDialog
+        open={openManualPay}
+        onOpenChange={setOpenManualPay}
+        preselectedPlan={selectedPlanForRenewal}
+      />
     </div>
   );
 }

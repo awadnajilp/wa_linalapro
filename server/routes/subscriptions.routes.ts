@@ -31,6 +31,10 @@ import {
   checkExpiredSubscriptions,
   sendRenewalReminder,
   triggerAutoRenewalReminders,
+  submitManualPaymentRequest,
+  getManualPaymentRequests,
+  approveManualPaymentRequest,
+  rejectManualPaymentRequest,
 } from "../controllers/subscriptions.controller";
 import type { Express } from "express";
 
@@ -61,4 +65,13 @@ export function registerSubscriptionsRoutes(app: Express) {
   app.post("/api/subscriptions/:id/send-renewal-reminder", requireAuth, requireRole("superadmin", "manager"), sendRenewalReminder);
 
   app.post("/api/subscriptions/auto-renewal-reminders", requireAuth, requireRole("superadmin", "manager"), triggerAutoRenewalReminders);
+
+  // Manual payment requests (Offline receipt uploads)
+  app.post("/api/subscriptions/manual-payment-request", requireAuth, submitManualPaymentRequest);
+
+  app.get("/api/subscriptions/manual-payment-requests", requireAuth, getManualPaymentRequests);
+
+  app.post("/api/admin/manual-payments/:id/approve", requireAuth, requireRole("superadmin", "manager"), approveManualPaymentRequest);
+
+  app.post("/api/admin/manual-payments/:id/reject", requireAuth, requireRole("superadmin", "manager"), rejectManualPaymentRequest);
 }

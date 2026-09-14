@@ -63,6 +63,7 @@ import { WhatsAppApiService } from "./whatsapp-api";
 import { getRazorpay } from "./payment-gateway.service";
 import Razorpay from "razorpay";
 import { storage } from "server/storage";
+import { isUserSubscriptionActive } from "./subscription-expiration.service";
 import { BaileysManager } from "./baileys-manager";
 import { randomUUID } from "crypto";
 import fs from "fs";
@@ -157,6 +158,22 @@ export class AutomationExecutionService {
       const automation = await this.getAutomationWithFlow(execution.automationId);
       if (!automation) {
         throw new Error(`Automation ${execution.automationId} not found`);
+      }
+
+      // Check if tenant's subscription is active
+      if (automation.userId) {
+        const subStatus = await isUserSubscriptionActive(automation.userId);
+        if (subStatus.isExpired || !subStatus.isActive) {
+          console.warn(`[Automation ${execution.automationId}] Execution aborted: Owner ${automation.userId} subscription is expired.`);
+          await db.update(automationExecutions)
+            .set({
+              status: "failed",
+              completedAt: new Date(),
+              error: "Subscription expired. Flow execution paused.",
+            })
+            .where(eq(automationExecutions.id, executionId));
+          return;
+        }
       }
 
       // Update execution count

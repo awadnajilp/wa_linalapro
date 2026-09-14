@@ -23,18 +23,19 @@ import { insertMessageSchema } from "@shared/schema";
 import { handleDigitalOceanUpload, upload, transcodeVoiceNote } from "../middlewares/upload.middleware";
 
 import { requireAuth } from "../middlewares/auth.middleware";
+import { requireActiveSubscription } from "../middlewares/subscription-guard.middleware";
 
 export function registerMessageRoutes(app: Express) {
   // Get messages for conversation
   app.get("/api/conversations/:conversationId/messages", requireAuth, messagesController.getMessages);
 
   // Create message in conversation
-  app.post("/api/conversations/:conversationId/messages", requireAuth, upload.single("media"), transcodeVoiceNote, handleDigitalOceanUpload,
+  app.post("/api/conversations/:conversationId/messages", requireAuth, requireActiveSubscription, upload.single("media"), transcodeVoiceNote, handleDigitalOceanUpload,
     messagesController.createMessage
   );
 
   // Send WhatsApp message
-  app.post("/api/messages/send", requireAuth, messagesController.sendMessage);
+  app.post("/api/messages/send", requireAuth, requireActiveSubscription, messagesController.sendMessage);
 
   // get media url
   app.get("/api/messages/media-url", requireAuth, messagesController.getMediaUrl);

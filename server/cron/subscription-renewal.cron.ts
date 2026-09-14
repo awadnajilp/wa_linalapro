@@ -4,13 +4,24 @@ import { subscriptions, users, plans } from "@shared/schema";
 import { eq, and, or, gte, lte, lt, sql } from "drizzle-orm";
 import { sendSubscriptionRenewalEmail } from "../services/email.service";
 import { sendSystemWhatsappRenewalReminder } from "../services/system-whatsapp.service";
+import { checkAndProcessAllExpiredSubscriptions } from "../services/subscription-expiration.service";
 
 export async function runSubscriptionRenewalCron(): Promise<{
   checkedCount: number;
   sentCount: number;
   errorCount: number;
 }> {
-  console.log("⏰ [Subscription Renewal Cron] Checking subscriptions for renewal reminders...");
+  console.log("⏰ [Subscription Renewal Cron] Checking subscriptions for renewal reminders and expired tenants...");
+
+  // Enforce expiration on expired tenants (disconnect QR, pause cloud API, deactivate flows)
+  try {
+    const { expiredCount } = await checkAndProcessAllExpiredSubscriptions();
+    if (expiredCount > 0) {
+      console.log(`🔒 [Subscription Renewal Cron] Processed lockout for ${expiredCount} newly expired tenant(s).`);
+    }
+  } catch (expErr) {
+    console.warn("⚠️ [Subscription Renewal Cron] Expiration enforcement check warning:", expErr);
+  }
 
   let checkedCount = 0;
   let sentCount = 0;

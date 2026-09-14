@@ -22,6 +22,7 @@ import { SidebarProvider } from "@/contexts/sidebar-context";
 import { useSocket } from "@/contexts/socket-context";
 import { useGlobalNotifications } from "../notification/useGlobalNotifications.tsx";
 import EmailVerificationBanner from "@/components/EmailVerificationBanner";
+import { SubscriptionExpiredBanner } from "@/components/SubscriptionExpiredBanner";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { data: brandSettings } = useQuery({
@@ -58,7 +59,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <EmailVerificationBanner />
-      <SidebarProvider>{children}</SidebarProvider>
+      <SidebarProvider>
+        <div className="w-full">
+          <div className="px-4 pt-4 sm:px-6 sm:pt-6">
+            <SubscriptionExpiredBanner />
+          </div>
+          {children}
+        </div>
+      </SidebarProvider>
     </>
   );
 }

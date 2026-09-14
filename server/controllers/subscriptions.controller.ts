@@ -18,7 +18,7 @@
 import { Request, Response } from "express";
 import { DiployError, asyncHandler as _dHandler, diployLogger, HTTP_STATUS } from "@diploy/core";
 import { db } from "../db";
-import { subscriptions, users, plans, tenantAddons } from "@shared/schema";
+import { subscriptions, users, plans, tenantAddons, manualPaymentRequests, channels, automations } from "@shared/schema";
 import { eq, and, or, desc, lt, gte, lte, sql, ilike } from "drizzle-orm";
 import { sendSubscriptionRenewalEmail } from "../services/email.service";
 import {
@@ -1270,3 +1270,267 @@ export const sendTestRenewalReminderController = async (req: Request, res: Respo
     });
   }
 };
+
+/**
+ * ============================================================
+ * MANUAL / OFFLINE PAYMENT REQUESTS (RECEIPT UPLOADS)
+ * ============================================================
+ */
+
+// Tenant submits manual payment receipt
+export const submitManualPaymentRequest = async (req: Request, res: Response) => {
+  try {
+    const user = (req.session as any)?.user || (req as any).user;
+    if (!user || !user.id) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+
+    const { planId, billingCycle = "monthly", amount, currency = "USD", receiptUrl, transactionReference, notes } = req.body;
+
+    if (!planId || !receiptUrl || !amount) {
+      return res.status(400).json({
+        success: false,
+        message: "planId, amount, and receiptUrl are required.",
+      });
+    }
+
+    // Verify plan exists
+    const [plan] = await db.select().from(plans).where(eq(plans.id, planId)).limit(1);
+    if (!plan) {
+      return res.status(404).json({ success: false, message: "Selected plan not found" });
+    }
+
+    const [request] = await db
+      .insert(manualPaymentRequests)
+      .values({
+        userId: user.id,
+        planId,
+        billingCycle,
+        amount: String(amount),
+        currency: currency || plan.currency || "USD",
+        receiptUrl,
+        transactionReference: transactionReference ? String(transactionReference).trim() : null,
+        notes: notes ? String(notes).trim() : null,
+        status: "pending",
+      })
+      .returning();
+
+    res.status(201).json({
+      success: true,
+      message: "Payment receipt submitted successfully. Our team will verify and activate your subscription shortly.",
+      data: request,
+    });
+  } catch (error: any) {
+    console.error("Error submitting manual payment request:", error);
+    res.status(500).json({ success: false, message: "Failed to submit manual payment receipt", error: error.message });
+  }
+};
+
+// List manual payment requests (Tenant sees their own, Superadmin sees all)
+export const getManualPaymentRequests = async (req: Request, res: Response) => {
+  try {
+    const user = (req.session as any)?.user || (req as any).user;
+    if (!user || !user.id) {
+      return res.status(401).json({ success: false, message: "Authentication required" });
+    }
+
+    const isSuperadmin = user.role === "superadmin" || user.role === "manager";
+    const status = req.query.status ? String(req.query.status).trim() : "";
+
+    const conditions: any[] = [];
+    if (!isSuperadmin) {
+      conditions.push(eq(manualPaymentRequests.userId, user.id));
+    }
+    if (status) {
+      conditions.push(eq(manualPaymentRequests.status, status));
+    }
+
+    const requests = await db
+      .select({
+        id: manualPaymentRequests.id,
+        userId: manualPaymentRequests.userId,
+        planId: manualPaymentRequests.planId,
+        billingCycle: manualPaymentRequests.billingCycle,
+        amount: manualPaymentRequests.amount,
+        currency: manualPaymentRequests.currency,
+        receiptUrl: manualPaymentRequests.receiptUrl,
+        transactionReference: manualPaymentRequests.transactionReference,
+        notes: manualPaymentRequests.notes,
+        status: manualPaymentRequests.status,
+        rejectionReason: manualPaymentRequests.rejectionReason,
+        approvedBy: manualPaymentRequests.approvedBy,
+        approvedAt: manualPaymentRequests.approvedAt,
+        createdAt: manualPaymentRequests.createdAt,
+        user: {
+          id: users.id,
+          username: users.username,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          phoneNumber: users.phoneNumber,
+        },
+        plan: {
+          id: plans.id,
+          name: plans.name,
+          price: plans.price,
+          currency: plans.currency,
+          billingCycle: plans.billingCycle,
+        },
+      })
+      .from(manualPaymentRequests)
+      .leftJoin(users, eq(manualPaymentRequests.userId, users.id))
+      .leftJoin(plans, eq(manualPaymentRequests.planId, plans.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(manualPaymentRequests.createdAt));
+
+    res.status(200).json({
+      success: true,
+      data: requests,
+    });
+  } catch (error: any) {
+    console.error("Error fetching manual payment requests:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch manual payment requests", error: error.message });
+  }
+};
+
+// Superadmin approves manual payment request and activates/renews subscription
+export const approveManualPaymentRequest = async (req: Request, res: Response) => {
+  try {
+    const adminUser = (req.session as any)?.user || (req as any).user;
+    const { id } = req.params;
+
+    const [request] = await db
+      .select()
+      .from(manualPaymentRequests)
+      .where(eq(manualPaymentRequests.id, id))
+      .limit(1);
+
+    if (!request) {
+      return res.status(404).json({ success: false, message: "Payment request not found" });
+    }
+
+    if (request.status === "approved") {
+      return res.status(400).json({ success: false, message: "Payment request is already approved" });
+    }
+
+    // Fetch target plan
+    const [plan] = await db.select().from(plans).where(eq(plans.id, request.planId)).limit(1);
+    if (!plan) {
+      return res.status(404).json({ success: false, message: "Plan associated with request not found" });
+    }
+
+    const now = new Date();
+    const durationDays = request.billingCycle === "annual" ? 365 : 30;
+    const endDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+    // 1. Mark existing active subscriptions as replaced/expired
+    await db
+      .update(subscriptions)
+      .set({ status: "expired", updatedAt: now })
+      .where(
+        and(
+          eq(subscriptions.userId, request.userId),
+          eq(subscriptions.status, "active")
+        )
+      );
+
+    // 2. Create new active subscription
+    const [newSub] = await db
+      .insert(subscriptions)
+      .values({
+        userId: request.userId,
+        planId: plan.id,
+        planData: plan,
+        status: "active",
+        billingCycle: request.billingCycle,
+        startDate: now,
+        endDate: endDate,
+        autoRenew: false,
+        gatewayProvider: "manual_receipt",
+        gatewaySubscriptionId: request.transactionReference || `MANUAL-${request.id.substring(0, 8).toUpperCase()}`,
+        gatewayStatus: "active",
+      })
+      .returning();
+
+    // 3. Mark manual payment request as approved
+    await db
+      .update(manualPaymentRequests)
+      .set({
+        status: "approved",
+        approvedBy: adminUser?.id || "superadmin",
+        approvedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(manualPaymentRequests.id, id));
+
+    // 4. Re-activate any paused Cloud API channels for this user
+    await db
+      .update(channels)
+      .set({
+        status: "active",
+        isActive: true,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          or(eq(channels.createdBy, request.userId), eq(channels.userId, request.userId)),
+          eq(channels.status, "paused")
+        )
+      );
+
+    // 5. Re-activate automations
+    await db
+      .update(automations)
+      .set({
+        isActive: true,
+        status: "active",
+        updatedAt: now,
+      })
+      .where(eq(automations.userId, request.userId));
+
+    res.status(200).json({
+      success: true,
+      message: `Payment approved! Subscription activated successfully until ${endDate.toDateString()}.`,
+      subscription: newSub,
+    });
+  } catch (error: any) {
+    console.error("Error approving manual payment request:", error);
+    res.status(500).json({ success: false, message: "Failed to approve payment request", error: error.message });
+  }
+};
+
+// Superadmin rejects manual payment request
+export const rejectManualPaymentRequest = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const [request] = await db
+      .select()
+      .from(manualPaymentRequests)
+      .where(eq(manualPaymentRequests.id, id))
+      .limit(1);
+
+    if (!request) {
+      return res.status(404).json({ success: false, message: "Payment request not found" });
+    }
+
+    await db
+      .update(manualPaymentRequests)
+      .set({
+        status: "rejected",
+        rejectionReason: reason ? String(reason).trim() : "Payment receipt could not be verified.",
+        updatedAt: new Date(),
+      })
+      .where(eq(manualPaymentRequests.id, id));
+
+    res.status(200).json({
+      success: true,
+      message: "Payment request rejected.",
+    });
+  } catch (error: any) {
+    console.error("Error rejecting manual payment request:", error);
+    res.status(500).json({ success: false, message: "Failed to reject payment request", error: error.message });
+  }
+};
+

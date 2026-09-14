@@ -28,6 +28,10 @@ import {
   AlertTriangle,
   XCircle,
   Send,
+  Receipt,
+  ExternalLink,
+  Check,
+  Ban,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import Header from "@/components/layout/header";
@@ -139,8 +143,9 @@ export default function AllSubscriptionsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "active" | "expiring_soon" | "expired" | "cancelled">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "active" | "expiring_soon" | "expired" | "cancelled" | "manual_payments">("all");
   const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
+  const [actioningManualId, setActioningManualId] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, isFetching } = useQuery<SubscriptionResponse>({
     queryKey: ["subscriptions", currentPage, limit, search, activeTab],
@@ -150,12 +155,74 @@ export default function AllSubscriptionsPage() {
         limit: String(limit),
       });
       if (search.trim()) params.append("search", search.trim());
-      if (activeTab && activeTab !== "all") params.append("tab", activeTab);
+      if (activeTab && activeTab !== "all" && activeTab !== "manual_payments") params.append("tab", activeTab);
 
       const res = await apiRequest("GET", `/api/subscriptions?${params.toString()}`);
       return await res.json();
     },
     keepPreviousData: true,
+  });
+
+  // Query manual payment requests for superadmin
+  const { data: manualRequestsData, isLoading: isLoadingManualRequests, refetch: refetchManualRequests } = useQuery<any>({
+    queryKey: ["/api/subscriptions/manual-payment-requests"],
+    queryFn: () => fetch("/api/subscriptions/manual-payment-requests", { credentials: "include" }).then((res) => res.json()),
+  });
+
+  const manualRequests = Array.isArray(manualRequestsData?.data) ? manualRequestsData.data : [];
+  const pendingManualCount = manualRequests.filter((r: any) => r.status === "pending").length;
+
+  // Approve manual payment request mutation
+  const approveManualPaymentMutation = useMutation({
+    mutationFn: async (id: string) => {
+      setActioningManualId(id);
+      const res = await apiRequest("POST", `/api/admin/manual-payments/${id}/approve`);
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.message || "Failed to approve payment");
+      return json;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Payment Approved! 🎉",
+        description: data.message || "Subscription activated successfully.",
+      });
+      queryClient.invalidateQueries(["subscriptions"]);
+      queryClient.invalidateQueries(["/api/subscriptions/manual-payment-requests"]);
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Approval Failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+    onSettled: () => setActioningManualId(null),
+  });
+
+  // Reject manual payment request mutation
+  const rejectManualPaymentMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      setActioningManualId(id);
+      const res = await apiRequest("POST", `/api/admin/manual-payments/${id}/reject`, { reason });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.message || "Failed to reject payment");
+      return json;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Payment Rejected",
+        description: "The payment request has been marked as rejected.",
+      });
+      queryClient.invalidateQueries(["/api/subscriptions/manual-payment-requests"]);
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Action Failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+    onSettled: () => setActioningManualId(null),
   });
 
   // Manual reminder mutation
@@ -348,7 +415,7 @@ export default function AllSubscriptionsPage() {
         </div>
 
         {/* Status Tabs with Counters */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 mb-6">
           <button
             onClick={() => handleTabChange("all")}
             className={`flex items-center justify-between p-3.5 rounded-xl border text-sm font-medium transition-all ${
@@ -357,7 +424,7 @@ export default function AllSubscriptionsPage() {
                 : "bg-white/80 border-gray-200 hover:bg-white text-gray-600 hover:border-gray-300"
             }`}
           >
-            <span>All Subscriptions</span>
+            <span>All Plans</span>
             <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
               activeTab === "all" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
             }`}>
@@ -418,7 +485,7 @@ export default function AllSubscriptionsPage() {
 
           <button
             onClick={() => handleTabChange("cancelled")}
-            className={`col-span-2 sm:col-span-1 flex items-center justify-between p-3.5 rounded-xl border text-sm font-medium transition-all ${
+            className={`flex items-center justify-between p-3.5 rounded-xl border text-sm font-medium transition-all ${
               activeTab === "cancelled"
                 ? "bg-white border-red-500 shadow-md ring-2 ring-red-500/20 text-gray-900"
                 : "bg-white/80 border-gray-200 hover:bg-white text-gray-600 hover:border-gray-300"
@@ -430,6 +497,28 @@ export default function AllSubscriptionsPage() {
             </div>
             <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
               {stats.cancelled}
+            </span>
+          </button>
+
+          {/* Manual Payments Tab */}
+          <button
+            onClick={() => handleTabChange("manual_payments")}
+            className={`flex items-center justify-between p-3.5 rounded-xl border text-sm font-medium transition-all ${
+              activeTab === "manual_payments"
+                ? "bg-white border-emerald-600 shadow-md ring-2 ring-emerald-600/20 text-gray-900"
+                : "bg-white/80 border-gray-200 hover:bg-white text-gray-600 hover:border-gray-300"
+            }`}
+          >
+            <div className="flex items-center gap-1.5">
+              <Receipt className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Receipts</span>
+            </div>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+              pendingManualCount > 0
+                ? "bg-emerald-600 text-white animate-pulse"
+                : "bg-gray-100 text-gray-600"
+            }`}>
+              {manualRequests.length}
             </span>
           </button>
         </div>
@@ -448,37 +537,191 @@ export default function AllSubscriptionsPage() {
 
           <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end text-sm text-gray-500">
             <span>
-              Showing {subscriptions.length} of {total} records
+              {activeTab === "manual_payments"
+                ? `Showing ${manualRequests.length} receipt requests`
+                : `Showing ${subscriptions.length} of ${total} records`}
             </span>
-            {isFetching && (
+            {(isFetching || isLoadingManualRequests) && (
               <Loader2 className="w-4 h-4 animate-spin text-green-600" />
             )}
           </div>
         </div>
 
-        {/* Loading state */}
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-gray-200">
-            <Loader2 className="w-8 h-8 animate-spin text-green-600 mb-3" />
-            <p className="text-gray-600 text-sm">Loading subscriptions data...</p>
-          </div>
-        ) : isError ? (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-            <p className="text-red-700 font-medium">Failed to load subscriptions</p>
-            <p className="text-red-500 text-sm mt-1">{(error as Error)?.message}</p>
-          </div>
-        ) : subscriptions.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-            <div className="w-12 h-12 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center mx-auto mb-3">
-              <Search className="w-6 h-6" />
+        {/* MANUAL PAYMENT REQUESTS VIEW */}
+        {activeTab === "manual_payments" ? (
+          isLoadingManualRequests ? (
+            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-gray-200">
+              <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mb-3" />
+              <p className="text-gray-600 text-sm">Loading manual payment receipts...</p>
             </div>
-            <h3 className="text-base font-semibold text-gray-900">No subscriptions found</h3>
-            <p className="text-sm text-gray-500 mt-1">
-              Try adjusting your search query or switching to another tab.
-            </p>
-          </div>
+          ) : manualRequests.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto mb-3">
+                <Receipt className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-semibold text-gray-900">No manual payment requests</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Tenants submitting offline payment receipts will populate here for review and activation.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50/80">
+                  <tr>
+                    <th className="py-3.5 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      User / Tenant
+                    </th>
+                    <th className="py-3.5 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Requested Plan
+                    </th>
+                    <th className="py-3.5 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Amount & Cycle
+                    </th>
+                    <th className="py-3.5 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Transaction Ref / Receipt
+                    </th>
+                    <th className="py-3.5 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="py-3.5 px-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {manualRequests.map((req: any) => {
+                    const isPending = req.status === "pending";
+                    const isActioning = actioningManualId === req.id;
+
+                    return (
+                      <tr key={req.id} className="hover:bg-gray-50/70 transition-colors">
+                        <td className="py-4 px-4">
+                          <div className="font-semibold text-gray-900 text-sm">
+                            {req.user?.username || req.user?.firstName || "Customer"}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5">{req.user?.email || "No email"}</div>
+                          {req.user?.phoneNumber && (
+                            <div className="text-[11px] text-gray-400 font-mono">{req.user.phoneNumber}</div>
+                          )}
+                        </td>
+
+                        <td className="py-4 px-4">
+                          <span className="font-semibold text-gray-900 text-sm">{req.plan?.name || "Plan"}</span>
+                          <div className="text-xs text-gray-400">
+                            Submitted on {new Date(req.createdAt).toLocaleDateString()}
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-4">
+                          <div className="text-sm font-bold text-gray-900 font-mono">
+                            {req.currency} {req.amount}
+                          </div>
+                          <span className="capitalize text-xs text-emerald-600 font-medium">
+                            {req.billingCycle} Cycle
+                          </span>
+                        </td>
+
+                        <td className="py-4 px-4 text-xs space-y-1">
+                          <div className="font-mono text-gray-800">
+                            Ref: <strong>{req.transactionReference || "N/A"}</strong>
+                          </div>
+                          {req.notes && <div className="text-gray-500 italic max-w-xs truncate">"{req.notes}"</div>}
+                          {req.receiptUrl && (
+                            <a
+                              href={req.receiptUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-emerald-600 hover:underline font-semibold mt-1 block"
+                            >
+                              Open Receipt Image <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </td>
+
+                        <td className="py-4 px-4">
+                          {req.status === "approved" ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                              <Check className="w-3 h-3" /> Approved
+                            </span>
+                          ) : req.status === "rejected" ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800" title={req.rejectionReason}>
+                              <Ban className="w-3 h-3" /> Rejected
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 animate-pulse border border-amber-300">
+                              <Clock className="w-3 h-3" /> Pending Review
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-4 px-4 text-right">
+                          {isPending ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                disabled={isActioning}
+                                onClick={() => approveManualPaymentMutation.mutate(req.id)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 px-3 rounded-lg shadow-xs flex items-center gap-1"
+                              >
+                                {isActioning ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Check className="w-3.5 h-3.5" />
+                                )}
+                                Approve & Activate
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={isActioning}
+                                onClick={() => {
+                                  const reason = window.prompt("Enter rejection reason (optional):");
+                                  if (reason !== null) {
+                                    rejectManualPaymentMutation.mutate({ id: req.id, reason });
+                                  }
+                                }}
+                                className="text-red-600 border-red-200 hover:bg-red-50 text-xs h-8 px-2.5 rounded-lg"
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400 font-medium">Processed</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
         ) : (
-          <>
+          /* STANDARD SUBSCRIPTIONS VIEW */
+          isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-gray-200">
+              <Loader2 className="w-8 h-8 animate-spin text-green-600 mb-3" />
+              <p className="text-gray-600 text-sm">Loading subscriptions data...</p>
+            </div>
+          ) : isError ? (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+              <p className="text-red-700 font-medium">Failed to load subscriptions</p>
+              <p className="text-red-500 text-sm mt-1">{(error as Error)?.message}</p>
+            </div>
+          ) : subscriptions.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+              <div className="w-12 h-12 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center mx-auto mb-3">
+                <Search className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-semibold text-gray-900">No subscriptions found</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Try adjusting your search query or switching to another tab.
+              </p>
+            </div>
+          ) : (
+            <>
             {/* Desktop Table */}
             <div className="hidden lg:block overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
               <table className="min-w-full divide-y divide-gray-200">
@@ -670,7 +913,7 @@ export default function AllSubscriptionsPage() {
               })}
             </div>
           </>
-        )}
+        ))}
 
         {/* Pagination Section */}
         <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-4">

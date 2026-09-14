@@ -24,15 +24,17 @@ import { useGlobalNotifications } from "../notification/useGlobalNotifications.t
 import EmailVerificationBanner from "@/components/EmailVerificationBanner";
 import { SubscriptionExpiredBanner } from "@/components/SubscriptionExpiredBanner";
 
+import { useAuth } from "@/contexts/auth-context";
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const { data: brandSettings } = useQuery({
     queryKey: ["/api/brand-settings"],
     queryFn: () => fetch("/api/brand-settings").then((res) => res.json()),
     staleTime: 5 * 60 * 1000,
   });
 
-
- const { socket } = useSocket();
+  const { socket } = useSocket();
 
   const { data: unreadData } = useQuery({
     queryKey: ["/api/conversations/unread-count"],
@@ -40,6 +42,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/conversations/unread-count");
       return res.json();
     },
+    enabled: !!user,
     staleTime: 30 * 1000,
   });
 

@@ -659,20 +659,20 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppLayout>
-        <AuthProvider>
-          <SocketProvider>
+      <AuthProvider>
+        <SocketProvider>
           <ChannelProvider>
             <TooltipProvider>
               <UnreadCountProvider>
-                <Toaster />
-                <Router />
+                <AppLayout>
+                  <Toaster />
+                  <Router />
+                </AppLayout>
               </UnreadCountProvider>
             </TooltipProvider>
           </ChannelProvider>
-          </SocketProvider>
-        </AuthProvider>
-      </AppLayout>
+        </SocketProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

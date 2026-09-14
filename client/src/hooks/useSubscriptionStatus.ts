@@ -10,6 +10,20 @@ import { useAuth } from "@/contexts/auth-context";
 export function useSubscriptionStatus() {
   const { user, userPlans, isUserPlansLoading } = useAuth();
 
+  if (!user) {
+    return {
+      isExpired: false,
+      hasActiveSubscription: false,
+      isExpiringSoon: false,
+      daysLeft: 0,
+      activeSubscription: null,
+      activePlan: null,
+      latestSubscription: null,
+      isSuperadmin: false,
+      isLoading: false,
+    };
+  }
+
   const isSuperadmin = user?.role === "superadmin";
 
   if (isSuperadmin) {

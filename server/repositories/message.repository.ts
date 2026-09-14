@@ -72,14 +72,15 @@ export class MessageRepository {
           ? (message.content.length > 200 ? message.content.substring(0, 200) : message.content)
           : (message.messageType === "image" ? "[Image]" : message.messageType === "audio" ? "[Audio]" : message.messageType === "video" ? "[Video]" : message.messageType === "document" ? "[Document]" : "[Media]");
 
+        const msgTime = message.timestamp || message.createdAt || new Date();
         const convUpdate: any = {
-          lastMessageAt: message.createdAt || new Date(),
+          lastMessageAt: msgTime,
           lastMessageText: textPreview,
           updatedAt: new Date(),
         };
 
         if (message.direction === "inbound") {
-          convUpdate.lastIncomingMessageAt = message.createdAt || new Date();
+          convUpdate.lastIncomingMessageAt = msgTime;
         }
 
         await db

@@ -110,25 +110,16 @@ export async function getConversations(req: Request, res: Response) {
         conversation: conversations,
         contact: contacts,
         assignedToName: sql`${users.firstName} || ' ' || ${users.lastName}`.as("assignedBy"),
-        effectiveLastMessageAt: sql<Date | null>`COALESCE(
-          (SELECT created_at FROM messages WHERE messages.conversation_id = ${conversations.id} ORDER BY created_at DESC LIMIT 1),
-          ${conversations.lastMessageAt},
-          ${conversations.createdAt}
-        )`.as("effective_last_message_at"),
-        effectiveLastMessageText: sql<string | null>`COALESCE(
-          (SELECT content FROM messages WHERE messages.conversation_id = ${conversations.id} ORDER BY created_at DESC LIMIT 1),
-          ${conversations.lastMessageText}
-        )`.as("effective_last_message_text"),
         lastMessageDirection: sql<string | null>`(
           SELECT direction FROM messages 
           WHERE messages.conversation_id = ${conversations.id} 
-          ORDER BY messages.created_at DESC 
+          ORDER BY created_at DESC 
           LIMIT 1
         )`,
         lastMessageStatus: sql<string | null>`(
           SELECT status FROM messages 
           WHERE messages.conversation_id = ${conversations.id} 
-          ORDER BY messages.created_at DESC 
+          ORDER BY created_at DESC 
           LIMIT 1
         )`,
       })
@@ -136,11 +127,7 @@ export async function getConversations(req: Request, res: Response) {
       .leftJoin(contacts, eq(conversations.contactId, contacts.id))
       .leftJoin(users, eq(conversations.assignedTo, users.id))
       .where(and(...conditions))
-      .orderBy(sql`COALESCE(
-        (SELECT created_at FROM messages WHERE messages.conversation_id = ${conversations.id} ORDER BY created_at DESC LIMIT 1),
-        ${conversations.lastMessageAt},
-        ${conversations.createdAt}
-      ) DESC NULLS LAST`)
+      .orderBy(sql`COALESCE(${conversations.lastMessageAt}, ${conversations.createdAt}) DESC NULLS LAST`)
       .limit(limit + 1)
       .offset(offset);
 
@@ -149,8 +136,8 @@ export async function getConversations(req: Request, res: Response) {
 
     const formatted = slice.map((row) => ({
       ...row.conversation,
-      lastMessageAt: row.effectiveLastMessageAt || row.conversation.lastMessageAt || row.conversation.createdAt || null,
-      lastMessageText: row.effectiveLastMessageText || row.conversation.lastMessageText || null,
+      lastMessageAt: row.conversation.lastMessageAt || row.conversation.createdAt || null,
+      lastMessageText: row.conversation.lastMessageText || null,
       assignedToName: row.assignedToName || null,
       contact: row.contact || null,
       lastMessageDirection: row.lastMessageDirection || null,
@@ -174,25 +161,16 @@ export async function fetchConversationList(channelId: string) {
       assignedToName: sql`${users.firstName} || ' ' || ${users.lastName}`.as(
         "assignedBy"
       ),
-      effectiveLastMessageAt: sql<Date | null>`COALESCE(
-        (SELECT created_at FROM messages WHERE messages.conversation_id = ${conversations.id} ORDER BY created_at DESC LIMIT 1),
-        ${conversations.lastMessageAt},
-        ${conversations.createdAt}
-      )`.as("effective_last_message_at"),
-      effectiveLastMessageText: sql<string | null>`COALESCE(
-        (SELECT content FROM messages WHERE messages.conversation_id = ${conversations.id} ORDER BY created_at DESC LIMIT 1),
-        ${conversations.lastMessageText}
-      )`.as("effective_last_message_text"),
       lastMessageDirection: sql<string | null>`(
         SELECT direction FROM messages 
         WHERE messages.conversation_id = ${conversations.id} 
-        ORDER BY messages.created_at DESC 
+        ORDER BY created_at DESC 
         LIMIT 1
       )`,
       lastMessageStatus: sql<string | null>`(
         SELECT status FROM messages 
         WHERE messages.conversation_id = ${conversations.id} 
-        ORDER BY messages.created_at DESC 
+        ORDER BY created_at DESC 
         LIMIT 1
       )`,
     })
@@ -200,16 +178,12 @@ export async function fetchConversationList(channelId: string) {
     .leftJoin(contacts, eq(conversations.contactId, contacts.id))
     .leftJoin(users, eq(conversations.assignedTo, users.id))
     .where(eq(conversations.channelId, channelId))
-    .orderBy(sql`COALESCE(
-      (SELECT created_at FROM messages WHERE messages.conversation_id = ${conversations.id} ORDER BY created_at DESC LIMIT 1),
-      ${conversations.lastMessageAt},
-      ${conversations.createdAt}
-    ) DESC NULLS LAST`);
+    .orderBy(sql`COALESCE(${conversations.lastMessageAt}, ${conversations.createdAt}) DESC NULLS LAST`);
 
   return rows.map((row) => ({
     ...row.conversation,
-    lastMessageAt: row.effectiveLastMessageAt || row.conversation.lastMessageAt || row.conversation.createdAt || null,
-    lastMessageText: row.effectiveLastMessageText || row.conversation.lastMessageText || null,
+    lastMessageAt: row.conversation.lastMessageAt || row.conversation.createdAt || null,
+    lastMessageText: row.conversation.lastMessageText || null,
     assignedToName: row.assignedToName || null,
     contact: row.contact || null,
     lastMessageDirection: row.lastMessageDirection || null,

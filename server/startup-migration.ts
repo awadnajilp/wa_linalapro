@@ -1750,14 +1750,14 @@ export async function runStartupMigration(pool: Pool): Promise<void> {
             last_message_text = COALESCE(NULLIF(m.latest_content, ''), c.last_message_text)
           FROM (
             SELECT conversation_id, 
-                   MAX(created_at) as latest_ts,
-                   (ARRAY_AGG(content ORDER BY created_at DESC))[1] as latest_content
+                   MAX(COALESCE(timestamp, created_at)) as latest_ts,
+                   (ARRAY_AGG(content ORDER BY COALESCE(timestamp, created_at) DESC))[1] as latest_content
             FROM messages
             WHERE conversation_id IS NOT NULL
             GROUP BY conversation_id
           ) m
           WHERE c.id = m.conversation_id
-            AND (c.last_message_at IS NULL OR c.last_message_at < m.latest_ts);
+            AND (c.last_message_at IS NULL OR c.last_message_at != m.latest_ts);
         `);
       } finally {
         bgClient.release();

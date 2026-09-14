@@ -37,24 +37,10 @@ export function normalizeDate(value: any): Date | null {
     return isNaN(ms) ? null : new Date(ms);
   }
 
-  if (typeof value === "string") {
-    const num = Number(value);
-    if (!isNaN(num) && String(num) === value.trim()) {
-      const ms = num < 1e12 ? num * 1000 : num;
-      return isNaN(ms) ? null : new Date(ms);
-    }
-
-    let parsed = Date.parse(value);
-    if (!isNaN(parsed)) return new Date(parsed);
-
-    if (value.includes(" ")) {
-      let formatted = value.replace(" ", "T");
-      if (!formatted.endsWith("Z") && !/[+-]\d{2}(:?\d{2})?$/.test(formatted)) {
-        formatted += "Z";
-      }
-      parsed = Date.parse(formatted);
-      if (!isNaN(parsed)) return new Date(parsed);
-    }
+  const num = Number(value);
+  if (!isNaN(num) && typeof value === "string" && String(num) === value.trim()) {
+    const ms = num < 1e12 ? num * 1000 : num;
+    return isNaN(ms) ? null : new Date(ms);
   }
 
   const d = new Date(value);
@@ -72,23 +58,9 @@ export function normalizeTime(value: any): number {
     return value < 1e12 ? value * 1000 : value;
   }
 
-  if (typeof value === "string") {
-    const num = Number(value);
-    if (!isNaN(num) && String(num) === value.trim()) {
-      return num < 1e12 ? num * 1000 : num;
-    }
-
-    let parsed = Date.parse(value);
-    if (!isNaN(parsed)) return parsed;
-
-    if (value.includes(" ")) {
-      let formatted = value.replace(" ", "T");
-      if (!formatted.endsWith("Z") && !/[+-]\d{2}(:?\d{2})?$/.test(formatted)) {
-        formatted += "Z";
-      }
-      parsed = Date.parse(formatted);
-      if (!isNaN(parsed)) return parsed;
-    }
+  const num = Number(value);
+  if (!isNaN(num) && typeof value === "string" && String(num) === value.trim()) {
+    return num < 1e12 ? num * 1000 : num;
   }
 
   const d = new Date(value);

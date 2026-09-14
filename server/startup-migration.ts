@@ -155,6 +155,11 @@ const steps: MigrationStep[] = [
     description: "Create users_facebook_id_idx",
     sql: `CREATE INDEX IF NOT EXISTS users_facebook_id_idx ON users (facebook_id);`,
   },
+  addColumnIfNotExists("users", "google_id", "TEXT"),
+  {
+    description: "Create users_google_id_idx",
+    sql: `CREATE INDEX IF NOT EXISTS users_google_id_idx ON users (google_id);`,
+  },
 
   // ────────────────────────────────────────────────────
   // plans
@@ -1147,6 +1152,9 @@ const steps: MigrationStep[] = [
   addColumnIfNotExists("panel_config", "admin_groq_api_key", "TEXT"),
   addColumnIfNotExists("panel_config", "admin_elevenlabs_api_key", "TEXT"),
   addColumnIfNotExists("panel_config", "admin_ai_margin_percent", "NUMERIC DEFAULT 70"),
+  addColumnIfNotExists("panel_config", "google_client_id", "TEXT"),
+  addColumnIfNotExists("panel_config", "google_client_secret", "TEXT"),
+  addColumnIfNotExists("panel_config", "google_auth_enabled", "BOOLEAN DEFAULT true"),
 
   // ────────────────────────────────────────────────────
   // Ecommerce Config AI Key Source Switcher

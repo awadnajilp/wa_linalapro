@@ -104,6 +104,7 @@ function isExempt(path: string): boolean {
   if (path === "/api/brand-settings") return true;
   if (path === "/api/auth/country-data") return true;
   if (path.startsWith("/api/auth/facebook")) return true;
+  if (path.startsWith("/api/auth/google")) return true;
   if (path.startsWith("/api/v1/")) return true;
   return false;
 }

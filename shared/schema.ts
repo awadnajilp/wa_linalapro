@@ -74,6 +74,7 @@ export const users = pgTable("users", {
   notificationChannelId: varchar("notification_channel_id"),
   walletEnabled: boolean("wallet_enabled").default(false),
   facebookId: text("facebook_id"),
+  googleId: text("google_id"),
 });
 
 // Conversation assignments to users
@@ -1133,6 +1134,9 @@ export const panelConfig = pgTable("panel_config", {
   adminGroqApiKey: text("admin_groq_api_key"),
   adminElevenlabsApiKey: text("admin_elevenlabs_api_key"),
   adminAiMarginPercent: numeric("admin_ai_margin_percent").default("70"),
+  googleClientId: text("google_client_id"),
+  googleClientSecret: text("google_client_secret"),
+  googleAuthEnabled: boolean("google_auth_enabled").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

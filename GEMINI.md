@@ -285,3 +285,11 @@ Deletes a scheduled campaign.
 *   **Cross-Platform Auth Endpoint:** Implemented `POST /api/auth/facebook` taking `{ accessToken }`. It computes an HMAC `appsecret_proof` to securely verify tokens directly against Meta Graph API (`/v20.0/me`), resolves or creates user accounts with verified emails, and returns signed session tokens (`sessionId`) compatible with header-based auth (`x-session-id`) for mobile apps.
 *   **Web UX Integration:** Added responsive "Continue with Facebook" buttons on both `/login` and `/signup` with seamless popup authentication and automatic dashboard redirection.
 
+### 18. Sign in with Google (OAuth 2.0 SSO) for Web & Mobile Apps (September 2026)
+*   **Google Identity Services (GSI) & OAuth 2.0:** Integrated Google OAuth 2.0 and Google Identity Services for web and mobile clients.
+*   **Public Config API:** Added `GET /api/auth/google/config` exposing `{ enabled: boolean, clientId: string }` without leaking sensitive secrets.
+*   **Universal Token Verification:** Implemented `POST /api/auth/google` accepting either Google ID Token (`idToken` / `credential`) or OAuth `accessToken`. Validates tokens using official `google-auth-library` (`OAuth2Client.verifyIdToken`) or Google userinfo API, checks email verification, auto-provisions or links user accounts, creates secure sessions, and returns signed `sessionId` for mobile header authentication (`x-session-id`).
+*   **Superadmin Management UI:** Added dedicated "Google Sign-In" management tab in **Superadmin > Settings** with quick copyable JavaScript Origins and Redirect URIs for Google Cloud Console.
+*   **Web UX Integration:** Added branded Google Sign-In buttons on `/login` and `/signup` with popup authentication flow and automatic fallback handling.
+
+

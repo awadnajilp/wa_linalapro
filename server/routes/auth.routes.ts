@@ -27,6 +27,7 @@ import { validateRequest } from "../middlewares/validateRequest.middleware";
 import { resolveUserPermissions } from "server/utils/role-permissions";
 import country from "../config/country.json"
 import {sendOTPEmail} from "../services/email.service"
+import { getFirstPanelConfig } from "../services/panel.config";
 
 
 const router = Router();
@@ -226,6 +227,267 @@ router.get("/check", (req, res) => {
 
 router.get("/country-data", (req, res) => {
   res.json(country);
+});
+
+// ==========================================
+// GOOGLE AUTHENTICATION (WEB & MOBILE)
+// ==========================================
+
+// Public endpoint to get Google Client ID for Web/Mobile SDK initialization
+router.get("/google/config", async (_req: Request, res: Response) => {
+  try {
+    const config = await getFirstPanelConfig();
+    const clientId = (config?.googleClientId || process.env.GOOGLE_CLIENT_ID || "").trim();
+    const enabled = Boolean(clientId.length > 0 && (config?.googleAuthEnabled ?? true));
+
+    res.json({
+      enabled,
+      clientId: clientId || "",
+    });
+  } catch (error: any) {
+    console.error("Error fetching Google auth config:", error);
+    res.status(500).json({ error: "Failed to fetch Google auth config" });
+  }
+});
+
+const googleLoginSchema = z.object({
+  credential: z.string().optional(),
+  idToken: z.string().optional(),
+  accessToken: z.string().optional(),
+});
+
+// Google Login / SSO endpoint for both Web and Mobile apps
+router.post("/google", validateRequest(googleLoginSchema), async (req: Request, res: Response) => {
+  try {
+    const { credential, idToken, accessToken } = req.body;
+    const token = credential || idToken;
+
+    if (!token && !accessToken) {
+      return res.status(400).json({ error: "Google credential/idToken or accessToken is required" });
+    }
+
+    const config = await getFirstPanelConfig();
+    const clientId = (config?.googleClientId || process.env.GOOGLE_CLIENT_ID || "").trim();
+
+    let googleId: string = "";
+    let email: string = "";
+    let firstName: string = "User";
+    let lastName: string = "";
+    let avatar: string | null = null;
+    let isEmailVerified: boolean = true;
+
+    if (token) {
+      // Verify JWT ID token with google-auth-library
+      const { OAuth2Client } = await import("google-auth-library");
+      const googleClient = new OAuth2Client(clientId || undefined);
+
+      const ticket = await googleClient.verifyIdToken({
+        idToken: token,
+        audience: clientId || undefined,
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload || !payload.sub) {
+        return res.status(401).json({ error: "Invalid Google token payload" });
+      }
+
+      googleId = payload.sub;
+      email = (payload.email || "").trim().toLowerCase();
+      firstName = payload.given_name || (payload.name ? payload.name.split(" ")[0] : "Google User");
+      lastName = payload.family_name || (payload.name ? payload.name.split(" ").slice(1).join(" ") : "");
+      avatar = payload.picture || null;
+      isEmailVerified = payload.email_verified ?? true;
+    } else if (accessToken) {
+      // Query Google userinfo endpoint using access token
+      const response = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const data = (await response.json()) as any;
+
+      if (!response.ok || !data.sub) {
+        return res.status(401).json({ error: data.error_description || "Invalid Google access token" });
+      }
+
+      googleId = data.sub;
+      email = (data.email || "").trim().toLowerCase();
+      firstName = data.given_name || (data.name ? data.name.split(" ")[0] : "Google User");
+      lastName = data.family_name || (data.name ? data.name.split(" ").slice(1).join(" ") : "");
+      avatar = data.picture || null;
+      isEmailVerified = data.email_verified ?? true;
+    }
+
+    if (!googleId) {
+      return res.status(400).json({ error: "Failed to retrieve Google profile ID" });
+    }
+
+    if (!email) {
+      email = `google_${googleId}@google.user`;
+    }
+
+    // Resolve existing user or create a new user account
+    let existingUser: any = null;
+
+    // Check by googleId
+    const usersByGoogleId = await db
+      .select()
+      .from(users)
+      .where(eq(users.googleId, googleId))
+      .limit(1);
+
+    if (usersByGoogleId.length > 0) {
+      existingUser = usersByGoogleId[0];
+    } else if (email) {
+      // Check by matching verified email
+      const usersByEmail = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (usersByEmail.length > 0) {
+        existingUser = usersByEmail[0];
+        // Link googleId to this account
+        await db
+          .update(users)
+          .set({ googleId })
+          .where(eq(users.id, existingUser.id));
+        existingUser.googleId = googleId;
+      }
+    }
+
+    let activeUser: any = null;
+
+    if (existingUser) {
+      if ((existingUser.status || "").trim().toLowerCase() !== "active") {
+        return res.status(403).json({ error: "Account is inactive. Please contact administrator." });
+      }
+
+      const updatePayload: any = {
+        lastLogin: new Date(),
+        updatedAt: new Date(),
+      };
+      if (!existingUser.avatar && avatar) {
+        updatePayload.avatar = avatar;
+      }
+      if (!existingUser.isEmailVerified && isEmailVerified) {
+        updatePayload.isEmailVerified = true;
+      }
+
+      await db
+        .update(users)
+        .set(updatePayload)
+        .where(eq(users.id, existingUser.id));
+
+      activeUser = { ...existingUser, ...updatePayload };
+    } else {
+      // New User Registration via Google
+      let baseUsername = (email.split("@")[0] || firstName)
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
+      if (!baseUsername || baseUsername.length < 3) {
+        baseUsername = `user_${googleId.slice(-4)}`;
+      }
+
+      let candidateUsername = baseUsername;
+      let counter = 1;
+      while (true) {
+        const [existing] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.username, candidateUsername))
+          .limit(1);
+        if (!existing) break;
+        candidateUsername = `${baseUsername}_${Math.floor(1000 + Math.random() * 9000)}`;
+        counter++;
+        if (counter > 10) {
+          candidateUsername = `${baseUsername}_${Date.now()}`;
+          break;
+        }
+      }
+
+      const randomPassword = crypto.randomBytes(32).toString("hex");
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+      const defaultPermissions = resolveUserPermissions("admin", []);
+
+      const [createdUser] = await db
+        .insert(users)
+        .values({
+          username: candidateUsername,
+          password: hashedPassword,
+          email,
+          firstName,
+          lastName,
+          role: "admin",
+          avatar,
+          permissions: defaultPermissions,
+          isEmailVerified: true,
+          status: "active",
+          googleId,
+        })
+        .returning();
+
+      activeUser = createdUser;
+    }
+
+    // Log activity
+    try {
+      await db.insert(userActivityLogs).values({
+        userId: activeUser.id,
+        action: existingUser ? "google_login" : "google_signup",
+        entityType: "user",
+        entityId: activeUser.id,
+        details: JSON.stringify({
+          ipAddress: req.ip,
+          userAgent: req.get("user-agent"),
+          provider: "google",
+          googleId,
+        }),
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+    } catch (logErr) {
+      console.error("Failed to log Google login activity:", logErr);
+    }
+
+    // Set session
+    if (!(req as any).session) {
+      console.error("Session not initialized");
+      return res.status(500).json({ error: "Session not initialized" });
+    }
+
+    (req as any).session.user = {
+      id: activeUser.id,
+      username: activeUser.username,
+      email: activeUser.email,
+      firstName: activeUser.firstName,
+      lastName: activeUser.lastName,
+      role: activeUser.role,
+      permissions: resolveUserPermissions(activeUser.role, activeUser.permissions as any),
+      avatar: activeUser.avatar,
+      createdBy: activeUser.createdBy || "",
+      channelId: activeUser.channelId || null,
+      showOnlyAssigned: !!activeUser.showOnlyAssigned,
+      isAdminMember: !!activeUser.isAdminMember,
+    };
+
+    const { password: _, ...userData } = activeUser;
+
+    const signature = await import("cookie-signature");
+    const secret = process.env.SESSION_SECRET || "your-secret-key-change-in-production";
+    const signedSessionId = "s:" + signature.sign((req as any).sessionID, secret);
+
+    res.json({
+      message: existingUser ? "Login successful" : "Account created and logged in successfully",
+      user: userData,
+      sessionId: signedSessionId,
+    });
+  } catch (error: any) {
+    console.error("Error during Google login:", error);
+    res.status(500).json({
+      error: "Google login failed",
+      message: error.message || "Unknown error",
+    });
+  }
 });
 
 // ==========================================

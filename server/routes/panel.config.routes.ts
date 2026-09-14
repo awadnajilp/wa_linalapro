@@ -50,6 +50,9 @@ export function registerPanelConfigRoutes(app: Express) {
       const config = await getFirstPanelConfig();
       res.json({
         embeddedSignupEnabled: config?.embeddedSignupEnabled ?? true,
+        googleClientId: config?.googleClientId || process.env.GOOGLE_CLIENT_ID || "",
+        googleClientSecret: config?.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET || "",
+        googleAuthEnabled: config?.googleAuthEnabled ?? true,
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -58,12 +61,19 @@ export function registerPanelConfigRoutes(app: Express) {
 
   app.put("/api/platform-settings", requireAuth, requireRole("superadmin"), async (req, res) => {
     try {
-      const { embeddedSignupEnabled } = req.body;
-      const config = await updateFirstPanelConfig({
-        embeddedSignupEnabled: !!embeddedSignupEnabled,
-      });
+      const { embeddedSignupEnabled, googleClientId, googleClientSecret, googleAuthEnabled } = req.body;
+      const updatePayload: any = {};
+      if (embeddedSignupEnabled !== undefined) updatePayload.embeddedSignupEnabled = !!embeddedSignupEnabled;
+      if (googleClientId !== undefined) updatePayload.googleClientId = String(googleClientId).trim();
+      if (googleClientSecret !== undefined) updatePayload.googleClientSecret = String(googleClientSecret).trim();
+      if (googleAuthEnabled !== undefined) updatePayload.googleAuthEnabled = !!googleAuthEnabled;
+
+      const config = await updateFirstPanelConfig(updatePayload);
       res.json({
         embeddedSignupEnabled: config?.embeddedSignupEnabled ?? true,
+        googleClientId: config?.googleClientId || "",
+        googleClientSecret: config?.googleClientSecret || "",
+        googleAuthEnabled: config?.googleAuthEnabled ?? true,
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

@@ -96,7 +96,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
           ilike(users.email, `%${trimmedSearch}%`),
           ilike(users.firstName, `%${trimmedSearch}%`),
           ilike(users.lastName, `%${trimmedSearch}%`),
-          ilike(users.phone, `%${trimmedSearch}%`)
+          ilike(users.phoneNumber, `%${trimmedSearch}%`)
         )
       : undefined;
 
@@ -130,6 +130,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
         email: users.email,
         firstName: users.firstName,
         lastName: users.lastName,
+        phoneNumber: users.phoneNumber,
         role: users.role,
         avatar: users.avatar,
         status: users.status,
@@ -190,7 +191,7 @@ export const exportAllUsers = async (req: Request, res: Response) => {
           ilike(users.email, `%${trimmedSearch}%`),
           ilike(users.firstName, `%${trimmedSearch}%`),
           ilike(users.lastName, `%${trimmedSearch}%`),
-          ilike(users.phone, `%${trimmedSearch}%`)
+          ilike(users.phoneNumber, `%${trimmedSearch}%`)
         )
       : undefined;
 
@@ -230,6 +231,7 @@ export const exportAllUsers = async (req: Request, res: Response) => {
         email: users.email,
         firstName: users.firstName,
         lastName: users.lastName,
+        phoneNumber: users.phoneNumber,
         role: users.role,
         status: users.status,
         lastLogin: users.lastLogin,
@@ -294,9 +296,25 @@ export const getUserById = async (req: Request, res: Response) => {
 
 
 
+function stripHtml(input?: string | null): string {
+  if (!input || typeof input !== "string") return "";
+  return input.replace(/<[^>]*>?/gm, "").trim();
+}
+
 export const createUser = async (req: Request, res: Response) => {
   try {
-    const { username, password, email, firstName, lastName, role, avatar } = req.body;
+    const rawUsername = req.body.username;
+    const password = req.body.password;
+    const rawEmail = req.body.email;
+    const rawFirstName = req.body.firstName;
+    const rawLastName = req.body.lastName;
+    const role = req.body.role;
+    const avatar = req.body.avatar;
+
+    const username = stripHtml(rawUsername);
+    const email = stripHtml(rawEmail).toLowerCase();
+    const firstName = stripHtml(rawFirstName);
+    const lastName = stripHtml(rawLastName);
 
     if (!username || !password || !email) {
       return res.status(400).json({
@@ -612,12 +630,12 @@ export const updateUser = async (req: Request, res: Response) => {
     };
 
     // Whitelisted self-update fields
-    if (firstName !== undefined) updates.firstName = firstName;
-    if (lastName !== undefined) updates.lastName = lastName;
+    if (firstName !== undefined) updates.firstName = stripHtml(firstName);
+    if (lastName !== undefined) updates.lastName = stripHtml(lastName);
     if (avatar !== undefined) updates.avatar = avatar;
-    if (phoneNumber !== undefined) updates.phoneNumber = phoneNumber;
-    if (username !== undefined) updates.username = username;
-    if (email !== undefined) updates.email = email;
+    if (phoneNumber !== undefined) updates.phoneNumber = stripHtml(phoneNumber);
+    if (username !== undefined) updates.username = stripHtml(username);
+    if (email !== undefined) updates.email = stripHtml(email).toLowerCase();
 
     // Privileged fields
     if (isSuperadmin) {
@@ -748,7 +766,16 @@ export const deleteUser = async (req: Request, res: Response) => {
 
 export const createUserSuperadmin = async (req: Request, res: Response) => {
   try {
-    const { username, password, email, firstName, lastName } = req.body;
+    const rawUsername = req.body.username;
+    const password = req.body.password;
+    const rawEmail = req.body.email;
+    const rawFirstName = req.body.firstName;
+    const rawLastName = req.body.lastName;
+
+    const username = stripHtml(rawUsername);
+    const email = stripHtml(rawEmail).toLowerCase();
+    const firstName = stripHtml(rawFirstName);
+    const lastName = stripHtml(rawLastName);
 
     if (!username || !password || !email) {
       return res.status(400).json({

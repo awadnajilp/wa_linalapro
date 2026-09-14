@@ -91,13 +91,25 @@ export function resetEmailCache() {
   cacheInvalidate(CACHE_KEYS.panelConfig()).catch(() => {});
 }
 
+function escapeHtml(str: string | undefined | null): string {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function generateOTPEmailHTML(
   companyName?: string,
   logo?: string,
   otpCode?: string,
   name?: string
 ): string {
-  const displayName = companyName || "Your Company";
+  const displayName = escapeHtml(companyName || "Your Company");
+  const escapedName = escapeHtml(name);
+  const safeOtp = escapeHtml(otpCode);
   const headerContent = logo
     ? `<img src="${logo}" alt="${displayName} Logo" style="max-height: 60px; margin-bottom: 10px;">`
     : `<div class="logo">${displayName}</div>`;
@@ -130,13 +142,13 @@ function generateOTPEmailHTML(
         </div>
         
         <div class="message">
-          ${name ? `<p>Hello <strong>${name}</strong>,</p>` : "<p>Hello,</p>"}
+          ${escapedName ? `<p>Hello <strong>${escapedName}</strong>,</p>` : "<p>Hello,</p>"}
           <p>${messageText}</p>
         </div>
         
         <div class="otp-box">
           <div style="font-size: 14px; color: #6b7280; margin-bottom: 10px;">Your Verification Code</div>
-          <div class="otp-code">${otpCode}</div>
+          <div class="otp-code">${safeOtp}</div>
           <div style="font-size: 12px; color: #9ca3af; margin-top: 10px;">Valid for 5 minutes</div>
         </div>
         

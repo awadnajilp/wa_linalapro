@@ -702,7 +702,7 @@ const handleExportCSV = async () => {
                             title={t("users.actions.activateUser")}
                           />
                         )}
-                        {u.role !== "superadmin" && (
+                        {user?.role === "superadmin" && u.role !== "superadmin" && (
                           <FaTrash
                             onClick={() => handleDeleteUser(u)}
                             className="cursor-pointer text-red-500 hover:text-red-700"
@@ -835,7 +835,7 @@ const handleExportCSV = async () => {
                       title={t("users.actions.activateUser")}
                     />
                   )}
-                  {u.role !== "superadmin" && (
+                  {user?.role === "superadmin" && u.role !== "superadmin" && (
                     <FaTrash
                       onClick={() => handleDeleteUser(u)}
                       className="cursor-pointer text-red-500 hover:text-red-700"

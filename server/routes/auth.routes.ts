@@ -1358,12 +1358,13 @@ router.post("/signup/create-account", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Email and password are required" });
     }
 
-    const cleanEmail = email.toLowerCase().trim();
+    const cleanEmail = (email || "").toLowerCase().replace(/<[^>]*>?/gm, "").trim();
     const cleanPhone = phone ? phone.replace(/\D/g, "") : null;
 
-    // Split fullName into firstName and lastName
-    const nameParts = (fullName || "").trim().split(/\s+/);
-    const firstName = nameParts[0] || cleanEmail.split("@")[0];
+    // Split fullName into firstName and lastName, stripping any HTML tags
+    const sanitizedFullName = (fullName || "").replace(/<[^>]*>?/gm, "").trim();
+    const nameParts = sanitizedFullName.split(/\s+/).filter(Boolean);
+    const firstName = nameParts[0] || cleanEmail.split("@")[0] || "User";
     const lastName = nameParts.slice(1).join(" ") || "";
 
     const hashedPassword = await bcrypt.hash(password, 10);

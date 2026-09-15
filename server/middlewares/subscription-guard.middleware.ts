@@ -28,7 +28,8 @@ export async function requireActiveSubscription(
   }
 
   try {
-    const status = await isUserSubscriptionActive(user.id);
+    const targetUserId = user.role === "team" && user.createdBy ? user.createdBy : user.id;
+    const status = await isUserSubscriptionActive(targetUserId);
 
     if (status.isExpired || !status.isActive) {
       return res.status(403).json({

@@ -28,7 +28,7 @@ export async function isUserSubscriptionActive(userId: string): Promise<Subscrip
     return { isActive: false, isExpired: true, isSuperadmin: false, daysLeft: 0 };
   }
 
-  // 1. Check if user is superadmin
+  // 1. Check if user is superadmin or team member
   const [user] = await db
     .select()
     .from(users)
@@ -44,6 +44,8 @@ export async function isUserSubscriptionActive(userId: string): Promise<Subscrip
     };
   }
 
+  const targetUserId = (user?.role === "team" && user?.createdBy) ? user.createdBy : userId;
+
   const now = new Date();
 
   // 2. Query user's subscriptions
@@ -54,7 +56,7 @@ export async function isUserSubscriptionActive(userId: string): Promise<Subscrip
     })
     .from(subscriptions)
     .leftJoin(plans, eq(subscriptions.planId, plans.id))
-    .where(eq(subscriptions.userId, userId))
+    .where(eq(subscriptions.userId, targetUserId))
     .orderBy(sql`${subscriptions.createdAt} DESC`);
 
   if (!userSubs || userSubs.length === 0) {

@@ -135,7 +135,7 @@ export default function Templates() {
     tenantUsersResponse?.data || [];
 
   // Fetch active channel
-  const { data: activeChannel } = useQuery({
+  const { data: activeChannel, isLoading: channelLoading } = useQuery({
     queryKey: ["/api/channels/active"],
   });
   const channelId = activeChannel?.id;
@@ -161,29 +161,30 @@ export default function Templates() {
     refreshDrafts();
   };
 
-
   // Fetch templates (paginated)
   const { data: templatesData, isLoading: templatesLoading } = useQuery({
     queryKey: ["templates", userRole, channelId, page, limit, selectedTenantUserId],
     queryFn: async () => {
-      if (isPrivilegedRole) {
-        const userQueryParam =
-          selectedTenantUserId && selectedTenantUserId !== "all"
-            ? `&userId=${selectedTenantUserId}`
-            : "";
-        const res = await fetch(`/api/templates?page=${page}&limit=${limit}${userQueryParam}`, {
-          credentials: "include",
-        });
-        if (!res.ok) throw new Error(await res.text());
-        return res.json(); // expects { data: Template[], pagination: { total, totalPages } }
-      } else {
-        const res = await api.getTemplates(channelId, page, limit);
-        const data = await res.json();
-        return data;
-      }
+      const userQueryParam =
+        isPrivilegedRole && selectedTenantUserId && selectedTenantUserId !== "all"
+          ? `&userId=${selectedTenantUserId}`
+          : "";
+      const channelParam = !isPrivilegedRole && channelId ? `&channelId=${channelId}` : "";
+
+      const res = await fetch(`/api/templates?page=${page}&limit=${limit}${userQueryParam}${channelParam}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
     enabled: isPrivilegedRole || !!activeChannel,
   });
+
+  const templatesList: Template[] = Array.isArray(templatesData)
+    ? templatesData
+    : Array.isArray(templatesData?.data)
+    ? templatesData.data
+    : [];
 
 
 const createTemplateMutation = useMutation({
@@ -411,6 +412,20 @@ const createTemplateMutation = useMutation({
   };
   const handleSyncTemplates = () => syncTemplatesMutation.mutate();
 
+  if (channelLoading && !isPrivilegedRole) {
+    return (
+      <div className="flex-1 dots-bg min-h-screen">
+        <Header
+          title={t("templates.title")}
+          subtitle={t("templates.superAdminSubTitle")}
+        />
+        <main className="p-6">
+          <Loading />
+        </main>
+      </div>
+    );
+  }
+
   if (!activeChannel && !isPrivilegedRole) {
     return (
       <div className="flex-1 dots-bg min-h-screen">
@@ -636,11 +651,23 @@ const createTemplateMutation = useMutation({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                          {templatesData?.data.map((template) => {
-                            const cat = categoryStyles[template.category] || categoryStyles.MARKETING;
-                            const CatIcon = cat.icon;
+                          {templatesList.map((template: any) => {
+                            const cat = categoryStyles[template.category?.toUpperCase() || "MARKETING"] || categoryStyles.MARKETING;
+                            const CatIcon = cat?.icon || Megaphone;
                             const MediaIcon = getMediaIcon(template.mediaType);
                             const buttons = extractButtons(template);
+                            const statusUpper = (template.status || "PENDING").toUpperCase();
+                            const createdAtStr = template.createdAt
+                              ? (() => {
+                                  try {
+                                    const d = new Date(template.createdAt);
+                                    return isNaN(d.getTime()) ? "-" : d.toLocaleDateString();
+                                  } catch {
+                                    return "-";
+                                  }
+                                })()
+                              : "-";
+
                             return (
                             <tr
                               key={template.id}
@@ -649,29 +676,29 @@ const createTemplateMutation = useMutation({
                               <td className="py-3 px-4 text-sm text-gray-900 font-medium">
                                 <div className="flex items-center gap-1.5">
                                   {MediaIcon && <MediaIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
-                                  <span className="truncate max-w-[200px]">{template.name}</span>
+                                  <span className="truncate max-w-[200px]">{template.name || "Untitled"}</span>
                                 </div>
                               </td>
                               <td className="py-3 px-4 text-sm text-gray-700">
                                 {template?.createdByName?.trim() || "-"}
                               </td>
                               <td className="py-3 px-4 text-sm">
-                                <Badge variant="outline" className={`text-[11px] ${cat.className}`}>
+                                <Badge variant="outline" className={`text-[11px] ${cat?.className || ""}`}>
                                   <CatIcon className="w-3 h-3 mr-1" />
-                                  {cat.label}
+                                  {cat?.label || "Marketing"}
                                 </Badge>
                               </td>
                               <td className="py-3 px-4">
                                 <Badge className={`text-xs border-0 ${
-                                    template.status.toLowerCase() === "approved"
+                                    statusUpper === "APPROVED"
                                       ? "bg-green-500 text-white hover:bg-green-600"
-                                      : template.status.toLowerCase() === "rejected"
+                                      : statusUpper === "REJECTED"
                                       ? "bg-red-500 text-white hover:bg-red-600"
-                                      : template.status.toLowerCase() === "pending"
+                                      : statusUpper === "PENDING"
                                       ? "bg-yellow-500 text-white hover:bg-yellow-600"
                                       : "bg-gray-500 text-white hover:bg-gray-600"
                                   }`}>
-                                  {template.status.toUpperCase()}
+                                  {statusUpper}
                                 </Badge>
                               </td>
                               <td className="py-3 px-4 text-sm text-gray-600">
@@ -681,7 +708,7 @@ const createTemplateMutation = useMutation({
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-sm text-gray-700 max-w-xs truncate">
-                                {template.body}
+                                {template.body || "-"}
                               </td>
                               <td className="py-3 px-4">
                                 {buttons.length > 0 ? (
@@ -701,7 +728,7 @@ const createTemplateMutation = useMutation({
                                 )}
                               </td>
                               <td className="py-3 px-4 text-sm text-gray-600">
-                                {new Date(template.createdAt).toLocaleDateString()}
+                                {createdAtStr}
                               </td>
                             </tr>
                             );
@@ -712,39 +739,51 @@ const createTemplateMutation = useMutation({
 
                     {/* Mobile Card View */}
                     <div className="lg:hidden space-y-4">
-                      {templatesData?.data.map((template) => {
-                        const cat = categoryStyles[template.category] || categoryStyles.MARKETING;
-                        const CatIcon = cat.icon;
+                      {templatesList.map((template: any) => {
+                        const cat = categoryStyles[template.category?.toUpperCase() || "MARKETING"] || categoryStyles.MARKETING;
+                        const CatIcon = cat?.icon || Megaphone;
                         const MediaIcon = getMediaIcon(template.mediaType);
                         const buttons = extractButtons(template);
+                        const statusUpper = (template.status || "PENDING").toUpperCase();
+                        const createdAtStr = template.createdAt
+                          ? (() => {
+                              try {
+                                const d = new Date(template.createdAt);
+                                return isNaN(d.getTime()) ? "-" : d.toLocaleDateString();
+                              } catch {
+                                return "-";
+                              }
+                            })()
+                          : "-";
+
                         return (
                         <Card key={template.id} className="overflow-hidden">
                           <CardContent className="p-4">
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex-1 min-w-0">
                                 <h3 className="font-semibold text-gray-900 mb-1 truncate">
-                                  {template.name}
+                                  {template.name || "Untitled"}
                                 </h3>
                                 <p className="text-sm text-gray-600">
                                   {template?.createdByName?.trim() || "Unknown"}
                                 </p>
                               </div>
                               <Badge className={`text-xs ml-2 flex-shrink-0 border-0 ${
-                                  template.status.toLowerCase() === "approved"
+                                  statusUpper === "APPROVED"
                                     ? "bg-green-500 text-white hover:bg-green-600"
-                                    : template.status.toLowerCase() === "rejected"
+                                    : statusUpper === "REJECTED"
                                     ? "bg-red-500 text-white hover:bg-red-600"
-                                    : template.status.toLowerCase() === "pending"
+                                    : statusUpper === "PENDING"
                                     ? "bg-yellow-500 text-white hover:bg-yellow-600"
                                     : "bg-gray-500 text-white hover:bg-gray-600"
                                 }`}>
-                                {template.status.toUpperCase()}
+                                {statusUpper}
                               </Badge>
                             </div>
                             <div className="flex flex-wrap gap-2 mb-3 pb-3 border-b">
-                              <Badge variant="outline" className={`text-[11px] ${cat.className}`}>
+                              <Badge variant="outline" className={`text-[11px] ${cat?.className || ""}`}>
                                 <CatIcon className="w-3 h-3 mr-1" />
-                                {cat.label}
+                                {cat?.label || "Marketing"}
                               </Badge>
                               <span className="inline-flex items-center text-[11px] text-gray-500">
                                 <Globe className="w-3 h-3 mr-0.5" />
@@ -759,7 +798,7 @@ const createTemplateMutation = useMutation({
                             </div>
                             <div className="mb-3">
                               <p className="text-sm text-gray-700 line-clamp-3">
-                                {template.body}
+                                {template.body || "-"}
                               </p>
                             </div>
                             {buttons.length > 0 && (
@@ -776,7 +815,7 @@ const createTemplateMutation = useMutation({
                               </div>
                             )}
                             <div className="text-xs text-gray-400">
-                              {new Date(template.createdAt).toLocaleDateString()}
+                              {createdAtStr}
                             </div>
                           </CardContent>
                         </Card>
@@ -848,7 +887,7 @@ const createTemplateMutation = useMutation({
                   </>
                 ) : (
                   <TemplatesTable
-                    templates={templatesData?.data || []}
+                    templates={templatesList}
                     onViewTemplate={setSelectedTemplate}
                     onEditTemplate={handleEditTemplate}
                     onDuplicateTemplate={handleDuplicateTemplate}

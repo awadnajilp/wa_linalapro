@@ -133,33 +133,43 @@ export function TemplatesTable({
   onDeleteTemplate,
 }: TemplatesTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
-
   const { user } = useAuth();
 
-  const filteredTemplates = templates.filter((template) => {
-    const query = searchQuery.toLowerCase();
+  const list = Array.isArray(templates)
+    ? templates
+    : (templates as any)?.data && Array.isArray((templates as any).data)
+    ? (templates as any).data
+    : [];
+
+  const filteredTemplates = list.filter((template: any) => {
+    if (!template) return false;
+    const query = (searchQuery || "").toLowerCase();
+    const name = (template.name || "").toLowerCase();
+    const body = (template.body || "").toLowerCase();
+    const category = (template.category || "").toLowerCase();
     return (
-      template.name.toLowerCase().includes(query) ||
-      template.body.toLowerCase().includes(query) ||
-      template.category.toLowerCase().includes(query)
+      name.includes(query) ||
+      body.includes(query) ||
+      category.includes(query)
     );
   });
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status?: string) => {
+    const statusUpper = (status || "PENDING").toUpperCase();
     const statusConfig: Record<string, { className: string }> = {
       APPROVED: { className: "bg-green-50 text-green-700 border-green-200" },
       PENDING: { className: "bg-yellow-50 text-yellow-700 border-yellow-200" },
       REJECTED: { className: "bg-red-50 text-red-700 border-red-200" },
     };
-    const config = statusConfig[status] || statusConfig.PENDING;
+    const config = statusConfig[statusUpper] || statusConfig.PENDING;
     return (
       <Badge variant="outline" className={config.className}>
-        {status}
+        {statusUpper}
       </Badge>
     );
   };
 
-  if (templates.length === 0) {
+  if (list.length === 0) {
     return (
       <EmptyState
         icon={FileText}
@@ -189,12 +199,25 @@ export function TemplatesTable({
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredTemplates.map((template) => {
-            const cat = categoryConfig[template.category] || categoryConfig.MARKETING;
-            const CatIcon = cat.icon;
+          {filteredTemplates.map((template: any) => {
+            const cat =
+              categoryConfig[template.category?.toUpperCase() || "MARKETING"] ||
+              categoryConfig.MARKETING;
+            const CatIcon = cat?.icon || Megaphone;
             const MediaIcon = getMediaIcon(template.mediaType);
             const buttons = getButtonsFromTemplate(template);
             const langLabel = getLanguageLabel(template.language);
+
+            const createdAtStr = template.createdAt
+              ? (() => {
+                  try {
+                    const d = new Date(template.createdAt);
+                    return isNaN(d.getTime()) ? "-" : format(d, "MMM d, yyyy");
+                  } catch {
+                    return "-";
+                  }
+                })()
+              : "-";
 
             return (
               <div
@@ -205,12 +228,12 @@ export function TemplatesTable({
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-sm truncate text-gray-900">
-                      {template.name}
+                      {template.name || "Untitled Template"}
                     </h3>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <Badge variant="outline" className={`text-[11px] px-1.5 py-0 ${cat.className}`}>
+                      <Badge variant="outline" className={`text-[11px] px-1.5 py-0 ${cat?.className || ""}`}>
                         <CatIcon className="w-3 h-3 mr-1" />
-                        {cat.label}
+                        {cat?.label || "Marketing"}
                       </Badge>
                       <span className="inline-flex items-center text-[11px] text-gray-500">
                         <Globe className="w-3 h-3 mr-0.5" />
@@ -271,7 +294,7 @@ export function TemplatesTable({
                     </p>
                   )}
                   <p className="text-sm text-gray-600 line-clamp-3">
-                    {template.body}
+                    {template.body || "-"}
                   </p>
                   {template.footer && (
                     <p className="text-xs text-gray-400 italic">{template.footer}</p>
@@ -297,9 +320,7 @@ export function TemplatesTable({
                 )}
 
                 <div className="mt-3 pt-2.5 border-t text-xs text-gray-400 flex items-center justify-between">
-                  <span>
-                    {format(new Date(template.createdAt), "MMM d, yyyy")}
-                  </span>
+                  <span>{createdAtStr}</span>
                   {buttons.length > 0 && (
                     <span className="text-gray-400">
                       {buttons.length} button{buttons.length > 1 ? "s" : ""}

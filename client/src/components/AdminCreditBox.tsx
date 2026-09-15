@@ -26,13 +26,16 @@ export function AdminCreditBox() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
 
+  const targetSubscriptionUserId =
+    user?.role === "team" && user?.createdBy ? user.createdBy : user?.id;
+
   const { data: activeplandata, isLoading } = useQuery<SubscriptionResponse>({
-    queryKey: [`api/subscriptions/user/${user?.id}`],
+    queryKey: [`/api/subscriptions/user/${targetSubscriptionUserId}`],
     queryFn: () =>
-      apiRequest("GET", `api/subscriptions/user/${user?.id}`).then((res) =>
+      apiRequest("GET", `/api/subscriptions/user/${targetSubscriptionUserId}`).then((res) =>
         res.json()
       ),
-    enabled: !!user?.id,
+    enabled: !!targetSubscriptionUserId,
   });
 
   const activePlans =

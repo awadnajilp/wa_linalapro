@@ -96,9 +96,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     data: userPlans,
     isLoading: isUserPlansLoading
   } = useQuery<SubscriptionResponse>({
-    queryKey: [`api/subscriptions/user/${targetSubscriptionUserId}`],
+    queryKey: [`/api/subscriptions/user/${targetSubscriptionUserId}`],
     queryFn: () =>
-      apiRequest("GET", `api/subscriptions/user/${targetSubscriptionUserId}`).then((res) =>
+      apiRequest("GET", `/api/subscriptions/user/${targetSubscriptionUserId}`).then((res) =>
         res.json()
       ),
     enabled: !!targetSubscriptionUserId,

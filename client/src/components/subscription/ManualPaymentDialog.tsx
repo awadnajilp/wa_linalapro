@@ -191,7 +191,7 @@ export const ManualPaymentDialog: React.FC<ManualPaymentDialogProps> = ({
         description:
           "Your manual renewal request is under review by the admin. Your account will be activated once verified.",
       });
-      queryClient.invalidateQueries({ queryKey: [`api/subscriptions/user/${user?.id}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/subscriptions/user/${user?.id}`] });
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions/manual-payment-requests"] });
       onOpenChange(false);
     },

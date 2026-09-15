@@ -43,11 +43,12 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined
 ): Promise<Response> {
+  const normalizedUrl = url.startsWith("/") || url.startsWith("http") ? url : `/${url}`;
   const headers: any = data
     ? { "Content-Type": "application/json" }
     : {};
 
-  const res = await fetch(url, {
+  const res = await fetch(normalizedUrl, {
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,

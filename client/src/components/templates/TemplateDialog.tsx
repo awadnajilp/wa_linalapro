@@ -79,6 +79,7 @@ import {
 } from "lucide-react";
 import type { Template } from "@shared/schema";
 import { useAuth } from "@/contexts/auth-context";
+import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import {

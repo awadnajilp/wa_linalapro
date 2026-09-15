@@ -76,6 +76,9 @@ import {
   Clipboard,
   Timer,
   Wrench,
+  Sparkles,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import type { Template } from "@shared/schema";
 import { useAuth } from "@/contexts/auth-context";

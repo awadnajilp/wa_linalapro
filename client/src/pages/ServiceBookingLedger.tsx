@@ -3023,7 +3023,7 @@ export default function ServiceBookingLedger() {
               <div className="space-y-0.5">
                 <Label className="text-xs font-semibold">Enable Keyword Direct Trigger</Label>
                 <p className="text-[10px] text-gray-500">
-                  Allow customers to jump directly into booking this service by typing &quot;{serviceForm.triggerKeyword || keyword}&quot;
+                  Allow customers to jump directly into booking this service by typing &quot;{serviceForm.triggerKeyword || "keyword"}&quot;
                 </p>
               </div>
               <Switch

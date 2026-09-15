@@ -89,16 +89,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
 
-const {
+  const targetSubscriptionUserId =
+    user?.role === "team" && user?.createdBy ? user.createdBy : user?.id;
+
+  const {
     data: userPlans,
     isLoading: isUserPlansLoading
   } = useQuery<SubscriptionResponse>({
-    queryKey: [`api/subscriptions/user/${user?.id}`],
+    queryKey: [`api/subscriptions/user/${targetSubscriptionUserId}`],
     queryFn: () =>
-      apiRequest("GET", `api/subscriptions/user/${user?.id}`).then((res) =>
+      apiRequest("GET", `api/subscriptions/user/${targetSubscriptionUserId}`).then((res) =>
         res.json()
       ),
-    enabled: !!user?.id,
+    enabled: !!targetSubscriptionUserId,
   });
 
 

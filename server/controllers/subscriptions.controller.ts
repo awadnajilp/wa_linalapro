@@ -281,11 +281,26 @@ export const getSubscriptionsByUserId = async (
   try {
     const { userId } = req.params;
     const authUser = req.user as any;
+
+    // Resolve target owner ID if requested userId belongs to a team member
+    let targetUserId = userId;
+    const [targetUser] = await db
+      .select({ id: users.id, role: users.role, createdBy: users.createdBy })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (targetUser && targetUser.role === "team" && targetUser.createdBy) {
+      targetUserId = targetUser.createdBy;
+    }
+
     if (
       authUser &&
       authUser.role !== "superadmin" &&
       userId !== authUser.id &&
-      (authUser.role !== "team" || authUser.createdBy !== userId)
+      targetUserId !== authUser.id &&
+      authUser.createdBy !== userId &&
+      authUser.createdBy !== targetUserId
     ) {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
@@ -304,7 +319,7 @@ export const getSubscriptionsByUserId = async (
       .leftJoin(plans, eq(subscriptions.planId, plans.id))
       .where(
         and(
-          eq(subscriptions.userId, userId),
+          eq(subscriptions.userId, targetUserId),
           eq(subscriptions.status, "active")
         )
       )
@@ -332,11 +347,26 @@ export const getActiveSubscriptionByUserId = async (
   try {
     const { userId } = req.params;
     const authUser = req.user as any;
+
+    // Resolve target owner ID if requested userId belongs to a team member
+    let targetUserId = userId;
+    const [targetUser] = await db
+      .select({ id: users.id, role: users.role, createdBy: users.createdBy })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (targetUser && targetUser.role === "team" && targetUser.createdBy) {
+      targetUserId = targetUser.createdBy;
+    }
+
     if (
       authUser &&
       authUser.role !== "superadmin" &&
       userId !== authUser.id &&
-      (authUser.role !== "team" || authUser.createdBy !== userId)
+      targetUserId !== authUser.id &&
+      authUser.createdBy !== userId &&
+      authUser.createdBy !== targetUserId
     ) {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
@@ -350,7 +380,7 @@ export const getActiveSubscriptionByUserId = async (
       .leftJoin(plans, eq(subscriptions.planId, plans.id))
       .where(
         and(
-          eq(subscriptions.userId, userId),
+          eq(subscriptions.userId, targetUserId),
           eq(subscriptions.status, "active")
         )
       )

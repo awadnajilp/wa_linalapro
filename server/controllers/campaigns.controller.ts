@@ -62,7 +62,7 @@ async function notifyCampaignCompletion(campaignId: string) {
 }
 
 const variableValueSchema = z.object({
-  type: z.enum(["firstName", "lastName", "fullName", "phone", "custom"]),
+  type: z.string().optional(),
   value: z.string().optional(),
 });
 
@@ -78,7 +78,8 @@ const variableMappingSchema = z.object({
   headerType: z.string().optional(),
   expirationTimeMs: z.number().optional(),
   carouselCardMediaIds: z.record(z.string()).optional(),
-}).catchall(variableValueSchema);
+  carouselCards: z.record(z.any()).optional(),
+}).catchall(z.any());
 
 const createCampaignSchema = z.object({
   channelId: z.string(),
@@ -95,10 +96,11 @@ const createCampaignSchema = z.object({
   scheduledAt: z
     .string()
     .datetime({ offset: true, message: "scheduledAt must be a valid ISO 8601 datetime string with a timezone offset (e.g. 2026-04-08T09:30:00.000Z). Bare local datetime strings are not accepted." })
-    .nullable(),
+    .nullable()
+    .optional(),
   contactGroups: z.array(z.string()).optional(),
   csvData: z.array(z.any()).optional(),
-  recipientCount: z.number(),
+  recipientCount: z.number().optional(),
   autoRetry: z.boolean().optional(),
   customMessage: z.string().optional().nullable(),
   mediaUrl: z.string().optional().nullable(),
@@ -785,7 +787,14 @@ export function buildContactComponents(contact: Contact, campaign: any, template
 
   const headerMediaId = campaign.variableMapping?.uploadedMediaId || template.mediaUrl;
   if (headerMediaId && !carouselCards) {
-    const mediaType = (campaign.variableMapping?.headerType || template.mediaType || "image").toLowerCase();
+    let mediaType = (campaign.variableMapping?.headerType || template.headerType || template.mediaType || "image").toLowerCase();
+    if (mediaType === "image" && template.mediaHandle) {
+      if (template.mediaHandle.includes("dmlkZW8") || template.mediaHandle.includes("video") || template.mediaHandle.includes(".mp4")) {
+        mediaType = "video";
+      } else if (template.mediaHandle.includes("cGRm") || template.mediaHandle.includes("document") || template.mediaHandle.includes(".pdf")) {
+        mediaType = "document";
+      }
+    }
     const isUrl = typeof headerMediaId === "string" && headerMediaId.startsWith("http");
     const mediaRef = isUrl ? { link: headerMediaId } : { id: cleanMediaId(headerMediaId) };
 

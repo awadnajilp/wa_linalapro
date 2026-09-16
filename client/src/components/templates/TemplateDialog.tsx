@@ -292,6 +292,7 @@ interface TemplateDialogProps {
   initialDraft?: TemplateDraft | null;
   onDraftSaved?: () => void;
   channelId?: string;
+  existingTemplates?: Template[];
 }
 
 function LanguageSearch({
@@ -433,6 +434,7 @@ export function TemplateDialog({
   initialDraft,
   onDraftSaved,
   channelId,
+  existingTemplates,
 }: TemplateDialogProps) {
   const { user, userPlans } = useAuth();
   const { toast } = useToast();
@@ -452,8 +454,35 @@ export function TemplateDialog({
     enabled: open,
   });
 
+  const effectiveChannelId = channelId || activeChannel?.id;
+
+  const { data: remoteTemplateNames = [] } = useQuery<string[]>({
+    queryKey: ["/api/templates/names", effectiveChannelId],
+    queryFn: async () => {
+      if (!effectiveChannelId) return [];
+      const res = await fetch(`/api/templates?channelId=${effectiveChannelId}&limit=1000`, {
+        credentials: "include",
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+      return list.map((t: any) => (t.name || "").toLowerCase().trim()).filter(Boolean);
+    },
+    enabled: open && !!effectiveChannelId && !template,
+  });
+
+  const allExistingNames = useMemo(() => {
+    const names = new Set<string>();
+    (existingTemplates || []).forEach((t) => {
+      if (t.name) names.add(t.name.toLowerCase().trim());
+    });
+    remoteTemplateNames.forEach((n) => names.add(n.toLowerCase().trim()));
+    return names;
+  }, [existingTemplates, remoteTemplateNames]);
+
   const isUtilityHelperEnabled = useMemo(() => {
-    const hasPlanPermission = user?.role === "superadmin" || userPlans?.data?.some(
+    const plansList = Array.isArray(userPlans) ? userPlans : (userPlans as any)?.data || [];
+    const hasPlanPermission = user?.role === "superadmin" || plansList.some(
       (d: any) => d.subscription?.status === "active" && d.subscription?.planData?.permissions?.utilityCategoryHelperEnabled === "true"
     );
     const isCloudApi = activeChannel?.connectionMethod !== "qr_code";
@@ -490,6 +519,14 @@ export function TemplateDialog({
       authSignatureHash: "",
     },
   });
+
+  const watchedTemplateName = form.watch("name");
+  const isNameDuplicate = useMemo(() => {
+    if (template) return false;
+    const name = (watchedTemplateName || "").toLowerCase().trim();
+    if (!name) return false;
+    return allExistingNames.has(name);
+  }, [template, watchedTemplateName, allExistingNames]);
 
   const {
     fields: buttonFields,
@@ -972,6 +1009,30 @@ export function TemplateDialog({
   };
 
   const handleSubmit = (data: TemplateFormData) => {
+    const rawName = (data.name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_]/g, "");
+
+    if (!rawName) {
+      form.setError("name", { message: "Template name is required" });
+      return;
+    }
+    data.name = rawName;
+
+    if (!template && allExistingNames.has(rawName)) {
+      form.setError("name", {
+        message: `A template named "${rawName}" already exists for this channel. Template names must be unique.`,
+      });
+      toast({
+        title: "Duplicate Template Name",
+        description: `A template named "${rawName}" already exists. Please choose a different name.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (data.category !== "AUTHENTICATION" && !data.body?.trim()) {
       form.setError("body", { message: "Message body is required" });
       return;
@@ -1460,13 +1521,26 @@ export function TemplateDialog({
                           <Input
                             placeholder="welcome_message"
                             {...field}
+                            value={field.value || ""}
+                            onChange={(e) => {
+                              const formatted = e.target.value
+                                .toLowerCase()
+                                .replace(/\s+/g, "_")
+                                .replace(/[^a-z0-9_]/g, "");
+                              field.onChange(formatted);
+                            }}
                             disabled={!!template}
                           />
                         </FormControl>
                         <FormDescription>
-                          Use lowercase letters, numbers, and underscores
-                          only
+                          Use lowercase letters, numbers, and underscores only. Spaces are automatically replaced with underscores.
                         </FormDescription>
+                        {isNameDuplicate && !template && (
+                          <p className="text-sm font-medium text-destructive flex items-center gap-1.5 mt-1">
+                            <AlertCircle className="w-4 h-4 shrink-0" />
+                            A template named &quot;{watchedTemplateName}&quot; already exists. Template names must be unique.
+                          </p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -2974,7 +3048,7 @@ export function TemplateDialog({
               <Button
                 type="submit"
                 disabled={
-                  user?.username === "demouser" ? true : isSubmitting
+                  user?.username === "demouser" || isSubmitting || (!template && isNameDuplicate)
                 }
               >
                 {isSubmitting

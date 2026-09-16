@@ -358,7 +358,30 @@ export class WhatsAppApiService {
       if (!response.ok) {
         const error = await response.json();
         console.error("❌ WhatsApp API Error Response:", JSON.stringify(error, null, 2));
-        throw new Error(error.error?.message || "Failed to create template");
+        const metaError = error.error || {};
+        let userFriendlyMsg =
+          metaError.error_user_msg ||
+          metaError.message ||
+          "Failed to create template";
+
+        const isDuplicateName =
+          metaError.error_subcode === 2388040 ||
+          /already exists/i.test(userFriendlyMsg) ||
+          (/param name/i.test(userFriendlyMsg) && /exists/i.test(userFriendlyMsg)) ||
+          (/name/i.test(metaError.error_user_title || "") && /exists/i.test(metaError.error_user_title || ""));
+
+        if (isDuplicateName) {
+          userFriendlyMsg =
+            metaError.error_user_msg ||
+            `A template with the name '${templateData.name}' already exists in your WhatsApp Business Account. Please choose a different name.`;
+        } else if (/^\(#\d+\)\s*/i.test(userFriendlyMsg)) {
+          userFriendlyMsg = userFriendlyMsg.replace(/^\(#\d+\)\s*/i, "");
+        }
+
+        const customErr: any = new Error(userFriendlyMsg);
+        customErr.statusCode = response.status || 400;
+        customErr.metaError = metaError;
+        throw customErr;
       }
   
       return await response.json();

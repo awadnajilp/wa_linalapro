@@ -919,6 +919,7 @@ const createTemplateMutation = useMutation({
           }
         }}
         template={editingTemplate}
+        existingTemplates={templatesList}
         onSubmit={(data) => createTemplateMutation.mutate(data)}
         isSubmitting={createTemplateMutation.isPending}
         initialDraft={activeDraft}

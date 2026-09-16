@@ -1308,16 +1308,28 @@ app.post(
         originalname
       );
 
+      const existingTemplate = await storage.getTemplate(templateId);
+      let detectedMediaType = existingTemplate?.mediaType || "image";
+      const mimeLower = mimetype.toLowerCase();
+      if (mimeLower.startsWith("video/")) {
+        detectedMediaType = "video";
+      } else if (mimeLower.startsWith("application/") || mimeLower.includes("pdf")) {
+        detectedMediaType = "document";
+      } else if (mimeLower.startsWith("image/")) {
+        detectedMediaType = "image";
+      }
+
       // ✅ Template update
       await storage.updateTemplate(templateId, {
         mediaUrl: mediaId,
-        mediaType: "image",
+        mediaType: detectedMediaType,
       });
 
       return res.json({
         success: true,
         mediaId,
-        message: "Image uploaded and saved to template successfully",
+        mediaType: detectedMediaType,
+        message: "Media uploaded and saved to template successfully",
       });
     } catch (error: any) {
       console.error("❌ Image upload error:", error);

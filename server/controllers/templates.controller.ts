@@ -236,6 +236,18 @@ export const createTemplate = asyncHandler(
       throw new AppError(400, `Expected ${placeholders.length} sample values, got ${samples.length}`);
     }
 
+    const rawName = validatedTemplate.name || "";
+    const templateName = rawName.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+
+    if (!templateName) {
+      throw new AppError(
+        400,
+        "Template name is required and can only contain lowercase letters, numbers, and underscores"
+      );
+    }
+
+    validatedTemplate.name = templateName;
+
     const channelId = validatedTemplate.channelId;
     if (!channelId) throw new AppError(400, "channelId is required");
 
@@ -244,6 +256,15 @@ export const createTemplate = asyncHandler(
 
     const channel = await storage.getChannel(channelId);
     if (!channel) throw new AppError(404, "Channel not found");
+
+    // Check if template name already exists for this channel
+    const existingInDb = await storage.getTemplateByNameAndChannel(templateName, channelId);
+    if (existingInDb) {
+      throw new AppError(
+        400,
+        `A template named "${templateName}" already exists for this channel. Please choose a different name.`
+      );
+    }
 
     if (category === "UTILITY" && channel.connectionMethod !== "qr_code") {
       const hasPermission = await checkUtilityHelperPermission(createdBy);
@@ -614,12 +635,34 @@ export const createTemplate = asyncHandler(
 
       return res.json(template);
     } catch (err: any) {
-      const errorMsg = err?.response?.data?.error?.error_user_msg
-        || err?.response?.data?.error?.message
-        || err?.message
-        || "Template creation failed";
+      const statusCode =
+        err?.statusCode ||
+        err?.status ||
+        (err instanceof AppError ? err.statusCode : 400);
 
-      return res.status(500).json({
+      let errorMsg =
+        err?.metaError?.error_user_msg ||
+        err?.response?.data?.error?.error_user_msg ||
+        err?.metaError?.message ||
+        err?.response?.data?.error?.message ||
+        err?.message ||
+        "Template creation failed";
+
+      const isDuplicate =
+        err?.metaError?.error_subcode === 2388040 ||
+        /already exists/i.test(errorMsg) ||
+        (/param name/i.test(errorMsg) && /exists/i.test(errorMsg)) ||
+        (/name/i.test(err?.metaError?.error_user_title || "") && /exists/i.test(err?.metaError?.error_user_title || ""));
+
+      if (isDuplicate) {
+        errorMsg =
+          err?.metaError?.error_user_msg ||
+          `A template with the name '${validatedTemplate.name}' already exists in your WhatsApp Business Account. Please choose a different name.`;
+      } else if (/^\(#\d+\)\s*/i.test(errorMsg)) {
+        errorMsg = errorMsg.replace(/^\(#\d+\)\s*/i, "");
+      }
+
+      return res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 400).json({
         success: false,
         message: errorMsg,
         error: err.message,

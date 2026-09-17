@@ -497,6 +497,7 @@ export default function Sidebar() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const isSuper = user?.role === "superadmin";
   const isManager = user?.role === "manager";
+  const isAccountant = user?.role === "accountant";
   const isAdmin = user?.role === "admin";
   const { toast } = useToast();
 
@@ -851,9 +852,19 @@ export default function Sidebar() {
           )}
 
           <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
-            {isSuper || isManager
+            {isSuper || isManager || isAccountant
               ? sidebarItemsCategories
                   .filter((item) => {
+                    if (isAccountant && !isSuper) {
+                      const accountantAllowedPaths = [
+                        "/dashboard",
+                        "/master-subscriptions",
+                        "/transactions-logs",
+                        "/admin/wallets",
+                        "/support-tickets",
+                      ];
+                      return accountantAllowedPaths.includes(item.path);
+                    }
                     if (isManager && !isSuper) {
                       const managerAllowedPaths = [
                         "/dashboard",
@@ -863,6 +874,7 @@ export default function Sidebar() {
                         "/templates",
                         "/contacts-management",
                         "/master-subscriptions",
+                        "/transactions-logs",
                         "/support-tickets",
                         "/admin/wallets",
                       ];

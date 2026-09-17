@@ -42,9 +42,9 @@ export function userRoutes(app: Express) {
   app.delete("/api/admin/managers/:id", requireAuth, requireRole("superadmin"), deleteUser);
 
   // General tenant users routes
-  app.get("/api/admin/users/export", requireAuth, requireRole("superadmin", "manager"), exportAllUsers);
-  app.get("/api/admin/users", requireAuth, requireRole("superadmin", "manager"), getAllUsers);
-  app.get("/api/admin/users/:id", requireAuth, requireRole("superadmin", "manager"), getUserById);
+  app.get("/api/admin/users/export", requireAuth, requireRole("superadmin", "manager", "accountant"), exportAllUsers);
+  app.get("/api/admin/users", requireAuth, requireRole("superadmin", "manager", "accountant"), getAllUsers);
+  app.get("/api/admin/users/:id", requireAuth, requireRole("superadmin", "manager", "accountant"), getUserById);
   app.post("/api/users/create", createUser);
   app.post("/api/admin/users/create", requireAuth, requireRole("superadmin", "manager"), createUserSuperadmin);
   app.post("/api/users/verifyEmail", verifyEmailOTP);

@@ -444,6 +444,34 @@ const steps: MigrationStep[] = [
       CREATE INDEX IF NOT EXISTS manual_payment_requests_status_idx ON manual_payment_requests (status);
     `,
   },
+  {
+    description: "Create table subscription_renewal_requests (if not exists)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS subscription_renewal_requests (
+        id                     VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id                VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        plan_id                VARCHAR NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+        billing_cycle          VARCHAR NOT NULL DEFAULT 'monthly',
+        amount                 NUMERIC(10, 2) NOT NULL,
+        currency               VARCHAR DEFAULT 'USD',
+        requested_by           VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        requested_at           TIMESTAMP DEFAULT NOW(),
+        request_notes          TEXT,
+        status                 VARCHAR NOT NULL DEFAULT 'pending',
+        approved_by            VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+        approved_at            TIMESTAMP,
+        payment_method         TEXT,
+        payment_description    TEXT,
+        rejection_reason       TEXT,
+        subscription_id        VARCHAR REFERENCES subscriptions(id) ON DELETE SET NULL,
+        created_at             TIMESTAMP DEFAULT NOW(),
+        updated_at             TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS sub_renewal_requests_user_idx ON subscription_renewal_requests (user_id);
+      CREATE INDEX IF NOT EXISTS sub_renewal_requests_status_idx ON subscription_renewal_requests (status);
+      CREATE INDEX IF NOT EXISTS sub_renewal_requests_requested_by_idx ON subscription_renewal_requests (requested_by);
+    `,
+  },
   addColumnIfNotExists(
     "users",
     "round_robin_capacity",

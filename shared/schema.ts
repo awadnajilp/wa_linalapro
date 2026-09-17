@@ -768,6 +768,51 @@ export const manualPaymentRequests = pgTable("manual_payment_requests", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Subscription Renewal Requests table (2-step Manager Request & Accountant Approval)
+export const subscriptionRenewalRequests = pgTable("subscription_renewal_requests", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  planId: varchar("plan_id")
+    .notNull()
+    .references(() => plans.id, { onDelete: "cascade" }),
+  billingCycle: varchar("billing_cycle").notNull().default("monthly"), // "monthly" or "annual"
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: varchar("currency").default("USD"),
+  requestedBy: varchar("requested_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  requestedAt: timestamp("requested_at").defaultNow(),
+  requestNotes: text("request_notes"),
+  status: varchar("status").notNull().default("pending"), // "pending", "approved", "rejected", "cancelled"
+  approvedBy: varchar("approved_by").references(() => users.id, { onDelete: "set null" }),
+  approvedAt: timestamp("approved_at"),
+  paymentMethod: text("payment_method"), // "Bank Transfer", "Cash", "Cheque", "UPI", "Direct Deposit", "Credit Note", "Other"
+  paymentDescription: text("payment_description"), // Details / Reference / Notes from accountant
+  rejectionReason: text("rejection_reason"),
+  subscriptionId: varchar("subscription_id").references(() => subscriptions.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSubscriptionRenewalRequestSchema = createInsertSchema(subscriptionRenewalRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  approvedBy: true,
+  approvedAt: true,
+  paymentMethod: true,
+  paymentDescription: true,
+  rejectionReason: true,
+  subscriptionId: true,
+});
+
+export type SubscriptionRenewalRequest = typeof subscriptionRenewalRequests.$inferSelect;
+export type InsertSubscriptionRenewalRequest = typeof subscriptionRenewalRequests.$inferInsert;
+
 export const ticketStatusEnum = pgEnum("ticket_status", [
   "open",
   "in_progress",
@@ -1439,6 +1484,13 @@ export const DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.CRM_CREATE,
     PERMISSIONS.CRM_EDIT,
     PERMISSIONS.CRM_DELETE,
+  ],
+  accountant: [
+    PERMISSIONS.DASHBOARD_VIEW,
+    PERMISSIONS.DASHBOARD_EXPORT,
+    PERMISSIONS.ANALYTICS_VIEW,
+    PERMISSIONS.ANALYTICS_EXPORT,
+    PERMISSIONS.SETTINGS_VIEW,
   ],
   agent: [
     PERMISSIONS.DASHBOARD_VIEW,

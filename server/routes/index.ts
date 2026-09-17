@@ -39,6 +39,7 @@ import { registerPaymentsRoutes } from "./payment.routes";
 import { registerMessageLogsRoutes } from "./messages.logs.routes";
 import { registerPlansRoutes } from "./plans.routes";
 import { registerSubscriptionsRoutes } from "./subscriptions.routes";
+import { registerRenewalRequestsRoutes } from "./renewal-requests.routes";
 import {userRoutes} from "./user.route"
 import teamRoutes from "./team.routes";
 import authRoutes from "./auth.routes";
@@ -112,6 +113,7 @@ export async function registerRoutes(app: Express, existingServer?: Server): Pro
   registerPaymentsRoutes(app);
   registerTicketsRoutes(app);
   registerSubscriptionsRoutes(app);
+  registerRenewalRequestsRoutes(app);
   registerTrainingRoutes(app);
   registerLanguageRoutes(app);
   registerClientApiRoutes(app);

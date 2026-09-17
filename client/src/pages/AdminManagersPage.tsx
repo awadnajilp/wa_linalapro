@@ -29,6 +29,8 @@ import {
   Shield,
   CheckCircle2,
   XCircle,
+  Receipt,
+  Calculator,
 } from "lucide-react";
 import {
   Dialog,
@@ -53,7 +55,7 @@ interface ManagerUser {
   email: string;
   firstName?: string;
   lastName?: string;
-  role: "superadmin" | "manager";
+  role: "superadmin" | "manager" | "accountant";
   status: "active" | "inactive" | "banned";
   lastLogin?: string;
   createdAt?: string;
@@ -82,7 +84,7 @@ export default function AdminManagersPage() {
     password: "",
     firstName: "",
     lastName: "",
-    role: "manager" as "manager" | "superadmin",
+    role: "manager" as "manager" | "superadmin" | "accountant",
     status: "active" as "active" | "inactive" | "banned",
   });
 
@@ -227,6 +229,7 @@ export default function AdminManagersPage() {
   const totalCount = data?.stats?.total ?? (pagination.total || 0);
   const superadminCount = data?.stats?.superadmins ?? managers.filter((m) => m.role === "superadmin").length;
   const managerCount = data?.stats?.managers ?? managers.filter((m) => m.role === "manager").length;
+  const accountantCount = data?.stats?.accountants ?? managers.filter((m) => m.role === "accountant").length;
   const activeCount = data?.stats?.active ?? managers.filter((m) => m.status === "active").length;
 
   return (
@@ -240,10 +243,10 @@ export default function AdminManagersPage() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-                Superadmin & Manager Team
+                Staff & Manager Team
               </h1>
               <p className="text-sm text-slate-500 mt-0.5">
-                Manage internal administrative staff, managers, and system superadmins.
+                Manage internal administrative staff, managers, accountants, and superadmins.
               </p>
             </div>
           </div>
@@ -257,7 +260,7 @@ export default function AdminManagersPage() {
           className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-xs flex items-center gap-2"
         >
           <UserPlus className="w-4 h-4" />
-          <span>Add Staff / Manager</span>
+          <span>Add Staff Member</span>
         </Button>
       </div>
 
@@ -295,11 +298,11 @@ export default function AdminManagersPage() {
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
           <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-            <CheckCircle2 className="w-5 h-5" />
+            <Receipt className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Active Staff</p>
-            <p className="text-xl font-bold text-slate-900 mt-0.5">{activeCount}</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Accountants</p>
+            <p className="text-xl font-bold text-slate-900 mt-0.5">{accountantCount}</p>
           </div>
         </div>
       </div>
@@ -337,6 +340,7 @@ export default function AdminManagersPage() {
                 <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value="superadmin">Superadmin</SelectItem>
                 <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="accountant">Accountant</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -418,6 +422,11 @@ export default function AdminManagersPage() {
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
                             <Crown className="w-3.5 h-3.5" />
                             Superadmin
+                          </span>
+                        ) : m.role === "accountant" ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <Receipt className="w-3.5 h-3.5" />
+                            Accountant
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
@@ -599,7 +608,7 @@ export default function AdminManagersPage() {
               <Label className="text-xs font-semibold text-slate-700">Assign Role</Label>
               <Select
                 value={formData.role}
-                onValueChange={(val: "manager" | "superadmin") =>
+                onValueChange={(val: "manager" | "superadmin" | "accountant") =>
                   setFormData({ ...formData, role: val })
                 }
               >
@@ -612,7 +621,16 @@ export default function AdminManagersPage() {
                       <Shield className="w-4 h-4 text-blue-600" />
                       <div>
                         <p className="font-semibold text-xs">Manager</p>
-                        <p className="text-[11px] text-slate-400">Can view & manage tenants, wallets, tickets, master data</p>
+                        <p className="text-[11px] text-slate-400">Can view & manage tenants, request plan renewals, wallets</p>
+                      </div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="accountant">
+                    <div className="flex items-center gap-2">
+                      <Receipt className="w-4 h-4 text-emerald-600" />
+                      <div>
+                        <p className="font-semibold text-xs">Accountant</p>
+                        <p className="text-[11px] text-slate-400">Can approve renewal requests, record payments & transaction logs</p>
                       </div>
                     </div>
                   </SelectItem>
@@ -729,7 +747,7 @@ export default function AdminManagersPage() {
                 <Label className="text-xs font-semibold text-slate-700">Role</Label>
                 <Select
                   value={formData.role}
-                  onValueChange={(val: "manager" | "superadmin") =>
+                  onValueChange={(val: "manager" | "superadmin" | "accountant") =>
                     setFormData({ ...formData, role: val })
                   }
                 >
@@ -738,6 +756,7 @@ export default function AdminManagersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="accountant">Accountant</SelectItem>
                     <SelectItem value="superadmin">Superadmin</SelectItem>
                   </SelectContent>
                 </Select>

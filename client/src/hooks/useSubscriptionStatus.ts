@@ -24,16 +24,17 @@ export function useSubscriptionStatus() {
     };
   }
 
-  const isSuperadmin = user?.role === "superadmin";
+  const isSuperadminOrStaff = user?.role === "superadmin" || user?.role === "manager" || user?.role === "accountant";
 
-  if (isSuperadmin) {
+  if (isSuperadminOrStaff) {
+    const roleTitle = user?.role === "manager" ? "Manager" : user?.role === "accountant" ? "Accountant" : "Superadmin";
     return {
       isExpired: false,
       hasActiveSubscription: true,
       isExpiringSoon: false,
       daysLeft: 9999,
       activeSubscription: null,
-      activePlan: { name: "Superadmin Enterprise Unlimited", price: "0" },
+      activePlan: { name: `${roleTitle} Enterprise Unlimited`, price: "0" },
       latestSubscription: null,
       isSuperadmin: true,
       isLoading: false,

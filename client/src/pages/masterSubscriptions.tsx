@@ -32,13 +32,19 @@ import {
   ExternalLink,
   Check,
   Ban,
+  Plus,
+  FileText,
+  Sparkles,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import Header from "@/components/layout/header";
 import { useTranslation } from "@/lib/i18n";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { RenewalRequestsView } from "@/components/subscription/RenewalRequestsView";
+import { NewRenewalRequestDialog } from "@/components/subscription/NewRenewalRequestDialog";
 
 const currencySymbolMap: Record<string, string> = {
   USD: "$",
@@ -136,16 +142,25 @@ interface SubscriptionResponse {
 
 // ------------------- COMPONENT -------------------
 export default function AllSubscriptionsPage() {
+  const { user } = useAuth();
   const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const isSuperadmin = user?.role === "superadmin";
+  const isManager = user?.role === "manager";
+  const isAccountant = user?.role === "accountant";
+  const canRequestRenewal = isSuperadmin || isManager;
+
   const [currentPage, setCurrentPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "active" | "expiring_soon" | "expired" | "cancelled" | "manual_payments">("all");
+  const [activeTab, setActiveTab] = useState<
+    "all" | "active" | "expiring_soon" | "expired" | "cancelled" | "manual_payments" | "renewal_requests"
+  >("all");
   const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
   const [actioningManualId, setActioningManualId] = useState<string | null>(null);
+  const [isNewRenewalOpen, setIsNewRenewalOpen] = useState(false);
 
   const { data, isLoading, isError, error, isFetching } = useQuery<SubscriptionResponse>({
     queryKey: ["subscriptions", currentPage, limit, search, activeTab],
@@ -155,7 +170,14 @@ export default function AllSubscriptionsPage() {
         limit: String(limit),
       });
       if (search.trim()) params.append("search", search.trim());
-      if (activeTab && activeTab !== "all" && activeTab !== "manual_payments") params.append("tab", activeTab);
+      if (
+        activeTab &&
+        activeTab !== "all" &&
+        activeTab !== "manual_payments" &&
+        activeTab !== "renewal_requests"
+      ) {
+        params.append("tab", activeTab);
+      }
 
       const res = await apiRequest("GET", `/api/subscriptions?${params.toString()}`);
       return await res.json();
@@ -171,6 +193,14 @@ export default function AllSubscriptionsPage() {
 
   const manualRequests = Array.isArray(manualRequestsData?.data) ? manualRequestsData.data : [];
   const pendingManualCount = manualRequests.filter((r: any) => r.status === "pending").length;
+
+  // Query renewal requests stats for tab badge
+  const { data: renewalRequestsStatsData } = useQuery<any>({
+    queryKey: ["/api/subscription-renewal-requests", "tab-badge"],
+    queryFn: () => fetch("/api/subscription-renewal-requests?limit=1", { credentials: "include" }).then((res) => res.json()),
+  });
+
+  const pendingRenewalCount = renewalRequestsStatsData?.stats?.pending ?? 0;
 
   // Approve manual payment request mutation
   const approveManualPaymentMutation = useMutation({
@@ -291,7 +321,9 @@ export default function AllSubscriptionsPage() {
     setCurrentPage(1);
   };
 
-  const handleTabChange = (tab: "all" | "active" | "expiring_soon" | "expired" | "cancelled") => {
+  const handleTabChange = (
+    tab: "all" | "active" | "expiring_soon" | "expired" | "cancelled" | "manual_payments" | "renewal_requests"
+  ) => {
     setActiveTab(tab);
     setCurrentPage(1);
   };
@@ -397,12 +429,23 @@ export default function AllSubscriptionsPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {canRequestRenewal && (
+              <Button
+                size="sm"
+                onClick={() => setIsNewRenewalOpen(true)}
+                className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-medium rounded-xl text-xs"
+              >
+                <Plus className="w-4 h-4" />
+                Request Renewal
+              </Button>
+            )}
+
             <Button
               variant="outline"
               size="sm"
               onClick={() => autoRenewalMutation.mutate()}
               disabled={autoRenewalMutation.isPending}
-              className="gap-2 bg-white text-gray-700 hover:bg-gray-100 shadow-sm border-gray-300"
+              className="gap-2 bg-white text-gray-700 hover:bg-gray-100 shadow-sm border-gray-300 rounded-xl text-xs"
             >
               {autoRenewalMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin text-green-600" />
@@ -415,7 +458,7 @@ export default function AllSubscriptionsPage() {
         </div>
 
         {/* Status Tabs with Counters */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 sm:gap-3 mb-6">
           <button
             onClick={() => handleTabChange("all")}
             className={`flex items-center justify-between p-3.5 rounded-xl border text-sm font-medium transition-all ${
@@ -500,6 +543,30 @@ export default function AllSubscriptionsPage() {
             </span>
           </button>
 
+          {/* Renewal Requests Tab (Manager & Accountant Workflow) */}
+          <button
+            onClick={() => handleTabChange("renewal_requests")}
+            className={`flex items-center justify-between p-3.5 rounded-xl border text-sm font-medium transition-all ${
+              activeTab === "renewal_requests"
+                ? "bg-white border-indigo-600 shadow-md ring-2 ring-indigo-600/20 text-gray-900"
+                : "bg-white/80 border-gray-200 hover:bg-white text-gray-600 hover:border-gray-300"
+            }`}
+          >
+            <div className="flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Renewals</span>
+            </div>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                pendingRenewalCount > 0
+                  ? "bg-indigo-600 text-white animate-pulse"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {pendingRenewalCount}
+            </span>
+          </button>
+
           {/* Manual Payments Tab */}
           <button
             onClick={() => handleTabChange("manual_payments")}
@@ -523,48 +590,53 @@ export default function AllSubscriptionsPage() {
           </button>
         </div>
 
-        {/* Search & Filter Toolbar */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="relative w-full sm:max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              placeholder="Search by username, email, plan name, or gateway ID..."
-              value={search}
-              onChange={handleSearchChange}
-              className="pl-9 bg-gray-50/50 border-gray-200 focus:bg-white transition-all text-sm"
-            />
-          </div>
-
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end text-sm text-gray-500">
-            <span>
-              {activeTab === "manual_payments"
-                ? `Showing ${manualRequests.length} receipt requests`
-                : `Showing ${subscriptions.length} of ${total} records`}
-            </span>
-            {(isFetching || isLoadingManualRequests) && (
-              <Loader2 className="w-4 h-4 animate-spin text-green-600" />
-            )}
-          </div>
-        </div>
-
-        {/* MANUAL PAYMENT REQUESTS VIEW */}
-        {activeTab === "manual_payments" ? (
-          isLoadingManualRequests ? (
-            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-gray-200">
-              <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mb-3" />
-              <p className="text-gray-600 text-sm">Loading manual payment receipts...</p>
-            </div>
-          ) : manualRequests.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-              <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto mb-3">
-                <Receipt className="w-6 h-6" />
+        {/* VIEW CONDITIONAL RENDERING */}
+        {activeTab === "renewal_requests" ? (
+          <RenewalRequestsView />
+        ) : (
+          <>
+            {/* Search & Filter Toolbar */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="relative w-full sm:max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Search by username, email, plan name, or gateway ID..."
+                  value={search}
+                  onChange={handleSearchChange}
+                  className="pl-9 bg-gray-50/50 border-gray-200 focus:bg-white transition-all text-sm"
+                />
               </div>
-              <h3 className="text-base font-semibold text-gray-900">No manual payment requests</h3>
-              <p className="text-sm text-gray-500 mt-1">
-                Tenants submitting offline payment receipts will populate here for review and activation.
-              </p>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end text-sm text-gray-500">
+                <span>
+                  {activeTab === "manual_payments"
+                    ? `Showing ${manualRequests.length} receipt requests`
+                    : `Showing ${subscriptions.length} of ${total} records`}
+                </span>
+                {(isFetching || isLoadingManualRequests) && (
+                  <Loader2 className="w-4 h-4 animate-spin text-green-600" />
+                )}
+              </div>
             </div>
-          ) : (
+
+            {/* MANUAL PAYMENT REQUESTS VIEW */}
+            {activeTab === "manual_payments" ? (
+              isLoadingManualRequests ? (
+                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-gray-200">
+                  <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mb-3" />
+                  <p className="text-gray-600 text-sm">Loading manual payment receipts...</p>
+                </div>
+              ) : manualRequests.length === 0 ? (
+                <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+                  <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto mb-3">
+                    <Receipt className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-semibold text-gray-900">No manual payment requests</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Tenants submitting offline payment receipts will populate here for review and activation.
+                  </p>
+                </div>
+              ) : (
             <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50/80">
@@ -979,6 +1051,14 @@ export default function AllSubscriptionsPage() {
             </div>
           </div>
         </div>
+          </>
+        )}
+
+        {/* New Renewal Request Dialog (Manager Step 1) */}
+        <NewRenewalRequestDialog
+          open={isNewRenewalOpen}
+          onOpenChange={setIsNewRenewalOpen}
+        />
       </div>
     </div>
   );

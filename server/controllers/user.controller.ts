@@ -860,9 +860,9 @@ export const getAllManagers = async (req: Request, res: Response) => {
     const requestedRole = req.query.role as string;
     const offset = (page - 1) * limit;
 
-    const roleCondition = requestedRole && (requestedRole === "manager" || requestedRole === "superadmin")
+    const roleCondition = requestedRole && (requestedRole === "manager" || requestedRole === "superadmin" || requestedRole === "accountant")
       ? eq(users.role, requestedRole)
-      : or(eq(users.role, "manager"), eq(users.role, "superadmin"));
+      : or(eq(users.role, "manager"), eq(users.role, "superadmin"), eq(users.role, "accountant"));
 
     const conditions: any[] = [
       roleCondition,
@@ -904,16 +904,18 @@ export const getAllManagers = async (req: Request, res: Response) => {
     const total = Number(totalCountResult[0]?.total ?? 0);
 
     // Global stats for staff
-    const [superadminRes, managerRes, activeRes] = await Promise.all([
+    const [superadminRes, managerRes, accountantRes, activeRes] = await Promise.all([
       db.select({ count: sql<number>`COUNT(*)` }).from(users).where(eq(users.role, "superadmin")),
       db.select({ count: sql<number>`COUNT(*)` }).from(users).where(eq(users.role, "manager")),
-      db.select({ count: sql<number>`COUNT(*)` }).from(users).where(and(or(eq(users.role, "manager"), eq(users.role, "superadmin")), eq(users.status, "active"))),
+      db.select({ count: sql<number>`COUNT(*)` }).from(users).where(eq(users.role, "accountant")),
+      db.select({ count: sql<number>`COUNT(*)` }).from(users).where(and(or(eq(users.role, "manager"), eq(users.role, "superadmin"), eq(users.role, "accountant")), eq(users.status, "active"))),
     ]);
 
     const stats = {
-      total: Number(superadminRes[0]?.count ?? 0) + Number(managerRes[0]?.count ?? 0),
+      total: Number(superadminRes[0]?.count ?? 0) + Number(managerRes[0]?.count ?? 0) + Number(accountantRes[0]?.count ?? 0),
       superadmins: Number(superadminRes[0]?.count ?? 0),
       managers: Number(managerRes[0]?.count ?? 0),
+      accountants: Number(accountantRes[0]?.count ?? 0),
       active: Number(activeRes[0]?.count ?? 0),
     };
 
@@ -963,7 +965,8 @@ export const createManager = async (req: Request, res: Response) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const assignedRole = role === "superadmin" ? "superadmin" : "manager";
+    const assignedRole = role === "superadmin" ? "superadmin" : role === "accountant" ? "accountant" : "manager";
+    const rolePermissions = assignedRole === "accountant" ? (DEFAULT_PERMISSIONS.accountant || defaultPermissions) : defaultPermissions;
 
     const [newManager] = await db
       .insert(users)
@@ -976,7 +979,7 @@ export const createManager = async (req: Request, res: Response) => {
         role: assignedRole,
         isEmailVerified: true,
         status: "active",
-        permissions: defaultPermissions,
+        permissions: rolePermissions,
       })
       .returning();
 
@@ -986,7 +989,7 @@ export const createManager = async (req: Request, res: Response) => {
     res.status(201).json({
       success: true,
       data: safeManager,
-      message: `Superadmin ${assignedRole === "superadmin" ? "Superadmin" : "Manager"} account '${username}' created successfully.`,
+      message: `Staff ${assignedRole.toUpperCase()} account '${username}' created successfully.`,
     });
   } catch (error) {
     console.error("Error creating manager account:", error);

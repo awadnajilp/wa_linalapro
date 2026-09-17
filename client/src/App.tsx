@@ -165,7 +165,7 @@ function PermissionRoute({
   const hasPermission = (permission?: string) => {
     if (!permission) return true;
     if (!user?.permissions) return false;
-    if (user.role === "superadmin" || user.role === "admin") return true;
+    if (user.role === "superadmin" || user.role === "admin" || user.role === "manager" || user.role === "accountant") return true;
 
     const perms = Array.isArray(user.permissions)
       ? user.permissions
@@ -418,13 +418,13 @@ function ProtectedRoutes() {
             <PermissionRoute component={Reports} />
           </Route>
           <Route path="/transactions-logs">
-            <PermissionRoute component={TransactionsPage} requiredRoles={["superadmin"]} />
+            <PermissionRoute component={TransactionsPage} requiredRoles={["superadmin", "accountant", "manager"]} />
           </Route>
           <Route path="/contacts-management">
             <PermissionRoute component={ContactsManagements} requiredRoles={["superadmin", "manager"]} />
           </Route>
           <Route path="/support-tickets">
-            <PermissionRoute component={SupportTicketsNew} requiredRoles={["superadmin", "manager"]} />
+            <PermissionRoute component={SupportTicketsNew} requiredRoles={["superadmin", "manager", "accountant"]} />
           </Route>
           <Route path="/groups">
             <PermissionRoute component={GroupsUI} requiredPermission="groups:view" />
@@ -451,13 +451,13 @@ function ProtectedRoutes() {
             <PermissionRoute component={ChatHub} />
           </Route>
           <Route path="/master-subscriptions">
-            <PermissionRoute component={AllSubscriptionsPage} requiredRoles={["superadmin", "manager"]} />
+            <PermissionRoute component={AllSubscriptionsPage} requiredRoles={["superadmin", "manager", "accountant"]} />
           </Route>
           <Route path="/wallet">
             <PermissionRoute component={WalletPage} requiredRoles={["admin"]} />
           </Route>
           <Route path="/admin/wallets">
-            <PermissionRoute component={AdminWalletsPage} requiredRoles={["superadmin", "manager"]} />
+            <PermissionRoute component={AdminWalletsPage} requiredRoles={["superadmin", "manager", "accountant"]} />
           </Route>
           <Route path="/marketplace">
             <PermissionRoute component={Marketplace} requiredRoles={["admin"]} />

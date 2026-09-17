@@ -796,14 +796,16 @@ async function handleMessageChange(value: any) {
           voiceLanguage = settings.voiceLanguage || settings.sttLanguage || chanSettings.voiceLanguage || chanSettings.sttLanguage || "en-IN";
         }
 
-        if (!voiceProfileId) {
-          const firstProfile = await db.query.voiceProfiles.findFirst();
-          if (firstProfile) {
-            voiceProfileId = firstProfile.id;
-            if (firstProfile.languageCode && voiceLanguage === "en-IN") {
-              voiceLanguage = firstProfile.languageCode as string;
-            }
-          }
+        const isVoiceExplicitlyEnabled = !!(
+          voiceProfileId ||
+          settings.voiceEnabled ||
+          chanSettings.voiceEnabled ||
+          ecomConfig?.voiceEnabled
+        );
+
+        if (!isVoiceExplicitlyEnabled) {
+          console.log(`[STT Webhook Cloud] Voice transcription is disabled by default for channel ${channel.id}. Skipping.`);
+          return;
         }
 
         let ownerUser: any = null;

@@ -22,8 +22,8 @@ export async function requireActiveSubscription(
     });
   }
 
-  // Superadmins are always exempt
-  if (user.role === "superadmin") {
+  // Superadmin, manager, and accountant are always exempt
+  if (user.role === "superadmin" || user.role === "manager" || user.role === "accountant") {
     return next();
   }
 

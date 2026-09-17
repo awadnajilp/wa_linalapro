@@ -314,10 +314,10 @@ const ERROR_MAP: Record<number, WhatsAppErrorInfo> = {
   },
   133006: {
     code: 133006,
-    title: "Credit Line Not Available",
-    description: "No credit line is set up for the WhatsApp Business Account.",
-    suggestion: "Set up a payment method in Meta Business Manager under Billing settings.",
-    category: "billing",
+    title: "Phone Number Re-verification Needed",
+    description: "Phone number OTP verification has expired or needs re-verification on Meta Cloud API.",
+    suggestion: "Go to Settings > WhatsApp Channels and click Reconnect / Re-verify to verify your phone number via Embedded Signup.",
+    category: "registration",
   },
   133008: {
     code: 133008,
@@ -335,9 +335,9 @@ const ERROR_MAP: Record<number, WhatsAppErrorInfo> = {
   },
   133010: {
     code: 133010,
-    title: "Phone Number Blocked",
-    description: "The business phone number has been blocked.",
-    suggestion: "Contact Meta Support to resolve the block on this phone number.",
+    title: "Phone Number Not Registered on Meta",
+    description: "This WhatsApp phone number is not registered or was deregistered on Cloud API.",
+    suggestion: "Go to Settings > WhatsApp Channels and reconnect/re-verify the channel to complete OTP registration with Meta.",
     category: "registration",
   },
   133015: {

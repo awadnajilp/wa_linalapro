@@ -119,6 +119,17 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
   let mediaUrl: string | null = null;
   let mediaMimeType: string | null = null;
   let messageStatus: "sent" | "failed" = "sent";
+  let errorDetails: any = undefined;
+  
+  const buildErrorInfo = (err: any) => ({
+    title: err.metaErrorTitle || err.title || "Message send failed",
+    message: err.message || "Failed to send message via WhatsApp",
+    code: err.metaErrorCode || err.code || null,
+    description: err.enrichedDescription || undefined,
+    suggestion: err.enrichedSuggestion || undefined,
+    category: err.enrichedCategory || undefined,
+    errorData: err.metaErrorDetails ? { details: err.metaErrorDetails } : (err.errorData || null),
+  });
   
   let replyToWaId: string | undefined = undefined;
   let finalMetadata: any = {};
@@ -353,17 +364,23 @@ export const createMessage = asyncHandler(async (req: Request, res: Response) =>
           }
         }
 
-        result = await whatsappApi.sendMediaMessagee(
-          conversation.contactPhone,
-          mediaId || "",
-          messageType as any,
-          caption || content,
-          replyToWaId,
-          isVoiceNote,
-          mediaUrl || undefined,
-          originalName || undefined,
-          mediaMimeType || undefined
-        );
+        try {
+          result = await whatsappApi.sendMediaMessagee(
+            conversation.contactPhone,
+            mediaId || "",
+            messageType as any,
+            caption || content,
+            replyToWaId,
+            isVoiceNote,
+            mediaUrl || undefined,
+            originalName || undefined,
+            mediaMimeType || undefined
+          );
+        } catch (err: any) {
+          console.warn("❌ WhatsApp media URL send failed:", err.message || err);
+          messageStatus = "failed";
+          errorDetails = buildErrorInfo(err);
+        }
         msgBody = caption || `[${messageType}]`;
 
       // MEDIA MESSAGE FROM FILE UPLOAD (blocked if 24-hour window expired)
@@ -484,17 +501,23 @@ if (file.size > MAX_SIZE_MB * 1024 * 1024) {
         else messageType = "document";
 
         // Send media message
-        result = await whatsappApi.sendMediaMessagee(
-          conversation.contactPhone,
-          mediaId,
-          messageType as any,
-          caption || content,
-          replyToWaId,
-          isVoiceNote,
-          mediaUrl || undefined,
-          file.originalname || undefined,
-          mimeType || undefined
-        );
+        try {
+          result = await whatsappApi.sendMediaMessagee(
+            conversation.contactPhone,
+            mediaId,
+            messageType as any,
+            caption || content,
+            replyToWaId,
+            isVoiceNote,
+            mediaUrl || undefined,
+            file.originalname || undefined,
+            mimeType || undefined
+          );
+        } catch (err: any) {
+          console.warn("❌ WhatsApp media upload send failed:", err.message || err);
+          messageStatus = "failed";
+          errorDetails = buildErrorInfo(err);
+        }
         msgBody = caption || `[${messageType}]`;
 
       // PLAIN TEXT (blocked if 24-hour window expired)
@@ -507,6 +530,7 @@ if (file.size > MAX_SIZE_MB * 1024 * 1024) {
         } catch (err: any) {
           console.warn("❌ WhatsApp send failed:", err.message || err);
           messageStatus = "failed";
+          errorDetails = buildErrorInfo(err);
         }
         msgBody = content;
         messageType = "text";
@@ -519,6 +543,7 @@ if (file.size > MAX_SIZE_MB * 1024 * 1024) {
         direction: "outbound",
         content: msgBody,
         status: messageStatus,
+        errorDetails: errorDetails || undefined,
         whatsappMessageId: result?.messages?.[0]?.id,
         messageType,
         type: messageType,

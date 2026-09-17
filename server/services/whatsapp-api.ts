@@ -885,7 +885,22 @@ async sendMessage(
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error?.message || "Failed to send message");
+      const metaErr = error.error || {};
+      const errorCode = metaErr.code;
+      const errorTitle = metaErr.error_user_title || metaErr.title || "";
+      const errorMsg = metaErr.error_user_msg || metaErr.message || "Failed to send message";
+      const errorDetails = metaErr.error_user_msg || metaErr.error_data?.details || metaErr.message || "";
+      const enriched = getWhatsAppError(errorCode);
+      const fullError = [errorTitle, errorMsg].filter(Boolean).join(" - ");
+      const err: any = new Error(fullError || "Failed to send message");
+      err.metaErrorCode = errorCode;
+      err.metaErrorSubcode = metaErr.error_subcode;
+      err.metaErrorTitle = errorTitle || enriched.title;
+      err.metaErrorDetails = errorDetails;
+      err.enrichedDescription = enriched.description;
+      err.enrichedSuggestion = enriched.suggestion;
+      err.enrichedCategory = enriched.category;
+      throw err;
     }
 
     return await response.json();
@@ -2171,7 +2186,22 @@ async sendMediaMessagee(
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error?.message || "Failed to send message");
+      const metaErr = error.error || {};
+      const errorCode = metaErr.code;
+      const errorTitle = metaErr.error_user_title || metaErr.title || "";
+      const errorMsg = metaErr.error_user_msg || metaErr.message || "Failed to send message";
+      const errorDetails = metaErr.error_user_msg || metaErr.error_data?.details || metaErr.message || "";
+      const enriched = getWhatsAppError(errorCode);
+      const fullError = [errorTitle, errorMsg].filter(Boolean).join(" - ");
+      const err: any = new Error(fullError || "Failed to send message");
+      err.metaErrorCode = errorCode;
+      err.metaErrorSubcode = metaErr.error_subcode;
+      err.metaErrorTitle = errorTitle || enriched.title;
+      err.metaErrorDetails = errorDetails;
+      err.enrichedDescription = enriched.description;
+      err.enrichedSuggestion = enriched.suggestion;
+      err.enrichedCategory = enriched.category;
+      throw err;
     }
 
     const data = await response.json();

@@ -34,6 +34,8 @@ rsync -avz \
   --exclude 'node_modules/' \
   --exclude '.env' \
   --exclude 'uploads/' \
+  --exclude 'server/sessions/' \
+  --exclude 'sessions/' \
   --exclude '.git/' \
   --exclude '.DS_Store' \
   -e "ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa_deploy" \
@@ -43,6 +45,7 @@ rsync -avz \
 ### ⚠️ Why this is safe:
 *   `--exclude '.env'`: Protects the production environment variables (database connection string, API keys, webhook secrets).
 *   `--exclude 'uploads/'`: Crucial to prevent deleting or overwriting any user-uploaded media, documents, or campaign assets.
+*   `--exclude 'server/sessions/'`: Protects active WhatsApp QR authentication sessions and encryption keys on the production server from being modified or overwritten by local files.
 *   `--exclude 'node_modules/'`: Prevents transferring local Node modules; the server will compile dependencies matching its own environment.
 
 ---

@@ -798,4 +798,29 @@ app.use((req, res, next) => {
       diployLogger.success(`Worker ${instanceId} skipping cron jobs (not the leader)`);
     }
   });
+
+  // Graceful process shutdown handler (SIGTERM / SIGINT from PM2 / OS)
+  let isShuttingDown = false;
+  const handleShutdown = async (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    diployLogger.warn(`[Shutdown] Received ${signal}. Gracefully closing active sessions and server...`);
+    try {
+      await BaileysManager.gracefulShutdown();
+    } catch (err) {
+      diployLogger.error(`[Shutdown] Error during Baileys shutdown: ${err}`);
+    }
+    httpServer.close(() => {
+      diployLogger.success(`[Shutdown] HTTP server closed cleanly.`);
+      process.exit(0);
+    });
+    // Fallback exit if cleanup takes longer than 4.5s
+    setTimeout(() => {
+      diployLogger.warn(`[Shutdown] Forcing exit after timeout.`);
+      process.exit(0);
+    }, 4500);
+  };
+
+  process.on("SIGTERM", () => handleShutdown("SIGTERM"));
+  process.on("SIGINT", () => handleShutdown("SIGINT"));
 })();

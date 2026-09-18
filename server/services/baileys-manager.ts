@@ -1,11 +1,11 @@
 import makeWASocket, {
   DisconnectReason,
-  useMultiFileAuthState,
   makeCacheableSignalKeyStore,
   delay,
   downloadMediaMessage,
   fetchLatestBaileysVersion
 } from "@whiskeysockets/baileys";
+import { useRobustMultiFileAuthState } from "./baileys-auth-state";
 import pino from "pino";
 import QRCode from "qrcode";
 import fs from "fs";
@@ -63,9 +63,9 @@ export class BaileysManager {
         fs.mkdirSync(sessionsDir, { recursive: true });
       }
 
-      // Initialize auth state
+      // Initialize auth state with atomic file operations and backup self-healing
       const sessionPath = path.join(sessionsDir, channelId);
-      const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+      const { state, saveCreds } = await useRobustMultiFileAuthState(sessionPath);
 
       const logger = pino({ level: "error" });
       const version = await this.getBaileysVersion();
@@ -303,9 +303,11 @@ export class BaileysManager {
             return;
           }
 
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+          const isUnpairedTimeout = !sock.user?.id && (statusCode === 408 || statusCode === DisconnectReason.timedOut);
+          const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+          const shouldReconnect = !isLoggedOut && !isUnpairedTimeout;
 
-          console.log(`[BaileysManager] Session ${channelId} closed. Status code: ${statusCode}. Reconnecting: ${shouldReconnect}`);
+          console.log(`[BaileysManager] Session ${channelId} closed. Status code: ${statusCode}. Reconnecting: ${shouldReconnect} (isUnpairedTimeout: ${isUnpairedTimeout})`);
 
           if (shouldReconnect) {
             // Attempt to reconnect after delay
@@ -319,6 +321,11 @@ export class BaileysManager {
                 console.error(`[BaileysManager] Reconnection failed for ${channelId}:`, err);
               });
             }, 10000);
+          } else if (isUnpairedTimeout) {
+            // Unpaired QR code timed out without being scanned - do not loop forever
+            console.log(`[BaileysManager] Session ${channelId} QR code timed out without being scanned. Halting background reconnect.`);
+            this.qrStates.set(channelId, { status: "expired" });
+            this.activeSockets.delete(channelId);
           } else {
             // Logged out
             console.log(`[BaileysManager] Session ${channelId} logged out. Cleaning up credentials.`);
@@ -1259,6 +1266,21 @@ export class BaileysManager {
     }
   }
 
+  static async gracefulShutdown(): Promise<void> {
+    console.log(`[BaileysManager] Gracefully closing ${this.activeSockets.size} active socket(s)...`);
+    for (const [channelId, sock] of this.activeSockets.entries()) {
+      try {
+        if (sock && typeof sock.end === "function") {
+          sock.end(undefined);
+        }
+      } catch (err) {
+        console.warn(`[BaileysManager] Error closing socket for channel ${channelId}:`, err);
+      }
+    }
+    this.activeSockets.clear();
+    console.log(`[BaileysManager] All active Baileys sockets closed.`);
+  }
+
   static async initAllActiveSessions(): Promise<void> {
     try {
       console.log(`[BaileysManager] Auto-initializing active QR channels...`);
@@ -1275,6 +1297,19 @@ export class BaileysManager {
       console.log(`[BaileysManager] Found ${activeQrChannels.length} active QR channels.`);
       for (const channel of activeQrChannels) {
         try {
+          // Check if session directory or credentials exist before auto-initializing
+          const sessionPath = path.join(process.cwd(), "server/sessions", channel.id);
+          const credsPath = path.join(sessionPath, "creds.json");
+          const bakPath = path.join(sessionPath, "creds.json.bak");
+          
+          const hasCreds = (fs.existsSync(credsPath) && fs.statSync(credsPath).size > 2) ||
+                           (fs.existsSync(bakPath) && fs.statSync(bakPath).size > 2);
+
+          if (!hasCreds) {
+            console.log(`[BaileysManager] Skipping auto-init for channel ${channel.id} (${channel.name}) - no existing authenticated credentials found.`);
+            continue;
+          }
+
           await this.createSession(channel.id, channel.name, channel.phoneNumber || undefined);
         } catch (chErr) {
           console.error(`[BaileysManager] Failed to auto-initialize QR channel ${channel.id}:`, chErr);

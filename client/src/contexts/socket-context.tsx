@@ -29,36 +29,59 @@ const SocketContext = createContext<SocketContextType>({
 
 export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
-    if (!user?.id || socket) return;
+    const userId = user?.id ? String(user.id) : null;
+    const userRole = user?.role ? String(user.role) : "agent";
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const socketInstance = io(window.location.origin, {
-      query: {
-        userId: String(user.id),
-        role: String(user.role || "agent"),
-      },
-      transports: ["websocket"],
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 10000,
-    });
+    if (!userId) {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        setSocket(null);
+      }
+      return;
+    }
 
-    setSocket(socketInstance);
+    // Already connected with this user
+    if (socketRef.current?.connected) {
+      return;
+    }
 
-    socketInstance.on("connect", () => {
-      console.log("🟢 Global socket connected:", socketInstance.id);
-      socketInstance.emit("test_event", { msg: "Hello from client!" });
-    });
+    if (!socketRef.current) {
+      const socketInstance = io(window.location.origin, {
+        query: {
+          userId,
+          role: userRole,
+        },
+        transports: ["websocket", "polling"],
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: Infinity,
+      });
 
-    socketInstance.on("disconnect", () => {
-      console.log("🔴 Global socket disconnected");
-    });
+      socketRef.current = socketInstance;
+      setSocket(socketInstance);
+
+      socketInstance.on("connect", () => {
+        console.log("🟢 Global socket connected:", socketInstance.id);
+        socketInstance.emit("test_event", { msg: "Hello from client!" });
+      });
+
+      socketInstance.on("disconnect", (reason) => {
+        console.log("🔴 Global socket disconnected:", reason);
+      });
+
+      socketInstance.on("connect_error", (err) => {
+        console.warn("⚠️ Global socket connect error:", err.message);
+      });
+    }
 
     return () => {
-      socketInstance.disconnect();
-      setSocket(null);
+      // Don't disconnect on normal re-renders; disconnect only when userId changes or unmounts completely
     };
   }, [user?.id]);
 

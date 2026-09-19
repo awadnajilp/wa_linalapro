@@ -134,29 +134,37 @@ export function registerMediaRoutes(app: Express) {
         const { createDOClient } = await import("../config/digitalOceanConfig");
         const doClient = await createDOClient();
         if (doClient) {
-          const { s3, bucket, endpoint } = doClient;
-          const isOurBucket = asset.url.includes(bucket!) || (endpoint && asset.url.includes(new URL(endpoint).host));
-          if (isOurBucket) {
-            const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+          const { s3, bucket } = doClient;
+          const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+          
+          let fileKey = "";
+          if (asset.url.includes("uploads/")) {
+            fileKey = asset.url.substring(asset.url.indexOf("uploads/"));
+          } else {
             const urlObj = new URL(asset.url);
-            const fileKey = decodeURIComponent(urlObj.pathname.substring(1));
-            
+            fileKey = urlObj.pathname.replace(/^\/+/, "");
+          }
+          fileKey = decodeURIComponent(fileKey.split("?")[0]);
+          
+          try {
             const s3Res = await s3.send(new GetObjectCommand({
               Bucket: bucket!,
               Key: fileKey
             }));
             
             res.set({
-              'Content-Type': asset.mimeType || 'application/octet-stream',
+              'Content-Type': asset.mimeType || s3Res.ContentType || 'application/octet-stream',
               'Cache-Control': 'public, max-age=86400',
             });
             
             const responseBody = s3Res.Body as any;
             return responseBody.pipe(res);
+          } catch (s3Err: any) {
+            console.warn(`[MediaRoutes] Key ${fileKey} not found in DO Spaces:`, s3Err.message);
           }
         }
 
-        // Fallback to redirecting to S3 url if not our bucket
+        // Fallback to redirecting to url
         return res.redirect(asset.url);
       }
 
@@ -276,13 +284,19 @@ export function registerMediaRoutes(app: Express) {
         const { createDOClient } = await import("../config/digitalOceanConfig");
         const doClient = await createDOClient();
         if (doClient) {
-          const { s3, bucket, endpoint } = doClient;
-          const isOurBucket = url.includes(bucket!) || (endpoint && url.includes(new URL(endpoint).host));
-          if (isOurBucket) {
-            const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+          const { s3, bucket } = doClient;
+          const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+          
+          let fileKey = "";
+          if (url.includes("uploads/")) {
+            fileKey = url.substring(url.indexOf("uploads/"));
+          } else {
             const urlObj = new URL(url);
-            const fileKey = decodeURIComponent(urlObj.pathname.substring(1));
-            
+            fileKey = urlObj.pathname.replace(/^\/+/, "");
+          }
+          fileKey = decodeURIComponent(fileKey.split("?")[0]);
+          
+          try {
             const s3Res = await s3.send(new GetObjectCommand({
               Bucket: bucket!,
               Key: fileKey
@@ -302,6 +316,8 @@ export function registerMediaRoutes(app: Express) {
             
             const responseBody = s3Res.Body as any;
             return responseBody.pipe(res);
+          } catch (s3Err: any) {
+            console.warn(`[MediaRoutes preview] Key ${fileKey} not found in DO Spaces:`, s3Err.message);
           }
         }
         

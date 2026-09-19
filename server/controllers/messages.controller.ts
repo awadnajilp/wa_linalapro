@@ -35,39 +35,46 @@ async function downloadFromCloudStorage(url: string): Promise<Buffer> {
     
     const doClient = await createDOClient();
     if (doClient) {
-      const { s3, bucket, endpoint } = doClient;
-      const isOurBucket = url.includes(bucket) || (endpoint && url.includes(new URL(endpoint).host));
+      const { s3, bucket } = doClient;
       
-      if (isOurBucket) {
-        let key = "";
-        if (url.includes(`/${bucket}/`)) {
-          key = url.substring(url.indexOf(`/${bucket}/`) + bucket.length + 2);
-        } else {
-          const parsedUrl = new URL(url);
-          key = parsedUrl.pathname.replace(/^\/+/, "");
-        }
-        key = decodeURIComponent(key);
-        
-        console.log(`[MessagesController] S3 match found! Downloading object from S3: ${key}`);
-        const response = await s3.send(
-          new GetObjectCommand({
-            Bucket: bucket,
-            Key: key,
-          })
-        );
-        if (response.Body) {
-          const byteArray = await response.Body.transformToByteArray();
-          return Buffer.from(byteArray);
+      let key = "";
+      if (url.includes("uploads/")) {
+        key = url.substring(url.indexOf("uploads/"));
+      } else if (url.includes(`/${bucket}/`)) {
+        key = url.substring(url.indexOf(`/${bucket}/`) + bucket.length + 2);
+      } else if (url.startsWith("http://") || url.startsWith("https://")) {
+        const parsedUrl = new URL(url);
+        key = parsedUrl.pathname.replace(/^\/+/, "");
+      } else {
+        key = url.replace(/^\/+/, "");
+      }
+      key = decodeURIComponent(key.split("?")[0]);
+      
+      if (key) {
+        console.log(`[MessagesController] Fetching object from DO Spaces: ${key}`);
+        try {
+          const response = await s3.send(
+            new GetObjectCommand({
+              Bucket: bucket,
+              Key: key,
+            })
+          );
+          if (response.Body) {
+            const byteArray = await response.Body.transformToByteArray();
+            return Buffer.from(byteArray);
+          }
+        } catch (s3Err: any) {
+          console.warn(`[MessagesController] Key ${key} not in DO Spaces bucket:`, s3Err.message);
         }
       }
     }
   } catch (err) {
-    console.error("[MessagesController] Failed to download from S3, falling back to HTTP fetch:", err);
+    console.error("[MessagesController] Failed to download from cloud storage client, falling back to HTTP fetch:", err);
   }
   
   const response = await fetch(url);
   if (!response.ok) {
-    throw new AppError(400, "Failed to download uploaded file from cloud storage");
+    throw new AppError(400, `Failed to download uploaded file from cloud storage (${response.status})`);
   }
   return Buffer.from(await response.arrayBuffer());
 }
@@ -1118,46 +1125,38 @@ export const getMediaProxy = asyncHandler(async (req: Request, res: Response) =>
 
       if (!isMetaMedia) {
         try {
-          const { createDOClient } = await import('../config/digitalOceanConfig');
-          const doClient = await createDOClient();
-          if (doClient) {
-            const { bucket, endpoint } = doClient;
-            const isOurBucket = cloudUrl.includes(bucket) || (endpoint && cloudUrl.includes(new URL(endpoint).host));
-            if (isOurBucket) {
-              console.log("Media proxy: Streaming private S3 media directly:", cloudUrl);
-              const buffer = await downloadFromCloudStorage(cloudUrl);
-              
-              const ext = cloudUrl.split('?')[0].split('.').pop()?.toLowerCase();
-              let inferredMime = message.mediaMimeType;
-              if (!inferredMime || inferredMime === 'application/octet-stream') {
-                if (ext === 'ogg' || ext === 'opus') inferredMime = 'audio/ogg; codecs=opus';
-                else if (ext === 'mp3') inferredMime = 'audio/mpeg';
-                else if (ext === 'm4a') inferredMime = 'audio/mp4';
-                else if (ext === 'wav') inferredMime = 'audio/wav';
-                else if (ext === 'jpg' || ext === 'jpeg') inferredMime = 'image/jpeg';
-                else if (ext === 'png') inferredMime = 'image/png';
-                else if (ext === 'webp') inferredMime = 'image/webp';
-                else if (ext === 'gif') inferredMime = 'image/gif';
-                else if (ext === 'mp4') inferredMime = 'video/mp4';
-                else if (ext === 'pdf') inferredMime = 'application/pdf';
-              }
-              const contentType = inferredMime || 'application/octet-stream';
-              res.set({
-                'Content-Type': contentType,
-                'Cache-Control': 'public, max-age=86400',
-              });
-              if (download === 'true') {
-                const filename = (message.metadata as any)?.originalName || `media_${messageId}`;
-                res.set('Content-Disposition', `attachment; filename="${filename}"`);
-              }
-              return res.send(buffer);
-            }
+          console.log("Media proxy: Streaming cloud media directly:", cloudUrl);
+          const buffer = await downloadFromCloudStorage(cloudUrl);
+          
+          const ext = cloudUrl.split('?')[0].split('.').pop()?.toLowerCase();
+          let inferredMime = message.mediaMimeType;
+          if (!inferredMime || inferredMime === 'application/octet-stream') {
+            if (ext === 'ogg' || ext === 'opus') inferredMime = 'audio/ogg; codecs=opus';
+            else if (ext === 'mp3') inferredMime = 'audio/mpeg';
+            else if (ext === 'm4a') inferredMime = 'audio/mp4';
+            else if (ext === 'wav') inferredMime = 'audio/wav';
+            else if (ext === 'jpg' || ext === 'jpeg') inferredMime = 'image/jpeg';
+            else if (ext === 'png') inferredMime = 'image/png';
+            else if (ext === 'webp') inferredMime = 'image/webp';
+            else if (ext === 'gif') inferredMime = 'image/gif';
+            else if (ext === 'mp4') inferredMime = 'video/mp4';
+            else if (ext === 'pdf') inferredMime = 'application/pdf';
           }
+          const contentType = inferredMime || 'application/octet-stream';
+          res.set({
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=86400',
+          });
+          if (download === 'true') {
+            const filename = (message.metadata as any)?.originalName || `media_${messageId}`;
+            res.set('Content-Disposition', `attachment; filename="${filename}"`);
+          }
+          return res.send(buffer);
         } catch (s3ProxyErr) {
-          console.error("Media proxy: Failed to stream S3 directly:", s3ProxyErr);
+          console.error("Media proxy: Failed to stream cloud media directly:", s3ProxyErr);
         }
 
-        console.log("Media proxy: Redirecting to cloud URL:", cloudUrl);
+        console.log("Media proxy: Redirecting to cloud URL as fallback:", cloudUrl);
         return res.redirect(cloudUrl);
       }
     }

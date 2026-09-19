@@ -985,14 +985,16 @@ export default function Inbox() {
     const tempId = `temp_${Date.now()}`;
     const fileType = file.type.split("/")[0];
     const normalizedType = ["image", "video", "audio"].includes(fileType) ? fileType : "document";
+    const localBlobUrl = ["image", "video", "audio"].includes(fileType) ? URL.createObjectURL(file) : undefined;
 
     const optimisticMsg = {
       id: tempId,
       conversationId: selectedConversation.id,
-      content: file.name,
+      content: messageText || file.name,
       fromUser: true,
       direction: "outbound",
       messageType: normalizedType,
+      mediaUrl: localBlobUrl,
       createdAt: new Date().toISOString(),
       status: "sending",
     };
@@ -1098,6 +1100,7 @@ export default function Inbox() {
       fromUser: true,
       direction: "outbound",
       messageType: normalizedType,
+      mediaUrl: url,
       createdAt: new Date().toISOString(),
       status: "sending",
     };
@@ -1195,6 +1198,7 @@ export default function Inbox() {
 
     setIsMediaSending(true);
     const tempId = `temp_${Date.now()}`;
+    const localVoiceUrl = URL.createObjectURL(file);
 
     const optimisticMsg = {
       id: tempId,
@@ -1203,6 +1207,7 @@ export default function Inbox() {
       fromUser: true,
       direction: "outbound",
       messageType: "audio",
+      mediaUrl: localVoiceUrl,
       createdAt: new Date().toISOString(),
       status: "sending",
     };

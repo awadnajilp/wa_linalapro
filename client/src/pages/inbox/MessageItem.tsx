@@ -136,48 +136,26 @@ function resolveMediaUrls(message: Message) {
 
   const cloudUrl = (message?.metadata as any)?.cloudUrl;
   const isAbsolute = (url?: string) => !!url && /^https?:\/\//i.test(url);
-  const isPrivateCloud = (url?: string) => !!url && (url.includes("amazonaws.com") || url.includes("digitaloceanspaces.com"));
+  const isLegacyS3 = (url?: string) => !!url && url.includes("amazonaws.com");
+  const isMetaCdn = (url?: string) => !!url && (url.includes("fbsbx.com") || url.includes("facebook.com") || url.includes("whatsapp.com"));
 
   const proxyUrl = `/api/messages/media-proxy?messageId=${message.id}`;
   const dlUrl = `/api/messages/media-proxy?messageId=${message.id}&download=true`;
 
-  if (message.mediaId) {
-    const targetUrl = cloudUrl || message.mediaUrl;
+  const targetUrl = cloudUrl || message.mediaUrl;
 
+  if (targetUrl) {
+    // If it's a direct DO Spaces or local upload or blob URL, load directly
     if (
-      targetUrl &&
-      (isAbsolute(targetUrl) || targetUrl.startsWith("/uploads/")) &&
-      !isPrivateCloud(targetUrl) &&
-      !targetUrl.includes("fbsbx.com") &&
-      !targetUrl.includes("facebook.com") &&
-      !targetUrl.includes("whatsapp.com")
+      (isAbsolute(targetUrl) || targetUrl.startsWith("/uploads/") || targetUrl.startsWith("blob:")) &&
+      !isLegacyS3(targetUrl) &&
+      !isMetaCdn(targetUrl)
     ) {
-      return { mediaUrl: targetUrl, downloadUrl: dlUrl };
+      return { mediaUrl: targetUrl, downloadUrl: targetUrl };
     }
-    return { mediaUrl: proxyUrl, downloadUrl: dlUrl };
   }
 
-  if (cloudUrl) {
-    if (isAbsolute(cloudUrl) && !isPrivateCloud(cloudUrl)) {
-      return { mediaUrl: cloudUrl, downloadUrl: cloudUrl };
-    }
-    return {
-      mediaUrl: proxyUrl,
-      downloadUrl: dlUrl,
-    };
-  }
-
-  if (message.mediaUrl) {
-    if (isAbsolute(message.mediaUrl) && !isPrivateCloud(message.mediaUrl)) {
-      return { mediaUrl: message.mediaUrl, downloadUrl: message.mediaUrl };
-    }
-    if (isPrivateCloud(message.mediaUrl)) {
-      return { mediaUrl: proxyUrl, downloadUrl: dlUrl };
-    }
-    return { mediaUrl: message.mediaUrl, downloadUrl: message.mediaUrl };
-  }
-
-  return { mediaUrl: null, downloadUrl: null };
+  return { mediaUrl: proxyUrl, downloadUrl: dlUrl };
 }
 
 const MessageItem = ({

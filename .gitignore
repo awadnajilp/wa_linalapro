@@ -38,3 +38,8 @@ server/sessions/
 *.njsproj
 *.sln
 *.sw?
+# Local storage credentials backup (protected from git leaks)
+STORAGE_CREDENTIALS_BACKUP.md
+migrate-s3-to-do.cjs
+migration_progress.json
+migration.log

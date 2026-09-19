@@ -557,7 +557,7 @@ app.set("trust proxy", 1);
 
 // Custom header-to-cookie middleware to support cross-origin mobile app sessions
 app.use((req, res, next) => {
-  const sessionId = req.headers["x-session-id"];
+  const sessionId = (req.headers["x-session-id"] as string) || (req.query?.sessionId as string);
   if (sessionId) {
     req.headers.cookie = `connect.sid=${sessionId}`;
   }

@@ -1106,7 +1106,7 @@ export const getMediaProxy = asyncHandler(async (req: Request, res: Response) =>
       return res.status(400).json({ error: 'Invalid messageId' });
     }
     const message = await storage.getMessage(messageId);
-    if (!message || !message.mediaId) {
+    if (!message || (!message.mediaId && !message.mediaUrl && !(message.metadata as any)?.cloudUrl)) {
       return res.status(404).json({ error: 'Media not found' });
     }
 
@@ -1126,7 +1126,22 @@ export const getMediaProxy = asyncHandler(async (req: Request, res: Response) =>
             if (isOurBucket) {
               console.log("Media proxy: Streaming private S3 media directly:", cloudUrl);
               const buffer = await downloadFromCloudStorage(cloudUrl);
-              const contentType = message.mediaMimeType || 'application/octet-stream';
+              
+              const ext = cloudUrl.split('?')[0].split('.').pop()?.toLowerCase();
+              let inferredMime = message.mediaMimeType;
+              if (!inferredMime || inferredMime === 'application/octet-stream') {
+                if (ext === 'ogg' || ext === 'opus') inferredMime = 'audio/ogg; codecs=opus';
+                else if (ext === 'mp3') inferredMime = 'audio/mpeg';
+                else if (ext === 'm4a') inferredMime = 'audio/mp4';
+                else if (ext === 'wav') inferredMime = 'audio/wav';
+                else if (ext === 'jpg' || ext === 'jpeg') inferredMime = 'image/jpeg';
+                else if (ext === 'png') inferredMime = 'image/png';
+                else if (ext === 'webp') inferredMime = 'image/webp';
+                else if (ext === 'gif') inferredMime = 'image/gif';
+                else if (ext === 'mp4') inferredMime = 'video/mp4';
+                else if (ext === 'pdf') inferredMime = 'application/pdf';
+              }
+              const contentType = inferredMime || 'application/octet-stream';
               res.set({
                 'Content-Type': contentType,
                 'Cache-Control': 'public, max-age=86400',
